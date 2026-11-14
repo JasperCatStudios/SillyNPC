@@ -1,117 +1,42 @@
 import { eventSource, event_types } from '../../../../events.js';
-import { extension_settings } from '../../../../extensions.js';
 import { getContext } from '../../../../st-context.js';
 import { getSettings } from './settings.js';
-import { getActiveCharacters } from './characters.js';
 import { beatsOfMessage, MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
 import { genderOfFace, genderOfName } from './default-portraits.js';
-
-/** Voice-map names for speakers with no card, by gender. */
-export const GENERIC_VOICES = { female: 'Generic Female', male: 'Generic Male' };
+import { alltalkReady, alltalkVoices, speakWith, stopSpeech } from './alltalk.js';
 
 /**
- * A voice per character, through SillyTavern's own TTS (fork).
+ * A voice per character (fork), spoken through AllTalk directly.
  *
- * The voices are not chosen here. SillyTavern's TTS panel already has a voice map - one
- * dropdown per name, for whichever provider is selected - and this adds every character in
- * the chat to it, so each of them gets a row beside the chat's own. Picking a voice is
- * done there, with the provider's own voice list, and is saved with its other settings.
+ * A character's voice is a voice file chosen on their page and kept on their record. Speakers
+ * with no card are read in a generic voice for their gender, the player in their own, and
+ * anything else in the default - all chosen in the Voices settings.
  *
- * What happens here is who says what. A reply is read by beat: each tagged line goes to
- * its speaker's voice, and the narration between them to the panel's default voice when
- * that is asked for. SillyTavern's own auto-generation reads the whole reply as one
- * speaker, so it is switched off while this one is in charge.
- *
- * All of it rests on three functions the TTS extension does not export unpatched. See
- * patches/st-tts-voice-names.diff. Without the patch this stays quiet rather than failing:
- * ttsStatus() says what is missing.
+ * What happens here is who says what. A reply is read by beat: each tagged line goes to its
+ * speaker's voice. Only "quoted" speech and (thoughts) are read; actions and description never.
+ * Nothing in SillyTavern's own TTS is used, so it can stay off.
  */
 
-const DEFAULT_VOICE = '[Default Voice]';
+/** Settings keys holding the voice file for people who have no card of their own. */
+export const VOICE_KEYS = {
+    female: 'ttsVoiceFemale',
+    male: 'ttsVoiceMale',
+    default: 'ttsVoiceDefault',
+    player: 'ttsVoicePlayer',
+};
 
-/** @type {Promise<object|null>|null} */
-let moduleLoad = null;
-
-/** The TTS extension's module, or null when it is not there or is not the patched one. */
-async function ttsModule() {
-    if (!moduleLoad) {
-        moduleLoad = import('../../../tts/index.js')
-            .then(mod => (typeof mod.speakAs === 'function'
-                && typeof mod.registerVoiceNames === 'function' ? mod : null))
-            .catch(() => null);
-    }
-    return moduleLoad;
-}
-
-/**
- * Whether voices can work, and if not, why in one sentence.
- *
- * @returns {Promise<{ ready: boolean, reason: string }>}
- */
+/** Whether AllTalk answers, and if not, why in one sentence. */
 export async function ttsStatus() {
-    const mod = await ttsModule();
-    if (!mod) {
-        return {
-            ready: false,
-            reason: "SillyTavern's TTS extension is missing the small patch SillyNPC needs "
-                + '(patches/st-tts-voice-names.diff in this extension).',
-        };
-    }
-    if (!extension_settings.tts?.enabled) {
-        return { ready: false, reason: "Enable SillyTavern's TTS under Extensions -> TTS first." };
+    if (!await alltalkReady()) {
+        return { ready: false, reason: 'AllTalk is not answering. Check its address under Voices in the Modules or Writing Rules settings, and that it is running.' };
     }
     return { ready: true, reason: '' };
 }
 
-/**
- * The names that should have a row in the TTS voice map: every character in this chat.
- *
- * @returns {string[]}
- */
-function voiceNames() {
-    return [
-        ...getActiveCharacters().map(char => String(char.name || '').trim()).filter(Boolean),
-        ...Object.values(GENERIC_VOICES),
-    ];
-}
-
-/** The provider's voices, the one mapped to a name, and a way to change it. */
-export async function voiceChoices() {
-    const mod = await ttsModule();
-    return mod && typeof mod.listVoices === 'function' ? mod.listVoices() : [];
-}
-export async function getVoice(name) {
-    const mod = await ttsModule();
-    return mod && typeof mod.getVoiceFor === 'function' ? mod.getVoiceFor(name) : '';
-}
-export async function setVoice(name, voice) {
-    const mod = await ttsModule();
-    if (!mod || typeof mod.setVoiceFor !== 'function') return false;
-    await syncVoiceNames();
-    return mod.setVoiceFor(name, voice);
-}
-
-/** Puts this chat's characters into SillyTavern's voice map. Safe to call as often as you like. */
-export async function syncVoiceNames() {
-    const mod = await ttsModule();
-    if (!mod) return;
-    try {
-        await mod.registerVoiceNames(voiceNames());
-    } catch (err) {
-        console.warn(LOG_PREFIX, 'Could not add characters to the voice map', err);
-    }
-}
-
-/**
- * Whether SillyTavern's own reading of new replies should stand down.
- *
- * Left alone when this is off, so enabling the extension changes nothing until you ask.
- */
-export function applyAutoGenerationHandover() {
-    if (!extension_settings.tts) return;
-    extension_settings.tts.delegate_auto_generation =
-        !!getSettings().ttsAutoSpeak;
+/** The voice files AllTalk offers. */
+export function voiceChoices() {
+    return alltalkVoices();
 }
 
 /**
@@ -142,28 +67,25 @@ export function spokenSegments(beat) {
     return out;
 }
 
-/** Which gender a stranger is: the face they wear, else what their name says. */
-function strangerGender(beat) {
-    const src = beat.avatars?.[0]?.getAttribute?.('src') || '';
-    return genderOfFace(src) || genderOfName(beat.speaker || '');
+/** The voice file for somebody, by their record; '' when none is set. */
+function recordVoice(name) {
+    const char = (getSettings().characters || []).find(c => c.name === name);
+    return String(char?.ttsVoice || '').trim();
 }
 
-/**
- * Which voice-map name reads a beat, or null when it is not to be read.
- *
- * A speaker with a card has a row of their own. One without is read in the generic voice for
- * their gender, or the default voice when that is not known - a line that vanishes from a
- * scene being read aloud is worse than one in an imperfect voice.
- */
-function voiceFor(beat) {
+/** Which voice file reads a beat, or '' when it is not to be read. */
+function voiceForBeat(beat) {
     const settings = getSettings();
-    if (beat.isNarration) return settings.ttsSpeakNarration ? DEFAULT_VOICE : null;
-    if (beat.isPersona) return getContext().name1 || DEFAULT_VOICE;
+    const fallback = String(settings[VOICE_KEYS.default] || '').trim();
+    if (beat.isNarration) return settings.ttsSpeakNarration ? fallback : '';
+    if (beat.isPersona) return String(settings[VOICE_KEYS.player] || '').trim() || fallback;
 
-    const known = new Set(voiceNames());
-    if (known.has(beat.speaker)) return beat.speaker;
-    const gender = strangerGender(beat);
-    return gender ? GENERIC_VOICES[gender] : DEFAULT_VOICE;
+    const own = recordVoice(beat.speaker);
+    if (own) return own;
+    // A stranger: the generic voice for their gender - their face, else what their name says.
+    const src = beat.avatars?.[0]?.getAttribute?.('src') || '';
+    const gender = genderOfFace(src) || genderOfName(beat.speaker || '');
+    return String(settings[VOICE_KEYS[gender]] || '').trim() || fallback;
 }
 
 /**
@@ -178,45 +100,53 @@ export async function speakMessage(mesEl) {
         toastr.info(status.reason, 'SillyNPC');
         return 0;
     }
-    const mod = await ttsModule();
-    mod.stopSpeaking();
+    stopSpeech();
 
     const settings = getSettings();
     let queued = 0;
     for (const beat of beatsOfMessage(mesEl)) {
-        const voice = voiceFor(beat);
+        const voice = voiceForBeat(beat);
         if (!voice) continue;
         for (const segment of spokenSegments(beat)) {
             if (segment.thought && !settings.ttsSpeakThoughts) continue;
-            if (mod.speakAs(voice, segment.text)) queued++;
+            if (speakWith(voice, segment.text)) queued++;
         }
     }
-    if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) found.', 'SillyNPC');
+    if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) with a voice set.', 'SillyNPC');
     debugLog(`Voices: queued ${queued} piece(s)`);
     return queued;
 }
 
-/** Reads one line in a character's voice. For the test button on a card. */
-export async function previewVoice(name, line = 'This is what I sound like.') {
+/** Reads a line in somebody's voice, by name. For the phone and the games. */
+export async function speakNamed(name, text) {
+    const settings = getSettings();
+    const voice = recordVoice(name) || String(settings[VOICE_KEYS.default] || '').trim();
+    if (!voice) {
+        toastr.info(`${name} has no voice yet. Pick one on their SillyNPC page.`, 'SillyNPC');
+        return false;
+    }
+    return speakWith(voice, text);
+}
+
+/** Reads one line in a voice file. For the test buttons. */
+export async function previewVoice(voice, line = 'This is what I sound like.') {
     const status = await ttsStatus();
     if (!status.ready) {
         toastr.info(status.reason, 'SillyNPC');
         return false;
     }
-    const mod = await ttsModule();
-    await syncVoiceNames();
-    mod.stopSpeaking();
-    return mod.speakAs(name, line);
+    if (!voice) {
+        toastr.info('Pick a voice first.', 'SillyNPC');
+        return false;
+    }
+    stopSpeech();
+    return speakWith(voice, line);
 }
-
-/** The last message id that was read automatically, so a redraw does not read it again. */
-let lastSpokenKey = '';
 
 /** A speaker button in the message toolbar: read this message, a voice per speaker. */
 function ensureSpeakButton(mesEl) {
     const toolbar = mesEl?.querySelector?.('.extraMesButtons');
-    const present = toolbar?.querySelector('.sillynpc-speak-btn');
-    if (!toolbar || present) return;
+    if (!toolbar || toolbar.querySelector('.sillynpc-speak-btn')) return;
 
     const btn = document.createElement('div');
     btn.className = 'mes_button sillynpc-speak-btn fa-solid fa-comment-dots';
@@ -228,12 +158,13 @@ function ensureSpeakButton(mesEl) {
     toolbar.insertBefore(btn, toolbar.firstChild);
 }
 
+/** The last message read automatically, so a redraw does not read it again. */
+let lastSpokenKey = '';
+let generationEndedAt = 0;
+
 function onMessageDecorated(mesEl) {
-    const settings = getSettings();
     ensureSpeakButton(mesEl);
-    // Cheap when nothing changed, and this is where a card created from the chat shows up.
-    syncVoiceNames();
-    if (!settings.ttsAutoSpeak) return;
+    if (!getSettings().ttsAutoSpeak) return;
     try {
         const id = Number(mesEl?.getAttribute?.('mesid'));
         const chat = getContext()?.chat;
@@ -253,14 +184,10 @@ function onMessageDecorated(mesEl) {
     }
 }
 
-let generationEndedAt = 0;
-
 /** Wires the events. Called once at start-up. */
 export function initTts() {
     eventSource.on(event_types.GENERATION_ENDED, () => { generationEndedAt = Date.now(); });
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, () => { generationEndedAt = Date.now(); });
     eventSource.on(MESSAGE_RENDERED_EVENT, onMessageDecorated);
-    eventSource.on(event_types.CHAT_CHANGED, () => { syncVoiceNames(); applyAutoGenerationHandover(); });
-    syncVoiceNames();
-    applyAutoGenerationHandover();
+    eventSource.on(event_types.CHAT_CHANGED, () => stopSpeech());
 }

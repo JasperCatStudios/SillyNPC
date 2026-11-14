@@ -33,6 +33,7 @@ import { renderAppearanceView, renderWritingRulesView, renderAdvancedView, rende
 import { renderPromptsView } from './ui-prompts.js';
 import { renderStatsView } from './ui-stats.js';
 import { renderStatusView } from './ui-tracker-settings.js';
+import { renderModulesView } from './ui-modules.js';
 import { renderHudView } from './ui-hud-settings.js';
 import { buildSystemBuilder } from './ui-system-builder.js';
 import { buildSystemManager } from './ui-system-manager.js';
@@ -255,6 +256,8 @@ function renderManageView() {
  */
 function settingsTabs() {
     return [
+        { id: 'modules', label: 'Modules', container: 'sillynpc-modules-view',
+          render: v => renderModulesView(v) },
         { id: 'appearance', label: 'Appearance', container: 'sillynpc-appearance-view',
           render: v => renderAppearanceView(v, reprocessAllMessages, updateManageTheme) },
         { id: 'writing', label: 'Writing Rules', container: 'sillynpc-writing-view',

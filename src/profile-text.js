@@ -1,0 +1,84 @@
+import { eventSource } from '../../../../events.js';
+import { getSettings } from './settings.js';
+import { PROFILE_FIELDS, debugLog } from './constants.js';
+import { readLoreEntry } from './character-fill.js';
+
+/**
+ * What somebody is like, as text, for anything that has to write as them (fork).
+ *
+ * One answer for the whole extension: the phone, the games and whatever comes next all ask
+ * here, so a character is described the same way everywhere and is set up in one place - their
+ * page. In order of say:
+ *
+ *   1. text written for this on their page (`phoneProfile`);
+ *   2. the lorebook entry linked to them, as their personality and profile;
+ *   3. their profile fields.
+ *
+ * Entries are read into memory ahead of time, because the callers ask for text synchronously.
+ * A linked entry that has not been read yet is fetched when first asked for, and 'sillynpc-profile-updated'
+ * is emitted when it arrives so anything that drew without it can draw again.
+ */
+
+export const PROFILE_UPDATED_EVENT = 'sillynpc-profile-updated';
+
+const loreText = new Map();
+const loading = new Set();
+const loreKey = (link) => `${link.world}\u0000${link.uid}`;
+
+/** Reads every linked entry. Call at start-up, on a chat change, and after a link is edited. */
+export async function primeLore() {
+    const next = new Map();
+    for (const char of getSettings().characters || []) {
+        const link = char?.lorebook;
+        if (!link?.world) continue;
+        try {
+            next.set(loreKey(link), String(await readLoreEntry(char) || '').trim());
+        } catch { /* a missing entry simply leaves the profile fields in charge */ }
+    }
+    loreText.clear();
+    for (const [key, value] of next) loreText.set(key, value);
+    await eventSource.emit(PROFILE_UPDATED_EVENT);
+}
+
+/** Fetches one linked entry that is not in memory yet, without making the caller wait. */
+function fetchLater(char) {
+    const key = loreKey(char.lorebook);
+    if (loading.has(key)) return;
+    loading.add(key);
+    readLoreEntry(char)
+        .then(text => { loreText.set(key, String(text || '').trim()); return eventSource.emit(PROFILE_UPDATED_EVENT); })
+        .catch(err => debugLog('Could not read a linked lore entry', err))
+        .finally(() => loading.delete(key));
+}
+
+/** Where the text for a character comes from, in words, for the page that edits it. */
+export function profileSource(char) {
+    if (String(char?.phoneProfile || '').trim()) return 'the text written for it on this page';
+    if (char?.lorebook?.world && loreText.get(loreKey(char.lorebook))) return `their lorebook entry in "${char.lorebook.world}"`;
+    return 'their profile fields';
+}
+
+/**
+ * The text describing somebody.
+ *
+ * @param {object} char A SillyNPC character record.
+ * @returns {string}
+ */
+export function profileText(char) {
+    const own = String(char?.phoneProfile || '').trim();
+    if (own) return own;
+
+    if (char?.lorebook?.world) {
+        const key = loreKey(char.lorebook);
+        const entry = loreText.get(key);
+        if (entry) return entry;
+        if (!loreText.has(key)) fetchLater(char);
+    }
+
+    const profile = char?.profile || {};
+    return PROFILE_FIELDS
+        .map(field => [field.label, String(profile[field.id] ?? '').trim()])
+        .filter(([, value]) => value)
+        .map(([label, value]) => `${label}: ${value}`)
+        .join('\n');
+}

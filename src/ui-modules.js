@@ -1,0 +1,153 @@
+import { renderVoiceSettings } from './ui-character-extras.js';
+
+/**
+ * The Modules tab (fork): one place for everything that rides along with SillyNPC.
+ *
+ * Each borrowed module builds its own settings panel and parks it in SillyTavern's Extensions
+ * list. Here those panels are moved into cards instead, so there is one menu rather than one
+ * per extension, and the Extensions list keeps only SillyNPC. The panels are the modules' own
+ * and keep working as they were; a card only gives them a header, a switch and a place to be.
+ *
+ * Moving a panel is borrowing it: it is put back in a hidden holder when this tab goes away,
+ * because a panel left inside a closed popup is a panel destroyed.
+ */
+
+/** What the manager knows about each module. */
+export const MODULES = [
+    {
+        id: 'phone',
+        name: 'Phone',
+        icon: 'fa-mobile-screen-button',
+        blurb: 'A messenger where your characters text you, and start conversations on their own.',
+        drawer: '.rph-settings',
+        enableBox: '#rph-enabled',
+        content: '#rph-drawer',
+    },
+    {
+        id: 'games',
+        name: 'Games',
+        icon: 'fa-gamepad',
+        blurb: 'Chess, cards, dice and more, played against your characters, in character.',
+        drawer: '.rpg-game-settings',
+        enableBox: '#rpg-game-enabled',
+        content: '.inline-drawer-content',
+    },
+];
+
+/** Where borrowed panels wait while the Modules tab is not open. */
+function holder() {
+    let el = document.getElementById('sillynpc-module-holder');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'sillynpc-module-holder';
+        el.style.display = 'none';
+        document.body.append(el);
+    }
+    return el;
+}
+
+/** Gives every borrowed panel back when the tab is no longer on screen. */
+function returnWhenGone(view, borrowed) {
+    const observer = new MutationObserver(() => {
+        if (view.isConnected) return;
+        observer.disconnect();
+        for (const panel of borrowed) holder().append(panel);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function card({ icon, name, blurb }) {
+    const section = document.createElement('section');
+    section.className = 'sillynpc-card';
+
+    const head = document.createElement('header');
+    head.className = 'sillynpc-card-head';
+    const title = document.createElement('div');
+    title.className = 'sillynpc-card-title';
+    title.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+    const text = document.createElement('div');
+    const strong = document.createElement('b');
+    strong.textContent = name;
+    const small = document.createElement('small');
+    small.className = 'notes';
+    small.textContent = blurb;
+    text.append(strong, small);
+    title.append(text);
+    head.append(title);
+
+    const body = document.createElement('div');
+    body.className = 'sillynpc-card-body';
+    section.append(head, body);
+    return { section, head, body };
+}
+
+/** A switch, as a labelled checkbox. */
+function makeSwitch(checked, onChange) {
+    const label = document.createElement('label');
+    label.className = 'sillynpc-switch';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!checked;
+    input.addEventListener('change', () => onChange(input.checked));
+    const slider = document.createElement('span');
+    slider.className = 'sillynpc-switch-slider';
+    label.append(input, slider);
+    return label;
+}
+
+/**
+ * @param {HTMLElement} view
+ */
+export function renderModulesView(view) {
+    view.replaceChildren();
+
+    const title = document.createElement('h3');
+    title.className = 'sillynpc-section-title';
+    title.textContent = 'Modules';
+    view.append(title);
+
+    const intro = document.createElement('p');
+    intro.className = 'notes sillynpc-tab-intro';
+    intro.textContent = 'Everything that comes with SillyNPC. Switch a module on or off here and set it up '
+        + 'underneath; reload the page after installing or updating one.';
+    view.append(intro);
+
+    // Voices belong to SillyNPC itself rather than to a module, and sit first.
+    const voices = card({ icon: 'fa-volume-high', name: 'Voices', blurb: 'Characters read aloud through AllTalk, a voice each.' });
+    renderVoiceSettings(voices.body);
+    view.append(voices.section);
+
+    // The search index draws every tab offscreen once. Borrowing panels there would take them
+    // away from the real one, so offscreen only the cards are drawn.
+    const live = view.isConnected;
+    const borrowed = [];
+
+    for (const mod of MODULES) {
+        const { section, head, body } = card(mod);
+        const panel = live ? document.querySelector(mod.drawer) : null;
+
+        if (panel) {
+            body.append(panel);
+            borrowed.push(panel);
+            panel.classList.add('sillynpc-module-panel');
+            const box = panel.querySelector(mod.enableBox);
+            if (box) {
+                head.append(makeSwitch(box.checked, (on) => {
+                    box.checked = on;
+                    // jQuery handlers hear a native event, so one dispatch reaches them.
+                    box.dispatchEvent(new Event('change', { bubbles: true }));
+                }));
+                // The card's switch is that checkbox, so the second copy is hidden.
+                (box.closest('label') || box).classList.add('sillynpc-hidden');
+            }
+        } else if (live) {
+            const missing = document.createElement('p');
+            missing.className = 'notes';
+            missing.textContent = 'This module has not loaded. Reload SillyTavern; if it stays missing, '
+                + 'open the browser console and look for "Module" lines from SillyNPC.';
+            body.append(missing);
+        }
+        view.append(section);
+    }
+    if (borrowed.length) returnWhenGone(view, borrowed);
+}

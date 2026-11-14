@@ -1,7 +1,8 @@
 import { getSettings, saveSettings } from './settings.js';
 import { eventSource } from '../../../../events.js';
+import { profileSource, PROFILE_UPDATED_EVENT } from './profile-text.js';
 import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
-import { previewVoice, syncVoiceNames, applyAutoGenerationHandover, voiceChoices, getVoice, setVoice, GENERIC_VOICES } from './tts.js';
+import { previewVoice, voiceChoices, ttsStatus, VOICE_KEYS } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 import { buildSettingSelect } from './ui-shared.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
@@ -97,6 +98,30 @@ export function renderCharacterExtras(char, container) {
             + 'scene, so a prompt it writes describes the same person each time.'),
     );
 
+    // --- Who they are, for the phone and the games ---------------------------------------
+    const profileBox = document.createElement('textarea');
+    profileBox.className = 'text_pole';
+    profileBox.rows = 4;
+    profileBox.placeholder = 'Empty: their linked lorebook entry is used, or else their profile fields';
+    profileBox.value = char.phoneProfile || '';
+    const source = note('');
+    const showSource = () => { source.textContent = `The phone and the games use ${profileSource(char)}.`; };
+    showSource();
+    profileBox.addEventListener('input', () => {
+        char.phoneProfile = profileBox.value;
+        saveSettings();
+        showSource();
+    });
+    // The lorebook link is set in the Lorebook section further down this page; this follows it.
+    eventSource.on(PROFILE_UPDATED_EVENT, showSource);
+    container.append(
+        label('Personality, for the phone and the games'),
+        profileBox,
+        source,
+        note('Link a lorebook entry in the Lorebook section below and it becomes their personality and profile '
+            + 'wherever they are written as. Text here, if any, takes priority.'),
+    );
+
     // --- Phone theme -----------------------------------------------------------------
     const skinRow = document.createElement('div');
     skinRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
@@ -116,18 +141,21 @@ export function renderCharacterExtras(char, container) {
     container.append(skinRow, note('This contact’s thread on the phone uses this skin, tinted with their accent colour. Applies when the phone is in one of its phone skins.'));
 
     // --- Voice -----------------------------------------------------------------------
-    container.append(buildVoicePicker(char.name, 'Voice', `${char.name}. This is what I sound like.`));
+    container.append(buildVoicePicker({
+        label: 'Voice',
+        get: () => char.ttsVoice || '',
+        set: (voice) => { char.ttsVoice = voice; saveSettings(); },
+        sample: `${char.name}. This is what I sound like.`,
+    }));
 }
 
 /**
- * A dropdown of the active TTS provider's voices, bound to one name in SillyTavern's voice map.
+ * A dropdown of the voices AllTalk offers, bound to whatever the caller keeps a voice in.
  *
- * @param {string} name The voice-map name this row controls.
- * @param {string} labelText
- * @param {string} sample What the test button says.
+ * @param {{ label: string, get: () => string, set: (voice: string) => void, sample?: string }} spec
  * @returns {HTMLElement}
  */
-export function buildVoicePicker(name, labelText, sample) {
+export function buildVoicePicker({ label: labelText, get, set, sample = 'This is what I sound like.' }) {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
 
@@ -138,41 +166,118 @@ export function buildVoicePicker(name, labelText, sample) {
     select.append(new Option('Loading voices...', ''));
     row.append(label(labelText), select);
 
-    // Filled from the active provider (AllTalk, ElevenLabs, ...) once it answers.
     (async () => {
-        await syncVoiceNames();
-        const [voices, current] = await Promise.all([voiceChoices(), getVoice(name)]);
+        const voices = await voiceChoices();
         select.replaceChildren();
         if (!voices.length) {
-            select.append(new Option('No voices - enable TTS and apply the patch', ''));
+            select.append(new Option('No voices - is AllTalk running?', ''));
             return;
         }
-        for (const v of ['[Default Voice]', 'disabled', ...voices]) select.append(new Option(v, v));
-        select.value = current || '[Default Voice]';
+        select.append(new Option('- none -', ''));
+        const current = String(get() || '');
+        // A voice that has since left the server stays selectable rather than being lost silently.
+        for (const v of (current && !voices.includes(current)) ? [current, ...voices] : voices) select.append(new Option(v, v));
+        select.value = current;
         select.disabled = false;
     })();
-    select.addEventListener('change', async () => {
-        if (!await setVoice(name, select.value)) {
-            toastr.warning('Could not set the voice. Is the TTS extension enabled?', 'SillyNPC');
-        }
-    });
+    select.addEventListener('change', () => set(select.value));
 
-    row.append(button('fa-volume-high', 'Test voice', () => previewVoice(name, sample)));
+    row.append(button('fa-volume-high', 'Test voice', () => previewVoice(select.value || get(), sample)));
     return row;
 }
 
-/** The two generic voices used by speakers who have no card, chosen by the face they wear. */
+/** The voice somebody with no card is read in, by gender - chosen here and on the Voices card. */
 export function buildStrangerVoices() {
     const wrap = document.createElement('div');
     wrap.className = 'sillynpc-setting';
+    const settings = getSettings();
+    const bind = (key) => ({
+        get: () => settings[key] || '',
+        set: (voice) => { settings[key] = voice; saveSettings(); },
+    });
     wrap.append(
         label('Voices For Strangers'),
         note('A speaker with no card is read in the voice for their gender: the one their face is '
             + 'sorted under, or what their name says (Female Soldier, Old Man). Unsorted ones use the default voice.'),
-        buildVoicePicker(GENERIC_VOICES.female, 'Female', 'Halt. State your business.'),
-        buildVoicePicker(GENERIC_VOICES.male, 'Male', 'Halt. State your business.'),
+        buildVoicePicker({ label: 'Female', ...bind(VOICE_KEYS.female), sample: 'Halt. State your business.' }),
+        buildVoicePicker({ label: 'Male', ...bind(VOICE_KEYS.male), sample: 'Halt. State your business.' }),
     );
     return wrap;
+}
+
+/**
+ * The Voices settings: where AllTalk is, who reads what, and what is read.
+ *
+ * @param {HTMLElement} container
+ */
+export function renderVoiceSettings(container) {
+    const settings = getSettings();
+
+    const intro = document.createElement('p');
+    intro.className = 'notes sillynpc-tab-intro';
+    intro.textContent = 'Characters are read through AllTalk directly. Pick each character\'s voice on their '
+        + 'page; the rest are chosen here. SillyTavern\'s own TTS is not used, so it can stay off.';
+    container.append(intro);
+
+    // connection
+    const connection = document.createElement('div');
+    connection.className = 'sillynpc-setting';
+    const urlRow = document.createElement('div');
+    urlRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap;';
+    const url = document.createElement('input');
+    url.type = 'text';
+    url.className = 'text_pole';
+    url.style.cssText = 'flex:1; min-width:14em;';
+    url.placeholder = 'http://localhost:7851';
+    url.value = settings.alltalkUrl || '';
+    url.addEventListener('change', () => { settings.alltalkUrl = url.value.trim(); saveSettings(); });
+    const language = document.createElement('input');
+    language.type = 'text';
+    language.className = 'text_pole';
+    language.style.width = '4em';
+    language.title = 'Language code';
+    language.value = settings.alltalkLanguage || 'en';
+    language.addEventListener('change', () => { settings.alltalkLanguage = language.value.trim() || 'en'; saveSettings(); });
+    const status = document.createElement('small');
+    status.className = 'notes';
+    urlRow.append(label('AllTalk address'), url, label('Language'), language, button('fa-plug', 'Test', async () => {
+        status.textContent = 'Checking...';
+        const result = await ttsStatus();
+        status.textContent = result.ready ? 'Connected.' : result.reason;
+    }));
+    connection.append(urlRow, status, note('On a phone, use the address of the computer running AllTalk (for example http://192.168.1.20:7851), not localhost.'));
+    container.append(connection);
+
+    // who reads whom
+    const bind = (key) => ({
+        get: () => settings[key] || '',
+        set: (voice) => { settings[key] = voice; saveSettings(); },
+    });
+    container.append(
+        buildVoicePicker({ label: 'Default', ...bind(VOICE_KEYS.default), sample: 'This is the default voice.' }),
+        buildVoicePicker({ label: 'You', ...bind(VOICE_KEYS.player), sample: 'This is my voice.' }),
+        buildVoicePicker({ label: 'Female strangers', ...bind(VOICE_KEYS.female), sample: 'Halt. State your business.' }),
+        buildVoicePicker({ label: 'Male strangers', ...bind(VOICE_KEYS.male), sample: 'Halt. State your business.' }),
+    );
+
+    container.append(buildSettingToggle({
+        key: 'ttsAutoSpeak',
+        label: 'Read New Replies Aloud',
+        help: 'Reads each new reply as it finishes: only "quoted" speech and (thoughts), each in its '
+            + 'speaker\'s voice. Every message also has a speech-bubble button in its toolbar (the three dots) '
+            + 'to read it on demand. If SillyTavern\'s own TTS is on with Auto Generation, turn that off or '
+            + 'replies are read twice.',
+    }));
+    container.append(buildSettingToggle({
+        key: 'ttsSpeakThoughts',
+        label: 'Read Thoughts',
+        help: 'Text in (parentheses), in the speaker’s voice.',
+    }));
+    container.append(buildSettingToggle({
+        key: 'ttsSpeakNarration',
+        label: 'Read Quoted Speech With No Speaker',
+        help: 'A "quote" in a paragraph with no speaker tag, in the default voice. Actions and description are never read.',
+    }));
 }
 
 /**
@@ -258,40 +363,6 @@ export function renderInternalStatesSettings(container, rerender) {
  * @param {() => void} rerender
  */
 export function renderForkSettings(view, rerender) {
-    const voiceHeading = document.createElement('h3');
-    voiceHeading.className = 'sillynpc-section-title';
-    voiceHeading.style.marginTop = '24px';
-    voiceHeading.textContent = 'Character Voices';
-    view.append(voiceHeading);
-
-    const intro = document.createElement('p');
-    intro.className = 'notes sillynpc-tab-intro';
-    intro.textContent = "Uses SillyTavern's own TTS. Every character in the chat gets a row in "
-        + "its voice map (Extensions -> TTS); choose their voice there. Each tagged line is "
-        + 'then read in its speaker\'s voice.';
-    view.append(intro);
-
-    view.append(buildSettingToggle({
-        key: 'ttsAutoSpeak',
-        label: 'Read New Replies Aloud',
-        help: 'Reads each new reply as it finishes: only "quoted" speech and (thoughts), each in its '
-            + "speaker's voice. This takes over from SillyTavern's own Auto Generation, which would "
-            + 'read the whole reply as one speaker, so that one is paused while this is on. Every '
-            + 'message also has a speech-bubble button in its toolbar (the three dots) to read it on demand.',
-        onChange: applyAutoGenerationHandover,
-    }));
-    view.append(buildSettingToggle({
-        key: 'ttsSpeakThoughts',
-        label: 'Read Thoughts',
-        help: 'Text in (parentheses), in the speaker’s voice.',
-    }));
-    view.append(buildSettingToggle({
-        key: 'ttsSpeakNarration',
-        label: 'Read Quoted Speech With No Speaker',
-        help: 'A "quote" in a paragraph with no speaker tag, in the [Default Voice]. Actions and '
-            + 'description are never read.',
-    }));
-
     const imageHeading = document.createElement('h3');
     imageHeading.className = 'sillynpc-section-title';
     imageHeading.style.marginTop = '24px';

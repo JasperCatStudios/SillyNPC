@@ -4,6 +4,7 @@ import { extension_settings, getContext } from '../../../../../extensions.js';
 import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, worldList, worldEntries, primeLore } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
+import { speakNamed } from '../../src/tts.js';
 
 const MODULE_NAME = 'sillynpc_phone';
 
@@ -1947,74 +1948,13 @@ function cancelPhotos() {
    never goes through the slash-command parser (no | or {{…}} surprises). The voice
    is chosen by the character's name, exactly as Tavern's own voice map does it.
    ============================================================ */
-function ttsCommand() {
-    try {
-        if (!extension_settings.tts) return null;
-        const P = getContext().SlashCommandParser;
-        const cmd = P?.commands?.speak || P?.commands?.narrate;
-        return cmd && typeof cmd.callback === 'function' ? cmd : null;
-    } catch (e) { return null; }
-}
-/* BUG FIX (2.0.0). Tavern's TTS speaks only names that are in its voice map; anyone
-   else ("Kagetsu", a person inside a world card) ended in its red "not in voicemap"
-   error. The voice is now picked from what the map really has: the speaker's own voice,
-   else the voice of the card they live in, else the map's [Default Voice]. Nothing
-   mapped at all → one quiet hint naming who needs a voice, instead of the error. */
-function ttsVoiceMap() {
-    try {
-        const tts = extension_settings.tts || {};
-        let vm = tts[tts.currentProvider]?.voiceMap;
-        if (typeof vm === 'string') {      // legacy "name:voice, name2:voice2"
-            const o = {};
-            vm.split(',').forEach(pair => { const i = pair.lastIndexOf(':'); if (i > 0) o[pair.slice(0, i).trim()] = pair.slice(i + 1).trim(); });
-            vm = o;
-        }
-        return vm && typeof vm === 'object' ? vm : {};
-    } catch (e) { return {}; }
-}
-/* How Tavern itself resolves a name (tts/index.js, initVoiceMap): every character CARD is
-   in its runtime map — one never set up gets "[Default Voice]"; anyone else (a person
-   living inside a card) is in it only if their name was added by hand. So: a card speaks
-   under its own name and Tavern picks the voice; a person inside a card borrows a voice
-   that really exists. */
-function ttsVoiceFor(name, contactId) {
-    const vm = ttsVoiceMap();
-    const DEF = '[Default Voice]';
-    const defOk = typeof vm[DEF] === 'string' && vm[DEF] && vm[DEF] !== 'disabled';
-    const speaks = n => {
-        if (!n) return false;
-        const v = vm[n];
-        if (v === 'disabled') return false;
-        if (typeof v === 'string' && v && v !== DEF) return true;       // its own voice
-        if (v === DEF || cardChar(n)) return defOk || !Object.keys(vm).length;   // the default voice
-        return false;
-    };
-    const tries = [name].concat(contactId ? contactMembers(contactId) : []);
-    for (const n of tries) if (speaks(n)) return n;
-    if (defOk) return DEF;
-    return null;
-}
-let ttsWarned = false;
-const ttsNoVoiceWarned = new Set();
-async function speakVoice(name, text, contactId) {
+/* Fork: voice notes are read through SillyNPC's own AllTalk voices, in the voice chosen on the
+   contact's SillyNPC page. Nothing of SillyTavern's TTS is involved. */
+async function speakVoice(name, text) {
     const words = String(text || '').trim();
     if (!words) return false;
-    const cmd = ttsCommand();
-    if (!cmd) {
-        if (!ttsWarned) { ttsWarned = true; toastr.info(t('tts_none')); }
-        return false;
-    }
-    let voice = ttsVoiceFor(name, contactId);
-    if (!voice) {
-        // a map we cannot read is no reason to stay silent: hand Tavern the name, as before
-        if (!Object.keys(ttsVoiceMap()).length) voice = name;
-        else {
-            if (!ttsNoVoiceWarned.has(name)) { ttsNoVoiceWarned.add(name); toastr.info(t('tts_novoice', { name })); }
-            return false;
-        }
-    }
-    try { await cmd.callback({ voice }, words); return true; }
-    catch (e) { console.warn('[Phone] TTS failed', e); return false; }
+    try { return await speakNamed(name, words); }
+    catch (e) { console.warn('[Phone] voice failed', e); return false; }
 }
 
 let lastFinish = '';
@@ -4033,8 +3973,7 @@ jQuery(() => {
     renderButton();
     renderBubbles();
     // the lorebook entries linked to characters become their profile on the phone
-    primeLore().then(() => { lastSig = ''; renderBubbles(); }).catch(() => { });
-    eventSource.on(event_types.CHAT_CHANGED, () => primeLore().then(() => { lastSig = ''; }).catch(() => { }));
+    eventSource.on('sillynpc-profile-updated', () => { lastSig = ''; renderBubbles(); });
     // RPG Diary loads after us (loading_order 116 vs 118) — register once it is there
     // photos from older versions leave settings.json for the browser's own storage
     setTimeout(() => { migratePhotos().catch(e => console.warn('[Phone] photo move failed', e)); }, 1500);

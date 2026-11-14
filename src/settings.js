@@ -110,7 +110,14 @@ export const defaultSettings = {
      * Voices (fork). The voices themselves are chosen in SillyTavern's own TTS panel, one
      * per name in its voice map; this only decides who is read and when.
      */
-    ttsEnabled: false,
+    /** AllTalk, spoken to directly. */
+    alltalkUrl: 'http://localhost:7851',
+    alltalkLanguage: 'en',
+    /** Voice files for people with no card of their own. */
+    ttsVoiceDefault: '',
+    ttsVoicePlayer: '',
+    ttsVoiceFemale: '',
+    ttsVoiceMale: '',
     /** Read each new reply aloud, one voice per speaker, when it finishes. */
     ttsAutoSpeak: false,
     /** Whether (parenthesised) thoughts are read. Off: a thought is not said out loud. */
@@ -946,6 +953,7 @@ export function normalizeSettings(settings) {
         if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
         if (typeof char.imageNegative !== 'string') char.imageNegative = '';
         if (typeof char.phoneSkin !== 'string') char.phoneSkin = '';
+        if (typeof char.ttsVoice !== 'string') char.ttsVoice = '';
     }
 
     // The register, seeded from whoever is already carrying a category name. An existing

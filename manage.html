@@ -5,6 +5,9 @@
         <button type="button" class="sillynpc-tab active" data-tab="characters" role="tab">
             <i class="fa-solid fa-users"></i> <span>Characters</span>
         </button>
+        <button type="button" class="sillynpc-tab" data-tab="modules" role="tab">
+            <i class="fa-solid fa-puzzle-piece"></i> <span>Modules</span>
+        </button>
         <button type="button" class="sillynpc-tab" data-tab="appearance" role="tab">
             <i class="fa-solid fa-palette"></i> <span>Appearance</span>
         </button>
@@ -42,6 +45,10 @@
             <div class="sillynpc-card-grid" id="sillynpc-card-grid"></div>
         </div>
         <div id="sillynpc-editor-view" style="display: none;"></div>
+    </div>
+
+    <div class="sillynpc-tab-panel" data-panel="modules" style="display: none;">
+        <div id="sillynpc-modules-view"></div>
     </div>
 
     <div class="sillynpc-tab-panel" data-panel="appearance" style="display: none;">

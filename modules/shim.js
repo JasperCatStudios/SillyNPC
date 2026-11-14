@@ -3,7 +3,7 @@ import { getActiveCharacters } from '../src/characters.js';
 import { PROFILE_FIELDS } from '../src/constants.js';
 import { charactersMentionedIn } from '../src/mentions.js';
 import { parseMarkedLines } from '../src/speaker-marker.js';
-import { readLoreEntry } from '../src/character-fill.js';
+import { primeLore, profileText } from '../src/profile-text.js';
 import { loadStateFromMetadata } from '../src/status-logic.js';
 import { getContext } from '../../../../st-context.js';
 import { world_names, loadWorldInfo } from '../../../../world-info.js';
@@ -31,45 +31,8 @@ function portraitUrl(path) {
     return `/${p}`;
 }
 
-/** Linked lorebook entries, read ahead of time because the phone asks for text synchronously. */
-const loreText = new Map();
-const loreKey = (link) => `${link.world}\u0000${link.uid}`;
-
-/**
- * Reads every linked lorebook entry into memory. Call at start-up, on a chat change, and
- * after a link is edited; the phone then sees the entry as the character's profile.
- */
-export async function primeLore() {
-    const next = new Map();
-    for (const char of getSettings().characters || []) {
-        const link = char?.lorebook;
-        if (!link?.world) continue;
-        try {
-            next.set(loreKey(link), String(await readLoreEntry(char) || '').trim());
-        } catch { /* a missing entry simply leaves the profile fields in charge */ }
-    }
-    loreText.clear();
-    for (const [k, v] of next) loreText.set(k, v);
-}
-
-/**
- * What the phone knows of somebody's personality and history, in order of say:
- * text written for the phone, then their linked lorebook entry, then their profile fields.
- */
-function profileText(char) {
-    const own = String(char.phoneProfile || '').trim();
-    if (own) return own;
-    if (char.lorebook?.world) {
-        const entry = loreText.get(loreKey(char.lorebook));
-        if (entry) return entry;
-    }
-    const profile = char.profile || {};
-    return PROFILE_FIELDS
-        .map(field => [field.label, String(profile[field.id] ?? '').trim()])
-        .filter(([, value]) => value)
-        .map(([label, value]) => `${label}: ${value}`)
-        .join('\n');
-}
+/* Who somebody is, as text, is SillyNPC's own business: see src/profile-text.js. */
+export { primeLore };
 
 /** One SillyNPC character, in the shape of a card. */
 function asCard(char) {

@@ -37,6 +37,7 @@ import { applyDialogueFormatPrompt } from './src/dialogue-format.js';
 import { applyNarratorRulesPrompt } from './src/narrator-rules.js';
 import { applyBanList } from './src/banlist.js';
 import { initTts } from './src/tts.js';
+import { primeLore } from './src/profile-text.js';
 import { initInternalStates } from './src/internal-states.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
 
@@ -368,6 +369,8 @@ jQuery(async () => {
             initTts();
             initImagePromptInjection();
             initInternalStates();
+            primeLore().catch(err => debugLog('Could not read linked lorebook entries', err));
+            eventSource.on(event_types.CHAT_CHANGED, () => primeLore().catch(() => { }));
             // Modules adapted from the RPG suite (AGPL-3.0). Each loads on its own, so one
             // failing, or one folder missing, takes nothing else with it.
             for (const name of ['phone', 'games']) {

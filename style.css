@@ -4630,3 +4630,24 @@ textarea.sillynpc-profile-input {
 .sillynpc-is-body > details > summary { color: var(--SmartThemeQuoteColor, inherit); }
 .sillynpc-is-body details details { margin-left: 10px; border-left: 2px solid var(--SmartThemeBorderColor, #555); padding-left: 8px; }
 .sillynpc-is-body b { color: var(--SmartThemeEmColor, inherit); }
+
+/* ---- Fork additions: the Modules tab ---- */
+.sillynpc-hidden { display: none !important; }
+.sillynpc-card { border: 1px solid var(--SmartThemeBorderColor, #444); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+.sillynpc-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: rgba(127, 127, 127, .12); }
+.sillynpc-card-title { display: flex; gap: 12px; align-items: center; }
+.sillynpc-card-title > i { font-size: 1.4em; opacity: .85; width: 1.4em; text-align: center; }
+.sillynpc-card-title small { display: block; }
+.sillynpc-card-body { padding: 10px 14px; }
+.sillynpc-module-panel .rph-drawer-toggle,
+.sillynpc-module-panel .rpg-game-toggle { display: none; }
+.sillynpc-module-panel #rph-drawer,
+.sillynpc-module-panel > .inline-drawer > .inline-drawer-content { display: block !important; }
+#extensions_settings > .rph-settings, #extensions_settings2 > .rph-settings,
+#extensions_settings > .rpg-game-settings, #extensions_settings2 > .rpg-game-settings { display: none; }
+.sillynpc-switch { position: relative; width: 42px; height: 24px; flex: none; }
+.sillynpc-switch input { opacity: 0; width: 0; height: 0; }
+.sillynpc-switch-slider { position: absolute; inset: 0; border-radius: 24px; background: rgba(127, 127, 127, .5); transition: .2s; cursor: pointer; }
+.sillynpc-switch-slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; }
+.sillynpc-switch input:checked + .sillynpc-switch-slider { background: var(--SmartThemeQuoteColor, #4c9); }
+.sillynpc-switch input:checked + .sillynpc-switch-slider::before { transform: translateX(18px); }
