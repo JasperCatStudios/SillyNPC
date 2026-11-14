@@ -4602,3 +4602,17 @@ textarea.sillynpc-profile-input {
     align-items: baseline;
     gap: var(--sillynpc-space-sm);
 }
+
+/* ---- Fork additions: thoughts, speaker button ---- */
+.sillynpc-speech-block.sillynpc-thought .sillynpc-speech-text {
+    font-style: italic;
+    opacity: 0.82;
+}
+.sillynpc-speech-block.sillynpc-thought .sillynpc-speech-text::before {
+    content: "\1F4AD\00a0";
+    opacity: 0.7;
+}
+.sillynpc-extras-container textarea.text_pole {
+    width: 100%;
+    margin: 4px 0;
+}

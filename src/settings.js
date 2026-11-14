@@ -9,6 +9,9 @@ import {
     DEFAULT_PORTRAIT_SHAPE,
     SYSTEM_PROMPT,
     DIALOGUE_FORMAT_PROMPT,
+    DEFAULT_MARKER_OPEN,
+    DEFAULT_MARKER_CLOSE,
+    buildDialogueFormatPrompt,
     IMAGE_PROMPT_BY_BACKEND,
     PROFILE_FIELDS
 } from './constants.js';
@@ -94,6 +97,39 @@ export const defaultSettings = {
     autoColorUnknownSpeakers: true,
     hideSpeakerNames: false,
     caseInsensitive: true,
+    /**
+     * How speakers are found in a reply (fork).
+     * 'marker' - only the speaker tag, by default a name between white square brackets.
+     * 'both'   - the tag, and also upstream's bold-colon and name-in-prose matching.
+     * 'legacy' - upstream's behaviour alone.
+     */
+    speakerDetection: 'marker',
+    speakerMarkerOpen: DEFAULT_MARKER_OPEN,
+    speakerMarkerClose: DEFAULT_MARKER_CLOSE,
+    /**
+     * Voices (fork). The voices themselves are chosen in SillyTavern's own TTS panel, one
+     * per name in its voice map; this only decides who is read and when.
+     */
+    ttsEnabled: false,
+    /** Read each new reply aloud, one voice per speaker, when it finishes. */
+    ttsAutoSpeak: false,
+    /** Whether (parenthesised) thoughts are read. Off: a thought is not said out loud. */
+    ttsSpeakThoughts: false,
+    /** Whether untagged narration is read, in the TTS panel's default voice. */
+    ttsSpeakNarration: false,
+    /**
+     * Character visuals (fork). Sends each present character's saved image prompt along
+     * with the story prompt, so a picture prompt the model writes describes the same
+     * person every time instead of inventing a fresh one.
+     */
+    imagePromptInject: false,
+    imagePromptInjectDepth: 1,
+    /** The wording around the list; {{list}} is replaced with one line per character. */
+    imagePromptInjectTemplate: '',
+    /** Set once the fork's one-off settings migration has run. */
+    mimoMigrated: 0,
+    /** Set once the bundled system has been offered, so it is never switched to twice. */
+    mimoSystemOffered: false,
     /**
      * Faces for speakers who have no card, or a card with no portrait.
      *
@@ -803,6 +839,15 @@ export function normalizeSettings(settings) {
         settings.dialogueFormatPrompt = DIALOGUE_FORMAT_PROMPT;
     }
 
+    // Fork, once: a prompt seeded by upstream asks for the bold-colon layout, which this
+    // fork no longer reads by default. Replaced a single time; after that it is yours.
+    if (!settings.mimoMigrated) {
+        settings.dialogueFormatPrompt = buildDialogueFormatPrompt(
+            settings.speakerMarkerOpen || DEFAULT_MARKER_OPEN,
+            settings.speakerMarkerClose || DEFAULT_MARKER_CLOSE);
+        settings.mimoMigrated = 1;
+    }
+
     // Shape only. An absent entry means "use the shipped hint", which is the default and
     // needs no seeding - unlike the extraction prompt below, which is copied in once and
     // then belongs to the user forever.
@@ -884,6 +929,9 @@ export function normalizeSettings(settings) {
         // Which profile fields Fill is allowed to write. Absent means none, which is the
         // default, so nothing existing needs migrating - only the shape is repaired.
         if (!Array.isArray(char.aiProfileFields)) char.aiProfileFields = [];
+        // Fork: the picture prompt for this character, and what to keep out of it.
+        if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
+        if (typeof char.imageNegative !== 'string') char.imageNegative = '';
     }
 
     // The register, seeded from whoever is already carrying a category name. An existing

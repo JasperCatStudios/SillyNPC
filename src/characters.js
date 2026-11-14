@@ -54,6 +54,9 @@ export function createCharacter(name = '') {
         aliases: [],
         lorebook: null,
         statusOverrides: {},
+        /** Image-generation prompt and negative prompt for this character (fork). */
+        imagePrompt: '',
+        imageNegative: '',
         /** Who they are, as opposed to what is happening to them. See PROFILE_FIELDS. */
         profile: blankProfile(),
     };

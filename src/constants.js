@@ -373,13 +373,38 @@ export const NARRATOR_RULES_PROMPT = [
     "3. HARD STOP: Strictly forbidden from narrating success, failure, or damage in this turn. Stop and wait for {{user}}'s roll result.",
 ].join('\n');
 
-export const DIALOGUE_FORMAT_PROMPT = [
-    '### DIALOGUE FORMAT',
-    '- Spoken Dialogue: Start a new paragraph for each speaker using:',
-    '  **Character Name**: "Dialogue goes here."',
-    '- Actions & Expressions: Describe physical actions, body language, and environmental details in separate paragraphs using *italics*.',
-    "- Never mix two characters' dialogue or actions in the same paragraph.",
-].join('\n');
+/**
+ * The speaker marker.
+ *
+ * Fork note: upstream asks for `**Name**:`, which other formatting extensions and presets
+ * also ask for, so they fight over the same text. This is a pair of brackets nothing else
+ * uses, written before a line and read back by this extension only. The pair is a setting,
+ * so it can be changed if something else ever claims it.
+ */
+export const DEFAULT_MARKER_OPEN = '⟦';
+export const DEFAULT_MARKER_CLOSE = '⟧';
+
+/**
+ * What the story model is told about laying out dialogue, for a given marker pair.
+ *
+ * Everything this extension draws in the chat - avatars, speech blocks, colour, voices -
+ * reads a speaker line: a name inside the marker, then the words. A thought is the same
+ * line with the words in parentheses, which is also how the voices know not to speak it.
+ */
+export function buildDialogueFormatPrompt(open = DEFAULT_MARKER_OPEN, close = DEFAULT_MARKER_CLOSE) {
+    return [
+        '### DIALOGUE FORMAT',
+        `- Spoken dialogue: start a new paragraph for each speaker with the speaker tag ${open}Name${close}, then the line in quotes:`,
+        `  ${open}Character Name${close} "Dialogue goes here."`,
+        '- Internal thoughts: the same tag, with the thought in parentheses (never in quotes):',
+        `  ${open}Character Name${close} (Internal thought goes here.)`,
+        '- The tag is plain text. Never bold it, italicise it, or add a colon. Use the exact same name for a character every time.',
+        '- Actions, expressions, body language and environment go in separate paragraphs with no tag.',
+        "- Never mix two characters' dialogue or actions in the same paragraph.",
+    ].join('\n');
+}
+
+export const DIALOGUE_FORMAT_PROMPT = buildDialogueFormatPrompt();
 
 /**
  * What a character *is*, as named fields rather than a paragraph.

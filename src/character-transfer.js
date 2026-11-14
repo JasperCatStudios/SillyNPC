@@ -72,6 +72,8 @@ export async function serialiseCharacter(char) {
         category: String(char.category || ''),
         imageFit: String(char.imageFit || ''),
         aliases: Array.isArray(char.aliases) ? structuredClone(char.aliases) : [],
+        imagePrompt: String(char.imagePrompt || ''),
+        imageNegative: String(char.imageNegative || ''),
         profile,
         statusOverrides: char.statusOverrides && typeof char.statusOverrides === 'object'
             ? structuredClone(char.statusOverrides)
@@ -162,6 +164,8 @@ function applyRecord(char, record, name) {
     char.name = name;
     char.color = String(record.color || char.color || '');
     char.imageFit = String(record.imageFit || '');
+    char.imagePrompt = String(record.imagePrompt || '');
+    char.imageNegative = String(record.imageNegative || '');
     char.aliases = Array.isArray(record.aliases) ? structuredClone(record.aliases) : [];
     char.statusOverrides = record.statusOverrides && typeof record.statusOverrides === 'object'
         ? structuredClone(record.statusOverrides)

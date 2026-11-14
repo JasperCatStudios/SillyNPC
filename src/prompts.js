@@ -1,5 +1,6 @@
 import { getSettings, defaultSettings, recommendedImagePrompt } from './settings.js';
-import { SYSTEM_PROMPT, DIALOGUE_FORMAT_PROMPT, NARRATOR_RULES_PROMPT, PROFILE_FIELDS } from './constants.js';
+import { getMarkerPair } from './speaker-marker.js';
+import { SYSTEM_PROMPT, buildDialogueFormatPrompt, NARRATOR_RULES_PROMPT, PROFILE_FIELDS } from './constants.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -30,12 +31,12 @@ export const PROMPTS = [
         home: 'Settings',
         help: 'Sent with every message, telling the story model how to lay dialogue out. '
             + 'Avatars, speech blocks and character colours all read a speaker line - a '
-            + 'name in bold followed by a colon - so this is what makes them work. It asks '
+            + 'name inside the speaker tag, then the words - so this is what makes them work. It asks '
             + 'for no colour tags on purpose: the extension colours dialogue itself, and a '
             + 'colour written into the reply would override the one you chose. '
             + "SillyTavern's own macros work here too - {{user}}, {{char}}, {{persona}}, "
             + '{{time}}, {{roll:d20}} and the rest. ',
-        recommended: () => DIALOGUE_FORMAT_PROMPT,
+        recommended: () => buildDialogueFormatPrompt(getMarkerPair().open, getMarkerPair().close),
         emptyNote: 'The built-in format is sent.',
         available: () => getSettings().dialogueFormatEnabled,
     },

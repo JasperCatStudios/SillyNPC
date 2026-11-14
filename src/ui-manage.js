@@ -25,6 +25,7 @@ import { escapeHtml, offerDownload } from './utils.js';
 import { buildPortraitBlock } from './ui-portrait.js';
 import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section.js';
 import { renderProfileView, renderProfileFields } from './ui-profile.js';
+import { renderCharacterExtras } from './ui-character-extras.js';
 import { renderThreadsView } from './ui-threads.js';
 import { fillCharacter } from './ui-fill.js';
 import { fillProfile } from './character-fill.js';
@@ -1133,6 +1134,9 @@ function renderEditor() {
     const profileContainer = document.createElement('div');
     profileContainer.className = 'sillynpc-editor-field profile-field-container';
 
+    const extrasContainer = document.createElement('div');
+    extrasContainer.className = 'sillynpc-editor-field sillynpc-extras-container';
+
     const loreContainer = document.createElement('div');
     loreContainer.className = 'lorebook-section-container';
     
@@ -1172,7 +1176,7 @@ function renderEditor() {
     
     // Lore last. It is a whole panel with three modes and it used to sit second, above
     // the fields people actually come here to edit.
-    right.append(nameField, aliasField, profileContainer, overridesContainer,
+    right.append(nameField, aliasField, extrasContainer, profileContainer, overridesContainer,
         collectionsContainer, loreContainer);
     
     main.append(left, vDivider, right);
@@ -1180,6 +1184,7 @@ function renderEditor() {
 
     renderCategorySelect(char, catContainer);
     renderProfileFields(char, profileContainer);
+    renderCharacterExtras(char, extrasContainer);
     renderLorebookSection(char, loreContainer, { onChange: renderEditor });
     renderOverridesSection(char, overridesContainer);
     renderCollectionsSection(char, collectionsContainer);

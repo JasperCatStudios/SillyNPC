@@ -36,6 +36,9 @@ import { describeChatConnection } from './src/utils.js';
 import { applyDialogueFormatPrompt } from './src/dialogue-format.js';
 import { applyNarratorRulesPrompt } from './src/narrator-rules.js';
 import { applyBanList } from './src/banlist.js';
+import { initTts } from './src/tts.js';
+import { installBundledSystems } from './src/bundled-systems.js';
+import { initImagePromptInjection } from './src/image-prompts.js';
 
 function onMessageRendered(messageId) {
     try {
@@ -361,6 +364,13 @@ jQuery(async () => {
         setSwipeBaseAligner(alignSwipeBaseToNow);
         await addSettingsPanel();
         wireAvatarClicks();
+        try {
+            initTts();
+            initImagePromptInjection();
+            installBundledSystems().catch(err => console.warn(LOG_PREFIX, 'Bundled systems failed', err));
+        } catch (err) {
+            console.error(LOG_PREFIX, 'fork features failed to start', err);
+        }
         /* A preset carries its own prompt list, so loading one throws away the entries
            the two writing prompts are placed by - not the settings that ask for them.
            Written again here, which puts them back at the foot of the new list.

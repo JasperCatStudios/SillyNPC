@@ -81,6 +81,12 @@ function beatText(element, speaker) {
     const name = speaker.trim();
     if (!text.toLowerCase().startsWith(name.toLowerCase())) return text;
 
+    // A tag the extension replaced is the name and nothing else, so the name always goes.
+    // Unlike "Name:", it cannot be the start of a sentence that happens to open with one.
+    if (element.querySelector('.sillynpc-speaker-name[data-marker]')) {
+        return text.slice(name.length).replace(/^\s*:?\s*/, '');
+    }
+
     const rest = text.slice(name.length).trimStart();
     return rest.startsWith(':') ? rest.slice(1).trim() : text;
 }

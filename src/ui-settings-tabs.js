@@ -18,6 +18,7 @@ import { getContext } from '../../../../extensions.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 import { clearRuns } from './default-portraits.js';
 import { triggerReprocess } from './chat.js';
+import { renderForkSettings } from './ui-character-extras.js';
 
 /**
  * Display labels for the shipped themes. Built from SILLYNPC_THEMES so the
@@ -330,6 +331,25 @@ export function renderWritingRulesView(view, onReprocessMessages) {
         + 'reply are somebody speaking.';
     view.append(readingNote);
 
+    view.append(buildSettingSelect({
+        key: 'speakerDetection',
+        label: 'Speaker Detection',
+        help: 'Speaker Tag reads only the tag the model is asked to write at the start of a '
+            + 'line, so a name in prose, or bold text from another extension, is never '
+            + 'taken for somebody speaking. Tag And Legacy also keeps the bold-colon and '
+            + 'name-in-prose matching, which is what to pick for chats written before the '
+            + 'tag existed.',
+        options: [
+            { value: 'marker', label: 'Speaker Tag only' },
+            { value: 'both', label: 'Tag and legacy styles' },
+            { value: 'legacy', label: 'Legacy styles only (upstream)' },
+        ],
+        onChange: () => { reprocess(); rerender(); },
+    }));
+    if (getSettings().speakerDetection !== 'legacy') {
+        view.append(buildMarkerPairControl(() => { reprocess(); rerender(); }));
+    }
+
     view.append(buildSettingTextArea({
         key: 'speakerIgnoreList',
         label: 'Not Speakers',
@@ -345,6 +365,8 @@ export function renderWritingRulesView(view, onReprocessMessages) {
         help: 'Matches character names regardless of uppercase/lowercase letters.',
         onChange: reprocess,
     }));
+
+    renderForkSettings(view, () => { reprocess(); rerender(); });
 }
 
 /**
@@ -1119,5 +1141,56 @@ function buildWorldInfoScannerSettings() {
     });
     
     wrap.append(label, list);
+    return wrap;
+}
+
+
+/**
+ * The two strings the speaker tag is written between.
+ *
+ * Changing them does not rewrite the Dialogue Format prompt, because that text may be
+ * yours - the button beside it does, on request. Rewriting it silently would throw away
+ * edits, and leaving it silently would ask the model for one tag while reading another.
+ *
+ * @param {() => void} onChange Redraws the chat.
+ * @returns {HTMLElement}
+ */
+function buildMarkerPairControl(onChange) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sillynpc-setting';
+    wrap.dataset.setting = 'speakerMarkerPair';
+
+    const row = document.createElement('div');
+    row.className = 'sillynpc-setting-row';
+    const label = document.createElement('label');
+    label.className = 'sillynpc-setting-label';
+    label.textContent = 'Speaker Tag Brackets';
+    row.append(label);
+
+    const make = (key, placeholder) => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'text_pole';
+        input.style.width = '5em';
+        input.maxLength = 8;
+        input.placeholder = placeholder;
+        input.value = getSettings()[key] ?? '';
+        input.addEventListener('change', () => {
+            getSettings()[key] = input.value.trim();
+            saveSettings();
+            onChange();
+        });
+        return input;
+    };
+    row.append(make('speakerMarkerOpen', 'open'), make('speakerMarkerClose', 'close'));
+    wrap.append(row);
+
+    const help = document.createElement('small');
+    help.className = 'notes';
+    help.style.cssText = 'display:block; margin-top:4px;';
+    help.textContent = 'The pair the speaker name is written between. After changing it, '
+        + 'press Restore Recommended under Dialogue Format so the model is asked for the '
+        + 'same pair that is being read.';
+    wrap.append(help);
     return wrap;
 }

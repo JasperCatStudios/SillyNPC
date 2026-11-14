@@ -27,6 +27,7 @@ import { updateHUD } from './ui-hud.js';
 import { getTrackerView, setTrackerView, nextTrackerView } from './tracker-view.js';
 import { eventSource } from '../../../../events.js';
 import { messageBeats, MESSAGE_RENDERED_EVENT } from './beats.js';
+import { injectAtMarkers, markerDetectionOn, legacyDetectionOn, getMarkerPair } from './speaker-marker.js';
 
 /** @type {{ characters: any[], caseInsensitive: boolean, combinedRegex: RegExp, charMap: Map<string, any>, regexAliases: any[] } | null} */
 let cachedOptimizedPatterns = null;
@@ -169,6 +170,9 @@ export function chatRenderSignature() {
         settings.dividerStyle,
         settings.menuStyle,
         settings.speakerIgnoreList,
+        settings.speakerDetection,
+        settings.speakerMarkerOpen,
+        settings.speakerMarkerClose,
         (settings.defaultImages || []).map(i => i && i.src).join(','),
     ].join('|');
 
@@ -305,8 +309,19 @@ function injectCharacterImages(mesEl) {
 
     pendingActiveCharacters = new Set();
     try {
-        injectAtBoldSpeakers(textContainer, allCharacters, pickFace, isLastMessage);
-        injectAtPlainTextSpeakers(textContainer, allCharacters, pickFace, isLastMessage);
+        if (markerDetectionOn()) {
+            injectAtMarkers(textContainer, {
+                findChar: name => findCharacterByExactName(name, allCharacters),
+                makeAvatar: (char, name) => char
+                    ? createAvatarImg({ char, defaultImage: pickFace(char.name, char), isLastMessage })
+                    : createAvatarImg({ defaultImage: pickFace(name), name, isLastMessage }),
+                hideNames: !!getSettings().hideSpeakerNames,
+            });
+        }
+        if (legacyDetectionOn()) {
+            injectAtBoldSpeakers(textContainer, allCharacters, pickFace, isLastMessage);
+            injectAtPlainTextSpeakers(textContainer, allCharacters, pickFace, isLastMessage);
+        }
     } finally {
         const names = pendingActiveCharacters;
         pendingActiveCharacters = null;
@@ -328,6 +343,14 @@ function injectCharacterImages(mesEl) {
 }
 
 function clearDecorations(textContainer) {
+    // A marker's name span stands in for the whole tag, so the tag goes back as it was
+    // written or the next pass would have nothing to find.
+    const { open, close } = getMarkerPair();
+    textContainer.querySelectorAll('.sillynpc-speaker-name[data-marker]').forEach(span => {
+        span.textContent = `${open}${span.textContent}${close}`;
+        span.style.removeProperty('display');
+        delete span.dataset.marker;
+    });
     textContainer.querySelectorAll('.sillynpc-speech-text, .sillynpc-speaker-name, .sillynpc-speaker-colon').forEach(wrapper => {
         const parent = wrapper.parentNode;
         while (wrapper.firstChild) parent.insertBefore(wrapper.firstChild, wrapper);
@@ -346,7 +369,7 @@ function clearDecorations(textContainer) {
     textContainer.querySelectorAll('.sillynpc-speech-block').forEach(p => {
         p.classList.remove(
             'sillynpc-speech-block',
-            'sillynpc-multi-speaker',
+            'sillynpc-multi-speaker', 'sillynpc-thought',
             'divider-subtle', 'divider-bold', 'divider-dashed', 'divider-none',
             'color-text', 'color-background', 'color-border', 'color-gradient', 'color-all'
         );
@@ -715,6 +738,8 @@ function decorateSpeechBlocks(container) {
         block.style.removeProperty('--sillynpc-color');
 
         block.classList.add('sillynpc-speech-block', `divider-${settings.dividerStyle || 'subtle'}`);
+        block.classList.toggle('sillynpc-thought',
+            block.querySelector('.sillynpc-speaker-name[data-kind="thought"]') !== null);
 
         if (!beat.ambiguous) {
             wrapSingleSpeakerBlock(block, beat.avatars[0]);
