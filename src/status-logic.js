@@ -4002,7 +4002,7 @@ export function getCheckpoints(preset) {
 /** Base64 for a UTF-8 string. btoa alone throws on anything outside Latin-1, and character
  *  names here are routinely Hungarian. Chunked because spreading a large array into
  *  fromCharCode overflows the call stack. */
-function toBase64(text) {
+export function toBase64(text) {
     const bytes = new TextEncoder().encode(text);
     let binary = '';
     for (let i = 0; i < bytes.length; i += 0x8000) {

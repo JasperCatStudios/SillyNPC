@@ -11,13 +11,15 @@ import { emptyTypeData } from './combat-store.js';
  * Pure: no DOM, no SillyTavern imports.
  */
 
-const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+/** Lower case with accents folded, so "Kidō" and "Kido" are the same name. */
+const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 /** Tracker keys that live in statusOverrides but are not combat data. */
 const TRACKER_KEYS = new Set(['health', 'energy', 'condition', 'stamina', 'status']);
 
 /** Normalised name -> what it means, from a type's ids, labels, abbreviations and aliases. */
-function buildIndex(type) {
+export function buildIndex(type) {
     const index = new Map();
     const add = (name, entry) => {
         const key = norm(name);

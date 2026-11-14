@@ -120,7 +120,7 @@ export const defaultSettings = {
      * The combat module (fork). Follows each System, so a World can have its own type picked.
      * @type {{ enabled: boolean, activeType: string, reviewGrowth: boolean, trackerMap: { health: string, condition: string } }}
      */
-    combat: { enabled: false, activeType: '', reviewGrowth: true, trackerMap: { health: '', condition: '' } },
+    combat: { enabled: false, activeType: '', reviewGrowth: true, trackerMap: { health: '', condition: '' }, migrations: [] },
     /** Custom combat world types, by id. Global: the type library is shared by every System. */
     combatTypes: {},
     contextPersonaMaxChars: 3000,

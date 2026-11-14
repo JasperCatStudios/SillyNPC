@@ -6,6 +6,7 @@ import { detectLegacy, legacyPreviewData } from '../../src/combat-migrate.js';
 import {
     combatPrefs, allTypes, activeCombatType, setActiveCombatType, setCombatEnabled,
 } from '../../src/combat-access.js';
+import { renderMigrationList, openLegacyMigration } from './migration-ui.js';
 
 /**
  * The Combat tab (fork), base module: pick a world type, see how it maps roles to its own
@@ -62,6 +63,7 @@ function renderSettings(host, rerender) {
         host.append(el('p', 'notes', 'The picked world type is missing or invalid, so nothing is shown. Pick another.'));
     }
     if (type) host.append(renderRoleTable(type));
+    if (type) renderMigrationList(host, type, rerender);
 
     host.append(el('h4', 'sillynpc-combat-heading', 'World types'));
     const list = el('div', 'sillynpc-combat-types');
@@ -151,7 +153,7 @@ function rosterRecords() {
     return list;
 }
 
-function renderRoster(host) {
+function renderRoster(host, rerender) {
     const type = activeCombatType();
     if (!type) {
         host.append(el('p', 'notes', 'Pick a world type in Settings to see the roster.'));
@@ -233,10 +235,16 @@ function renderRoster(host) {
     scroller.append(table);
     host.append(scroller);
 
-    if (rows.some(r => r.legacy)) {
-        host.append(el('small', 'notes',
-            'Italic rows are read from the old flat keys on the character (their tracker overrides). '
-            + 'Nothing has been moved or changed.'));
+    const legacyCount = rows.filter(r => r.legacy).length;
+    if (legacyCount) {
+        const note = el('div', 'sillynpc-combat-banner');
+        note.append(el('span', '', `${legacyCount} character${legacyCount === 1 ? ' has' : 's have'} combat data in the old keys (italic rows). `
+            + 'Nothing has been moved yet.'));
+        const button = el('button', 'menu_button', 'Copy it over...');
+        button.type = 'button';
+        button.addEventListener('click', () => openLegacyMigration(type, rerender));
+        note.append(button);
+        host.prepend(note);
     }
 }
 

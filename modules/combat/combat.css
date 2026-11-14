@@ -107,3 +107,40 @@
         padding: 3px 5px;
     }
 }
+
+.sillynpc-combat-banner {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 6px 0 10px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--SmartThemeQuoteColor, #888);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor, #888) 10%, transparent);
+}
+
+.sillynpc-combat-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 6px 0;
+}
+
+.sillynpc-combat-migration {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 3px 0;
+    font-size: 0.9em;
+}
+
+.sillynpc-combat-dialog {
+    text-align: left;
+    max-height: 70vh;
+    overflow: auto;
+}
+
+.sillynpc-combat-import-result {
+    margin-top: 8px;
+}

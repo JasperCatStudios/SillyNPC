@@ -194,5 +194,7 @@ export function normalizeCombatPrefs(raw) {
         activeType: text(p.activeType),
         reviewGrowth: p.reviewGrowth === undefined ? true : Boolean(p.reviewGrowth),
         trackerMap: { health: text(map.health), condition: text(map.condition) },
+        // Migrations done in this System, newest first: { id, at, path, typeId, count, label }.
+        migrations: list(p.migrations).filter(m => m && typeof m === 'object' && m.id).slice(0, 50),
     };
 }

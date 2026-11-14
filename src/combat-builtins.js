@@ -224,6 +224,15 @@ const BLEACH = {
         Fullbringer: ['fullbring_control', 'object_resonance', 'combat_adaptation', 'reiatsu_manipulation', 'spiritual_awareness', 'durability', 'hand_to_hand'],
         'Spiritual Human': ['reiryoku_sensitivity', 'barrier_generation', 'healing_restoration', 'spiritual_projection', 'combat_instinct', 'defensive_resilience'],
     },
+    /* Reading the Combat-Bleach lore table (six stats, 1 to 15) into this type. An approximation:
+       the lore has no Kidō or Intellect as such, so Intelligence feeds Kidō and Wisdom Intellect. */
+    loreImport: {
+        statMap: {
+            CON: ['endurance', 'defense'], STR: ['offense'], DEX: ['mobility'],
+            WIS: ['intellect'], INT: ['kido'], CHA: ['reiatsu'],
+        },
+        scale: { from: [1, 15], to: [0, 100] },
+    },
     advantage: [],
     actions: [
         { key: 'slash', label: 'Slash', prof: 'zanjutsu' },
