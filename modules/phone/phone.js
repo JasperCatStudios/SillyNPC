@@ -1,7 +1,7 @@
 import { eventSource, event_types, saveSettingsDebounced, name1, substituteParams } from '../../../../../../script.js';
 import { extension_settings, getContext } from '../../../../../extensions.js';
 // Fork: the phone's people are SillyNPC's characters, not SillyTavern's cards.
-import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, worldList, worldEntries, primeLore, sceneClock } from '../shim.js';
+import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
@@ -3358,53 +3358,21 @@ function renderContactEditor(row, name) {
     if (!row) return;
     if (!rec) { row.innerHTML = '<div class="rph-hint">This contact has no SillyNPC character.</div>'; return; }
     const skins = [['', 'Phone default'], ['cute', 'Cute'], ['goth', 'Gothic'], ['lace', 'Lace'], ['modern', 'Classic']];
-    const worlds = worldList();
     const option = (value, text, current) => `<option value="${escapeHtml(value)}"${String(value) === String(current) ? ' selected' : ''}>${escapeHtml(text)}</option>`;
     row.innerHTML = `
-        <label>Personality &amp; profile, for the phone</label>
-        <textarea class="text_pole rph-ed-profile" rows="4" placeholder="Empty: use the lorebook entry below, or their SillyNPC profile">${escapeHtml(rec.phoneProfile || '')}</textarea>
-        <label>Lorebook entry as their profile</label>
-        <select class="text_pole rph-ed-world">${option('', '- none -', rec.lorebook?.world || '')}${worlds.map(w => option(w, w, rec.lorebook?.world || '')).join('')}</select>
-        <select class="text_pole rph-ed-entry"><option value="">- pick a lorebook first -</option></select>
-        <small class="rph-ed-note"></small>
+        <small class="rph-ed-note">${rec.lorebook?.world ? `Their lorebook entry ("${escapeHtml(rec.lorebook.world)}") is their profile.` : 'No lorebook entry yet. Link one on their SillyNPC character page, in the Lorebook section.'}</small>
         <label>Phone theme</label>
         <select class="text_pole rph-ed-skin">${skins.map(([v, x]) => option(v, x, rec.phoneSkin || '')).join('')}</select>
         <label>Image prompt (photos and /sd)</label>
         <textarea class="text_pole rph-ed-img" rows="3" placeholder="1girl, silver hair, green eyes...">${escapeHtml(rec.imagePrompt || '')}</textarea>
         <textarea class="text_pole rph-ed-neg" rows="2" placeholder="Negative prompt (optional)">${escapeHtml(rec.imageNegative || '')}</textarea>`;
     const $row = $(row);
-    const note = $row.find('.rph-ed-note');
     const refresh = () => { lastSig = ''; renderBubbles(); };
-    const loadEntries = async (world, keep) => {
-        const sel = $row.find('.rph-ed-entry');
-        if (!world) { sel.html('<option value="">- pick a lorebook first -</option>'); note.text(''); return; }
-        sel.html('<option value="">Loading...</option>');
-        const entries = await worldEntries(world);
-        sel.html(`<option value="">- pick an entry -</option>${entries.map(e => option(e.uid, e.label, keep ?? '')).join('')}`);
-        note.text(rec.lorebook?.world === world && rec.lorebook?.uid !== undefined ? 'This entry is what they are like on the phone, unless the box above has text.' : '');
-    };
-    loadEntries(rec.lorebook?.world || '', rec.lorebook?.uid);
-
-    $row.find('.rph-ed-profile').on('change', function () { rec.phoneProfile = String(this.value).slice(0, 6000); saveChars(); refresh(); });
     $row.find('.rph-ed-img').on('change', function () { rec.imagePrompt = String(this.value); saveChars(); refresh(); });
     $row.find('.rph-ed-neg').on('change', function () { rec.imageNegative = String(this.value); saveChars(); });
     $row.find('.rph-ed-skin').on('change', function () {
         rec.phoneSkin = String(this.value); saveChars();
         eventSource.emit('sillynpc-phone-refresh');
-    });
-    $row.find('.rph-ed-world').on('change', async function () {
-        const world = String(this.value);
-        if (!world) { rec.lorebook = null; saveChars(); await primeLore(); refresh(); }
-        await loadEntries(world, rec.lorebook?.world === world ? rec.lorebook.uid : '');
-    });
-    $row.find('.rph-ed-entry').on('change', async function () {
-        const world = String($row.find('.rph-ed-world').val());
-        if (!world || this.value === '') return;
-        rec.lorebook = { world, uid: Number(this.value) };
-        saveChars();
-        await primeLore();
-        note.text('Linked. This entry is what they are like on the phone, unless the box above has text.');
-        refresh();
     });
 }
 

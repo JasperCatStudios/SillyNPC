@@ -1,13 +1,12 @@
 import { getContext } from '../../../../st-context.js';
 import { applyMacros } from './macros.js';
-import { getSettings, saveSettings } from './settings.js';
+import { getSettings } from './settings.js';
 import {
     THREAD_KINDS, openThreads, coerceThread, addThread, closeThread,
     activeThreads, touchThreads, pruneThreads,
 } from './threads.js';
 import {
-    LOG_PREFIX, debugLog, SYSTEM_PROMPT, PROFILE_FIELDS,
-    aiMayEditProfileField, anyProfileFieldUnlocked, isStaticField,
+    LOG_PREFIX, debugLog, SYSTEM_PROMPT, isStaticField,
 } from './constants.js';
 export { SYSTEM_PROMPT };
 import { extractJSON, safeJsonParse, describeConnection, currentMessageIndex } from './utils.js';
@@ -24,8 +23,6 @@ import {
     reconcileScenePresence,
     promptCeiling,
     highestCeiling,
-    getPlayerCard,
-    findCardForName,
     statsInSystem,
 } from './status-logic.js';
 import { computeStateDiff, partitionChanges, buildUpdateFromChanges, attachReasons } from './status-diff.js';
@@ -90,23 +87,6 @@ export function forgetExtractionsFrom(index) {
 }
 
 /**
- * Everyone who has a profile that could be unlocked: the cards, and the player.
- *
- * The player's four fields live on their persona record rather than in the character list,
- * so asking the list alone would miss a player who has opened one. Guarded because
- * getPlayerCard needs a persona, and the schema is built in places where there may not be
- * one yet.
- */
-function profileOwners() {
-    const cards = getSettings().characters || [];
-    try {
-        return [...cards, getPlayerCard()];
-    } catch {
-        return cards;
-    }
-}
-
-/**
  * A JSON schema describing exactly the stats and collections this user has configured.
  *
  * Deliberately restricted to the keywords Google's structured-output subset accepts:
@@ -167,20 +147,6 @@ export function buildExtractionSchema(trackerSettings) {
     const playerCollections = collectionProps('player');
     const npcCollections = collectionProps('npc');
 
-    /* The four profile fields, but only if somebody has actually unlocked one.
-     *
-     * A schema names what may come back, so listing these tells the model to look for
-     * changes to them on every message - work and tokens nobody should pay for a feature
-     * they have not switched on. The lock is per character and per field, so "any of them,
-     * anywhere" is the only question the schema can ask; the apply side does the precise
-     * filtering and drops anything for a field that is still locked. */
-    const profileProps = anyProfileFieldUnlocked(profileOwners()) ? {
-        type: 'object',
-        properties: Object.fromEntries(PROFILE_FIELDS.map(field => [
-            field.id, { type: 'string', description: field.hint },
-        ])),
-    } : null;
-
     return {
         type: 'object',
         // Required at the top level so a model cannot satisfy the schema with "{}",
@@ -193,7 +159,6 @@ export function buildExtractionSchema(trackerSettings) {
                 properties: {
                     stats: stringMap(playerStatDefs),
                     ...(playerCollections ? { collections: playerCollections } : {}),
-                    ...(profileProps ? { profile: profileProps } : {}),
                 },
             },
             characters: {
@@ -205,7 +170,6 @@ export function buildExtractionSchema(trackerSettings) {
                         name: { type: 'string' },
                         stats: stringMap(npcStatDefs),
                         ...(npcCollections ? { collections: npcCollections } : {}),
-                        ...(profileProps ? { profile: profileProps } : {}),
                     },
                 },
             },
@@ -401,8 +365,6 @@ function describeCurrentState(state, trackerSettings) {
         player: {
             stats: statsInSystem(state.player?.stats, 'playerStats'),
             ...(playerCollections ? { collections: playerCollections } : {}),
-            // The player's four fields live on their persona record, not in the scene cast.
-            ...profileBlock(safePlayerCard()),
         },
         characters: (state.characters || []).map(char => {
             const charCollections = summarise(char, 'npc');
@@ -410,7 +372,6 @@ function describeCurrentState(state, trackerSettings) {
                 name: char.name,
                 stats: statsInSystem(char.stats, 'npcStats'),
                 ...(charCollections ? { collections: charCollections } : {}),
-                ...profileBlock(findCardForName(char.name)),
             };
         }),
     };
@@ -419,31 +380,6 @@ function describeCurrentState(state, trackerSettings) {
     // reason. Pretty-printing it spent a newline and an indent on every key, which on a
     // real chat was a third of the largest section of the prompt.
     return JSON.stringify(shape);
-}
-
-/**
- * A character's four profile fields, ready to spread into their record.
- *
- * Every field that has a value, not only the unlocked ones. The state block is meant to be
- * a complete picture of somebody, and it was the one place in the whole prompt that was
- * missing a piece: their stats and their belongings were there, and who they are was not.
- * What the reader may *change* is a separate question, answered by its own section.
- *
- * Absent rather than empty when nothing is written, so a card nobody has filled in does not
- * carry a block of blank strings in every message.
- */
-function profileBlock(card) {
-    const profile = {};
-    for (const field of PROFILE_FIELDS) {
-        const value = String(card?.profile?.[field.id] ?? '').trim();
-        if (value) profile[field.id] = value;
-    }
-    return Object.keys(profile).length ? { profile } : {};
-}
-
-/** getPlayerCard, which needs a persona and is called where there may not be one. */
-function safePlayerCard() {
-    try { return getPlayerCard(); } catch { return null; }
 }
 
 /**
@@ -588,19 +524,16 @@ function describeAbsentButNamed(state, messageText, trackerSettings) {
            the state is what makes them off-scene. liveFactsFor answers exactly that. */
         const { stats, collections } = liveFactsFor(char);
         const listed = summariseCollections({ collections }, 'npc', trackerSettings);
-        const profile = profileBlock(char);
 
-        // Nothing at all to say is not worth a line. A card with only a profile still is:
-        // that is who they are, and it is the half the reader most often lacks.
+        // Nothing at all to say is not worth a line.
         const hasStats = Object.keys(stats || {}).length > 0;
         const hasItems = Object.values(listed || {}).some(items => items.length);
-        if (!hasStats && !hasItems && !profile.profile) continue;
+        if (!hasStats && !hasItems) continue;
 
         records.push({
             name: char.name,
             ...(hasStats ? { stats } : {}),
             ...(hasItems ? { collections: listed } : {}),
-            ...profile,
         });
     }
 
@@ -660,7 +593,6 @@ export function buildUserPrompt(state, messageText, trackerSettings, leadUp = []
         schema ? '\n### COLLECTIONS AND THEIR FIELDS\n' + schema : '',
         example ? '\n### A COLLECTION CHANGE LOOKS LIKE THIS\n' + example
             + '\nOmit any field the message does not state. Do not guess a value.' : '',
-        describeOpenProfileFields(state),
         buildMinimalExample(state, trackerSettings),
         context,
         '\n### LATEST MESSAGE (apply what this one changes)',
@@ -807,49 +739,6 @@ export function coerceToUpdate(raw) {
 }
 
 /**
- * The unlocked profile fields, with what they currently say.
- *
- * The schema grew a `profile` key and nothing told the model it existed, which left a slot
- * with no instruction and no current value to compare against - it would have been writing
- * blind. Here rather than in the system prompt for the reason threads and the reasons
- * object are here: a user's own extraction prompt replaces the shipped one outright, and an
- * ask that lives only in the shipped text never reaches them.
- *
- * Only the unlocked ones. A locked field is dropped on apply whatever comes back, so
- * listing it would spend tokens inviting a change that is thrown away.
- *
- * @returns {string} Empty when nothing is unlocked, so the caller leaves the section out.
- */
-function describeOpenProfileFields(state) {
-    const lines = [];
-
-    // Names only. The values are in the state block above, where every other fact about a
-    // character lives - repeating them here sent an appearance twice in the same message.
-    const describe = (card, label) => {
-        const open = PROFILE_FIELDS.filter(f => aiMayEditProfileField(card, f.id));
-        for (const field of open) lines.push(`- ${label}.${field.id}`);
-    };
-
-    if (state?.player?.name) {
-        try { describe(getPlayerCard(), state.player.name); } catch { /* no persona */ }
-    }
-    for (const actor of state?.characters || []) {
-        const card = findCardForName(actor?.name);
-        if (card) describe(card, actor.name);
-    }
-
-    if (!lines.length) return '';
-    return '\n### PROFILE FIELDS YOU MAY UPDATE\n'
-        + 'Their current values are in the state above. These describe who somebody IS, not '
-        + 'what is happening to them, and they change rarely - a scar, a haircut, a lasting '
-        + 'change of manner. Update one only when the latest message plainly shows it. '
-        + 'Omitting a field means unchanged, which is almost always the right answer. Any '
-        + 'profile field not listed here must not be changed. Return them under "profile" '
-        + 'on that character, beside "stats".\n'
-        + lines.join('\n');
-}
-
-/**
  * A minimal reply, in the stats this setup actually has.
  *
  * Small models copy the shape of an example far more reliably than they follow a
@@ -883,57 +772,6 @@ function buildMinimalExample(state, trackerSettings) {
         + 'Everyone present is listed; only what changed carries a value.';
 }
 
-/**
- * Writes back any profile field the reader changed and is allowed to change.
- *
- * Deliberately outside applyUpdate. That writes the state - chat metadata, which the diff,
- * the review gate and the timeline all read - while a profile lives on the card, in
- * settings, shared by every chat. Routing one through the other would put global data on a
- * per-message path, which is how the player's stats once reached master storage.
- *
- * The lock is enforced here as well as in the schema. The schema only knows whether anybody
- * has unlocked anything; this knows which character and which field, and drops the rest even
- * when the model returns them anyway.
- *
- * Undoing is the swipe base's job: it snapshots every profile before the message runs, and
- * rebaseToSwipe puts them back. See snapshotProfiles.
- *
- * @returns {string[]} What changed, as "Name.Field", for the log.
- */
-export function applyProfileFromReply(parsed) {
-    if (!anyProfileFieldUnlocked(profileOwners())) return [];
-
-    const changed = [];
-
-    const write = (card, incoming) => {
-        if (!card || !incoming || typeof incoming !== 'object') return;
-        if (!card.profile || typeof card.profile !== 'object') card.profile = {};
-
-        for (const field of PROFILE_FIELDS) {
-            if (!aiMayEditProfileField(card, field.id)) continue;
-            const value = String(incoming[field.id] ?? '').trim();
-            // An omitted field means "unchanged", and a blank one is the model failing to
-            // answer rather than deciding somebody has no personality.
-            if (!value || value === String(card.profile[field.id] ?? '').trim()) continue;
-            card.profile[field.id] = value;
-            changed.push(`${card.name}.${field.label}`);
-        }
-    };
-
-    if (parsed?.player?.profile) {
-        try { write(getPlayerCard(), parsed.player.profile); } catch { /* no persona */ }
-    }
-
-    for (const incoming of Array.isArray(parsed?.characters) ? parsed.characters : []) {
-        if (incoming?.profile) write(findCardForName(incoming.name), incoming.profile);
-    }
-
-    if (changed.length) {
-        saveSettings();
-        debugLog('Profile fields the story changed:', changed);
-    }
-    return changed;
-}
 
 /**
  * Opens and closes threads from what the reader returned.
@@ -1158,10 +996,6 @@ export async function extractStateFromMessage(messageText, messageId, options = 
         // closing a wrong one is a click; holding them would mean a decision per message
         // about something that is only ever context.
         applyThreadsFromReply(parsed, messageId, String(messageText));
-
-        // Profiles, for whichever fields have been unlocked. Outside applyUpdate on
-        // purpose: these live on the card rather than in the state.
-        applyProfileFromReply(parsed);
 
         // Propose, then decide. A dry run says what the update would do, so additions,
         // removals and implausible jumps can be held back for a look rather than

@@ -12,8 +12,7 @@ import {
     DEFAULT_MARKER_OPEN,
     DEFAULT_MARKER_CLOSE,
     buildDialogueFormatPrompt,
-    IMAGE_PROMPT_BY_BACKEND,
-    PROFILE_FIELDS
+    IMAGE_PROMPT_BY_BACKEND
 } from './constants.js';
 import { resolveImageFolder } from './utils.js';
 
@@ -231,17 +230,6 @@ export const defaultSettings = {
      * Data Bank by accident - this asks for it deliberately, with /db-search.
      */
     loreUseDataBank: false,
-    /**
-     * Per-field wording for what Fill should write in each profile field.
-     *
-     * Sparse on purpose: only fields somebody has actually rewritten appear here, and
-     * everything else reads the shipped hint. Storing all of them would freeze the set at
-     * whatever shipped that day, so a field added later would never reach anybody who had
-     * edited one - which is the state the extraction prompt is in.
-     *
-     * @type {Record<string, string>}
-     */
-    profileHints: {},
     /**
      * Which connection writes lore. Empty means your main API.
      *
@@ -877,13 +865,6 @@ export function normalizeSettings(settings) {
         settings.mimoMigrated = 1;
     }
 
-    // Shape only. An absent entry means "use the shipped hint", which is the default and
-    // needs no seeding - unlike the extraction prompt below, which is copied in once and
-    // then belongs to the user forever.
-    if (!settings.profileHints || typeof settings.profileHints !== 'object') {
-        settings.profileHints = {};
-    }
-
     if (!String(settings.statusTracker.extractionPrompt || '').trim()) {
         settings.statusTracker.extractionPrompt = SYSTEM_PROMPT;
     }
@@ -949,15 +930,9 @@ export function normalizeSettings(settings) {
         if (typeof char.category !== 'string') char.category = '';
         if (typeof char.imageFit !== 'string') char.imageFit = '';
         if (!char.statusOverrides || typeof char.statusOverrides !== 'object') char.statusOverrides = {};
-        // Field by field rather than whole-object, so a profile written before a field
-        // existed gains the new one instead of being replaced by a blank set.
-        if (!char.profile || typeof char.profile !== 'object') char.profile = {};
-        for (const field of PROFILE_FIELDS) {
-            if (typeof char.profile[field.id] !== 'string') char.profile[field.id] = '';
-        }
-        // Which profile fields Fill is allowed to write. Absent means none, which is the
-        // default, so nothing existing needs migrating - only the shape is repaired.
-        if (!Array.isArray(char.aiProfileFields)) char.aiProfileFields = [];
+        // The profile fields (age, appearance, personality, warmth, speech) are gone - the
+        // linked lorebook entry is who somebody is. Any 'profile' / 'aiProfileFields' an old
+        // save still carries is left in place, unread, rather than deleted.
         // Fork: the picture prompt for this character, and what to keep out of it.
         if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
         if (typeof char.imageNegative !== 'string') char.imageNegative = '';

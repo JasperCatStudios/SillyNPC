@@ -6,7 +6,6 @@ import { escapeHtml } from './utils.js';
 import { openManagePopup } from './ui-manage.js';
 import { buildPortraitBlock, openLightbox } from './ui-portrait.js';
 import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section.js';
-import { buildProfileBlocks, renderProfileFields } from './ui-profile.js';
 import { readLoreEntry } from './character-fill.js';
 import { fillCharacter } from './ui-fill.js';
 import { playerHistory, restorePlayerFromMessage } from './status-snapshots.js';
@@ -240,31 +239,13 @@ function renderSidebar(dom) {
 }
 
 /**
- * The parts of a tab that build elements rather than markup: the profile fields, and the
- * lore. renderTabContent hands back a string, and both of these need real nodes - the
+ * The parts of a tab that build elements rather than markup: the lore. renderTabContent hands back a string, and both of these need real nodes - the
  * lore because it is loaded over an await.
  *
  * @param {HTMLElement} dom
  */
 function renderTabExtras(dom) {
     const card = getPlayerCard();
-
-    const readOnly = dom.querySelector('.sillynpc-sheet-content .sillynpc-sheet-profile');
-    if (readOnly) {
-        const blocks = buildProfileBlocks(card);
-        if (blocks.length) {
-            readOnly.replaceChildren(...blocks);
-        } else {
-            const empty = document.createElement('p');
-            empty.className = 'notes sillynpc-cv-empty';
-            empty.textContent = 'Nothing recorded about who you are yet. Open Edit and '
-                + 'write it, and the reader will be told it as established fact.';
-            readOnly.replaceChildren(empty);
-        }
-    }
-
-    const form = dom.querySelector('.sillynpc-sheet-content .sillynpc-sheet-profile-form');
-    if (form) renderProfileFields(card, form);
 
     const loreView = dom.querySelector('.sillynpc-sheet-content .sillynpc-sheet-lore');
     if (loreView) {
@@ -400,7 +381,6 @@ function renderTabContent(tabId, state) {
                     `;
                 }).join('')}
             </div>
-            <div class="sillynpc-sheet-profile"></div>
             ${playerCollections().map(col => collectionSection(col, state, settings, {
                 isEditMode: false, showEditToggle: false,
             })).join('')}
@@ -411,7 +391,6 @@ function renderTabContent(tabId, state) {
     // Edit. The stats are not repeated here: they are click-to-edit on Profile already,
     // and the one number somebody opens this sheet to fix should not be a tab away.
     return `
-        <div class="sillynpc-sheet-profile-form"></div>
         ${playerCollections().map(col => collectionSection(col, state, settings, {
             isEditMode: isCollectionEditMode, showEditToggle: true, bulk: bulkFor(col.id),
         })).join('')}

@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from './settings.js';
 import { makeId } from './utils.js';
-import { SPEAKER_PALETTE, paletteColorFor, blankProfile } from './constants.js';
+import { SPEAKER_PALETTE, paletteColorFor } from './constants.js';
 import { getContext } from '../../../../st-context.js';
 
 /**
@@ -57,8 +57,6 @@ export function createCharacter(name = '') {
         /** Image-generation prompt and negative prompt for this character (fork). */
         imagePrompt: '',
         imageNegative: '',
-        /** Who they are, as opposed to what is happening to them. See PROFILE_FIELDS. */
-        profile: blankProfile(),
     };
     getSettings().characters.push(char);
     saveSettings();

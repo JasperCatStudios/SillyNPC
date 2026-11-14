@@ -4,7 +4,6 @@ import { debugLog } from './constants.js';
 import {
     loadStateFromMetadata, parseMessageForUpdates,
     saveStateToMetadata, syncPlayerToMaster, getSwipeBase, swipeBaseRecord,
-    getProfileBase, restoreProfiles,
 } from './status-logic.js';
 import { eventSource } from '../../../../events.js';
 import { getPreservedStatusRaw } from './status-history.js';
@@ -690,12 +689,6 @@ export function rebaseToSwipe(messageId) {
         return { rebased: false, reason: 'no base' };
     }
 
-    // Profiles first: they live on the card rather than in the state, so the clone below
-    // cannot carry them and a rewritten personality would otherwise outlive the reply that
-    // wrote it. Deliberately not part of applyRows - that also builds the read-only history
-    // view, and writing to settings from there would rewrite every card on a scroll.
-    restoreProfiles(getProfileBase(messageId));
-
     const rows = appliedChangesForCurrentSwipe(messageId) || [];
     const state = structuredClone(base);
     applyRows(state, rows);
@@ -741,7 +734,6 @@ export function revertToBase(messageId) {
     // to invent one, and a wrong revert throws away state silently.
     if (!base) return { reverted: false, reason: 'no base' };
 
-    restoreProfiles(getProfileBase(messageId));
     saveStateToMetadata(base, { recordHistory: false });
     invalidateTimeline();
     debugLog(`Reverted to the state before message ${messageId}`);

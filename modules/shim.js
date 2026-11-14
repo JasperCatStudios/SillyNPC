@@ -1,6 +1,5 @@
 import { getSettings, saveSettings } from '../src/settings.js';
 import { getActiveCharacters } from '../src/characters.js';
-import { PROFILE_FIELDS } from '../src/constants.js';
 import { charactersMentionedIn } from '../src/mentions.js';
 import { parseMarkedLines } from '../src/speaker-marker.js';
 import { primeLore, profileText } from '../src/profile-text.js';

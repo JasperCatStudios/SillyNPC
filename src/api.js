@@ -3,7 +3,7 @@ import { getContext } from '../../../../st-context.js';
 import { loadWorldInfo, saveWorldInfo, createWorldInfoEntry } from '../../../../world-info.js';
 import { executeSlashCommandsOnChatInput } from '../../../../slash-commands.js';
 import { saveBase64AsFile } from '../../../../utils.js';
-import { LOG_PREFIX, debugLog, PORTRAIT_SHAPES, DEFAULT_PORTRAIT_SHAPE, PROFILE_FIELDS } from './constants.js';
+import { LOG_PREFIX, debugLog, PORTRAIT_SHAPES, DEFAULT_PORTRAIT_SHAPE } from './constants.js';
 // The chat draws this picture beside every line the character speaks, so changing it
 // leaves the chat stale. reprocess.js holds the handle so any module can ask.
 import { triggerReprocess } from './reprocess.js';
@@ -69,32 +69,6 @@ export async function createLoreEntry(char, targetWorld, entryName) {
  * @returns {string} Empty when nothing is known, so the caller can substitute a note.
  */
 /**
- * The character's profile fields, as lines for a prompt.
- *
- * Leads the established facts rather than sitting under them: who somebody is comes before
- * what they are currently carrying, and the lore writer is being told not to describe
- * these - which only works if it can see them.
- *
- * @param {object} char
- * @returns {string} Empty when nothing is filled in, so a caller can leave it out.
- */
-export function describeProfile(char, except = null) {
-    const profile = char?.profile || {};
-    // A field being rewritten is left out. Showing the model the old personality under
-    // "already known, do not contradict it" and then asking for a new one is asking it to
-    // paraphrase what is already there, which is not what regenerating means.
-    const skip = except instanceof Set ? except : new Set(except || []);
-    return PROFILE_FIELDS
-        .filter(field => !skip.has(field.id))
-        .map(field => {
-            const value = String(profile[field.id] ?? '').trim();
-            return value ? `${field.label}: ${value}` : null;
-        })
-        .filter(Boolean)
-        .join('\n');
-}
-
-/**
  * The stats and collections a character actually has right now.
  *
  * The player is not one of the scene cast - that is what "this is me" means - so looking
@@ -128,17 +102,11 @@ export function liveFactsFor(char) {
     };
 }
 
-export function describeTrackedFacts(char, except = null) {
+export function describeTrackedFacts(char) {
     if (!char?.name) return '';
 
     const { stats, collections } = liveFactsFor(char);
     const lines = [];
-
-    // Who they are comes before what they are carrying. The exclusion is forwarded because
-    // this is the second place a profile reaches the fill prompt, and leaving it out of only
-    // the first would put the old value straight back in under another heading.
-    const profile = describeProfile(char, except);
-    if (profile) lines.push(profile);
 
     const statLine = Object.entries(stats)
         .filter(([, value]) => String(value ?? '').trim() !== '')
@@ -1055,11 +1023,7 @@ export async function generateCharacterImageLogic(char, { referenceImages = [] }
 
     const fullPrompt = fillImagePrompt(resolveImagePrompt(), {
         name: char.name,
-        // Appearance rides in on [LORE] rather than a placeholder of its own: a custom
-        // image template replaces the shipped one outright and would never contain a tag
-        // invented after it was written.
-        lore: [String(char?.profile?.appearance ?? '').trim(), loreContext]
-            .filter(Boolean).join('\n\n'),
+        lore: loreContext,
         items: describeCarriedItems(char),
         context: recentMessages,
     });

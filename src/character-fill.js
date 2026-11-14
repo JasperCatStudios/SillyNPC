@@ -1,14 +1,11 @@
 import { getContext } from '../../../../st-context.js';
 import { loadWorldInfo } from '../../../../world-info.js';
-import { fillTemplate } from './macros.js';
 import { getSettings, saveSettings } from './settings.js';
-import { debugLog, PROFILE_FIELDS, hintFor } from './constants.js';
+import { debugLog } from './constants.js';
 import { requestExtraction, coerceToUpdate, describeCollections } from './status-extractor.js';
 import { applyUpdate, resolveMaxValue, loadStateFromMetadata } from './status-logic.js';
-import { describeTrackedFacts, describeProfile, buildLoreExcerpt, createLoreEntry, generateLoreContent, saveLoreContent } from './api.js';
+import { describeTrackedFacts, buildLoreExcerpt, createLoreEntry, generateLoreContent, saveLoreContent } from './api.js';
 import { tryAutoSyncLorebook, getChatLorebookName } from './lorebook.js';
-import { charactersMentionedIn } from './mentions.js';
-import { getPersonaData } from './status-logic.js';
 
 /**
  * Filling in a character card that was created from a chat, or by hand, and is empty.
@@ -91,18 +88,6 @@ export function carriedItems(char) {
  * @returns {{ lore: object, data: object, belongings: object, image: object, anything: boolean }}
  */
 export function auditCharacter(char) {
-    const missingProfile = missingProfileFields(char);
-    const profile = missingProfile.length === 0
-        // Built from the list rather than spelled out, so adding a field does not leave a
-        // sentence here naming the four there used to be.
-        ? { done: true, summary: `${PROFILE_FIELDS.map(f => f.label).join(', ')} are all filled in.` }
-        : {
-            done: false,
-            missing: missingProfile.map(f => f.id),
-            summary: `${missingProfile.length} of ${PROFILE_FIELDS.length} empty: `
-                + `${missingProfile.map(f => f.label).join(', ')}.`,
-        };
-
     const lore = char?.lorebook
         ? { done: true, summary: 'Already linked to a lorebook entry.' }
         : { done: false, summary: 'No lorebook entry. Will look for one, and write it if there is none.' };
@@ -127,211 +112,10 @@ export function auditCharacter(char) {
 
     const wanted = (stage) => stage.checked ?? !stage.done;
     return {
-        profile, lore, data, belongings, image,
-        anything: wanted(profile) || wanted(lore) || wanted(data)
+        lore, data, belongings, image,
+        anything: wanted(lore) || wanted(data)
             || wanted(belongings) || wanted(image),
     };
-}
-
-/**
- * Which profile fields this card has nothing for. A blank string counts as nothing.
- *
- * Not gated by the per-field lock, deliberately. The lock protects what you wrote, and an
- * empty field has nothing to protect - so Fill may still seed a blank on a brand-new
- * character and leave you to correct it. What the lock stops is the per-message reader
- * *changing* a field afterwards; see aiMayEditProfileField.
- */
-export function missingProfileFields(char) {
-    const profile = char?.profile || {};
-    return PROFILE_FIELDS.filter(field => !String(profile[field.id] ?? '').trim());
-}
-
-/** What the reader is told when filling in who somebody is. */
-export const PROFILE_SYSTEM_PROMPT = [
-    'You are filling in the profile of one character in a roleplaying session.',
-    'Reply with a JSON object and nothing else. No prose, no markdown, no code fences.',
-    '',
-    'Shape:',
-    '  { "<field>": "<value>" }',
-    '',
-    '- Fill only the fields you are asked for. Omit any field the material does not',
-    '  support - a blank is an honest answer, and a guess becomes a fact the moment it',
-    '  is written to the sheet.',
-    '- Describe what this character IS, not what is happening to them right now. A profile',
-    '  outlives the scene it was written from.',
-    '- Third person. No preamble.',
-].join('\n');
-
-/**
- * What there is to go on, before anything is sent.
- *
- * Four cases, and the one that mattered is the last: a character with no entry who has not
- * appeared yet. Fill used to send the recent story anyway, and the recent story is the
- * reader's own messages and their persona - so the model described the persona, because
- * that was the only person in front of it. Withholding the story is what makes that
- * impossible rather than merely discouraged.
- *
- * An entry the reader wrote by hand but never linked counts. fillLore has always looked
- * for one; fillProfile never did, so a perfectly good description sat unread unless the
- * link had been made by hand.
- *
- * @param {object} char
- * @returns {Promise<{ story: string, lore: string, enough: boolean }>}
- */
-export async function fillSources(char) {
-    // The linked entry, or one that matches by name and was never linked to.
-    let lore = await readLoreEntry(char);
-    if (!lore && !char?.lorebook) {
-        if (await tryAutoSyncLorebook(char, { silent: true })) {
-            lore = await readLoreEntry(char);
-        }
-    }
-
-    /* Name and non-regex aliases, on word boundaries, honouring the case-insensitive
-       setting - charactersMentionedIn is that matcher and is what decides who the tracker
-       reads about, so Fill agreeing with it is worth more than a second rule that could
-       disagree. Passed this one character rather than the cast: the question is whether
-       *they* are in it. */
-    const excerpt = buildLoreExcerpt(getContext()?.chat || []);
-    const mentioned = excerpt.text
-        ? charactersMentionedIn(excerpt.text, [char]).length > 0
-        : false;
-
-    return {
-        story: mentioned ? excerpt.text : '',
-        lore,
-        enough: Boolean(mentioned || lore),
-    };
-}
-
-/**
- * The ask, generated from the field list so a field cannot exist without being asked for.
- */
-// Exported for the tests. The exclusion that keeps a field being rewritten out of what
-// the model is shown lives in the wiring here, not in the helpers it calls - so a test that
-// exercises those directly passes whatever this does, which is how two mutations of exactly
-// that wiring went unnoticed.
-export function buildProfilePrompt(char, wanted, sources) {
-    const parts = [`Character: ${char.name}`];
-
-    // Named so the story cannot be mistaken for a description of them. The reader writes
-    // most of what is in an excerpt, so their persona is the best-described person in it
-    // by some distance, and the subject may be a passing mention.
-    const persona = getPersonaData();
-    if (persona?.name && persona.name !== char.name) {
-        /* The exception matters as much as the rule. Without it the warmth field, which
-           asks how this character behaves toward the reader, reads as forbidden and comes
-           back blank - two instructions cancelling each other with nothing to show for it. */
-        parts.push(`${persona.name} is the reader's own character, not the subject. `
-            + `Nothing about ${persona.name} belongs on ${char.name}'s profile, except how `
-            + `${char.name} behaves toward them.`);
-    }
-
-    // Everything except what is being rewritten. See describeProfile.
-    const rewriting = new Set(wanted.map(f => f.id));
-    const known = describeProfile(char, rewriting);
-    if (known) parts.push(`Already known about them, do not contradict it:\n${known}`);
-
-    /* The story first, and said to be the better source.
-
-       A lorebook entry is written to steer a scene, so it is often broad where a profile
-       wants the particular - and it may itself have been written from a chat this
-       character was barely in. What they were seen doing beats what an entry says about
-       them, so the story leads and the entry backs it up.
-
-       The story is here at all only when they are in it. See fillSources. */
-    if (sources.story) {
-        /* It used to call itself the best source and say "describe them from what they do
-           here", which fought the system prompt's "a profile outlives the scene it was
-           written from" - and won, being later and more specific. A character filled in
-           after a bad night kept that night permanently, because Fill never overwrites.
-           The story is still first, which is the point: an entry is written to steer a
-           scene and is often broad where a profile wants the particular. What changed is
-           what to take from it. */
-        parts.push('Recent story, as one source among several. Take what is generally true '
-            + 'of this character from it, not what was true of them in the last few '
-            + 'minutes. Somebody frightened or angry in these messages is not permanently '
-            + `so.\n${sources.story}`);
-    }
-
-    if (sources.lore) {
-        parts.push((sources.story ? 'Their lorebook entry, as background' : 'Their lorebook entry')
-            + `:\n${sources.lore}`);
-    }
-
-    const facts = describeTrackedFacts(char, rewriting);
-    if (facts) parts.push(`What the tracker records about them:\n${facts}`);
-
-    parts.push(
-        'Fill in these fields:\n'
-        + wanted.map(field => `- ${field.id}: `
-            + fillTemplate(hintFor(field, getSettings().profileHints), { name: char.name }))
-            .join('\n'),
-    );
-
-    return parts.join('\n\n');
-}
-
-/**
- * Fills in who somebody is, from the story, their entry and what the tracker knows.
- *
- * Only blanks. A field you wrote yourself is the one thing on the card that is certainly
- * right, and a fill that overwrote it would make the button dangerous rather than useful -
- * the same rule fillData follows for tracker fields.
- *
- * Writes straight to the card rather than through applyUpdate: a profile is not tracker
- * state, and routing it through the update path is exactly how it would end up somewhere
- * the per-message reader could reach it.
- *
- * @returns {Promise<{ ok: boolean, filled: string[], reason?: string }>}
- */
-export async function fillProfile(char, { fields = null } = {}) {
-    /* Named fields are rewritten whether or not they already say something.
-     *
-     * Fill on its own has always been a fill-in-the-blanks button, and it stays one: pressing
-     * it must not silently rewrite a personality somebody sat down and wrote, which is what
-     * the plan dialog promises. But there was no deliberate path either, so redoing one field
-     * meant clearing the box by hand first, per field and per character. Asking for a field by
-     * name is that path, and every caller of it confirms first. */
-    const wanted = Array.isArray(fields) && fields.length
-        ? PROFILE_FIELDS.filter(f => fields.includes(f.id))
-        : missingProfileFields(char);
-    if (wanted.length === 0) return { ok: true, filled: [] };
-
-    const sources = await fillSources(char);
-    if (!sources.enough) {
-        return {
-            ok: true, filled: [],
-            reason: `Nothing to go on: ${char.name} has no lorebook entry and is not `
-                + 'mentioned in the recent story. Write them into a message, or give them '
-                + 'an entry, and try again.',
-        };
-    }
-
-    const prompt = buildProfilePrompt(char, wanted, sources);
-    const raw = await requestExtraction(
-        prompt, null, getSettings().statusTracker, PROFILE_SYSTEM_PROMPT, { usageKind: 'fill' });
-    const answer = coerceToUpdate(raw);
-
-    if (!answer || typeof answer !== 'object') {
-        return { ok: false, filled: [], reason: 'The reader replied with something that could not be read.' };
-    }
-
-    if (!char.profile || typeof char.profile !== 'object') char.profile = {};
-    const filled = [];
-    for (const field of wanted) {
-        const value = answer[field.id];
-        if (value === undefined || value === null || String(value).trim() === '') continue;
-        char.profile[field.id] = String(value).trim();
-        filled.push(field.label);
-    }
-
-    if (!filled.length) {
-        return { ok: true, filled: [], reason: 'The material did not say enough to fill anything.' };
-    }
-
-    saveSettings();
-    return { ok: true, filled };
 }
 
 /** The linked entry's text, or an empty string. Read fresh: it may have just been written. */
@@ -380,11 +164,7 @@ export async function fillLore(char) {
        An entry is worth having for a character who has not appeared yet - that is most of
        what somebody is doing when they make a card in advance - and the lore writer reads
        the Data Bank and its own configurable slice of the chat, which is a different and
-       larger question than "is this name in the last fifteen messages".
-
-       The profile is the one that must not describe somebody it has never been told about;
-       see fillSources. Applying the same test here refused far more than intended, because
-       its Data Bank half is switched off by default. */
+       larger question than "is this name in the last fifteen messages". */
     const { uid } = await createLoreEntry(char, world, char.name);
     const { content, tags } = await generateLoreContent(char, world, uid);
     if (!String(content || '').trim()) {

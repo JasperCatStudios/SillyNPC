@@ -3,7 +3,7 @@ import { createCharacter } from './characters.js';
 import { adoptImageForCharacter, createLoreEntry, saveLoreContent } from './api.js';
 import { tryAutoSyncLorebook, getChatLorebookName } from './lorebook.js';
 import { loadWorldInfo } from '../../../../world-info.js';
-import { blankProfile, PROFILE_FIELDS, debugLog } from './constants.js';
+import { debugLog } from './constants.js';
 
 /**
  * Sending one character to somebody else, and taking one in.
@@ -60,12 +60,6 @@ async function readLoreEntry(char) {
  * @returns {Promise<object>} The record.
  */
 export async function serialiseCharacter(char) {
-    const profile = {};
-    for (const field of PROFILE_FIELDS) {
-        const value = String(char.profile?.[field.id] ?? '').trim();
-        if (value) profile[field.id] = value;
-    }
-
     return {
         name: String(char.name || ''),
         color: String(char.color || ''),
@@ -74,7 +68,6 @@ export async function serialiseCharacter(char) {
         aliases: Array.isArray(char.aliases) ? structuredClone(char.aliases) : [],
         imagePrompt: String(char.imagePrompt || ''),
         imageNegative: String(char.imageNegative || ''),
-        profile,
         statusOverrides: char.statusOverrides && typeof char.statusOverrides === 'object'
             ? structuredClone(char.statusOverrides)
             : {},
@@ -170,14 +163,6 @@ function applyRecord(char, record, name) {
     char.statusOverrides = record.statusOverrides && typeof record.statusOverrides === 'object'
         ? structuredClone(record.statusOverrides)
         : {};
-
-    // Field by field, for the same reason normalizeSettings does it that way: a file
-    // written before a field existed should gain it blank, not replace the set.
-    char.profile = blankProfile();
-    for (const field of PROFILE_FIELDS) {
-        const value = record.profile?.[field.id];
-        if (typeof value === 'string') char.profile[field.id] = value;
-    }
 
     // The category name comes along; registering it is normalizeSettings' job, which the
     // import runs at the end. It already adopts any category a card names but the register

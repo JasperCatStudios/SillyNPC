@@ -1,6 +1,6 @@
 import { eventSource } from '../../../../events.js';
 import { getSettings } from './settings.js';
-import { PROFILE_FIELDS, debugLog } from './constants.js';
+import { debugLog } from './constants.js';
 import { readLoreEntry } from './character-fill.js';
 
 /**
@@ -10,9 +10,8 @@ import { readLoreEntry } from './character-fill.js';
  * here, so a character is described the same way everywhere and is set up in one place - their
  * page. In order of say:
  *
- *   1. text written for this on their page (`phoneProfile`);
- *   2. the lorebook entry linked to them, as their personality and profile;
- *   3. their profile fields.
+ *   the lorebook entry linked to them on their SillyNPC character page - the one place
+ *      the link is made - as their personality and profile.
  *
  * Entries are read into memory ahead of time, because the callers ask for text synchronously.
  * A linked entry that has not been read yet is fetched when first asked for, and 'sillynpc-profile-updated'
@@ -53,9 +52,8 @@ function fetchLater(char) {
 
 /** Where the text for a character comes from, in words, for the page that edits it. */
 export function profileSource(char) {
-    if (String(char?.phoneProfile || '').trim()) return 'the text written for it on this page';
     if (char?.lorebook?.world && loreText.get(loreKey(char.lorebook))) return `their lorebook entry in "${char.lorebook.world}"`;
-    return 'their profile fields';
+    return 'nothing yet - link a lorebook entry on their page';
 }
 
 /**
@@ -65,9 +63,6 @@ export function profileSource(char) {
  * @returns {string}
  */
 export function profileText(char) {
-    const own = String(char?.phoneProfile || '').trim();
-    if (own) return own;
-
     if (char?.lorebook?.world) {
         const key = loreKey(char.lorebook);
         const entry = loreText.get(key);
@@ -75,10 +70,5 @@ export function profileText(char) {
         if (!loreText.has(key)) fetchLater(char);
     }
 
-    const profile = char?.profile || {};
-    return PROFILE_FIELDS
-        .map(field => [field.label, String(profile[field.id] ?? '').trim()])
-        .filter(([, value]) => value)
-        .map(([label, value]) => `${label}: ${value}`)
-        .join('\n');
+    return '';
 }

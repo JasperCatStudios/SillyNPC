@@ -1,6 +1,5 @@
 import { getSettings, saveSettings } from './settings.js';
 import { eventSource } from '../../../../events.js';
-import { profileSource, PROFILE_UPDATED_EVENT } from './profile-text.js';
 import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
 import { previewVoice, voiceChoices, ttsStatus, VOICE_KEYS } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
@@ -96,30 +95,6 @@ export function renderCharacterExtras(char, container) {
         note('Sent to SillyTavern\'s image generation by the button, and - when "Send Image Prompts '
             + 'To The Model" is on - listed for the story model whenever this character is in the '
             + 'scene, so a prompt it writes describes the same person each time.'),
-    );
-
-    // --- Who they are, for the phone and the games ---------------------------------------
-    const profileBox = document.createElement('textarea');
-    profileBox.className = 'text_pole';
-    profileBox.rows = 4;
-    profileBox.placeholder = 'Empty: their linked lorebook entry is used, or else their profile fields';
-    profileBox.value = char.phoneProfile || '';
-    const source = note('');
-    const showSource = () => { source.textContent = `The phone and the games use ${profileSource(char)}.`; };
-    showSource();
-    profileBox.addEventListener('input', () => {
-        char.phoneProfile = profileBox.value;
-        saveSettings();
-        showSource();
-    });
-    // The lorebook link is set in the Lorebook section further down this page; this follows it.
-    eventSource.on(PROFILE_UPDATED_EVENT, showSource);
-    container.append(
-        label('Personality, for the phone and the games'),
-        profileBox,
-        source,
-        note('Link a lorebook entry in the Lorebook section below and it becomes their personality and profile '
-            + 'wherever they are written as. Text here, if any, takes priority.'),
     );
 
     // --- Phone theme -----------------------------------------------------------------

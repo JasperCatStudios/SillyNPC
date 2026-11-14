@@ -4,7 +4,7 @@ import { countTokens } from './tokens.js';
 import { PROMPTS } from './prompts.js';
 import { estimateTokens } from './status-history.js';
 import { SCAN_SYSTEM_PROMPT } from './history-scan.js';
-import { FILL_SYSTEM_PROMPT, PROFILE_SYSTEM_PROMPT } from './character-fill.js';
+import { FILL_SYSTEM_PROMPT } from './character-fill.js';
 import { BAN_SCAN_SYSTEM_PROMPT } from './banlist.js';
 import { getContext } from '../../../../st-context.js';
 import { SYSTEM_PROMPT } from './constants.js';
@@ -18,14 +18,7 @@ function fixedPromptFor(kindId) {
 
     if (kindId === 'extraction') return tracker.extractionPrompt || SYSTEM_PROMPT;
     if (kindId === 'scan') return SCAN_SYSTEM_PROMPT;
-    // Two prompts share this counter - the profile fill and the stat fill are separate
-    // requests recorded under one kind. The card states a ceiling, so it is the longer of
-    // the two: naming one of them would under-report every run of the other.
-    if (kindId === 'fill') {
-        return PROFILE_SYSTEM_PROMPT.length > FILL_SYSTEM_PROMPT.length
-            ? PROFILE_SYSTEM_PROMPT
-            : FILL_SYSTEM_PROMPT;
-    }
+    if (kindId === 'fill') return FILL_SYSTEM_PROMPT;
     if (kindId === 'banscan') return BAN_SCAN_SYSTEM_PROMPT;
     if (kindId === 'lore') return settings.generationPrompt || byKey('generationPrompt').recommended();
     if (kindId === 'image') {

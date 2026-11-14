@@ -146,7 +146,7 @@ window.SILLYNPC_DEBUG = true;
 | File | Role |
 |---|---|
 | `index.js` | Entry point, event wiring |
-| `src/constants.js` | Version, theme list, prompts, profile fields, debug logger |
+| `src/constants.js` | Version, theme list, prompts, debug logger |
 | `src/settings.js` | Defaults and migrations (`normalizeSettings`) |
 | `src/utils.js` | Escaping, JSON repair, image picking, stat-bar maths |
 | `src/chat.js` | Speaker detection and avatar injection |

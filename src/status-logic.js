@@ -15,7 +15,7 @@ import { getContext } from '../../../../st-context.js';
 import { power_user } from '../../../../power-user.js';
 import { setUserAvatar, getUserAvatar } from '../../../../personas.js';
 import { getSettings, saveSettings, defaultSettings, normaliseStatDefs } from './settings.js';
-import { LOG_PREFIX, debugLog, PROFILE_FIELDS, isStaticField } from './constants.js';
+import { LOG_PREFIX, debugLog, isStaticField } from './constants.js';
 import { extractJSON, safeJsonParse, splitValue, escapeRegExp, currentMessageIndex, ceilingFromValue } from './utils.js';
 import { getIgnoredSpeakerLabels, normaliseSpeakerLabel } from './speaker-labels.js';
 import { describeThreads } from './threads.js';
@@ -363,14 +363,6 @@ export function getPlayerCard() {
     if (typeof record.imageUrl !== 'string') record.imageUrl = '';
     if (!Array.isArray(record.images)) record.images = [];
     if (record.lorebook === undefined) record.lorebook = null;
-    // The same four a character has, so the sheet and the character page can share the
-    // blocks that draw them. Field by field, so a record written before a field existed
-    // gains it rather than being replaced by a blank set.
-    if (!record.profile || typeof record.profile !== 'object') record.profile = {};
-    for (const field of PROFILE_FIELDS) {
-        if (typeof record.profile[field.id] !== 'string') record.profile[field.id] = '';
-    }
-
     return record;
 }
 
@@ -726,64 +718,9 @@ export function rememberSwipeBase(messageId, state) {
     metadata[SWIPE_BASE_KEY] = {
         messageId: key,
         state: structuredClone(state),
-        profiles: snapshotProfiles(),
     };
     debugLog(`Remembered the state before message ${key}, for swipes`);
     return true;
-}
-
-/**
- * Every profile, by character name, as they stand right now.
- *
- * Rides the swipe base because a profile field the reader is allowed to change does not
- * live in the state - it lives on the card, in settings, shared by every chat. So the
- * rebase cannot rebuild it the way it rebuilds a stat, and without a snapshot a rewritten
- * personality would survive the swipe that undid everything else about that reply.
- *
- * Four short strings per character. The state clone beside it is far larger.
- */
-function snapshotProfiles() {
-    const out = {};
-    const record = (card) => {
-        const name = String(card?.name ?? '').trim();
-        if (name) out[name.toLowerCase()] = { ...(card.profile || {}) };
-    };
-    for (const card of getSettings().characters || []) record(card);
-    try { record(getPlayerCard()); } catch { /* no persona yet */ }
-    return out;
-}
-
-/**
- * Puts every profile back to how the snapshot found it.
- *
- * Only the fields that actually differ, so a card nobody touched is not rewritten and
- * saveSettings is not called for nothing.
- *
- * @returns {number} How many fields were put back.
- */
-export function restoreProfiles(profiles) {
-    if (!profiles || typeof profiles !== 'object') return 0;
-
-    let restored = 0;
-    const put = (card) => {
-        const was = profiles[String(card?.name ?? '').trim().toLowerCase()];
-        if (!was) return;
-        if (!card.profile || typeof card.profile !== 'object') card.profile = {};
-        for (const field of PROFILE_FIELDS) {
-            const before = String(was[field.id] ?? '');
-            if (String(card.profile[field.id] ?? '') === before) continue;
-            card.profile[field.id] = before;
-            restored += 1;
-        }
-    };
-    for (const card of getSettings().characters || []) put(card);
-    try { put(getPlayerCard()); } catch { /* no persona yet */ }
-
-    if (restored) {
-        saveSettings();
-        debugLog(`Put ${restored} profile field(s) back to before that message`);
-    }
-    return restored;
 }
 
 /**
@@ -829,13 +766,6 @@ let alignSwipeBase = null;
 /** @param {null|(() => number)} fn */
 export function setSwipeBaseAligner(fn) {
     alignSwipeBase = typeof fn === 'function' ? fn : null;
-}
-
-/** The profiles as they stood before that message, or null when none were recorded. */
-export function getProfileBase(messageId) {
-    const stored = getMetadata()?.[SWIPE_BASE_KEY];
-    if (!stored || stored.messageId !== String(messageId)) return null;
-    return stored.profiles ? structuredClone(stored.profiles) : null;
 }
 
 
@@ -1504,10 +1434,6 @@ export function formatCompactStatus(state, fullDetail = false) {
     }
     
 
-    // Who these people actually are, for everyone the lines above just listed.
-    const who = describeCastProfiles(state);
-    if (who) output += `${who}\n`;
-
     // And who the story just named without putting on stage.
     const named = describeNamedButUnlisted(state);
     if (named) output += `${named}\n`;
@@ -1586,9 +1512,7 @@ function describeNamedButUnlisted(state) {
             .map(([colId, items]) => summarizeCollection(colId, items, true))
             .filter(Boolean);
 
-        const profile = describeProfileInline(card);
-
-        const parts = [stats, ...carried, profile].filter(Boolean);
+        const parts = [stats, ...carried].filter(Boolean);
         if (parts.length) lines.push(`${card.name} - ${parts.join(' | ')}`);
     }
 
@@ -1600,34 +1524,6 @@ function describeNamedButUnlisted(state) {
     return 'Also on file. Who these people are if the story uses them - being listed here is '
         + 'not a cue to bring them in, and not a claim about where they are:\n'
         + lines.join('\n');
-}
-
-/** The four profile fields on one line, or '' when none is written. */
-function describeProfileInline(card) {
-    return PROFILE_FIELDS
-        .map(field => {
-            const value = String(card?.profile?.[field.id] ?? '').trim();
-            return value ? `${field.label}: ${value}` : null;
-        })
-        .filter(Boolean)
-        .join(' | ');
-}
-
-function describeCastProfiles(state) {
-    const lines = [];
-
-    if (state.player?.name) {
-        // The player's profile lives on their persona record, not in the scene cast.
-        const line = describeProfileInline(getPlayerCard());
-        if (line) lines.push(`${state.player.name} - ${line}`);
-    }
-
-    for (const actor of state.characters || []) {
-        const line = describeProfileInline(findCardForName(actor?.name));
-        if (line) lines.push(`${actor.name} - ${line}`);
-    }
-
-    return lines.length ? `Who they are:\n${lines.join('\n')}` : '';
 }
 
 /**
