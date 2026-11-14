@@ -1,0 +1,109 @@
+/* Combat module (fork). Uses SillyTavern's theme variables so it follows the user's theme. */
+
+.sillynpc-combat-views {
+    display: flex;
+    gap: 6px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+.sillynpc-combat-view.is-active {
+    outline: 1px solid var(--SmartThemeQuoteColor, currentColor);
+}
+
+.sillynpc-combat-heading {
+    margin: 14px 0 6px;
+}
+
+.sillynpc-combat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.sillynpc-combat-table th,
+.sillynpc-combat-table td {
+    padding: 3px 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.3));
+    text-align: left;
+    vertical-align: top;
+}
+
+.sillynpc-combat-table th {
+    position: sticky;
+    top: 0;
+    background: var(--SmartThemeBlurTintColor, transparent);
+    white-space: nowrap;
+}
+
+.sillynpc-combat-roster td.is-pinned,
+.sillynpc-combat-roster th.is-pinned {
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor, #888) 12%, transparent);
+    font-weight: 600;
+}
+
+.sillynpc-combat-roster td {
+    text-align: right;
+}
+
+.sillynpc-combat-roster td.sillynpc-combat-name,
+.sillynpc-combat-roster th:first-child {
+    text-align: left;
+}
+
+.sillynpc-combat-roster tr.is-legacy td {
+    font-style: italic;
+    opacity: 0.85;
+}
+
+.sillynpc-combat-roster td.is-blank {
+    opacity: 0.35;
+}
+
+.sillynpc-combat-formula {
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
+.sillynpc-combat-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.sillynpc-combat-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 0.75em;
+    font-weight: 400;
+    font-style: normal;
+    background: rgba(128, 128, 128, 0.25);
+}
+
+.sillynpc-combat-badge.is-good { background: rgba(46, 160, 67, 0.3); }
+.sillynpc-combat-badge.is-bad { background: rgba(200, 60, 60, 0.35); }
+.sillynpc-combat-badge.is-info { background: rgba(60, 130, 200, 0.3); }
+
+.sillynpc-combat-problem {
+    display: block;
+    color: #d9534f;
+}
+
+.sillynpc-combat-type {
+    margin: 8px 0;
+    padding: 6px 8px;
+    border-left: 3px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.4));
+}
+
+.sillynpc-combat-type small {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .sillynpc-combat-table th,
+    .sillynpc-combat-table td {
+        padding: 3px 5px;
+    }
+}

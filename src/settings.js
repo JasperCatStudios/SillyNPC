@@ -15,6 +15,8 @@ import {
     IMAGE_PROMPT_BY_BACKEND
 } from './constants.js';
 import { resolveImageFolder } from './utils.js';
+import { normalizeCombatPrefs, normalizeTypeLibrary } from './combat-types.js';
+import { normalizeCombatBlock } from './combat-store.js';
 
 export const defaultSettings = {
     version: EXTENSION_VERSION,
@@ -114,6 +116,13 @@ export const defaultSettings = {
      * moduleContext[id] = { persona, memory }; a module with no entry sends both.
      */
     moduleContext: {},
+    /**
+     * The combat module (fork). Follows each System, so a World can have its own type picked.
+     * @type {{ enabled: boolean, activeType: string, reviewGrowth: boolean, trackerMap: { health: string, condition: string } }}
+     */
+    combat: { enabled: false, activeType: '', reviewGrowth: true, trackerMap: { health: '', condition: '' } },
+    /** Custom combat world types, by id. Global: the type library is shared by every System. */
+    combatTypes: {},
     contextPersonaMaxChars: 3000,
     /** Extension prompt slots to send: any whose name starts with one of these. */
     contextMemoryKeys: '3_vectfox, summaryception',
@@ -916,10 +925,15 @@ export function normalizeSettings(settings) {
     // what the defaults loop above would have filled in anyway.
     settings.imageSaveRoute = resolveImageFolder(settings.imageSaveRoute);
 
+    settings.combat = normalizeCombatPrefs(settings.combat);
+    settings.combatTypes = normalizeTypeLibrary(settings.combatTypes);
+
     debugLog('Processing characters');
     if (!Array.isArray(settings.characters)) settings.characters = [];
     for (const char of settings.characters) {
         if (!Array.isArray(char.aliases)) char.aliases = [];
+        // Repaired where it exists; never added to a character that has no combat data.
+        if (char.combat !== undefined) char.combat = normalizeCombatBlock(char.combat);
         // Portraits predate the list. One rule covers both seeding it for a character
         // that never had one and adopting a portrait set outside it - and, because it
         // checks first, running twice does not duplicate.

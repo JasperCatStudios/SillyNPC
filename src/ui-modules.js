@@ -1,6 +1,7 @@
 import { renderVoiceSettings } from './ui-character-extras.js';
 import { getSettings, saveSettings } from './settings.js';
 import { moduleSends, setModuleSends } from './context-blocks.js';
+import { getModulePane } from './module-panes.js';
 
 /**
  * The Modules tab (fork): one place for everything that rides along with SillyNPC.
@@ -33,6 +34,14 @@ export const MODULES = [
         drawer: '.rpg-game-settings',
         enableBox: '#rpg-game-enabled',
         content: '.inline-drawer-content',
+    },
+    {
+        id: 'combat',
+        name: 'Combat',
+        icon: 'fa-khanda',
+        blurb: 'Duels and sparring by the rules of a world type: Fire Emblem, Bleach, or your own.',
+        // Drawn by modules/combat/combat.js through registerModulePane, not borrowed from a drawer.
+        render: true,
     },
 ];
 
@@ -201,6 +210,20 @@ export function renderModulesView(view) {
                 options.append(item);
             }
             pane.append(options);
+
+            if (mod.render) {
+                const draw = getModulePane(mod.id);
+                if (draw) {
+                    draw(pane, { live, head, makeSwitch });
+                } else if (live) {
+                    const missing = document.createElement('p');
+                    missing.className = 'notes';
+                    missing.textContent = 'This module has not loaded. Reload SillyTavern; if it stays missing, '
+                        + 'open the browser console and look for "Module" lines from SillyNPC.';
+                    pane.append(missing);
+                }
+                return;
+            }
 
             const panel = live ? document.querySelector(mod.drawer) : null;
             if (panel) {

@@ -373,7 +373,7 @@ jQuery(async () => {
             eventSource.on(event_types.CHAT_CHANGED, () => primeLore().catch(() => { }));
             // Modules adapted from the RPG suite (AGPL-3.0). Each loads on its own, so one
             // failing, or one folder missing, takes nothing else with it.
-            for (const name of ['phone', 'games']) {
+            for (const name of ['phone', 'games', 'combat']) {
                 import(`./modules/${name}/${name}.js`)
                     .then(() => {
                         const link = document.createElement('link');

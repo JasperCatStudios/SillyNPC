@@ -1,0 +1,78 @@
+import { ladderOf, rungIndex } from './combat-roles.js';
+
+/**
+ * A character's combat data (fork): char.combat, on character records and the player card.
+ *
+ *   char.combat = {
+ *     version: 2,
+ *     types: { <dataKey>: { stats, meta, profs: { id: { rank, xp } }, pools, growth, unknown, history } },
+ *     conditions: [], dead: false,
+ *   }
+ *
+ * Values are stored under the world type's immutable stat and proficiency ids. Labels and
+ * role bindings are never stored on the character, so renaming "HP" to "Vitality" touches no
+ * character data.
+ *
+ * Nothing here creates a block on its own: a character with no combat data keeps no block,
+ * and readers get an empty shape. Systems swap whole casts without normalising, so every
+ * reader has to cope with a missing block anyway.
+ *
+ * Pure: no DOM, no SillyTavern imports.
+ */
+
+const HISTORY_CAP = 50;
+const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+
+/** An empty block for one type. A fresh object every time, so callers may edit it. */
+export function emptyTypeData() {
+    return { stats: {}, meta: {}, profs: {}, pools: {}, growth: {}, unknown: {}, history: [] };
+}
+
+function normalizeTypeData(raw) {
+    const d = obj(raw);
+    const out = emptyTypeData();
+    out.stats = { ...obj(d.stats) };
+    out.meta = { ...obj(d.meta) };
+    out.profs = {};
+    for (const [id, held] of Object.entries(obj(d.profs))) {
+        const h = obj(held);
+        out.profs[id] = { rank: h.rank ?? null, xp: Number(h.xp) || 0 };
+    }
+    out.pools = { ...obj(d.pools) };
+    out.growth = { ...obj(d.growth) };
+    out.unknown = { ...obj(d.unknown) };
+    out.history = Array.isArray(d.history) ? d.history.slice(-HISTORY_CAP) : [];
+    if (d.source && typeof d.source === 'object') out.source = { ...d.source };
+    return out;
+}
+
+/** Repairs an existing block. Idempotent; does not add data that is not there. */
+export function normalizeCombatBlock(raw) {
+    const b = obj(raw);
+    const types = {};
+    for (const [key, data] of Object.entries(obj(b.types))) types[key] = normalizeTypeData(data);
+    return {
+        version: 2,
+        types,
+        conditions: Array.isArray(b.conditions) ? b.conditions.filter(c => c && typeof c === 'object') : [],
+        dead: Boolean(b.dead),
+    };
+}
+
+/** The data for one type, read-only: an empty shape when the record has none. Never mutates. */
+export function getTypeData(record, dataKey) {
+    const held = record?.combat?.types?.[dataKey];
+    return held ? normalizeTypeData(held) : emptyTypeData();
+}
+
+export function hasTypeData(record, dataKey) {
+    const held = record?.combat?.types?.[dataKey];
+    return Boolean(held && (Object.keys(obj(held.stats)).length || Object.keys(obj(held.profs)).length
+        || Object.keys(obj(held.meta)).length));
+}
+
+/** Index of a rank on its proficiency's ladder, or -1. */
+export function rankIndex(type, profId, rank) {
+    const prof = (type?.proficiencies || []).find(p => p.id === profId);
+    return prof ? rungIndex(ladderOf(type, prof.ladder), rank) : -1;
+}
