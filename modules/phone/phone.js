@@ -114,6 +114,7 @@ const defaults = {
     sendExtMemory: true,                  // what other extensions put into the story prompt
     extKeys: '3_vectfox, summaryception', // which of those: slots whose name starts with one of these
     extMaxChars: 6000,
+    maxReplyMessages: 3,                  // most separate messages one reply may hold
     personaMaxChars: 3000,                // longest persona description sent
     cardMaxChars: 3000,                   // longest profile sent per contact (their lorebook entry, or profile fields)
     mainLineChars: 500,                   // longest single main-chat message sent
@@ -1196,6 +1197,7 @@ function isLocalEndpoint(url) {
         || /192\.168\.|10\.\d+\.|172\.(1[6-9]|2\d|3[01])\./.test(u);
 }
 // Fork: no key, URL or model of the phone's own - see callAI.
+function apiKey() { return 'profile'; }   // a connection profile or the main API answers, so there is always something to ask
 
 
 /* ============================================================
@@ -2136,7 +2138,7 @@ function parseReply(raw, allowed, extra = []) {
         // (2.0.1: only the sender's own name repeated inside is taken off — "Note: …" stays)
         const clean = cleanLine(who === 'SYSTEM' ? text : unquote(stripNamePrefix(text, [who].concat(aliasesOf(who)))), 1500);
         if (clean) out.push({ name: who, text: clean });
-        if (out.length >= 12) break;
+        if (out.length >= Math.max(1, settings.maxReplyMessages || 3)) break;
     }
     return out;
 }
@@ -2157,7 +2159,8 @@ function buildSystem(names, reasonLine) {
         .replace(/<<contact>>|\{\{char\}\}/gi, names.join(', ') || 'the character')
         .replace(/<<user>>|\{\{user\}\}/gi, you)
         .replace(/<<open>>/gi, open)
-        .replace(/<<close>>/gi, close);
+        .replace(/<<close>>/gi, close)
+        + `\n\nSend at most ${Math.max(1, settings.maxReplyMessages || 3)} separate messages in one reply, usually one or two.`;
     return `${base}
 
 CHARACTERS ON THIS PHONE (write only as these):
@@ -3651,6 +3654,9 @@ function settingsHtml() {
                 <div><label for="rph-maxtok">${t('set_maxtok')}</label><input type="number" min="120" max="8000" step="50" id="rph-maxtok" class="text_pole"></div>
                 <div><label for="rph-ctx">${t('set_ctx')}</label><input type="number" min="1000" max="1000000" step="1000" id="rph-ctx" class="text_pole"></div>
             </div>
+            <div class="rph-row">
+                <div><label for="rph-maxlines">Most messages per reply</label><input type="number" min="1" max="12" id="rph-maxlines" class="text_pole"></div>
+            </div>
             </div>
 
             <div class="rph-box"><div class="rph-boxhead">🧠 ${t('set_memory')}</div>
@@ -3839,6 +3845,7 @@ function setupUI() {
 
     range('#rph-temp', '#rph-tempval', 'temperature', 0, 2, 0.8, v => Number(v).toFixed(1));
     num('#rph-ctx', 'contextTokens', 1000, 1000000, 32000);
+    num('#rph-maxlines', 'maxReplyMessages', 1, 12, 3);
     num('#rph-maxtok', 'maxTokens', 120, 8000, 900);   // thinking models need room for hidden reasoning
 
     $('#rph-send-persona').prop('checked', settings.sendPersona).on('change', function () { settings.sendPersona = this.checked; saveSettings(); });
