@@ -222,6 +222,14 @@ function loadSettings() {
     if (!extension_settings[MODULE_NAME]) extension_settings[MODULE_NAME] = {};
     settings = Object.assign({}, defaults, extension_settings[MODULE_NAME]);
     settings.useDiary = false;
+    // Fork: the speaker tag is for the model, never for the screen - take it out of what was stored.
+    try {
+        for (const thread of Object.values(settings.threads || {})) {
+            for (const m of Array.isArray(thread) ? thread : []) {
+                if (m && typeof m.text === 'string') m.text = m.text.replace(buildMarkerRegex(), '').trim();
+            }
+        }
+    } catch (e) { /* damaged settings are handled below */ }
     for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
     for (const k of ['temperature', 'contextTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
         if (!Number.isFinite(settings[k])) settings[k] = defaults[k];
@@ -2066,6 +2074,9 @@ function cleanReplyText(raw) {
     if (close >= 0) s = s.slice(s.indexOf('>', close) + 1);
     const open = s.search(/<(?:think|thinking|reasoning|reflection)\b[^>]*>/i);
     if (open >= 0) s = s.slice(0, open);
+    // Fork: every speaker tag starts a line of its own, so two messages written on one line
+    // become two messages, and no tag is left in the middle of a text.
+    s = s.replace(buildMarkerRegex(), '\n$&');
     return s.replace(/^[ \t]*```[\w-]*[ \t]*$/gm, '');
 }
 const LIST_MARK = /^(?:[-•–—>]|\*(?=\s)|\d{1,2}[.)])\s+/;
@@ -2141,7 +2152,8 @@ function parseReply(raw, allowed, extra = []) {
         // BUG FIX (2.0.0): a bubble was silently cut at 400 characters and everything after
         // the 6th line was dropped — long replies and group threads lost their ending
         // (2.0.1: only the sender's own name repeated inside is taken off — "Note: …" stays)
-        const clean = cleanLine(who === 'SYSTEM' ? text : unquote(stripNamePrefix(text, [who].concat(aliasesOf(who)))), 1500);
+        const clean = cleanLine(who === 'SYSTEM' ? text : unquote(stripNamePrefix(text, [who].concat(aliasesOf(who)))), 1500)
+            .replace(buildMarkerRegex(), '').trim();
         if (clean) out.push({ name: who, text: clean });
         if (out.length >= Math.max(1, settings.maxReplyMessages || 3)) break;
     }
