@@ -1167,7 +1167,12 @@ function requestFailed(e, rq, tag) {
     if (!isCurrent(rq)) return;    // cancelled — already reported by cancelRequest
     if (e && e.name === 'TimeoutError') toastr.warning(t('timeout'));
     else if (e && e.name === 'AbortError') toastr.info(t('cancelled'));
-    else { console.error('[Phone] ' + tag + ' error', e); toastr.warning(t('err')); }
+    else {
+        console.error('[Phone] ' + tag + ' error', e);
+        // Fork: say what actually went wrong, not just that something did.
+        const why = String((e && (e.message || e.name)) || e || '').slice(0, 200);
+        toastr.warning(why ? `${t('err')} (${why})` : t('err'));
+    }
 }
 
 /* ------------------------------------------------------------
