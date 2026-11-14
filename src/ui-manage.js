@@ -24,6 +24,7 @@ import { syncAllLorebooks, renameLorebookEntry } from './lorebook.js';
 import { escapeHtml, offerDownload } from './utils.js';
 import { buildPortraitBlock } from './ui-portrait.js';
 import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section.js';
+import { renderCombatSection } from './ui-combat-section.js';
 import { renderProfileView } from './ui-profile.js';
 import { renderCharacterExtras } from './ui-character-extras.js';
 import { renderThreadsView } from './ui-threads.js';
@@ -1096,11 +1097,14 @@ function renderEditor() {
 
     const collectionsContainer = document.createElement('div');
     collectionsContainer.className = 'sillynpc-editor-field collections-field-container';
+
+    const combatContainer = document.createElement('div');
+    combatContainer.className = 'sillynpc-editor-field sillynpc-combat-section';
     
     // The lorebook link goes right under the name: it is who they are, and the phone, the
     // games and everything else that describes somebody reads it from here.
     right.append(nameField, loreContainer, aliasField, extrasContainer, overridesContainer,
-        collectionsContainer);
+        collectionsContainer, combatContainer);
     
     main.append(left, vDivider, right);
     editView.append(sticky, main);
@@ -1110,6 +1114,7 @@ function renderEditor() {
     renderLorebookSection(char, loreContainer, { onChange: renderEditor });
     renderOverridesSection(char, overridesContainer);
     renderCollectionsSection(char, collectionsContainer);
+    renderCombatSection(char, combatContainer);
 }
 
 function renderCollectionsSection(char, container) {

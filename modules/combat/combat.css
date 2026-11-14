@@ -144,3 +144,17 @@
 .sillynpc-combat-import-result {
     margin-top: 8px;
 }
+
+.sillynpc-combat-roster td.is-editable {
+    cursor: text;
+}
+
+.sillynpc-combat-roster td.is-editable:hover {
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor, #888) 15%, transparent);
+}
+
+.sillynpc-combat-cell-input {
+    width: 5em;
+    min-width: 0;
+    padding: 1px 3px;
+}

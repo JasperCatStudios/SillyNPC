@@ -6,6 +6,7 @@ import { escapeHtml } from './utils.js';
 import { openManagePopup } from './ui-manage.js';
 import { buildPortraitBlock, openLightbox } from './ui-portrait.js';
 import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section.js';
+import { renderCombatSection } from './ui-combat-section.js';
 import { readLoreEntry } from './character-fill.js';
 import { fillCharacter } from './ui-fill.js';
 import { playerHistory, restorePlayerFromMessage } from './status-snapshots.js';
@@ -264,6 +265,9 @@ function renderTabExtras(dom) {
         }
     }
 
+    const combatEdit = dom.querySelector('.sillynpc-sheet-content .sillynpc-combat-section');
+    if (combatEdit) renderCombatSection(card, combatEdit);
+
     const loreEdit = dom.querySelector('.sillynpc-sheet-content .lorebook-section-container');
     if (loreEdit) {
         renderLorebookSection(card, loreEdit, { onChange: () => refreshModal(dom) })
@@ -394,6 +398,7 @@ function renderTabContent(tabId, state) {
         ${playerCollections().map(col => collectionSection(col, state, settings, {
             isEditMode: isCollectionEditMode, showEditToggle: true, bulk: bulkFor(col.id),
         })).join('')}
+        <div class="sillynpc-combat-section"></div>
         <div class="lorebook-section-container"></div>
     `;
 }

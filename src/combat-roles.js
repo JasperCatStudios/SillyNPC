@@ -280,3 +280,28 @@ export function roleLabel(type, roleId, channel) {
 }
 
 export { compile };
+
+/**
+ * Which roles read each stat, by the world's own names: stat id -> ["Attack (Physical)", "Speed"].
+ * For the editor, so a number is never just a number: it says what it drives.
+ */
+export function rolesUsingStat(type) {
+    const out = new Map();
+    const add = (expr, label) => {
+        for (const name of compile(String(expr)).names || []) {
+            const [root, id] = name.split('.');
+            if (root !== 'stat' || !id) continue;
+            if (!out.has(id)) out.set(id, []);
+            if (!out.get(id).includes(label)) out.get(id).push(label);
+        }
+    };
+    const channels = Object.fromEntries((type.channels || []).map(c => [c.id, c.label]));
+    for (const [role, binding] of Object.entries(type.roles || {})) {
+        const def = STAT_ROLES[role] || META_ROLES[role];
+        if (!def) continue;
+        if (typeof binding === 'string') add(binding, def.label);
+        else for (const [ch, expr] of Object.entries(binding || {})) add(expr, `${def.label} (${channels[ch] || ch})`);
+    }
+    for (const pool of type.pools || []) add(pool.max, pool.label);
+    return out;
+}

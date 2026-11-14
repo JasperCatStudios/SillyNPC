@@ -1,6 +1,7 @@
-import { getSettings } from '../../src/settings.js';
+import { getSettings, saveSettings } from '../../src/settings.js';
 import { getPlayerCard } from '../../src/status-logic.js';
-import { STAT_ROLES, POOL_ROLES, project, roleLabel, capabilities } from '../../src/combat-roles.js';
+import { STAT_ROLES, POOL_ROLES, project, roleLabel, capabilities, ladderOf } from '../../src/combat-roles.js';
+import { setStat, setMeta, setRank } from '../../src/combat-edit.js';
 import { getTypeData, hasTypeData } from '../../src/combat-store.js';
 import { detectLegacy, legacyPreviewData } from '../../src/combat-migrate.js';
 import {
@@ -26,6 +27,63 @@ const el = (tag, className, text) => {
     if (text !== undefined) node.textContent = text;
     return node;
 };
+
+/**
+ * Makes a roster cell editable on click: a number box, a text box, or a rank list, by what the
+ * cell holds. Enter or leaving the box saves; Escape cancels. Rows still read from the old keys
+ * cannot be edited until they are copied over, since the edit would have nowhere to go.
+ */
+function makeEditable(td, { record, type, kind, id, legacy, rerender }) {
+    td.classList.add('is-editable');
+    td.addEventListener('click', () => {
+        if (td.querySelector('input, select')) return;
+        if (legacy) { toastr.info('Copy this character over first, then the cells can be edited.', 'SillyNPC'); return; }
+
+        const data = getTypeData(record, type.dataKey);
+        let input;
+        if (kind === 'rank') {
+            const prof = type.proficiencies.find(p => p.id === id);
+            input = el('select', 'text_pole');
+            input.append(new Option('-', ''));
+            for (const rung of ladderOf(type, prof.ladder).rungs) input.append(new Option(rung, rung));
+            input.value = data.profs[id]?.rank ?? '';
+        } else {
+            const metaDef = kind === 'meta' ? type.meta.find(m => m.id === id) : null;
+            if (metaDef?.type === 'choice') {
+                input = el('select', 'text_pole');
+                input.append(new Option('-', ''));
+                for (const o of metaDef.options || []) input.append(new Option(o, o));
+                input.value = data.meta[id] ?? '';
+            } else {
+                input = el('input', 'text_pole');
+                input.type = kind === 'stat' || metaDef?.type === 'number' ? 'number' : 'text';
+                input.value = (kind === 'stat' ? data.stats[id] : data.meta[id]) ?? '';
+            }
+        }
+        input.classList.add('sillynpc-combat-cell-input');
+        td.replaceChildren(input);
+        input.focus();
+
+        let done = false;
+        const finish = (save) => {
+            if (done) return;
+            done = true;
+            if (save) {
+                const result = kind === 'stat' ? setStat(record, type, id, input.value)
+                    : kind === 'meta' ? setMeta(record, type, id, input.value)
+                        : setRank(record, type, id, input.value);
+                if (!result.ok) toastr.warning(result.reason, 'SillyNPC');
+                else saveSettings();
+            }
+            rerender();
+        };
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') finish(true);
+            else if (e.key === 'Escape') finish(false);
+        });
+        input.addEventListener('blur', () => finish(true));
+    });
+}
 
 function badge(text, kind) {
     return el('span', `sillynpc-combat-badge is-${kind}`, text);
@@ -220,15 +278,21 @@ function renderRoster(host, rerender) {
         for (const col of pinned) tr.append(el('td', 'is-pinned', String(col.value(c) ?? '-')));
         for (const s of type.stats) {
             const has = data.stats[s.id] !== undefined;
-            tr.append(el('td', has ? '' : 'is-blank', has ? String(data.stats[s.id]) : '-'));
+            const td = el('td', has ? '' : 'is-blank', has ? String(data.stats[s.id]) : '-');
+            makeEditable(td, { record, type, kind: 'stat', id: s.id, legacy, rerender });
+            tr.append(td);
         }
         for (const m of type.meta) {
             const v = data.meta[m.id];
-            tr.append(el('td', v === undefined ? 'is-blank' : '', v === undefined ? '-' : String(v)));
+            const td = el('td', v === undefined ? 'is-blank' : '', v === undefined ? '-' : String(v));
+            makeEditable(td, { record, type, kind: 'meta', id: m.id, legacy, rerender });
+            tr.append(td);
         }
         for (const p of profs) {
             const rank = data.profs[p.id]?.rank;
-            tr.append(el('td', rank ? '' : 'is-blank', rank || '-'));
+            const td = el('td', rank ? '' : 'is-blank', rank || '-');
+            makeEditable(td, { record, type, kind: 'rank', id: p.id, legacy, rerender });
+            tr.append(td);
         }
         table.append(tr);
     }

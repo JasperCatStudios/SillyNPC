@@ -4664,3 +4664,78 @@ textarea.sillynpc-profile-input {
 
 .sillynpc-pane-opts { display: flex; gap: 20px; flex-wrap: wrap; margin: 4px 0 12px; }
 .sillynpc-pane-opt { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+/* Combat section in the character editor and player sheet (fork). */
+.sillynpc-combat-section .sillynpc-combat-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 6px 0;
+    align-items: center;
+}
+
+.sillynpc-combat-section .sillynpc-combat-tabs .is-active {
+    outline: 1px solid var(--SmartThemeQuoteColor, currentColor);
+}
+
+.sillynpc-combat-section .sillynpc-combat-meta,
+.sillynpc-combat-section .sillynpc-combat-ranks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px 10px;
+    margin: 6px 0;
+}
+
+.sillynpc-combat-section .sillynpc-combat-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 6px 10px;
+    margin: 6px 0;
+}
+
+.sillynpc-combat-section .sillynpc-combat-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.sillynpc-combat-section .sillynpc-combat-field label {
+    font-size: 0.8em;
+    opacity: 0.8;
+}
+
+.sillynpc-combat-section .sillynpc-combat-drives {
+    font-size: 0.7em;
+    line-height: 1.2;
+    opacity: 0.65;
+}
+
+.sillynpc-combat-section input.is-out-of-scale {
+    outline: 1px solid #d9a441;
+}
+
+.sillynpc-combat-section .sillynpc-combat-group {
+    margin-top: 8px;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+}
+
+.sillynpc-combat-section .sillynpc-combat-unknown {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.85em;
+}
+
+.sillynpc-combat-section .sillynpc-combat-banner {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 6px 0;
+    padding: 6px 10px;
+    border-left: 3px solid var(--SmartThemeQuoteColor, #888);
+}
