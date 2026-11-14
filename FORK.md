@@ -5,3 +5,5 @@
 - **Voices**: needs `patches/st-tts-voice-names.diff` applied to SillyTavern's `public/scripts/extensions/tts/index.js` (`git apply`). Pick voices in ST's TTS voice map.
 - **Image prompts**: per character on the card; optional injection under Writing Rules.
 - Point `origin` at your GitHub fork: `git remote set-url origin <url>`.
+- **Licence**: this fork is AGPL-3.0 because it includes adapted code from RPG-Phone and RPG-Game-Companion (Arkana8). See `NOTICE.md`; SillyNPC's original MIT text is in `LICENSE-MIT-SillyNPC`.
+- **Modules** (`modules/`): `phone/` (messenger) and `games/` (mini-games) load on their own from `index.js` and share `modules/shim.js`, which presents SillyNPC's characters as the character cards they expect. Both send requests through a connection profile (or the main API) and read SillyNPC's speaker tags. To add another borrowed extension: copy it to `modules/<name>/<name>.js` + `<name>.css`, keep its licence file, import `characters` from `../shim.js`, and add the name to the list in `index.js`.

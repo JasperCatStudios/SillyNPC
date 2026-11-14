@@ -368,15 +368,18 @@ jQuery(async () => {
             initTts();
             initImagePromptInjection();
             initInternalStates();
-            // The phone is a local-only addition: nothing breaks if the folder is not there.
-            import('./phone/phone.js')
-                .then(() => {
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.href = new URL('./phone/phone.css', import.meta.url).href;
-                    document.head.append(link);
-                })
-                .catch(err => debugLog('Phone not loaded', err));
+            // Modules adapted from the RPG suite (AGPL-3.0). Each loads on its own, so one
+            // failing, or one folder missing, takes nothing else with it.
+            for (const name of ['phone', 'games']) {
+                import(`./modules/${name}/${name}.js`)
+                    .then(() => {
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = new URL(`./modules/${name}/${name}.css`, import.meta.url).href;
+                        document.head.append(link);
+                    })
+                    .catch(err => debugLog(`Module "${name}" not loaded`, err));
+            }
         } catch (err) {
             console.error(LOG_PREFIX, 'fork features failed to start', err);
         }
