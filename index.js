@@ -368,6 +368,15 @@ jQuery(async () => {
             initTts();
             initImagePromptInjection();
             initInternalStates();
+            // The phone is a local-only addition: nothing breaks if the folder is not there.
+            import('./phone/phone.js')
+                .then(() => {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = new URL('./phone/phone.css', import.meta.url).href;
+                    document.head.append(link);
+                })
+                .catch(err => debugLog('Phone not loaded', err));
         } catch (err) {
             console.error(LOG_PREFIX, 'fork features failed to start', err);
         }
