@@ -118,7 +118,7 @@ export function renderCharacterExtras(char, container) {
     })();
     voiceSelect.addEventListener('change', async () => {
         if (!await setVoice(char.name, voiceSelect.value)) {
-            toastr.warning('Could not set the voice. Is SillyTavern's TTS enabled?', 'SillyNPC');
+            toastr.warning('Could not set the voice. Is the TTS extension enabled?', 'SillyNPC');
         }
     });
 
