@@ -1,5 +1,5 @@
 diff --git a/public/scripts/extensions/tts/index.js b/public/scripts/extensions/tts/index.js
-index 1f213e11e..622362045 100644
+index 1f213e11e..ad317a1be 100644
 --- a/public/scripts/extensions/tts/index.js
 +++ b/public/scripts/extensions/tts/index.js
 @@ -1109,6 +1109,11 @@ async function onMessageEvent(messageId, lastCharIndex) {
@@ -14,7 +14,7 @@ index 1f213e11e..622362045 100644
      const context = getContext();
  
      // no characters or group selected
-@@ -1288,6 +1293,48 @@ async function onPeriodicMessageGenerationTick() {
+@@ -1288,6 +1293,89 @@ async function onPeriodicMessageGenerationTick() {
      }
  }
  
@@ -55,6 +55,47 @@ index 1f213e11e..622362045 100644
 +    return true;
 +}
 +
++/**
++ * The voices the active provider offers, by name.
++ * @returns {Promise<string[]>}
++ */
++export async function listVoices() {
++    try {
++        await ttsProvider.checkReady();
++        const voices = await ttsProvider.fetchTtsVoiceObjects();
++        return voices.map(v => v.name);
++    } catch {
++        return [];
++    }
++}
++
++/**
++ * The voice currently mapped to a name, or '' if none.
++ * @param {string} name
++ * @returns {string}
++ */
++export function getVoiceFor(name) {
++    const entry = voiceMapEntries.find(e => e.name === name);
++    if (entry) return entry.voiceId || '';
++    const saved = extension_settings.tts?.[ttsProviderName]?.voiceMap;
++    return (saved && typeof saved === 'object' && saved[name]) || '';
++}
++
++/**
++ * Maps a name to a voice, exactly as choosing it in the voice map would.
++ * @param {string} name
++ * @param {string} voiceName A voice from listVoices(), '[Default Voice]' or 'disabled'.
++ * @returns {boolean} False when the name has no row (call registerVoiceNames first).
++ */
++export function setVoiceFor(name, voiceName) {
++    const entry = voiceMapEntries.find(e => e.name === name);
++    if (!entry) return false;
++    entry.voiceId = voiceName;
++    entry.selectElement?.val(voiceName);
++    updateVoiceMap();
++    return true;
++}
++
 +/** Stops whatever is being read and empties the queue. */
 +export function stopSpeaking() {
 +    resetTtsPlayback();
@@ -63,7 +104,7 @@ index 1f213e11e..622362045 100644
  /**
   * Get characters in current chat
   * @param {boolean} unrestricted - If true, will include all characters in voiceMapEntries, even if they are not in the current chat.
-@@ -1299,6 +1346,7 @@ export function getCharacters(unrestricted) {
+@@ -1299,6 +1387,7 @@ export function getCharacters(unrestricted) {
      if (unrestricted) {
          const names = context.characters.map(char => char.name);
          names.unshift(DEFAULT_VOICE_MARKER);
@@ -71,7 +112,7 @@ index 1f213e11e..622362045 100644
          return names.filter(onlyUnique);
      }
  
-@@ -1320,6 +1368,7 @@ export function getCharacters(unrestricted) {
+@@ -1320,6 +1409,7 @@ export function getCharacters(unrestricted) {
              }
          }
      }

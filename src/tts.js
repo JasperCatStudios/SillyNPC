@@ -69,12 +69,28 @@ function voiceNames() {
     return getActiveCharacters().map(char => String(char.name || '').trim()).filter(Boolean);
 }
 
+/** The provider's voices, the one mapped to a name, and a way to change it. */
+export async function voiceChoices() {
+    const mod = await ttsModule();
+    return mod && typeof mod.listVoices === 'function' ? mod.listVoices() : [];
+}
+export async function getVoice(name) {
+    const mod = await ttsModule();
+    return mod && typeof mod.getVoiceFor === 'function' ? mod.getVoiceFor(name) : '';
+}
+export async function setVoice(name, voice) {
+    const mod = await ttsModule();
+    if (!mod || typeof mod.setVoiceFor !== 'function') return false;
+    await syncVoiceNames();
+    return mod.setVoiceFor(name, voice);
+}
+
 /** Puts this chat's characters into SillyTavern's voice map. Safe to call as often as you like. */
 export async function syncVoiceNames() {
     const mod = await ttsModule();
     if (!mod) return;
     try {
-        await mod.registerVoiceNames(getSettings().ttsEnabled ? voiceNames() : []);
+        await mod.registerVoiceNames(voiceNames());
     } catch (err) {
         console.warn(LOG_PREFIX, 'Could not add characters to the voice map', err);
     }

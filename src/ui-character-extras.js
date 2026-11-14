@@ -1,7 +1,6 @@
 import { getSettings, saveSettings } from './settings.js';
-import { extension_settings } from '../../../../extensions.js';
 import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
-import { ttsStatus, previewVoice, syncVoiceNames, applyAutoGenerationHandover } from './tts.js';
+import { ttsStatus, previewVoice, syncVoiceNames, applyAutoGenerationHandover, voiceChoices, getVoice, setVoice } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 
 /**
@@ -34,15 +33,6 @@ function button(icon, text, onClick) {
     btn.append(document.createTextNode(text));
     btn.addEventListener('click', onClick);
     return btn;
-}
-
-/** The voice SillyTavern's TTS panel currently has mapped to this name, if any. */
-function mappedVoice(name) {
-    const tts = extension_settings.tts;
-    const provider = tts?.currentProvider;
-    const map = provider ? tts[provider]?.voiceMap : null;
-    const voice = map && typeof map === 'object' ? map[name] : null;
-    return voice || '';
 }
 
 /**
@@ -106,21 +96,33 @@ export function renderCharacterExtras(char, container) {
     // --- Voice -----------------------------------------------------------------------
     const voiceRow = document.createElement('div');
     voiceRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
-    const voiceName = document.createElement('span');
-    voiceName.className = 'notes';
-    voiceRow.append(label('Voice'), voiceName);
+    const voiceSelect = document.createElement('select');
+    voiceSelect.className = 'text_pole';
+    voiceSelect.style.cssText = 'width:auto; min-width:14em;';
+    voiceSelect.disabled = true;
+    voiceSelect.append(new Option('Loading voices...', ''));
+    voiceRow.append(label('Voice'), voiceSelect);
 
-    const refresh = () => {
-        const voice = mappedVoice(char.name);
-        voiceName.textContent = voice
-            ? `${voice}`
-            : 'not chosen yet - pick one under Extensions -> TTS -> Voice Map';
-    };
-    refresh();
+    // Filled from the active provider (AllTalk, ElevenLabs, ...) once it answers.
+    (async () => {
+        await syncVoiceNames();
+        const [voices, current] = await Promise.all([voiceChoices(), getVoice(char.name)]);
+        voiceSelect.replaceChildren();
+        if (!voices.length) {
+            voiceSelect.append(new Option('No voices - enable TTS and apply the patch', ''));
+            return;
+        }
+        for (const v of ['[Default Voice]', 'disabled', ...voices]) voiceSelect.append(new Option(v, v));
+        voiceSelect.value = current || '[Default Voice]';
+        voiceSelect.disabled = false;
+    })();
+    voiceSelect.addEventListener('change', async () => {
+        if (!await setVoice(char.name, voiceSelect.value)) {
+            toastr.warning('Could not set the voice. Is SillyTavern's TTS enabled?', 'SillyNPC');
+        }
+    });
 
     voiceRow.append(button('fa-volume-high', 'Test voice', async () => {
-        await syncVoiceNames();
-        refresh();
         await previewVoice(char.name, `${char.name}. This is what I sound like.`);
     }));
     container.append(voiceRow);
