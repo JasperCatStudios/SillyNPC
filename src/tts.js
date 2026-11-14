@@ -5,6 +5,10 @@ import { getSettings } from './settings.js';
 import { getActiveCharacters } from './characters.js';
 import { beatsOfMessage, MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
+import { genderOfFace, genderOfName } from './default-portraits.js';
+
+/** Voice-map names for speakers with no card, by gender. */
+export const GENERIC_VOICES = { female: 'Generic Female', male: 'Generic Male' };
 
 /**
  * A voice per character, through SillyTavern's own TTS (fork).
@@ -66,7 +70,10 @@ export async function ttsStatus() {
  * @returns {string[]}
  */
 function voiceNames() {
-    return getActiveCharacters().map(char => String(char.name || '').trim()).filter(Boolean);
+    return [
+        ...getActiveCharacters().map(char => String(char.name || '').trim()).filter(Boolean),
+        ...Object.values(GENERIC_VOICES),
+    ];
 }
 
 /** The provider's voices, the one mapped to a name, and a way to change it. */
@@ -104,35 +111,59 @@ export async function syncVoiceNames() {
 export function applyAutoGenerationHandover() {
     if (!extension_settings.tts) return;
     extension_settings.tts.delegate_auto_generation =
-        !!(getSettings().ttsEnabled && getSettings().ttsAutoSpeak);
+        !!getSettings().ttsAutoSpeak;
 }
 
-/** What a beat should be read as. A thought loses its parentheses. */
-function spokenText(beat) {
-    const text = String(beat.text ?? '').trim();
-    if (beat.element?.classList?.contains('sillynpc-thought')) {
-        return text.replace(/^\(\s*/, '').replace(/\s*\)$/, '');
+/**
+ * What in a beat is spoken: the words inside "quotes", and (thoughts) in parentheses.
+ *
+ * Nothing else. Actions, description and stage directions are never read, whoever's
+ * paragraph they are in.
+ *
+ * @param {object} beat
+ * @returns {{ text: string, thought: boolean }[]} In reading order.
+ */
+export function spokenSegments(beat) {
+    const text = String(beat.text ?? '');
+    const out = [];
+    const regex = /"([^"]+)"|“([^”]+)”|«([^»]+)»|\(([^)]+)\)/g;
+    for (const m of text.matchAll(regex)) {
+        const thought = m[4] !== undefined;
+        const spoken = String(m[1] ?? m[2] ?? m[3] ?? m[4]).trim();
+        if (spoken) out.push({ text: spoken, thought });
     }
-    return text;
+    // Some renderers drop the quote marks and keep only a <q> element.
+    if (!out.length && beat.element?.querySelectorAll) {
+        for (const q of beat.element.querySelectorAll('q')) {
+            const spoken = String(q.textContent ?? '').replace(/^["“]|["”]$/g, '').trim();
+            if (spoken) out.push({ text: spoken, thought: false });
+        }
+    }
+    return out;
+}
+
+/** Which gender a stranger is: the face they wear, else what their name says. */
+function strangerGender(beat) {
+    const src = beat.avatars?.[0]?.getAttribute?.('src') || '';
+    return genderOfFace(src) || genderOfName(beat.speaker || '');
 }
 
 /**
  * Which voice-map name reads a beat, or null when it is not to be read.
  *
- * A speaker with a card has a row of their own. One without has none, and is read in the
- * default voice rather than silently skipped, because a line that vanishes from a scene
- * being read aloud is worse than one in the wrong voice.
+ * A speaker with a card has a row of their own. One without is read in the generic voice for
+ * their gender, or the default voice when that is not known - a line that vanishes from a
+ * scene being read aloud is worse than one in an imperfect voice.
  */
 function voiceFor(beat) {
     const settings = getSettings();
-    const isThought = beat.element?.classList?.contains('sillynpc-thought');
-    if (isThought && !settings.ttsSpeakThoughts) return null;
-
     if (beat.isNarration) return settings.ttsSpeakNarration ? DEFAULT_VOICE : null;
     if (beat.isPersona) return getContext().name1 || DEFAULT_VOICE;
 
     const known = new Set(voiceNames());
-    return known.has(beat.speaker) ? beat.speaker : DEFAULT_VOICE;
+    if (known.has(beat.speaker)) return beat.speaker;
+    const gender = strangerGender(beat);
+    return gender ? GENERIC_VOICES[gender] : DEFAULT_VOICE;
 }
 
 /**
@@ -150,13 +181,17 @@ export async function speakMessage(mesEl) {
     const mod = await ttsModule();
     mod.stopSpeaking();
 
+    const settings = getSettings();
     let queued = 0;
     for (const beat of beatsOfMessage(mesEl)) {
         const voice = voiceFor(beat);
-        const text = spokenText(beat);
-        if (!voice || !text) continue;
-        if (mod.speakAs(voice, text)) queued++;
+        if (!voice) continue;
+        for (const segment of spokenSegments(beat)) {
+            if (segment.thought && !settings.ttsSpeakThoughts) continue;
+            if (mod.speakAs(voice, segment.text)) queued++;
+        }
     }
+    if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) found.', 'SillyNPC');
     debugLog(`Voices: queued ${queued} piece(s)`);
     return queued;
 }
@@ -181,7 +216,6 @@ let lastSpokenKey = '';
 function ensureSpeakButton(mesEl) {
     const toolbar = mesEl?.querySelector?.('.extraMesButtons');
     const present = toolbar?.querySelector('.sillynpc-speak-btn');
-    if (!getSettings().ttsEnabled) { present?.remove(); return; }
     if (!toolbar || present) return;
 
     const btn = document.createElement('div');
@@ -198,8 +232,8 @@ function onMessageDecorated(mesEl) {
     const settings = getSettings();
     ensureSpeakButton(mesEl);
     // Cheap when nothing changed, and this is where a card created from the chat shows up.
-    if (settings.ttsEnabled) syncVoiceNames();
-    if (!settings.ttsEnabled || !settings.ttsAutoSpeak) return;
+    syncVoiceNames();
+    if (!settings.ttsAutoSpeak) return;
     try {
         const id = Number(mesEl?.getAttribute?.('mesid'));
         const chat = getContext()?.chat;

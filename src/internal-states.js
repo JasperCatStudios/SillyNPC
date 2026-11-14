@@ -173,7 +173,26 @@ async function request(userPrompt) {
 }
 
 const inFlight = new Set();
-let warned = false;
+/** Why the last attempt at a message failed, shown in its section. */
+const failures = new Map();
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Waits until the reply has finished.
+ *
+ * The event that starts this fires as the message is rendered, which with some setups is
+ * while the generation is still being wound up, and a second request started then competes
+ * with it. The stop button is shown for exactly as long as a generation is running.
+ */
+async function waitUntilIdle() {
+    await sleep(600);
+    for (let i = 0; i < 180; i++) {
+        const stop = document.getElementById('mes_stop');
+        if (!stop || getComputedStyle(stop).display === 'none') return;
+        await sleep(500);
+    }
+}
 
 /**
  * Generates the block for one message and shows it.
@@ -191,9 +210,13 @@ export async function generateInternalStates(messageId, { force = false } = {}) 
     const key = `${context.chatId}:${messageId}:${message.swipe_id ?? 0}`;
     if (inFlight.has(key)) return;
     inFlight.add(key);
+    failures.delete(key);
+    drawSection(document.querySelector(`#chat .mes[mesid="${messageId}"]`));
     setBusy(messageId, true);
 
     try {
+        await waitUntilIdle();
+        console.log(LOG_PREFIX, `Internal States: writing for message ${messageId}`);
         const previous = previousState(chat, messageId);
         const ct = (Number(previous?.ct) || 0) + 1;
         const depth = Math.max(0, Number(getSettings().internalStatesContextMessages ?? 2));
@@ -220,10 +243,8 @@ export async function generateInternalStates(messageId, { force = false } = {}) 
         debugLog(`Internal States written for message ${messageId} (turn ${ct})`);
     } catch (err) {
         console.warn(LOG_PREFIX, 'Internal States failed', err);
-        if (!warned) {
-            warned = true;
-            toastr.warning(`Internal States could not be written: ${err.message || err}`, 'SillyNPC');
-        }
+        failures.set(key, String(err?.message || err));
+        toastr.warning(`Internal States could not be written: ${err?.message || err}`, 'SillyNPC');
     } finally {
         inFlight.delete(key);
         setBusy(messageId, false);
@@ -265,8 +286,10 @@ export function drawSection(mesEl) {
     if (!message || message.is_user || message.is_system) return;
 
     const record = stored(message);
-    const busy = inFlight.size > 0 && [...inFlight].some(k => k.endsWith(`:${id}:${message.swipe_id ?? 0}`));
-    if (!record && !busy) return;
+    const tail = `:${id}:${message.swipe_id ?? 0}`;
+    const busy = [...inFlight].some(k => k.endsWith(tail));
+    const failure = [...failures].find(([k]) => k.endsWith(tail))?.[1] || '';
+    if (!record && !busy && !failure) return;
 
     const section = document.createElement('div');
     section.className = 'sillynpc-internal-states';
@@ -278,7 +301,7 @@ export function drawSection(mesEl) {
     title.textContent = 'Internal States';
     const status = document.createElement('span');
     status.className = 'sillynpc-is-status notes';
-    status.textContent = busy ? 'writing…' : '';
+    status.textContent = busy ? 'writing…' : (failure ? `failed: ${failure}` : '');
     const redo = document.createElement('div');
     redo.className = 'mes_button fa-solid fa-arrows-rotate';
     redo.title = 'Write the Internal States again';

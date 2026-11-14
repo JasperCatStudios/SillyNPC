@@ -89,6 +89,30 @@ function wordsOf(text) {
     return String(text || '').toLowerCase().split(/[^a-z0-9]+/i).filter(Boolean).map(stem);
 }
 
+const FEMALE_WORDS = new Set(['female', 'woman', 'women', 'girl', 'lady', 'maid', 'she', 'mother', 'queen', 'princess', 'witch', 'actress']);
+const MALE_WORDS = new Set(['male', 'man', 'men', 'boy', 'lord', 'he', 'father', 'king', 'prince', 'wizard', 'actor']);
+
+/**
+ * Which gender a name or category says, or '' when it does not say.
+ *
+ * Whole words only, so "female" is never read as "male". A name with both is left
+ * undecided rather than guessed at.
+ *
+ * @returns {'female'|'male'|''}
+ */
+export function genderOfName(name, category = '') {
+    const words = [...wordsOf(name), ...wordsOf(category)];
+    const female = words.some(w => FEMALE_WORDS.has(w));
+    const male = words.some(w => MALE_WORDS.has(w));
+    if (female === male) return '';
+    return female ? 'female' : 'male';
+}
+
+/** The gender of a face in the pool, by its picture, or ''. */
+export function genderOfFace(src) {
+    return getPool().find(entry => entry.src === src)?.gender || '';
+}
+
 /**
  * The entries worth drawing from for this speaker.
  *
@@ -100,8 +124,16 @@ function wordsOf(text) {
  * @param {string} [category] A carded character's category, matched the same way.
  */
 export function eligibleImages(name, category = '') {
-    const pool = getPool();
+    let pool = getPool();
     if (pool.length === 0) return [];
+
+    // A speaker whose name says which gender they are draws only from faces of that gender,
+    // as long as there are any. A pool with none sorted behaves exactly as before.
+    const gender = genderOfName(name, category);
+    if (gender) {
+        const sorted = pool.filter(entry => entry.gender === gender);
+        if (sorted.length) pool = sorted;
+    }
 
     const words = new Set([...wordsOf(name), ...wordsOf(category)]);
     if (words.size === 0) return pool;

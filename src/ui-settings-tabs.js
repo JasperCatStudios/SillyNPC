@@ -18,7 +18,7 @@ import { getContext } from '../../../../extensions.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 import { clearRuns } from './default-portraits.js';
 import { triggerReprocess } from './chat.js';
-import { renderForkSettings } from './ui-character-extras.js';
+import { renderForkSettings, buildStrangerVoices } from './ui-character-extras.js';
 
 /**
  * Display labels for the shipped themes. Built from SILLYNPC_THEMES so the
@@ -503,6 +503,8 @@ export function renderDefaultView(view, rerender) {
 
     const pool = Array.isArray(getSettings().defaultImages) ? getSettings().defaultImages : [];
 
+    view.appendChild(buildStrangerVoices());
+
     const grid = document.createElement('div');
     grid.className = 'sillynpc-pool-grid';
 
@@ -514,7 +516,22 @@ export function renderDefaultView(view, rerender) {
         grid.appendChild(empty);
     }
 
-    pool.forEach((entry, index) => {
+    // Sorted by gender for reading only: removal below goes by the entry itself, so the
+    // order the list is stored in does not change.
+    const rank = (entry) => (entry.gender === 'female' ? 0 : entry.gender === 'male' ? 1 : 2);
+    const heading = ['Female', 'Male', 'Unsorted'];
+    let lastRank = -1;
+    const shown = pool.map((entry, index) => ({ entry, index }))
+        .sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index);
+
+    shown.forEach(({ entry }) => {
+        if (rank(entry) !== lastRank) {
+            lastRank = rank(entry);
+            const label = document.createElement('div');
+            label.className = 'sillynpc-pool-group';
+            label.textContent = heading[lastRank];
+            grid.appendChild(label);
+        }
         const cell = document.createElement('div');
         cell.className = 'sillynpc-pool-cell';
 
@@ -541,13 +558,29 @@ export function renderDefaultView(view, rerender) {
         });
         cell.appendChild(tags);
 
+        const gender = document.createElement('select');
+        gender.className = 'text_pole sillynpc-pool-gender';
+        gender.title = 'Female and male faces are drawn by speakers whose name says so '
+            + '(Female Soldier, Old Man). They also decide which generic voice a stranger uses.';
+        for (const [value, text] of [['', 'Gender: unsorted'], ['female', 'Female'], ['male', 'Male']]) {
+            gender.append(new Option(text, value));
+        }
+        gender.value = entry.gender || '';
+        gender.addEventListener('change', () => {
+            entry.gender = gender.value;
+            saveSettings();
+            rerender?.();
+        });
+        cell.appendChild(gender);
+
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'menu_button sillynpc-pool-remove';
         remove.innerHTML = '<i class="fa-solid fa-xmark"></i>';
         remove.title = 'Take this face out of the pool.';
         remove.addEventListener('click', () => {
-            getSettings().defaultImages.splice(index, 1);
+            const at = getSettings().defaultImages.indexOf(entry);
+            if (at !== -1) getSettings().defaultImages.splice(at, 1);
             saveSettings();
             // Anybody already wearing it is given another the next time they are drawn;
             // faceForCard checks that the face it remembers is still in the pool.
@@ -577,7 +610,7 @@ export function renderDefaultView(view, rerender) {
             if (!Array.isArray(settings.defaultImages)) settings.defaultImages = [];
             for (const dataUri of picked) {
                 const stored = await persistGeneratedImage(dataUri, 'default');
-                settings.defaultImages.push({ src: stored, tags: [] });
+                settings.defaultImages.push({ src: stored, tags: [], gender: '' });
             }
             saveSettings();
             toastr.success(`Added ${picked.length} face${picked.length === 1 ? '' : 's'}.`, 'SillyNPC');

@@ -4624,3 +4624,9 @@ textarea.sillynpc-profile-input {
 .sillynpc-is-bar .mes_button { margin-left: auto; cursor: pointer; }
 .sillynpc-is-body { font-size: 0.9em; }
 .sillynpc-is-body details { margin: 2px 0; }
+.sillynpc-pool-group { grid-column: 1 / -1; font-weight: bold; opacity: 0.8; margin-top: 8px; border-bottom: 1px solid var(--SmartThemeBorderColor, #444); }
+.sillynpc-pool-gender { margin-top: 4px; width: 100%; }
+.sillynpc-is-body summary { cursor: pointer; font-weight: bold; padding: 2px 0; }
+.sillynpc-is-body > details > summary { color: var(--SmartThemeQuoteColor, inherit); }
+.sillynpc-is-body details details { margin-left: 10px; border-left: 2px solid var(--SmartThemeBorderColor, #555); padding-left: 8px; }
+.sillynpc-is-body b { color: var(--SmartThemeEmColor, inherit); }

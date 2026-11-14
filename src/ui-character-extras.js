@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from './settings.js';
 import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
-import { ttsStatus, previewVoice, syncVoiceNames, applyAutoGenerationHandover, voiceChoices, getVoice, setVoice } from './tts.js';
+import { previewVoice, syncVoiceNames, applyAutoGenerationHandover, voiceChoices, getVoice, setVoice, GENERIC_VOICES } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 import { buildSettingSelect } from './ui-shared.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
@@ -97,42 +97,63 @@ export function renderCharacterExtras(char, container) {
     );
 
     // --- Voice -----------------------------------------------------------------------
-    const voiceRow = document.createElement('div');
-    voiceRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
-    const voiceSelect = document.createElement('select');
-    voiceSelect.className = 'text_pole';
-    voiceSelect.style.cssText = 'width:auto; min-width:14em;';
-    voiceSelect.disabled = true;
-    voiceSelect.append(new Option('Loading voices...', ''));
-    voiceRow.append(label('Voice'), voiceSelect);
+    container.append(buildVoicePicker(char.name, 'Voice', `${char.name}. This is what I sound like.`));
+}
+
+/**
+ * A dropdown of the active TTS provider's voices, bound to one name in SillyTavern's voice map.
+ *
+ * @param {string} name The voice-map name this row controls.
+ * @param {string} labelText
+ * @param {string} sample What the test button says.
+ * @returns {HTMLElement}
+ */
+export function buildVoicePicker(name, labelText, sample) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
+
+    const select = document.createElement('select');
+    select.className = 'text_pole';
+    select.style.cssText = 'width:auto; min-width:14em;';
+    select.disabled = true;
+    select.append(new Option('Loading voices...', ''));
+    row.append(label(labelText), select);
 
     // Filled from the active provider (AllTalk, ElevenLabs, ...) once it answers.
     (async () => {
         await syncVoiceNames();
-        const [voices, current] = await Promise.all([voiceChoices(), getVoice(char.name)]);
-        voiceSelect.replaceChildren();
+        const [voices, current] = await Promise.all([voiceChoices(), getVoice(name)]);
+        select.replaceChildren();
         if (!voices.length) {
-            voiceSelect.append(new Option('No voices - enable TTS and apply the patch', ''));
+            select.append(new Option('No voices - enable TTS and apply the patch', ''));
             return;
         }
-        for (const v of ['[Default Voice]', 'disabled', ...voices]) voiceSelect.append(new Option(v, v));
-        voiceSelect.value = current || '[Default Voice]';
-        voiceSelect.disabled = false;
+        for (const v of ['[Default Voice]', 'disabled', ...voices]) select.append(new Option(v, v));
+        select.value = current || '[Default Voice]';
+        select.disabled = false;
     })();
-    voiceSelect.addEventListener('change', async () => {
-        if (!await setVoice(char.name, voiceSelect.value)) {
+    select.addEventListener('change', async () => {
+        if (!await setVoice(name, select.value)) {
             toastr.warning('Could not set the voice. Is the TTS extension enabled?', 'SillyNPC');
         }
     });
 
-    voiceRow.append(button('fa-volume-high', 'Test voice', async () => {
-        await previewVoice(char.name, `${char.name}. This is what I sound like.`);
-    }));
-    container.append(voiceRow);
+    row.append(button('fa-volume-high', 'Test voice', () => previewVoice(name, sample)));
+    return row;
+}
 
-    ttsStatus().then(status => {
-        if (!status.ready && getSettings().ttsEnabled) container.append(note(status.reason));
-    });
+/** The two generic voices used by speakers who have no card, chosen by the face they wear. */
+export function buildStrangerVoices() {
+    const wrap = document.createElement('div');
+    wrap.className = 'sillynpc-setting';
+    wrap.append(
+        label('Voices For Strangers'),
+        note('A speaker with no card is read in the voice for their gender: the one their face is '
+            + 'sorted under, or what their name says (Female Soldier, Old Man). Unsorted ones use the default voice.'),
+        buildVoicePicker(GENERIC_VOICES.female, 'Female', 'Halt. State your business.'),
+        buildVoicePicker(GENERIC_VOICES.male, 'Male', 'Halt. State your business.'),
+    );
+    return wrap;
 }
 
 /**
@@ -152,11 +173,11 @@ export function renderInternalStatesSettings(container, rerender) {
     container.append(buildSettingSelect({
         key: 'internalStatesMode',
         label: 'Internal States',
-        help: 'After The Reply: a second request writes the preset’s state block (agendas, '
+        help: 'After The Reply: a second request writes the state block (agendas, '
             + 'bonds, thoughts, body scale, Chekhov, GM notebook, world sim) and it is shown in '
-            + 'its own section under the message. In The Reply: the story model writes it as the '
-            + 'preset asks, and the preset’s regexes handle it - nothing happens here. For '
-            + 'After The Reply, switch off the preset’s own Internal States toggles.',
+            + 'its own section under the message. In The Reply: the story model writes it itself, and '
+            + 'any regex scripts you have handle it - nothing happens here. '
+            + 'If a preset of yours also asks for a block, switch that off.',
         options: [
             { value: 'after', label: 'After the reply (separate request)' },
             { value: 'inline', label: 'In the reply (preset writes it)' },
@@ -232,34 +253,25 @@ export function renderForkSettings(view, rerender) {
     view.append(intro);
 
     view.append(buildSettingToggle({
-        key: 'ttsEnabled',
-        label: 'Give Characters Their Own Voice',
-        help: "Adds this chat's characters to SillyTavern's TTS voice map and puts a speaker "
-            + 'button on each message. Needs SillyTavern\'s TTS enabled, and the small patch in '
-            + 'this extension\'s patches folder.',
-        onChange: () => { syncVoiceNames(); applyAutoGenerationHandover(); rerender(); },
+        key: 'ttsAutoSpeak',
+        label: 'Read New Replies Aloud',
+        help: 'Reads each new reply as it finishes: only "quoted" speech and (thoughts), each in its '
+            + "speaker's voice. This takes over from SillyTavern's own Auto Generation, which would "
+            + 'read the whole reply as one speaker, so that one is paused while this is on. Every '
+            + 'message also has a speech-bubble button in its toolbar (the three dots) to read it on demand.',
+        onChange: applyAutoGenerationHandover,
     }));
-
-    if (getSettings().ttsEnabled) {
-        view.append(buildSettingToggle({
-            key: 'ttsAutoSpeak',
-            label: 'Read New Replies Aloud',
-            help: "Reads each new reply as it finishes, a voice per speaker. This takes over "
-                + "from SillyTavern's own Auto Generation, which would read the whole reply as "
-                + 'one speaker, so that one is paused while this is on.',
-            onChange: applyAutoGenerationHandover,
-        }));
-        view.append(buildSettingToggle({
-            key: 'ttsSpeakThoughts',
-            label: 'Read Thoughts',
-            help: 'Lines written in parentheses. Off by default: a thought is not said out loud.',
-        }));
-        view.append(buildSettingToggle({
-            key: 'ttsSpeakNarration',
-            label: 'Read Narration',
-            help: "Untagged paragraphs, in the voice mapped to [Default Voice] in SillyTavern's TTS panel.",
-        }));
-    }
+    view.append(buildSettingToggle({
+        key: 'ttsSpeakThoughts',
+        label: 'Read Thoughts',
+        help: 'Text in (parentheses), in the speaker’s voice.',
+    }));
+    view.append(buildSettingToggle({
+        key: 'ttsSpeakNarration',
+        label: 'Read Quoted Speech With No Speaker',
+        help: 'A "quote" in a paragraph with no speaker tag, in the [Default Voice]. Actions and '
+            + 'description are never read.',
+    }));
 
     const imageHeading = document.createElement('h3');
     imageHeading.className = 'sillynpc-section-title';
