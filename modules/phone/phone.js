@@ -1,7 +1,7 @@
 import { eventSource, event_types, saveSettingsDebounced, name1, substituteParams } from '../../../../../../script.js';
 import { extension_settings, getContext } from '../../../../../extensions.js';
 // Fork: the phone's people are SillyNPC's characters, not SillyTavern's cards.
-import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, worldList, worldEntries, primeLore } from '../shim.js';
+import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, worldList, worldEntries, primeLore, sceneClock } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
@@ -653,6 +653,8 @@ function pushRaw(id, msg) {
     // per message is what regenerate and the photo queue use to find it again
     const prev = th.length ? th[th.length - 1].ts : 0;
     if (!(msg.ts > prev)) msg.ts = prev + 1;
+    // Fork: the story's clock when it was sent, so "two hours ago" means two hours in the story.
+    if (msg.sc === undefined) { const c = sceneClock(); msg.sc = c ? c.ms : null; }
     th.push(msg);
     if (th.length > 200) forgetMessages(th.splice(0, th.length - 200));   // keep the store bounded
     saveSettings();
@@ -926,7 +928,27 @@ function openContact(id) {
 /* ============================================================
    TIME — they must feel the clock and the calendar
    ============================================================ */
-function timeContext(lastTs) {
+function timeContext(lastTs, lastSc) {
+    // Fork: the time is the story's, read from the header of the latest message. The real
+    // clock is only the fallback for a chat that has no header at all.
+    const clock = sceneClock();
+    if (!clock) return realTimeContext(lastTs);
+    const h = clock.hour;
+    const partOfDay = h < 5 ? 'deep night' : h < 11 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
+    let gap = '';
+    if (lastTs) {
+        const mins = lastSc != null ? Math.max(0, Math.floor((clock.ms - lastSc) / 60000)) : null;
+        if (mins === null) gap = '';
+        else if (mins < 2) gap = 'They wrote to you moments ago.';
+        else if (mins < 60) gap = `${mins} minutes have passed in the story since the last message.`;
+        else if (mins < 60 * 24) gap = `${Math.floor(mins / 60)} hours have passed in the story since the last message.`;
+        else gap = `${Math.floor(mins / 1440)} days have passed in the story since the last message.`;
+    } else gap = 'This is the first message in this thread.';
+    const where = clock.place ? ` ${clock.place} is where ${name1 || 'the player'} is.` : '';
+    const weather = clock.weather ? ` Weather there: ${clock.weather}.` : '';
+    return `[STORY TIME: ${clock.dateText}, ${clock.timeText} - ${partOfDay}.${where}${weather} ${gap}]`;
+}
+function realTimeContext(lastTs) {
     const now = new Date();
     const days = settings.language === 'en'
         ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -944,8 +966,10 @@ function timeContext(lastTs) {
     } else gap = 'This is the first message in this thread.';
     return `[REAL TIME: ${now.toLocaleDateString()} (${days[now.getDay()]}), ${hh}:${mm} — ${partOfDay}. ${gap}]`;
 }
-function agoLabel(ts) {
-    const m = Math.floor((Date.now() - ts) / 60000);
+function agoLabel(ts, sc) {
+    // Fork: in story minutes when the message knows its story time, real ones otherwise.
+    const clock = sc != null ? sceneClock() : null;
+    const m = clock ? Math.max(0, Math.floor((clock.ms - sc) / 60000)) : Math.floor((Date.now() - ts) / 60000);
     if (m < 2) return t('just_now');
     if (m < 60) return t('min_ago', { n: m });
     if (m < 1440) return t('hr_ago', { n: Math.floor(m / 60) });
@@ -2201,7 +2225,8 @@ function buildRequest(names, reasonLine, isInitiative, contactId) {
     const th = threadOf(primary);
     const lastTs = th.length ? th[th.length - 1].ts : 0;
     const sys = buildSystem(names, reasonLine);
-    const head = [personaBlock(), extensionMemoryBlock(), timeContext(lastTs), diaryBlock(names, primary)];
+    const lastSc = th.length ? th[th.length - 1].sc : null;
+    const head = [personaBlock(), extensionMemoryBlock(), timeContext(lastTs, lastSc), diaryBlock(names, primary)];
     const tail = [
         isGroup(primary) ? '[This is a GROUP thread: several of you are in the same conversation and may talk to each other.]' : '',
         isInitiative
@@ -2500,12 +2525,13 @@ function initiativeTick() {
     if (!names.length) return;
 
     const now = new Date();
-    const hour = now.getHours();
+    const clock = sceneClock();
+    const hour = clock ? clock.hour : now.getHours();
     const qf = settings.quietFrom, qt = settings.quietTo;
     const quiet = qf === qt ? false : (qf < qt ? (hour >= qf && hour < qt) : (hour >= qf || hour < qt));
     if (quiet) return;
 
-    const dayKey = now.toDateString();
+    const dayKey = clock ? clock.dateText : now.toDateString();
 
     for (const name of names) {
         const st = stateOf(name);
@@ -2515,7 +2541,9 @@ function initiativeTick() {
         const th = threadOf(name);
         const last = th.length ? th[th.length - 1] : null;
         const lastTs = last ? last.ts : 0;
-        const sinceMsgMin = lastTs ? (Date.now() - lastTs) / 60000 : 9999;
+        const sinceMsgMin = !lastTs ? 9999
+            : (clock && last && last.sc != null) ? Math.max(0, (clock.ms - last.sc) / 60000)
+                : (Date.now() - lastTs) / 60000;
         const sinceInitMin = st.lastInitiative ? (Date.now() - st.lastInitiative) / 60000 : 9999;
 
         // being ignored → wait progressively longer (2 unanswered = 3x the gap)
@@ -2787,7 +2815,9 @@ function renderPhoneTop(cur) {
 function renderPhoneClock() {
     const el = document.querySelector('#rph-layer .rph-clock');
     if (!el) return;
-    const d = new Date();
+    // Fork: the story's time, not the computer's.
+    const clock = sceneClock();
+    const d = clock ? new Date(clock.ms) : new Date();
     el.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 // size and on-screen position of the phone; the corner buttons stay clear below it
@@ -2884,7 +2914,7 @@ function renderBubbles(force) {
     if (sig === lastSig) {
         // same content: only the "5 min ago" labels age — update them in place
         const labels = stack.querySelectorAll('.rph-time');
-        slice.forEach((m, i) => { if (labels[i]) labels[i].textContent = agoLabel(m.ts); });
+        slice.forEach((m, i) => { if (labels[i]) labels[i].textContent = agoLabel(m.ts, m.sc); });
         hydrateImages(stack, false);
         return;
     }
@@ -3003,7 +3033,7 @@ function renderBubbles(force) {
         if (phone) el.removeAttribute('style');
         else el.setAttribute('style', `opacity:${opacity}; transform:translateX(${-bulge.toFixed(1)}px); max-width:${settings.bubbleWidth}px;`);
         const tl = el.querySelector('.rph-time');
-        if (tl) tl.textContent = agoLabel(m.ts);
+        if (tl) tl.textContent = agoLabel(m.ts, m.sc);
         nextNodes.set(key, el);
         return el;
     });

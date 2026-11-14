@@ -159,3 +159,67 @@ export function lastTaggedSpeaker(chat) {
     }
     return null;
 }
+
+/* ---- the scene's clock ---------------------------------------------------------------- */
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/**
+ * Reads the header the story puts at the top of a message:
+ *   [ 🕰️ Time 07:24 AM | 🗓️ Friday, February 07, 1182 | 📍 Place | 🌫️ Fog, 34 °F ]
+ * Null when the text has none.
+ */
+function parseSceneHeader(text) {
+    const head = String(text ?? '').slice(0, 500);
+    const time = /Time\s+(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(head);
+    if (!time) return null;
+    const date = /([A-Za-z]+),?\s+([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{1,4})/.exec(head.slice(time.index));
+    if (!date) return null;
+    const month = MONTHS.indexOf(date[2].toLowerCase());
+    if (month < 0) return null;
+
+    let hour = Number(time[1]) % 12;
+    if (/pm/i.test(time[3] || '')) hour += 12;
+    if (!time[3]) hour = Number(time[1]);
+    const minute = Number(time[2]);
+    const day = Number(date[3]);
+    const year = Number(date[4]);
+
+    const moment = new Date(2000, month, day, hour, minute);
+    moment.setFullYear(year);
+
+    // The segments after the time and date: a place (📍) and, usually, the weather.
+    const inner = (/\[([^\]]*)\]/.exec(head) || [, ''])[1].split('|').map(x => x.trim());
+    const place = (inner.find(x => x.includes('\u{1F4CD}')) || '').replace(/^\S*\u{1F4CD}\uFE0F?\s*/u, '').trim();
+    const weather = inner.length > 3 ? inner[inner.length - 1].replace(/^[^\p{L}\d]+/u, '').trim() : '';
+
+    return {
+        ms: moment.getTime(),
+        hour,
+        minute,
+        weekday: date[1],
+        dateText: `${date[1]}, ${date[2]} ${String(day).padStart(2, '0')}, ${year}`,
+        timeText: `${time[1].padStart(2, '0')}:${time[2]}${time[3] ? ` ${time[3].toUpperCase()}` : ''}`,
+        place,
+        weather,
+    };
+}
+
+/**
+ * What time it is in the story: the header of the newest message from you that has one, else
+ * of any message that does. Null when nothing in the chat carries a clock, which is the cue
+ * for callers to fall back to the real one.
+ */
+export function sceneClock(chat = getContext()?.chat) {
+    if (!Array.isArray(chat)) return null;
+    for (const mine of [true, false]) {
+        for (let i = chat.length - 1; i >= 0; i--) {
+            const message = chat[i];
+            if (!message || message.is_system) continue;
+            if (mine && !message.is_user) continue;
+            const clock = parseSceneHeader(message.mes);
+            if (clock) return clock;
+        }
+    }
+    return null;
+}
