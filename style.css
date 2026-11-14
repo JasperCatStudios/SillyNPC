@@ -4651,3 +4651,13 @@ textarea.sillynpc-profile-input {
 .sillynpc-switch-slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; }
 .sillynpc-switch input:checked + .sillynpc-switch-slider { background: var(--SmartThemeQuoteColor, #4c9); }
 .sillynpc-switch input:checked + .sillynpc-switch-slider::before { transform: translateX(18px); }
+
+/* ---- Fork additions: tabs inside the Modules tab ---- */
+.sillynpc-subtabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--SmartThemeBorderColor, #444); margin: 4px 0 12px; }
+.sillynpc-subtab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 14px; cursor: pointer; color: inherit; opacity: .7; font: inherit; }
+.sillynpc-subtab:hover { opacity: 1; }
+.sillynpc-subtab.active { opacity: 1; border-bottom-color: var(--SmartThemeQuoteColor, #4c9); font-weight: bold; }
+.sillynpc-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.sillynpc-subpane > .notes:first-child { margin-top: 0; }
+.sillynpc-module-panel { margin: 0 !important; padding: 0 !important; }
+.sillynpc-module-panel .rph-box, .sillynpc-module-panel hr { margin-top: 8px; margin-bottom: 8px; }

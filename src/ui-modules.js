@@ -56,31 +56,6 @@ function returnWhenGone(view, borrowed) {
     observer.observe(document.body, { childList: true, subtree: true });
 }
 
-function card({ icon, name, blurb }) {
-    const section = document.createElement('section');
-    section.className = 'sillynpc-card';
-
-    const head = document.createElement('header');
-    head.className = 'sillynpc-card-head';
-    const title = document.createElement('div');
-    title.className = 'sillynpc-card-title';
-    title.innerHTML = `<i class="fa-solid ${icon}"></i>`;
-    const text = document.createElement('div');
-    const strong = document.createElement('b');
-    strong.textContent = name;
-    const small = document.createElement('small');
-    small.className = 'notes';
-    small.textContent = blurb;
-    text.append(strong, small);
-    title.append(text);
-    head.append(title);
-
-    const body = document.createElement('div');
-    body.className = 'sillynpc-card-body';
-    section.append(head, body);
-    return { section, head, body };
-}
-
 /** A switch, as a labelled checkbox. */
 function makeSwitch(checked, onChange) {
     const label = document.createElement('label');
@@ -95,6 +70,9 @@ function makeSwitch(checked, onChange) {
     return label;
 }
 
+/** Which pane was open last, kept for the session so redrawing the tab does not jump back. */
+let activePane = 'voices';
+
 /**
  * @param {HTMLElement} view
  */
@@ -106,48 +84,88 @@ export function renderModulesView(view) {
     title.textContent = 'Modules';
     view.append(title);
 
-    const intro = document.createElement('p');
-    intro.className = 'notes sillynpc-tab-intro';
-    intro.textContent = 'Everything that comes with SillyNPC. Switch a module on or off here and set it up '
-        + 'underneath; reload the page after installing or updating one.';
-    view.append(intro);
+    const bar = document.createElement('div');
+    bar.className = 'sillynpc-subtabs';
+    bar.setAttribute('role', 'tablist');
+    const panes = document.createElement('div');
+    view.append(bar, panes);
 
-    // Voices belong to SillyNPC itself rather than to a module, and sit first.
-    const voices = card({ icon: 'fa-volume-high', name: 'Voices', blurb: 'Characters read aloud through AllTalk, a voice each.' });
-    renderVoiceSettings(voices.body);
-    view.append(voices.section);
+    /** Adds one tab and its pane. */
+    const panes_ = [];
+    const add = (id, icon, name, build) => {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'sillynpc-subtab';
+        tab.setAttribute('role', 'tab');
+        tab.innerHTML = `<i class="fa-solid ${icon}"></i> `;
+        tab.append(document.createTextNode(name));
+        const pane = document.createElement('div');
+        pane.className = 'sillynpc-subpane';
+        build(pane);
+        bar.append(tab);
+        panes.append(pane);
+        panes_.push({ id, tab, pane });
+        tab.addEventListener('click', () => { activePane = id; show(); });
+    };
+    const show = () => {
+        if (!panes_.some(p => p.id === activePane)) activePane = panes_[0]?.id;
+        for (const p of panes_) {
+            const on = p.id === activePane;
+            p.tab.classList.toggle('active', on);
+            p.tab.setAttribute('aria-selected', String(on));
+            p.pane.style.display = on ? '' : 'none';
+        }
+    };
+
+    // Voices belong to SillyNPC itself rather than to a module, and come first.
+    add('voices', 'fa-volume-high', 'Voices', (pane) => {
+        const intro = document.createElement('p');
+        intro.className = 'notes';
+        intro.textContent = 'Characters read aloud through AllTalk, a voice each.';
+        pane.append(intro);
+        renderVoiceSettings(pane);
+    });
 
     // The search index draws every tab offscreen once. Borrowing panels there would take them
-    // away from the real one, so offscreen only the cards are drawn.
+    // away from the real one, so offscreen only the headings are drawn.
     const live = view.isConnected;
     const borrowed = [];
 
     for (const mod of MODULES) {
-        const { section, head, body } = card(mod);
-        const panel = live ? document.querySelector(mod.drawer) : null;
+        add(mod.id, mod.icon, mod.name, (pane) => {
+            const head = document.createElement('div');
+            head.className = 'sillynpc-pane-head';
+            const text = document.createElement('small');
+            text.className = 'notes';
+            text.textContent = mod.blurb;
+            head.append(text);
+            pane.append(head);
 
-        if (panel) {
-            body.append(panel);
-            borrowed.push(panel);
-            panel.classList.add('sillynpc-module-panel');
-            const box = panel.querySelector(mod.enableBox);
-            if (box) {
-                head.append(makeSwitch(box.checked, (on) => {
-                    box.checked = on;
-                    // jQuery handlers hear a native event, so one dispatch reaches them.
-                    box.dispatchEvent(new Event('change', { bubbles: true }));
-                }));
-                // The card's switch is that checkbox, so the second copy is hidden.
-                (box.closest('label') || box).classList.add('sillynpc-hidden');
+            const panel = live ? document.querySelector(mod.drawer) : null;
+            if (panel) {
+                pane.append(panel);
+                borrowed.push(panel);
+                panel.classList.add('sillynpc-module-panel');
+                const box = panel.querySelector(mod.enableBox);
+                if (box) {
+                    head.append(makeSwitch(box.checked, (on) => {
+                        box.checked = on;
+                        // jQuery handlers hear a native event, so one dispatch reaches them.
+                        box.dispatchEvent(new Event('change', { bubbles: true }));
+                    }));
+                    // The pane's switch is that checkbox, so the second copy is hidden.
+                    (box.closest('label') || box).classList.add('sillynpc-hidden');
+                }
+            } else if (live) {
+                const missing = document.createElement('p');
+                missing.className = 'notes';
+                missing.textContent = 'This module has not loaded. Reload SillyTavern; if it stays missing, '
+                    + 'open the browser console and look for "Module" lines from SillyNPC.';
+                pane.append(missing);
             }
-        } else if (live) {
-            const missing = document.createElement('p');
-            missing.className = 'notes';
-            missing.textContent = 'This module has not loaded. Reload SillyTavern; if it stays missing, '
-                + 'open the browser console and look for "Module" lines from SillyNPC.';
-            body.append(missing);
-        }
-        view.append(section);
+        });
     }
+
+    show();
     if (borrowed.length) returnWhenGone(view, borrowed);
 }

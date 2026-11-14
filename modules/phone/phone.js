@@ -1991,21 +1991,32 @@ async function callAI(system, user) {
     currentAbort = ctrl;
     if (watchdog) clearTimeout(watchdog);
     watchdog = setTimeout(() => { try { ctrl.abort(new DOMException('The model did not answer in time', 'TimeoutError')); } catch (e) { try { ctrl.abort(); } catch (e2) { } } }, REQUEST_TIMEOUT_MS);
+    // Neither the connection manager nor the main API takes our abort signal, so the request
+    // is raced against it: the cancel button and the time limit both end the wait, and `busy`
+    // cannot be left on by a request that never answers.
+    const aborted = new Promise((_resolve, reject) => {
+        ctrl.signal.addEventListener('abort', () => {
+            const why = ctrl.signal.reason;
+            reject(why && why.name === 'TimeoutError' ? why : Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        }, { once: true });
+    });
+    aborted.catch(() => { /* reported where it is awaited */ });
     try {
-        let out;
+        let work;
         if (settings.profileId) {
-            const result = await context.ConnectionManagerRequestService.sendRequest(
+            work = context.ConnectionManagerRequestService.sendRequest(
                 settings.profileId,
                 [{ role: 'system', content: system }, { role: 'user', content: user }],
                 maxTokens,
                 { extractData: true, includePreset: false },
                 {},
             );
-            out = typeof result === 'string' ? result : (result?.content ?? '');
         } else {
-            const raw = await context.generateRawData({ prompt: user, systemPrompt: system, responseLength: maxTokens });
-            out = typeof raw === 'string' ? raw : (raw?.content ?? '');
+            work = context.generateRawData({ prompt: user, systemPrompt: system, responseLength: maxTokens });
         }
+        Promise.resolve(work).catch(() => { /* a request abandoned by cancel may still fail later */ });
+        const result = await Promise.race([work, aborted]);
+        const out = typeof result === 'string' ? result : (result?.content ?? '');
         lastFinish = '';
         return String(out || '').trim();
     } finally {
@@ -2456,14 +2467,15 @@ async function sendUserText(text) {
 // stale index could cut the wrong place.
 async function regenerateAfter(ts) {
     const cur = currentContact();
-    if (!cur || busy) return;
+    if (!cur) return;
+    if (busy) { toastr.info('Still writing a reply. Press the cross on the typing bubble to cancel it first.'); return; }
     if (!apiKey()) { toastr.warning(t('nokey')); return; }
     const names = contactMembers(cur);
     if (!names.length) { toastr.info(t('noactive')); return; }
     const th = threadOf(cur);
     let index = -1;
     for (let i = th.length - 1; i >= 0; i--) if (th[i].ts === ts && th[i].who === 'user') { index = i; break; }
-    if (index < 0) return;
+    if (index < 0) { toastr.info('That message is not in the thread any more.'); return; }
     forgetMessages(th.splice(index + 1));            // cut their previous answer
     saveSettings();
     scrollOffset = 0;
