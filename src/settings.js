@@ -945,6 +945,7 @@ export function normalizeSettings(settings) {
         // Fork: the picture prompt for this character, and what to keep out of it.
         if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
         if (typeof char.imageNegative !== 'string') char.imageNegative = '';
+        if (typeof char.phoneSkin !== 'string') char.phoneSkin = '';
     }
 
     // The register, seeded from whoever is already carrying a category name. An existing

@@ -1,4 +1,5 @@
 import { getSettings, saveSettings } from './settings.js';
+import { eventSource } from '../../../../events.js';
 import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
 import { previewVoice, syncVoiceNames, applyAutoGenerationHandover, voiceChoices, getVoice, setVoice, GENERIC_VOICES } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
@@ -95,6 +96,24 @@ export function renderCharacterExtras(char, container) {
             + 'To The Model" is on - listed for the story model whenever this character is in the '
             + 'scene, so a prompt it writes describes the same person each time.'),
     );
+
+    // --- Phone theme -----------------------------------------------------------------
+    const skinRow = document.createElement('div');
+    skinRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
+    const skinSelect = document.createElement('select');
+    skinSelect.className = 'text_pole';
+    skinSelect.style.cssText = 'width:auto; min-width:14em;';
+    for (const [value, text] of [['', 'Phone default'], ['cute', 'Cute'], ['goth', 'Gothic'], ['lace', 'Lace'], ['modern', 'Classic']]) {
+        skinSelect.append(new Option(text, value));
+    }
+    skinSelect.value = char.phoneSkin || '';
+    skinSelect.addEventListener('change', () => {
+        char.phoneSkin = skinSelect.value;
+        saveSettings();
+        eventSource.emit('sillynpc-phone-refresh');
+    });
+    skinRow.append(label('Phone theme'), skinSelect);
+    container.append(skinRow, note('This contact’s thread on the phone uses this skin, tinted with their accent colour. Applies when the phone is in one of its phone skins.'));
 
     // --- Voice -----------------------------------------------------------------------
     container.append(buildVoicePicker(char.name, 'Voice', `${char.name}. This is what I sound like.`));
