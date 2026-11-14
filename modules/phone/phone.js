@@ -1117,7 +1117,7 @@ function mainChatContext(names, count) {
                 return `${m.name}: ${text}`;
             }).join('\n');
         return tail ? `[WHAT HAS HAPPENED IN THE STORY THAT INVOLVES YOU (the main roleplay, for context - the phone chat is separate):\n${tail}\n]` : '';
-    } catch (e) { return ''; }
+    } catch (e) { console.warn('[Phone] story context left out', e); return ''; }
 }
 // rough and deliberately pessimistic: ~3 characters per token (Cyrillic is denser)
 function estTokens(x) { return Math.ceil(String(x || '').length / 3); }
@@ -2031,9 +2031,24 @@ async function callAI(system, user) {
         }
         Promise.resolve(work).catch(() => { /* a request abandoned by cancel may still fail later */ });
         const result = await Promise.race([work, aborted]);
-        const out = typeof result === 'string' ? result : (result?.content ?? '');
+        // The connection manager (extractData) answers { content, reasoning }; generateRawData
+        // answers the provider's raw JSON, whose text sits in choices[0].message.content (or a
+        // content ARRAY for Claude), so reading `.content` off it gave '' or "[object Object]".
+        const out = typeof result === 'string' ? result
+            : settings.profileId ? (result?.content ?? '')
+                : context.extractMessageFromData(result);
         lastFinish = '';
-        return String(out || '').trim();
+        const text = String(out || '').trim();
+        if (!text) {
+            // An empty answer used to end as the bare "phone stays silent" toast with nothing in
+            // the console. Say why, so a reply budget eaten by reasoning can be told from a refusal.
+            console.warn('[Phone] the model returned no text', result);
+            const thought = String(result?.reasoning || '').trim();
+            throw new Error(thought
+                ? 'The model spent the whole reply budget thinking and wrote no text. Raise "Reply length".'
+                : 'The model returned an empty reply.');
+        }
+        return text;
     } finally {
         if (watchdog && currentAbort === ctrl) { clearTimeout(watchdog); watchdog = null; }
     }
@@ -2100,7 +2115,9 @@ function parseReply(raw, allowed, extra = []) {
     const known = n => { const k = String(n || '').trim().toLowerCase(); return !!k && (k === you || /^(?:system|система)$/.test(k) || allowed.some(x => x.toLowerCase() === k) || extra.some(x => x.toLowerCase() === k) || !!byAlias(k, allowed)); };
     let last = null;        // who spoke the line before: a line without a name goes on in their voice
     for (const line of cleanReplyText(raw).split('\n')) {
-        let s = line.trim();
+        // Fork: tagToLine was defined but never called, so "⟦Mark⟧ hi" never named Mark: every
+        // tagged line went to the first contact, and a line tagged with the player was kept.
+        let s = tagToLine(line.trim());
         if (!s) continue;
         // "- Mark: …", "> Mark: …" — the marker goes, the line is Mark's
         if (LIST_MARK.test(s)) {
@@ -2152,7 +2169,9 @@ function parseReply(raw, allowed, extra = []) {
         // BUG FIX (2.0.0): a bubble was silently cut at 400 characters and everything after
         // the 6th line was dropped — long replies and group threads lost their ending
         // (2.0.1: only the sender's own name repeated inside is taken off — "Note: …" stays)
-        const clean = cleanLine(who === 'SYSTEM' ? text : unquote(stripNamePrefix(text, [who].concat(aliasesOf(who)))), 1500)
+        // cleanLine answers null for a line with no letter ("...", "---", "😊", "5"); calling
+        // .replace on that threw, and the whole reply was lost as an error.
+        const clean = (cleanLine(who === 'SYSTEM' ? text : unquote(stripNamePrefix(text, [who].concat(aliasesOf(who)))), 1500) || '')
             .replace(buildMarkerRegex(), '').trim();
         if (clean) out.push({ name: who, text: clean });
         if (out.length >= Math.max(1, settings.maxReplyMessages || 3)) break;
@@ -2225,7 +2244,7 @@ function personaBlock() {
         const text = String(substituteParams('{{persona}}') || '').trim();
         if (!text || text === '{{persona}}') return '';
         return `[ABOUT ${name1 || 'THE PLAYER'} (the person you are texting):\n${text.slice(0, Math.max(200, settings.personaMaxChars || 3000))}\n]`;
-    } catch (e) { return ''; }
+    } catch (e) { console.warn('[Phone] persona left out', e); return ''; }
 }
 /* What other extensions have put into the story prompt: VectFox's recalled memories,
    Summaryception's summary. They write into SillyTavern's extension prompt slots when a
@@ -2244,7 +2263,7 @@ function extensionMemoryBlock() {
         }
         if (!parts.length) return '';
         return `[MEMORY OF THE STORY SO FAR (from the main roleplay):\n${parts.join('\n\n').slice(0, Math.max(500, settings.extMaxChars || 6000))}\n]`;
-    } catch (e) { return ''; }
+    } catch (e) { console.warn('[Phone] extension memory left out', e); return ''; }
 }
 
 // the last request actually sent, for the viewer
@@ -2287,7 +2306,10 @@ async function generateReply(names, reasonLine, isInitiative, contactId) {
     const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId);
     lastSent = { at: Date.now(), contact: primary, kind: isInitiative ? 'initiative' : 'reply', sys, user };
     const raw = await callAIComplete(sys, user);
-    return parseReply(raw, names.concat(['SYSTEM']), castOfContact(primary));
+    const msgs = parseReply(raw, names.concat(['SYSTEM']), castOfContact(primary));
+    // text came back but nothing in it could be shown: keep it where it can be read
+    if (!msgs.length) console.warn('[Phone] the reply had no message that could be shown', { raw });
+    return msgs;
 }
 
 /* ============================================================
@@ -2449,7 +2471,9 @@ async function sendUserText(text) {
     // User text is taken as-is: cleanLine() is a junk filter for AI lines and used to
     // swallow perfectly human messages like "нет" or "5".
     const clean = String(text || '').trim().slice(0, 800);
-    if (!clean || busy) return;
+    console.debug('[Phone] send', { contact: cur, busy, busyFor, length: clean.length });
+    if (!clean) return;   // nothing typed: nothing to say about it
+    if (busy) { toastr.info(`Still writing a reply${busyFor ? ` (${contactLabel(busyFor)})` : ''}. Press the cross on the typing bubble to cancel it first.`); return; }
 
     const names = contactMembers(cur);
     if (!names.length) { toastr.info(t('noactive')); return; }
@@ -2472,6 +2496,7 @@ async function sendUserText(text) {
             msgs.forEach(m => pushMsg(cur, 'char', m.text, m.name));
         }
     } catch (e) {
+        console.debug('[Phone] send failed', { rq, current: isCurrent(rq), error: e });
         requestFailed(e, rq, 'reply');
     }
     if (!isCurrent(rq)) return;
@@ -2487,7 +2512,8 @@ async function sendUserText(text) {
 // stale index could cut the wrong place.
 async function regenerateAfter(ts) {
     const cur = currentContact();
-    if (!cur) return;
+    console.debug('[Phone] regenerate', { contact: cur, ts, busy, busyFor });
+    if (!cur) { toastr.info(t('noactive')); return; }
     if (busy) { toastr.info('Still writing a reply. Press the cross on the typing bubble to cancel it first.'); return; }
     if (!apiKey()) { toastr.warning(t('nokey')); return; }
     const names = contactMembers(cur);
@@ -2507,6 +2533,7 @@ async function regenerateAfter(ts) {
             msgs.forEach(m => pushMsg(cur, 'char', m.text, m.name));
         }
     } catch (e) {
+        console.debug('[Phone] regenerate failed', { rq, current: isCurrent(rq), error: e });
         requestFailed(e, rq, 'regen');
     }
     if (!isCurrent(rq)) return;
