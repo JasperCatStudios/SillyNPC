@@ -128,8 +128,21 @@ export const defaultSettings = {
     imagePromptInjectTemplate: '',
     /** Set once the fork's one-off settings migration has run. */
     mimoMigrated: 0,
-    /** Set once the bundled system has been offered, so it is never switched to twice. */
-    mimoSystemOffered: false,
+    /**
+     * Internal States (fork): 'after' writes the preset's hidden state block with a second
+     * request and shows it under the reply, 'inline' leaves it to the preset, 'off' is off.
+     */
+    internalStatesMode: 'after',
+    internalStatesProfileId: '',
+    internalStatesMaxTokens: 3000,
+    internalStatesContextMessages: 2,
+    /** Empty means the built-in instructions and template. */
+    internalStatesPrompt: '',
+    /** Run the preset's display regexes over the block. */
+    internalStatesApplyRegex: true,
+    /** Tell the story model the last known state, and not to write one. */
+    internalStatesInject: true,
+    internalStatesInjectDepth: 1,
     /**
      * Faces for speakers who have no card, or a card with no portrait.
      *

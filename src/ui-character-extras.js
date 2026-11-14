@@ -2,6 +2,9 @@ import { getSettings, saveSettings } from './settings.js';
 import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
 import { ttsStatus, previewVoice, syncVoiceNames, applyAutoGenerationHandover, voiceChoices, getVoice, setVoice } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
+import { buildSettingSelect } from './ui-shared.js';
+import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
+import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 
 /**
  * What the fork adds to a character's page: the picture prompt and the voice.
@@ -130,6 +133,82 @@ export function renderCharacterExtras(char, container) {
     ttsStatus().then(status => {
         if (!status.ready && getSettings().ttsEnabled) container.append(note(status.reason));
     });
+}
+
+/**
+ * The Internal States settings, drawn at the top of the Tracker tab.
+ *
+ * @param {HTMLElement} container
+ * @param {() => void} rerender Redraws the panel, for controls that add or remove others.
+ */
+export function renderInternalStatesSettings(container, rerender) {
+    const heading = document.createElement('h3');
+    heading.className = 'sillynpc-section-title';
+    heading.textContent = 'Internal States';
+    container.append(heading);
+
+    const redraw = () => document.querySelectorAll('#chat .mes').forEach(drawSection);
+
+    container.append(buildSettingSelect({
+        key: 'internalStatesMode',
+        label: 'Internal States',
+        help: 'After The Reply: a second request writes the preset’s state block (agendas, '
+            + 'bonds, thoughts, body scale, Chekhov, GM notebook, world sim) and it is shown in '
+            + 'its own section under the message. In The Reply: the story model writes it as the '
+            + 'preset asks, and the preset’s regexes handle it - nothing happens here. For '
+            + 'After The Reply, switch off the preset’s own Internal States toggles.',
+        options: [
+            { value: 'after', label: 'After the reply (separate request)' },
+            { value: 'inline', label: 'In the reply (preset writes it)' },
+            { value: 'off', label: 'Off' },
+        ],
+        onChange: () => { redraw(); rerender(); },
+    }));
+
+    if (getSettings().internalStatesMode !== 'after') return;
+
+    container.append(buildConnectionProfilePicker(() => {}, {
+        key: 'internalStatesProfileId',
+        scope: 'root',
+        labelText: 'Internal States Connection',
+        noteText: 'Which connection writes the state block. Pick a fast, cheap model, or leave on '
+            + 'the main API.',
+    }));
+    container.append(buildSettingNumber({
+        key: 'internalStatesMaxTokens',
+        label: 'Reply Budget',
+        suffix: 'tokens',
+        help: 'The whole block is rewritten every message, so give it room: 3000 or more.',
+    }));
+    container.append(buildSettingNumber({
+        key: 'internalStatesContextMessages',
+        advanced: true,
+        label: 'Earlier Messages Read',
+        suffix: 'messages',
+        help: 'How many messages before the new one the writer is shown, besides the previous state.',
+    }));
+    container.append(buildSettingToggle({
+        key: 'internalStatesApplyRegex',
+        label: "Apply The Preset's Regexes",
+        help: 'Runs your regex scripts that are set to Markdown-only over the block before showing it, '
+            + 'so the preset’s colours and layout apply. Stripping scripts are never run on it.',
+        onChange: redraw,
+    }));
+    container.append(buildSettingToggle({
+        key: 'internalStatesInject',
+        label: 'Tell The Story Model The State',
+        help: 'Sends the last written state to the story model as plain text and asks it not to '
+            + 'write a block of its own.',
+    }));
+    container.append(buildSettingTextArea({
+        key: 'internalStatesPrompt',
+        advanced: true,
+        label: 'Instructions And Template',
+        help: 'What the writer is told. Empty uses the built-in, which follows the Mimostein preset.',
+        recommended: INTERNAL_STATES_SYSTEM,
+        emptyNote: 'The built-in instructions are sent.',
+        showTokens: true,
+    }));
 }
 
 /**

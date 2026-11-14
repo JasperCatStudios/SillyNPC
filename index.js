@@ -37,7 +37,7 @@ import { applyDialogueFormatPrompt } from './src/dialogue-format.js';
 import { applyNarratorRulesPrompt } from './src/narrator-rules.js';
 import { applyBanList } from './src/banlist.js';
 import { initTts } from './src/tts.js';
-import { installBundledSystems } from './src/bundled-systems.js';
+import { initInternalStates } from './src/internal-states.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
 
 function onMessageRendered(messageId) {
@@ -367,7 +367,7 @@ jQuery(async () => {
         try {
             initTts();
             initImagePromptInjection();
-            installBundledSystems().catch(err => console.warn(LOG_PREFIX, 'Bundled systems failed', err));
+            initInternalStates();
         } catch (err) {
             console.error(LOG_PREFIX, 'fork features failed to start', err);
         }

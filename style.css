@@ -4616,3 +4616,11 @@ textarea.sillynpc-profile-input {
     width: 100%;
     margin: 4px 0;
 }
+
+/* ---- Fork additions: Internal States section ---- */
+.sillynpc-internal-states { margin: 8px 0 0; border-top: 1px solid var(--SmartThemeBorderColor, #444); padding-top: 4px; }
+.sillynpc-is-bar { display: flex; align-items: center; gap: 8px; font-size: 0.85em; opacity: 0.85; }
+.sillynpc-is-title { font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; }
+.sillynpc-is-bar .mes_button { margin-left: auto; cursor: pointer; }
+.sillynpc-is-body { font-size: 0.9em; }
+.sillynpc-is-body details { margin: 2px 0; }

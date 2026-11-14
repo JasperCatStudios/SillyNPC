@@ -11,6 +11,7 @@ import { updateHUD } from './ui-hud.js';
 import { escapeHtml } from './utils.js';
 import { cleanChatHistory, measureChatOverhead, estimateTokens } from './status-history.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
+import { renderInternalStatesSettings } from './ui-character-extras.js';
 
 /**
  * The Tracker settings tab, and the two popups it opens.
@@ -35,8 +36,11 @@ export function renderStatusView(container) {
 
     const settings = getSettings().statusTracker;
 
+    renderInternalStatesSettings(container, () => renderStatusView(container));
+
     const title = document.createElement('h3');
     title.className = 'sillynpc-section-title';
+    title.style.marginTop = '20px';
     title.textContent = 'Display';
     container.appendChild(title);
 
