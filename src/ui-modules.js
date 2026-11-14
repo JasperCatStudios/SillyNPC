@@ -1,4 +1,6 @@
 import { renderVoiceSettings } from './ui-character-extras.js';
+import { getSettings, saveSettings } from './settings.js';
+import { moduleSends, setModuleSends } from './context-blocks.js';
 
 /**
  * The Modules tab (fork): one place for everything that rides along with SillyNPC.
@@ -126,6 +128,51 @@ export function renderModulesView(view) {
         renderVoiceSettings(pane);
     });
 
+    // What every module sends along, and the limits on it.
+    add('context', 'fa-layer-group', 'Shared context', (pane) => {
+        const intro = document.createElement('p');
+        intro.className = 'notes';
+        intro.textContent = 'Every module can send your persona and what other extensions remember (VectFox, '
+            + 'Summaryception) with its requests. Which modules do is chosen on each module\'s tab; the limits are here. '
+            + 'The memory is what those extensions put in the story prompt at the last main-chat reply.';
+        pane.append(intro);
+
+        const row = (labelText, input) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'sillynpc-setting-row';
+            const label = document.createElement('label');
+            label.textContent = labelText;
+            wrap.append(label, input);
+            return wrap;
+        };
+        const settings = getSettings();
+        const number = (key, min, step) => {
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'text_pole';
+            input.min = String(min);
+            input.step = String(step);
+            input.style.width = '8em';
+            input.value = settings[key];
+            input.addEventListener('change', () => {
+                const value = Number(input.value);
+                if (Number.isFinite(value) && value >= min) { settings[key] = value; saveSettings(); }
+            });
+            return input;
+        };
+        const keys = document.createElement('input');
+        keys.type = 'text';
+        keys.className = 'text_pole';
+        keys.style.flex = '1';
+        keys.value = settings.contextMemoryKeys || '';
+        keys.addEventListener('change', () => { settings.contextMemoryKeys = keys.value.trim(); saveSettings(); });
+        pane.append(
+            row('Persona, at most (characters)', number('contextPersonaMaxChars', 200, 100)),
+            row('Memory, at most (characters)', number('contextMemoryMaxChars', 500, 500)),
+            row('Memory slots (names start with, comma separated)', keys),
+        );
+    });
+
     // The search index draws every tab offscreen once. Borrowing panels there would take them
     // away from the real one, so offscreen only the headings are drawn.
     const live = view.isConnected;
@@ -140,6 +187,20 @@ export function renderModulesView(view) {
             text.textContent = mod.blurb;
             head.append(text);
             pane.append(head);
+
+            // What this module sends along with its requests.
+            const options = document.createElement('div');
+            options.className = 'sillynpc-pane-opts';
+            for (const [kind, label] of [['persona', 'Send my persona'], ['memory', 'Send other extensions\' memory']]) {
+                const item = document.createElement('label');
+                item.className = 'sillynpc-pane-opt';
+                item.append(makeSwitch(moduleSends(mod.id, kind), (on) => { setModuleSends(mod.id, kind, on); saveSettings(); }));
+                const span = document.createElement('span');
+                span.textContent = label;
+                item.append(span);
+                options.append(item);
+            }
+            pane.append(options);
 
             const panel = live ? document.querySelector(mod.drawer) : null;
             if (panel) {

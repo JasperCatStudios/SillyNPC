@@ -110,6 +110,15 @@ export const defaultSettings = {
      * Voices (fork). The voices themselves are chosen in SillyTavern's own TTS panel, one
      * per name in its voice map; this only decides who is read and when.
      */
+    /**
+     * What every module sends along with its own request. Which modules send which is
+     * moduleContext[id] = { persona, memory }; a module with no entry sends both.
+     */
+    moduleContext: {},
+    contextPersonaMaxChars: 3000,
+    /** Extension prompt slots to send: any whose name starts with one of these. */
+    contextMemoryKeys: '3_vectfox, summaryception',
+    contextMemoryMaxChars: 6000,
     /** AllTalk, spoken to directly. */
     alltalkUrl: 'http://localhost:7851',
     alltalkLanguage: 'en',

@@ -5,6 +5,7 @@ import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messag
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
+import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 
 const MODULE_NAME = 'sillynpc_phone';
 
@@ -110,12 +111,7 @@ const COMFY_DEF = {
 
 const defaults = {
     profileId: '',
-    sendPersona: true,                    // your persona description goes with every request
-    sendExtMemory: true,                  // what other extensions put into the story prompt
-    extKeys: '3_vectfox, summaryception', // which of those: slots whose name starts with one of these
-    extMaxChars: 6000,
     maxReplyMessages: 3,                  // most separate messages one reply may hold
-    personaMaxChars: 3000,                // longest persona description sent
     cardMaxChars: 3000,                   // longest profile sent per contact (their lorebook entry, or profile fields)
     mainLineChars: 500,                   // longest single main-chat message sent
     contactAccent: true,     // tint a contact's thread with their SillyNPC colour
@@ -2237,34 +2233,10 @@ function openPromptViewer(contactId) {
 }
 
 /* WHAT ELSE GOES WITH A REQUEST (fork) --------------------------------------------------- */
-// Who the player is, beyond a name. Asked of SillyTavern's own persona macro.
-function personaBlock() {
-    if (!settings.sendPersona) return '';
-    try {
-        const text = String(substituteParams('{{persona}}') || '').trim();
-        if (!text || text === '{{persona}}') return '';
-        return `[ABOUT ${name1 || 'THE PLAYER'} (the person you are texting):\n${text.slice(0, Math.max(200, settings.personaMaxChars || 3000))}\n]`;
-    } catch (e) { console.warn('[Phone] persona left out', e); return ''; }
-}
-/* What other extensions have put into the story prompt: VectFox's recalled memories,
-   Summaryception's summary. They write into SillyTavern's extension prompt slots when a
-   main-chat reply is built, so this is the memory as it stood at the last reply there. */
-function extensionMemoryBlock() {
-    if (!settings.sendExtMemory) return '';
-    try {
-        const prefixes = String(settings.extKeys || '').split(',').map(x => x.trim()).filter(Boolean);
-        if (!prefixes.length) return '';
-        const slots = getContext().extensionPrompts || {};
-        const parts = [];
-        for (const key of Object.keys(slots).sort()) {
-            if (!prefixes.some(p => key.startsWith(p))) continue;
-            const value = String(slots[key]?.value ?? '').trim();
-            if (value) parts.push(value);
-        }
-        if (!parts.length) return '';
-        return `[MEMORY OF THE STORY SO FAR (from the main roleplay):\n${parts.join('\n\n').slice(0, Math.max(500, settings.extMaxChars || 6000))}\n]`;
-    } catch (e) { console.warn('[Phone] extension memory left out', e); return ''; }
-}
+// Fork: who the player is, and what other extensions remember. Shared with every module and
+// switched per module in the Modules tab - see src/context-blocks.js.
+function personaBlock() { return corePersona('phone'); }
+function extensionMemoryBlock() { return coreMemory('phone'); }
 
 // the last request actually sent, for the viewer
 let lastSent = null;
@@ -3704,14 +3676,6 @@ function settingsHtml() {
             </div>
 
             <div class="rph-box"><div class="rph-boxhead">🧠 ${t('set_memory')}</div>
-            <label class="checkbox_label"><input type="checkbox" id="rph-send-persona"><span>Send my persona description</span></label>
-            <label class="checkbox_label"><input type="checkbox" id="rph-send-ext"><span>Send other extensions' memory (VectFox, Summaryception)</span></label>
-            <label for="rph-ext-keys">Prompt slots to send (names start with, comma separated)</label>
-            <input type="text" id="rph-ext-keys" class="text_pole">
-            <div class="rph-row">
-                <div><label for="rph-max-persona">Persona, characters</label><input type="number" min="200" max="50000" step="100" id="rph-max-persona" class="text_pole"></div>
-                <div><label for="rph-max-ext">Extension memory, characters</label><input type="number" min="500" max="100000" step="500" id="rph-max-ext" class="text_pole"></div>
-            </div>
             <div class="rph-row">
                 <div><label for="rph-max-card">Each contact's profile, characters</label><input type="number" min="200" max="50000" step="100" id="rph-max-card" class="text_pole"></div>
                 <div><label for="rph-max-line">Each main-chat line, characters</label><input type="number" min="100" max="10000" step="50" id="rph-max-line" class="text_pole"></div>
@@ -3892,11 +3856,6 @@ function setupUI() {
     num('#rph-maxlines', 'maxReplyMessages', 1, 12, 3);
     num('#rph-maxtok', 'maxTokens', 120, 8000, 900);   // thinking models need room for hidden reasoning
 
-    $('#rph-send-persona').prop('checked', settings.sendPersona).on('change', function () { settings.sendPersona = this.checked; saveSettings(); });
-    $('#rph-send-ext').prop('checked', settings.sendExtMemory).on('change', function () { settings.sendExtMemory = this.checked; saveSettings(); });
-    $('#rph-ext-keys').val(settings.extKeys).on('change', function () { settings.extKeys = String($(this).val()).trim(); saveSettings(); });
-    num('#rph-max-persona', 'personaMaxChars', 200, 50000, 3000);
-    num('#rph-max-ext', 'extMaxChars', 500, 100000, 6000);
     num('#rph-max-card', 'cardMaxChars', 200, 50000, 3000);
     num('#rph-max-line', 'mainLineChars', 100, 10000, 500);
     $('#rph-view-prompt').on('click', () => openPromptViewer());

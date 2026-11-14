@@ -4661,3 +4661,6 @@ textarea.sillynpc-profile-input {
 .sillynpc-subpane > .notes:first-child { margin-top: 0; }
 .sillynpc-module-panel { margin: 0 !important; padding: 0 !important; }
 .sillynpc-module-panel .rph-box, .sillynpc-module-panel hr { margin-top: 8px; margin-bottom: 8px; }
+
+.sillynpc-pane-opts { display: flex; gap: 20px; flex-wrap: wrap; margin: 4px 0 12px; }
+.sillynpc-pane-opt { display: flex; align-items: center; gap: 8px; cursor: pointer; }

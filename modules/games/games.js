@@ -2,6 +2,7 @@ import { getContext, extension_settings } from '../../../../../extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '../../../../../../script.js';
 // Fork: the opponents are SillyNPC's characters, not SillyTavern's cards.
 import { phoneCharacters as characters, activeCharacterNames, lastTaggedSpeaker } from '../shim.js';
+import { contextBlocks } from '../../src/context-blocks.js';
 
 const MODULE_NAME = 'sillynpc_games';
 
@@ -289,7 +290,8 @@ function userName() { const c = getContext(); return (c && c.name1) ? c.name1 : 
 function apiKey() { return 'profile'; }
 async function callApi(messages, { maxTokens = 120 } = {}) {
     const context = getContext();
-    const system = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+    // Fork: who the player is and what the other extensions remember, as set for this module.
+    const system = [...contextBlocks('games'), ...messages.filter(m => m.role === 'system').map(m => m.content)].join('\n\n');
     const rest = messages.filter(m => m.role !== 'system');
     // Some backends refuse a request with no user turn.
     const turns = rest.length ? rest : [{ role: 'user', content: 'Reply now.' }];
