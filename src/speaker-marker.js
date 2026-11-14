@@ -56,13 +56,17 @@ export function getMarkerPair() {
  * between two messages. The name is anything short that does not contain the closing
  * bracket or a line break.
  *
- * @returns {RegExp} Group 1 is the name.
+ * @returns {RegExp} Group 1 or 2 is the name.
  */
 export function buildMarkerRegex() {
     const { open, close } = getMarkerPair();
-    const o = escapeRegExp(open);
-    const c = escapeRegExp(close);
-    return new RegExp(`${o}\\s*((?:(?!${c})[^\\n]){1,60}?)\\s*${c}[ \\t]*`, 'gu');
+    const one = (o, c) => `${escapeRegExp(o)}\\s*((?:(?!${escapeRegExp(c)})[^\\n]){1,60}?)\\s*${escapeRegExp(c)}`;
+    // Models often write the tag as [[Name]] whatever they were asked for, so that spelling
+    // is always read too. Group 1 is the configured pair, group 2 the double square brackets.
+    const alternatives = (open === '[[' && close === ']]')
+        ? one(open, close)
+        : `${one(open, close)}|${one('[[', ']]')}`;
+    return new RegExp(`(?:${alternatives})[ \\t]*`, 'gu');
 }
 
 /**
@@ -79,7 +83,7 @@ export function parseMarkedLines(text) {
         if (!m) continue;
         const body = line.slice(m.index + m[0].length).trim();
         out.push({
-            speaker: m[1].trim(),
+            speaker: (m[1] ?? m[2]).trim(),
             body,
             thought: /^\(.*\)$/s.test(body) || body.startsWith('('),
         });
@@ -127,7 +131,7 @@ export function injectAtMarkers(container, hooks) {
         for (const m of matches) {
             if (m.index > cursor) fragment.appendChild(document.createTextNode(text.slice(cursor, m.index)));
 
-            const name = m[1].trim();
+            const name = (m[1] ?? m[2]).trim();
             const char = findChar(name);
             const after = text.slice(m.index + m[0].length).trimStart();
 
