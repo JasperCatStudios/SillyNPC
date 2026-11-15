@@ -14,7 +14,7 @@ import { LOG_PREFIX } from './constants.js';
  * calls reject with a readable message, and callers in the generation path catch and fall back.
  */
 
-/** SillyNPC's vector settings, repaired in place. */
+/** Worldkit's vector settings, repaired in place. */
 export function vectorSettings() {
     const settings = getSettings();
     settings.vectors = normalizeVectorSettings(settings.vectors);
@@ -210,14 +210,14 @@ export function warnOnce(kind, message) {
     if (now - (lastToast.get(kind) || 0) < 60000) return;
     lastToast.set(kind, now);
     console.warn(LOG_PREFIX, message);
-    try { toastr.warning(message, 'SillyNPC vectors'); } catch { /* no toastr in tests */ }
+    try { toastr.warning(message, 'Worldkit vectors'); } catch { /* no toastr in tests */ }
 }
 
 /* ---- connection test ----------------------------------------------------------------- */
 
 const PROBE_COLLECTION = 'sillynpc_probe';
 /** Fixed text, never chat content: the probe must not send anything of the user's. */
-const PROBE_TEXT = 'SillyNPC connection test';
+const PROBE_TEXT = 'Worldkit connection test';
 
 /**
  * Does Ollama answer, is the model there, does embedding work through SillyTavern, and how wide

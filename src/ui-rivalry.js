@@ -4,6 +4,7 @@ import {
     tally, tallyVsPlayer, tallyText, sideList, sideNames, sideOf, tookPart, knowsOf, peopleIn, sidesText,
 } from './rivalry-core.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * The history window (fork): every fight, spar and game in this chat, editable.
  *
@@ -141,7 +142,7 @@ function recordRow(r, filter) {
     const mine = userSideSelect(r.userSide);
     const saveSides = () => {
         const patch = sidesPatch(sideA, sideB, mine.value, r.player);
-        if (!updateRecord(r.id, patch)) toastr.info('A record needs someone other than you in it.', 'SillyNPC');
+        if (!updateRecord(r.id, patch)) toastr.info('A record needs someone other than you in it.', PRODUCT_NAME);
         redraw();
     };
     sideA.addEventListener('change', saveSides);
@@ -182,8 +183,8 @@ function addForm(filter) {
     go.addEventListener('click', () => {
         const patch = sidesPatch(sideA, sideB, mine.value, '');
         const others = [...patch.sideA, ...patch.sideB].filter(n => !(patch.userSide && same(n, patch.player)));
-        if (!others.length) { toastr.info('Say who took part.', 'SillyNPC'); return; }
-        if (!patch.sideA.length || !patch.sideB.length) { toastr.info('Both sides need someone.', 'SillyNPC'); return; }
+        if (!others.length) { toastr.info('Say who took part.', PRODUCT_NAME); return; }
+        if (!patch.sideA.length || !patch.sideB.length) { toastr.info('Both sides need someone.', PRODUCT_NAME); return; }
         const label = game.value.trim() || (kind.value === 'game' ? 'Game' : 'Fight');
         addRecord({ kind: kind.value, game: label, ...patch, winner: winner.value, summary: text.value });
         draw(filter || others[0]);

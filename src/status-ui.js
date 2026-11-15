@@ -4,7 +4,7 @@ import { eventSource, event_types } from '../../../../events.js';
 import { loadStateFromMetadata, applyUpdate, parseMessageForUpdates, registerActiveCharacter, removeActiveCharacter, undoLastChange, getHistoryEntries, resolveMaxValue, drawsMeter } from './status-logic.js';
 import { escapeRegExp, escapeHtml, extractJSON, safeJsonParse, computeStatBar, applyStatFormat, makeActivatable, splitValue } from './utils.js';
 import { findTemplateLabels, applyLabelFixes } from './template-labels.js';
-import { LOG_PREFIX, debugLog, BUILT_IN_DEFAULT_AVATAR } from './constants.js';
+import { LOG_PREFIX, debugLog, BUILT_IN_DEFAULT_AVATAR, PRODUCT_NAME } from './constants.js';
 import { stripAndPersist } from './status-history.js';
 import { renderReviewPanel } from './ui-change-review.js';
 import { stateAtMessage } from './status-snapshots.js';
@@ -548,9 +548,9 @@ export function renderStatusTrackerBox(mesEl) {
             e.stopPropagation();
             const entry = undoLastChange();
             if (entry) {
-                toastr.info(`Reverted: ${entry.label}`, 'SillyNPC');
+                toastr.info(`Reverted: ${entry.label}`, PRODUCT_NAME);
             } else {
-                toastr.warning('Nothing left to undo.', 'SillyNPC');
+                toastr.warning('Nothing left to undo.', PRODUCT_NAME);
             }
         });
         headerBtns.appendChild(undoBtn);

@@ -12,6 +12,7 @@ import { escapeHtml } from './utils.js';
 import { cleanChatHistory, measureChatOverhead, estimateTokens } from './status-history.js';
 import { renderInternalStatesSettings } from './ui-character-extras.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * The Tracker settings tab, and the two popups it opens.
  *
@@ -539,7 +540,7 @@ function buildContextReport(onChange) {
             toastr.success(
                 `Cleaned ${result.cleaned} message(s), recovering about `
                 + `${estimateTokens(result.removedChars).toLocaleString()} tokens.`,
-                'SillyNPC');
+                PRODUCT_NAME);
             render();
             onChange?.();
         });
@@ -841,7 +842,7 @@ async function openAdvancedSettingsPopup() {
         const box = templateField.querySelector('textarea');
         if (box) box.value = tracker.template;
         triggerReprocess();
-        toastr.success('Layout reset. Your old template is kept as a backup.', 'SillyNPC');
+        toastr.success('Layout reset. Your old template is kept as a backup.', PRODUCT_NAME);
     });
     container.append(resetBtn);
 

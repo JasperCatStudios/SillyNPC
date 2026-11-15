@@ -2,7 +2,7 @@ import { eventSource, event_types } from '../../../../events.js';
 import { getContext } from '../../../../st-context.js';
 import { getSettings } from './settings.js';
 import { beatsOfMessage, MESSAGE_RENDERED_EVENT } from './beats.js';
-import { LOG_PREFIX, debugLog } from './constants.js';
+import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { genderOfFace, genderOfName } from './default-portraits.js';
 import { alltalkReady, alltalkVoices, speakWith, stopSpeech } from './alltalk.js';
 
@@ -97,7 +97,7 @@ function voiceForBeat(beat) {
 export async function speakMessage(mesEl) {
     const status = await ttsStatus();
     if (!status.ready) {
-        toastr.info(status.reason, 'SillyNPC');
+        toastr.info(status.reason, PRODUCT_NAME);
         return 0;
     }
     stopSpeech();
@@ -112,7 +112,7 @@ export async function speakMessage(mesEl) {
             if (speakWith(voice, segment.text)) queued++;
         }
     }
-    if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) with a voice set.', 'SillyNPC');
+    if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) with a voice set.', PRODUCT_NAME);
     debugLog(`Voices: queued ${queued} piece(s)`);
     return queued;
 }
@@ -122,7 +122,7 @@ export async function speakNamed(name, text) {
     const settings = getSettings();
     const voice = recordVoice(name) || String(settings[VOICE_KEYS.default] || '').trim();
     if (!voice) {
-        toastr.info(`${name} has no voice yet. Pick one on their SillyNPC page.`, 'SillyNPC');
+        toastr.info(`${name} has no voice yet. Pick one on their Worldkit page.`, PRODUCT_NAME);
         return false;
     }
     return speakWith(voice, text);
@@ -132,11 +132,11 @@ export async function speakNamed(name, text) {
 export async function previewVoice(voice, line = 'This is what I sound like.') {
     const status = await ttsStatus();
     if (!status.ready) {
-        toastr.info(status.reason, 'SillyNPC');
+        toastr.info(status.reason, PRODUCT_NAME);
         return false;
     }
     if (!voice) {
-        toastr.info('Pick a voice first.', 'SillyNPC');
+        toastr.info('Pick a voice first.', PRODUCT_NAME);
         return false;
     }
     stopSpeech();

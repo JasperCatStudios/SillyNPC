@@ -4,7 +4,7 @@ import { SlashCommand } from '../../../../../slash-commands/SlashCommand.js';
 import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../../../slash-commands/SlashCommandArgument.js';
 import { SlashCommandParser } from '../../../../../slash-commands/SlashCommandParser.js';
 import { extension_settings, getContext } from '../../../../../extensions.js';
-// Fork: the phone's people are SillyNPC's characters, not SillyTavern's cards.
+// Fork: the phone's people are Worldkit's characters, not SillyTavern's cards.
 import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
@@ -15,6 +15,7 @@ import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetr
 import { BRIDGE_MODES, BRIDGE_ROLES, DEFAULT_BRIDGE_INSTRUCTION, normalizeBridge, chooseBridge, bridgeText, markShown } from '../../src/phone-bridge.js';
 import { createGroup, addMember, removeMember, membersOf, addable, groupLabel, normalizeGroups, MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../../src/phone-groups.js';
 
+import { PRODUCT_NAME } from '../../src/constants.js';
 const MODULE_NAME = 'sillynpc_phone';
 
 /* ============================================================
@@ -127,7 +128,7 @@ const defaults = {
     maxReplyMessages: 3,                  // most separate messages one reply may hold
     cardMaxChars: 3000,                   // longest profile sent per contact (their lorebook entry, or profile fields)
     mainLineChars: 500,                   // longest single main-chat message sent
-    contactAccent: true,     // tint a contact's thread with their SillyNPC colour
+    contactAccent: true,     // tint a contact's thread with their Worldkit colour
     enabled: false,
     language: 'en',
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -195,8 +196,8 @@ const defaults = {
 const SKINS = ['arc', 'cute', 'goth', 'lace', 'modern'];
 function isPhoneSkin() { return settings.skin && settings.skin !== 'arc'; }
 
-/* PER-CONTACT THEMES (fork). A contact may carry their own skin, chosen on their SillyNPC
-   page, and their thread is tinted with their SillyNPC accent colour. Only between the phone
+/* PER-CONTACT THEMES (fork). A contact may carry their own skin, chosen on their Worldkit
+   page, and their thread is tinted with their Worldkit accent colour. Only between the phone
    skins: 'arc' is a different layout rather than a different look, so it stays global. */
 function contactCard() { const n = currentContact(); return n ? characters.find(c => c.name === n) : null; }
 function effectiveSkin() {
@@ -397,8 +398,8 @@ const L = {
         e_5xx: 'The provider answers with error {n} — retried, no luck. Try later or switch models.', e_other: 'Could not draw: {m}',
         e_empty: 'no picture in the answer',
         set_voice: 'Voice notes', tts_on: 'Speak them in the contact\'s voice (AllTalk)', tts_auto: 'Speak new ones right away',
-        tts_none: 'AllTalk is not answering — check its address in the SillyNPC voice settings.',
-        tts_novoice: '{name} has no voice — pick one on their SillyNPC page.',
+        tts_none: 'AllTalk is not answering — check its address in the Worldkit voice settings.',
+        tts_novoice: '{name} has no voice — pick one on their Worldkit page.',
         set_wall: 'Wallpaper', wall_pick: 'Choose image', wall_clear: 'Remove', wall_dim: 'Veil', wall_nostore: 'Browser storage is unavailable — the wallpaper cannot be saved.',
         set_lite: 'No blur behind the bubbles (faster)',
         look_title: 'Looks for photos', look_upload: 'Own picture', look_clear: 'Remove', look_ava: 'Use the avatar',
@@ -730,7 +731,7 @@ function pushRaw(id, msg) {
     th.push(msg);
     if (th.length > 200) forgetMessages(th.splice(0, th.length - 200));   // keep the store bounded
     saveSettings();
-    // Fork: lets SillyNPC's vectors follow the thread. Not awaited; it only schedules work.
+    // Fork: lets Worldkit's vectors follow the thread. Not awaited; it only schedules work.
     eventSource.emit('sillynpc-phone-changed', id);
     if (msg.who === 'char') {
         const kind = classify(msg.text);
@@ -1707,7 +1708,7 @@ async function callComfy(prompt, ref, extras = {}) {
         if (imgAbort === ctrl) imgAbort = null;
     }
 }
-/* SillyTavern's own image generation (fork). The character's saved SillyNPC image prompt
+/* SillyTavern's own image generation (fork). The character's saved Worldkit image prompt
    goes first, so the picture looks like them; the phone's own photo text follows. */
 async function callSdImage(prompt, who) {
     const card = who ? characters.find(c => c.name === who) : null;
@@ -1981,7 +1982,7 @@ async function referenceFor(name) { return (await referenceInfo(name)).ref; }
 function descFor(name) {
     const own = String(lookCfg(name).desc || '').trim();
     if (own) return own.slice(0, 600);
-    // the character's image prompt from SillyNPC is what they look like
+    // the character's image prompt from Worldkit is what they look like
     const saved = String(cardChar(name)?.imagePrompt || '').trim();
     if (saved) return saved.slice(0, 600);
     const lp = lensProfile(name);
@@ -2117,8 +2118,8 @@ function cancelPhotos() {
    never goes through the slash-command parser (no | or {{…}} surprises). The voice
    is chosen by the character's name, exactly as Tavern's own voice map does it.
    ============================================================ */
-/* Fork: voice notes are read through SillyNPC's own AllTalk voices, in the voice chosen on the
-   contact's SillyNPC page. Nothing of SillyTavern's TTS is involved. */
+/* Fork: voice notes are read through Worldkit's own AllTalk voices, in the voice chosen on the
+   contact's Worldkit page. Nothing of SillyTavern's TTS is involved. */
 async function speakVoice(name, text) {
     const words = String(text || '').trim();
     if (!words) return false;
@@ -2746,7 +2747,7 @@ async function visionUrlsFor(contactId) {
 }
 
 async function generateReply(names, reasonLine, isInitiative, contactId) {
-    // Fork: the phone's own request never carries remembered texts. SillyNPC's vectors bring old
+    // Fork: the phone's own request never carries remembered texts. Worldkit's vectors bring old
     // texts back to the MAIN story only (src/vectors.js), so a reply here is exactly as it was.
     const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId);
     lastSent = { at: Date.now(), contact: primary, kind: isInitiative ? 'initiative' : 'reply', sys, user };
@@ -3879,7 +3880,7 @@ function onStackClick(e) {
         const words = m ? voiceWords(classify(m.text), ns ? ns.name : m.name) : '';
         if (!words) {
             vo.classList.remove('playing');
-            toastr.info('This voice note has no words to read aloud, only a sound.', 'SillyNPC');
+            toastr.info('This voice note has no words to read aloud, only a sound.', PRODUCT_NAME);
             return;
         }
         speakVoice(ns ? ns.name : m.name, words, cur).then(ok => {
@@ -3969,16 +3970,16 @@ function renderLookEditor(row, card, who) {
     });
 }
 
-/* THE CONTACT EDITOR (fork). Everything here is written to the character's SillyNPC record,
+/* THE CONTACT EDITOR (fork). Everything here is written to the character's Worldkit record,
    so the character page and the phone are two views of the same thing. */
 function renderContactEditor(row, name) {
     const rec = recordOf(name);
     if (!row) return;
-    if (!rec) { row.innerHTML = '<div class="rph-hint">This contact has no SillyNPC character.</div>'; return; }
+    if (!rec) { row.innerHTML = '<div class="rph-hint">This contact has no Worldkit character.</div>'; return; }
     const skins = [['', 'Phone default'], ['cute', 'Cute'], ['goth', 'Gothic'], ['lace', 'Lace'], ['modern', 'Classic']];
     const option = (value, text, current) => `<option value="${escapeHtml(value)}"${String(value) === String(current) ? ' selected' : ''}>${escapeHtml(text)}</option>`;
     row.innerHTML = `
-        <small class="rph-ed-note">${rec.lorebook?.world ? `Their lorebook entry ("${escapeHtml(rec.lorebook.world)}") is their profile.` : 'No lorebook entry yet. Link one on their SillyNPC character page, in the Lorebook section.'}</small>
+        <small class="rph-ed-note">${rec.lorebook?.world ? `Their lorebook entry ("${escapeHtml(rec.lorebook.world)}") is their profile.` : 'No lorebook entry yet. Link one on their Worldkit character page, in the Lorebook section.'}</small>
         <label>Phone theme</label>
         <select class="text_pole rph-ed-skin">${skins.map(([v, x]) => option(v, x, rec.phoneSkin || '')).join('')}</select>
         <label>Image prompt (photos and /sd)</label>
@@ -4564,7 +4565,7 @@ function setupUI() {
     $('.rph-settings').remove();
     $('#extensions_settings').append(settingsHtml());
     addProfilePicker();
-    // Fork: SillyNPC's vectors for the phone's threads, per contact. Drawn by the shared panel.
+    // Fork: Worldkit's vectors for the phone's threads, per contact. Drawn by the shared panel.
     try {
         const vectorHost = document.createElement('div');
         vectorHost.className = 'rph-vectors';

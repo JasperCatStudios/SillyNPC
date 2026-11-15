@@ -13,6 +13,7 @@ import { renderGearBlock } from './ui-gear.js';
 import { STATUS_RUNGS, STATUS_DEFAULT } from './combat-status.js';
 import { XP_PER_LEVEL, readLevel, hasLevelMeta } from './combat-level.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * The Combat block on a character's page and on the player's sheet (fork).
  *
@@ -76,18 +77,18 @@ export function renderCombatSection(record, container, options = {}) {
         gen.type = 'button';
         gen.title = 'Writes the combat sheet from their lorebook entry, using the Combat stats connection. Does nothing without a linked entry.';
         gen.addEventListener('click', async () => {
-            if (!record.lorebook?.world) { toastr.info('Link a lorebook entry on this character first.', 'SillyNPC'); return; }
+            if (!record.lorebook?.world) { toastr.info('Link a lorebook entry on this character first.', PRODUCT_NAME); return; }
             if (hasTypeData(record, genType.dataKey) && !confirm(`Replace values on ${record.name}'s ${genType.name} sheet with generated ones?`)) return;
             gen.disabled = true;
             gen.textContent = 'Generating...';
             try {
                 const out = await generateCombatSheet(record, genType);
-                if (out.reason === 'no-lore') toastr.info('Their lorebook entry is empty or missing, so there is nothing to base stats on.', 'SillyNPC');
-                else if (!out.ok) toastr.warning(out.reason, 'SillyNPC');
-                else { saveSettings(); toastr.success(`Filled ${out.applied} values from their lore.`, 'SillyNPC'); options.onChange?.(); }
+                if (out.reason === 'no-lore') toastr.info('Their lorebook entry is empty or missing, so there is nothing to base stats on.', PRODUCT_NAME);
+                else if (!out.ok) toastr.warning(out.reason, PRODUCT_NAME);
+                else { saveSettings(); toastr.success(`Filled ${out.applied} values from their lore.`, PRODUCT_NAME); options.onChange?.(); }
             } catch (err) {
                 console.error('[SillyNPC] combat generation failed', err);
-                toastr.error('Could not generate combat stats.', 'SillyNPC');
+                toastr.error('Could not generate combat stats.', PRODUCT_NAME);
             }
             renderCombatSection(record, container, options);
         });
@@ -108,7 +109,7 @@ export function renderCombatSection(record, container, options = {}) {
                 });
             } catch (err) {
                 console.error('[SillyNPC] could not open the lorebook picker', err);
-                toastr.error('Could not open the lorebook picker.', 'SillyNPC');
+                toastr.error('Could not open the lorebook picker.', PRODUCT_NAME);
                 link.disabled = false;
             }
         });
@@ -174,7 +175,7 @@ function renderType(record, type, rerender, options) {
     };
     const commit = (result, input) => {
         if (!result.ok) {
-            toastr.warning(result.reason, 'SillyNPC');
+            toastr.warning(result.reason, PRODUCT_NAME);
             rerender();
             return;
         }
@@ -195,8 +196,8 @@ function renderType(record, type, rerender, options) {
             copy.addEventListener('click', async () => {
                 copy.disabled = true;
                 const out = await runMigration(type, planFromLegacy([record], type), { label: `Copied for ${record.name}` });
-                if (out.ok) toastr.success(`Copied ${out.values} values. The old keys were not touched.`, 'SillyNPC');
-                else toastr.error(out.reason, 'SillyNPC');
+                if (out.ok) toastr.success(`Copied ${out.values} values. The old keys were not touched.`, PRODUCT_NAME);
+                else toastr.error(out.reason, PRODUCT_NAME);
                 rerender();
             });
             banner.append(copy);

@@ -1,5 +1,5 @@
 import { POPUP_TYPE, Popup } from '../../../../popup.js';
-import { isStaticField } from './constants.js';
+import { isStaticField, PRODUCT_NAME } from './constants.js';
 import { getSettings, saveSettings } from './settings.js';
 import { escapeHtml } from './utils.js';
 import { updateExtensionTheme, repositionCloseButton } from './ui-shared.js';
@@ -163,11 +163,11 @@ export async function openItemLibrary() {
             // What happened, not what was asked for. Reporting the size of the selection
             // is how a delete that quietly matched nothing still claimed to have worked.
             if (forgotten === ids.length) {
-                toastr.success(`Forgot ${forgotten} entr${forgotten === 1 ? 'y' : 'ies'}.`, 'SillyNPC');
+                toastr.success(`Forgot ${forgotten} entr${forgotten === 1 ? 'y' : 'ies'}.`, PRODUCT_NAME);
             } else {
                 toastr.warning(
                     `Forgot ${forgotten} of ${ids.length} selected - the rest were no longer there.`,
-                    'SillyNPC');
+                    PRODUCT_NAME);
             }
         },
         onRefresh: () => render(content, libraryFilter),
@@ -258,7 +258,7 @@ function render(root, filter = '') {
             }
         }
         if (doomed.length === 0) {
-            toastr.info('Every remembered entry is currently held by someone.', 'SillyNPC');
+            toastr.info('Every remembered entry is currently held by someone.', PRODUCT_NAME);
             return;
         }
         const ok = await Popup.show.confirm(
@@ -268,7 +268,7 @@ function render(root, filter = '') {
         if (!ok) return;
         for (const { colId, key } of doomed) delete master[colId][key];
         saveSettings();
-        toastr.success(`Forgot ${doomed.length} unreferenced entr${doomed.length === 1 ? 'y' : 'ies'}.`, 'SillyNPC');
+        toastr.success(`Forgot ${doomed.length} unreferenced entr${doomed.length === 1 ? 'y' : 'ies'}.`, PRODUCT_NAME);
         render(root, search.value);
     });
 

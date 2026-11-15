@@ -1,6 +1,6 @@
 import { asRecords, sideNames, sidesText, winnerText } from './rivalry-core.js';
 /**
- * Vectors for SillyNPC's histories (fork): the decisions, without the I/O.
+ * Vectors for Worldkit's histories (fork): the decisions, without the I/O.
  *
  * Each module (rivalry, phone, games, combat) hands this file its entries as plain
  * objects. This file turns them into the text that is embedded, hashes that text, keeps a
@@ -304,7 +304,7 @@ export function moduleActive(settings, moduleId, { phoneEnabled = false } = {}) 
  */
 export function vectorBadge(settings, moduleId, { phoneEnabled = false } = {}) {
     let reason = '';
-    if (!settings?.enabled) reason = 'switch on Vectors in the SillyNPC menu';
+    if (!settings?.enabled) reason = 'switch on Vectors in the Worldkit menu';
     else if (!settings.modules?.[moduleId]?.enabled) reason = 'module switch is off';
     else if (moduleId === 'phone' && !phoneEnabled) reason = 'the Phone module is off';
     return { on: !reason, reason, text: reason ? `off: ${reason}` : 'on' };
@@ -492,7 +492,7 @@ export function vectorizeReport(decisions) {
 }
 
 /**
- * The Ollama URL, model and keep flag to send. SillyNPC's own fields win; empty ones inherit what
+ * The Ollama URL, model and keep flag to send. Worldkit's own fields win; empty ones inherit what
  * SillyTavern's Vector Storage already uses, so the user's existing setup works untouched.
  *
  * @param {object} settings normalizeVectorSettings() output

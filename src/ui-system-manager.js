@@ -8,6 +8,7 @@ import { updateHUD } from './ui-hud.js';
 import { escapeHtml } from './utils.js';
 import { openItemLibrary } from './ui-item-library.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * System Manager: saving, restoring and swapping whole Systems.
  *
@@ -66,14 +67,14 @@ function buildCheckpointControls(onRefresh) {
         const { saved, kept, reason } = await saveCheckpoint('Manual save');
         saveBtn.disabled = false;
         if (!saved && reason === 'unchanged') {
-            toastr.info('Nothing has changed since the last saved state.', 'SillyNPC');
+            toastr.info('Nothing has changed since the last saved state.', PRODUCT_NAME);
             return;
         }
         if (!saved) {
-            toastr.error('Could not write the saved state.', 'SillyNPC');
+            toastr.error('Could not write the saved state.', PRODUCT_NAME);
             return;
         }
-        toastr.success(`Saved. ${kept} state${kept === 1 ? '' : 's'} kept.`, 'SillyNPC');
+        toastr.success(`Saved. ${kept} state${kept === 1 ? '' : 's'} kept.`, PRODUCT_NAME);
         onRefresh();
     });
     buttons.append(saveBtn);
@@ -115,12 +116,12 @@ function buildCheckpointControls(onRefresh) {
             );
             if (!ok) return;
             if (await restoreCheckpoint(index)) {
-                toastr.success('Restored.', 'SillyNPC');
+                toastr.success('Restored.', PRODUCT_NAME);
                 triggerReprocess();
                 updateHUD();
                 onRefresh();
             } else {
-                toastr.error('Could not read that saved state; its file may be gone.', 'SillyNPC');
+                toastr.error('Could not read that saved state; its file may be gone.', PRODUCT_NAME);
             }
         });
 
@@ -231,7 +232,7 @@ export function buildSystemManager(onRefresh) {
                 // Deleting the system in use would take the cast and item library with it
                 // and leave the configuration belonging to nothing.
                 if (name === getActiveSystem()) {
-                    toastr.info('Switch to another system before deleting this one.', 'SillyNPC');
+                    toastr.info('Switch to another system before deleting this one.', PRODUCT_NAME);
                     return;
                 }
                 const cast = (profile.world?.characters || []).length;
@@ -271,7 +272,7 @@ export function buildSystemManager(onRefresh) {
         const name = (await Popup.show.input('New system', 'Name for this system:'))?.trim();
         if (!name) return;
         if (!createSystem(name)) {
-            toastr.error(`A system called "${name}" already exists.`, 'SillyNPC');
+            toastr.error(`A system called "${name}" already exists.`, PRODUCT_NAME);
             return;
         }
         updateAllExtensionThemes();
@@ -295,7 +296,7 @@ export function buildSystemManager(onRefresh) {
                     importSystemPreset(text);
                     onRefresh();
                 } catch (err) {
-                    toastr.error(`Failed to import system: ${err.message}`, 'SillyNPC');
+                    toastr.error(`Failed to import system: ${err.message}`, PRODUCT_NAME);
                 }
             }
         };

@@ -1,6 +1,6 @@
 import { eventSource, event_types } from '../../../events.js';
 import { renderExtensionTemplateAsync } from '../../../extensions.js';
-import { LOG_PREFIX, extensionName, debugLog } from './src/constants.js';
+import { LOG_PREFIX, extensionName, debugLog, PRODUCT_NAME } from './src/constants.js';
 import { getContext } from '../../../st-context.js';
 import { initSettings, saveSettings, getSettings } from './src/settings.js';
 import { REVIEW_EVENT } from './src/status-review.js';
@@ -105,7 +105,7 @@ function onSwipe(messageId) {
             // Never a silent disagreement between the tracker and the reply on screen.
             toastr.warning(
                 'The tracker could not follow that swipe, so it may not match this reply.',
-                'SillyNPC');
+                PRODUCT_NAME);
         }
     } catch (err) {
         console.error(LOG_PREFIX, 'onSwipe error', err);
@@ -142,7 +142,7 @@ function onRegenerateStarted(type, _data, dryRun) {
             toastr.warning(
                 'The tracker could not undo the reply being regenerated, so it may not '
                 + 'match the new one.',
-                'SillyNPC');
+                PRODUCT_NAME);
         }
     } catch (err) {
         console.error(LOG_PREFIX, 'onRegenerateStarted error', err);
@@ -177,6 +177,30 @@ async function addSettingsPanel() {
         });
     } catch (err) {
         console.error(LOG_PREFIX, 'failed to load settings panel', err);
+    }
+    addWandMenuEntry();
+}
+
+/** An entry in the wand menu beside the chat box, so the menu opens without going through Extensions. */
+function addWandMenuEntry() {
+    try {
+        const menu = document.getElementById('extensionsMenu');
+        if (!(menu instanceof HTMLElement) || document.getElementById('sillynpc_wand_button')) return;
+        const item = document.createElement('div');
+        item.id = 'sillynpc_wand_button';
+        item.classList.add('list-group-item', 'flex-container', 'flexGap5');
+        item.title = `Open ${PRODUCT_NAME}`;
+        const icon = document.createElement('div');
+        icon.classList.add('fa-solid', 'fa-dice-d20', 'extensionsMenuExtensionButton');
+        const label = document.createElement('span');
+        label.textContent = PRODUCT_NAME;
+        item.append(icon, label);
+        item.addEventListener('click', () => {
+            openManagePopup().catch(err => console.error(LOG_PREFIX, 'openManagePopup failed', err));
+        });
+        menu.append(item);
+    } catch (err) {
+        console.error(LOG_PREFIX, 'failed to add the wand menu entry', err);
     }
 }
 
@@ -327,7 +351,7 @@ async function offerChatScope() {
     help.className = 'notes';
     help.style.cssText = 'display:block; margin-top:8px;';
     help.textContent = 'Tick nothing to include every character, which is what chats did '
-        + 'before this existed. You can change it any time from Manage SillyNPC.';
+        + 'before this existed. You can change it any time from Manage Worldkit.';
     wrap.append(help);
 
     const result = await new Popup(wrap, POPUP_TYPE.CONFIRM, '', {
@@ -406,7 +430,7 @@ jQuery(async () => {
                         console.error(LOG_PREFIX, `Module "${name}" failed to load`, err);
                         recordModuleLoad(name, 'failed', err);
                         try {
-                            toastr.error(`The ${name} module failed to load: ${err?.message || err}`, 'SillyNPC', { preventDuplicates: true });
+                            toastr.error(`The ${name} module failed to load: ${err?.message || err}`, PRODUCT_NAME, { preventDuplicates: true });
                         } catch { /* toastr not there */ }
                     });
             }
@@ -447,7 +471,7 @@ jQuery(async () => {
             }
         });
 
-        // Logged beside SillyNPC's own request lines, so "what does the chat use" and
+        // Logged beside Worldkit's own request lines, so "what does the chat use" and
         // "what does the extension use" can be compared at a glance instead of by reading
         // secrets.json. Dry runs are skipped: SillyTavern fires several per message while
         // measuring the prompt, and they would bury the real one.

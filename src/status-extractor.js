@@ -6,8 +6,7 @@ import {
     activeThreads, touchThreads, pruneThreads,
 } from './threads.js';
 import {
-    LOG_PREFIX, debugLog, SYSTEM_PROMPT, isStaticField,
-} from './constants.js';
+    LOG_PREFIX, debugLog, SYSTEM_PROMPT, isStaticField, PRODUCT_NAME } from './constants.js';
 export { SYSTEM_PROMPT };
 import { extractJSON, safeJsonParse, describeConnection, currentMessageIndex } from './utils.js';
 import { charactersMentionedIn } from './chat.js';
@@ -901,7 +900,7 @@ export function tidyThreadsOnLoad() {
     if (pruned.open) parts.push(`${pruned.open} stale`);
     if (pruned.closed) parts.push(`${pruned.closed} settled`);
     toastr.info(`Tidied ${parts.join(' and ')} thread${pruned.open + pruned.closed === 1 ? '' : 's'}. `
-        + 'Pin one to keep it for good.', 'SillyNPC');
+        + 'Pin one to keep it for good.', PRODUCT_NAME);
     debugLog(`Threads tidied on load: ${pruned.open} open, ${pruned.closed} settled`);
     return pruned;
 }
@@ -931,7 +930,7 @@ let lastReportedProblem = '';
 function reportExtractionProblem(message) {
     if (message === lastReportedProblem) return;
     lastReportedProblem = message;
-    if (typeof toastr !== 'undefined') toastr.warning(message, 'SillyNPC');
+    if (typeof toastr !== 'undefined') toastr.warning(message, PRODUCT_NAME);
 }
 
 export async function extractStateFromMessage(messageText, messageId, options = {}) {

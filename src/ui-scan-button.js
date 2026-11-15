@@ -1,5 +1,5 @@
 import { getSettings } from './settings.js';
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { scanHistoryForCollections, estimateScan } from './history-scan.js';
 import { makeActivatable } from './utils.js';
 
@@ -45,7 +45,7 @@ async function onScanClicked() {
 
     const estimate = estimateScan();
     if (!estimate.messages) {
-        toastr.info('Nothing in this chat to scan yet.', 'SillyNPC');
+        toastr.info('Nothing in this chat to scan yet.', PRODUCT_NAME);
         return;
     }
 
@@ -65,7 +65,7 @@ async function onScanClicked() {
             if (of > 1) button.title = `Reading the history - pass ${chunk} of ${of}...`;
         });
         if (!result.ok) {
-            toastr.error(result.reason || 'The scan did not complete.', 'SillyNPC');
+            toastr.error(result.reason || 'The scan did not complete.', PRODUCT_NAME);
             return;
         }
         const scope = result.passes > 1
@@ -77,21 +77,21 @@ async function onScanClicked() {
             toastr.warning(
                 `${result.skipped.length} finding${result.skipped.length === 1 ? '' : 's'} ignored: `
                 + `${names}${rest} ${result.skipped.length === 1 ? 'has' : 'have'} no character card.`,
-                'SillyNPC');
+                PRODUCT_NAME);
         }
         if (result.failures) {
-            toastr.warning(`${result.failures} of ${result.passes} passes came back unusable.`, 'SillyNPC');
+            toastr.warning(`${result.failures} of ${result.passes} passes came back unusable.`, PRODUCT_NAME);
         }
         if (!result.pending) {
-            toastr.success(`Read ${scope}. Nothing to change.`, 'SillyNPC');
+            toastr.success(`Read ${scope}. Nothing to change.`, PRODUCT_NAME);
             return;
         }
         toastr.info(
             `${result.pending} proposed change${result.pending === 1 ? '' : 's'} waiting under the last message.`,
-            'SillyNPC');
+            PRODUCT_NAME);
     } catch (err) {
         console.error(LOG_PREFIX, 'Scan failed', err);
-        toastr.error(String(err?.message || err), 'SillyNPC');
+        toastr.error(String(err?.message || err), PRODUCT_NAME);
     } finally {
         button?.classList.remove('sillynpc-scanning');
         if (button && restingTitle !== undefined) button.title = restingTitle;

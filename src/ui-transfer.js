@@ -1,7 +1,7 @@
 import { getSettings } from './settings.js';
 import { offerDownload } from './utils.js';
 import { exportCharacters, importCharacters, parseTransferFile } from './character-transfer.js';
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { POPUP_TYPE, Popup } from '../../../../popup.js';
 
 /**
@@ -34,10 +34,10 @@ export async function exportCharacterFile(chars) {
 
         toastr.success(
             list.length === 1 ? `Exported ${list[0].name || 'the character'}.` : `Exported ${list.length} characters.`,
-            'SillyNPC');
+            PRODUCT_NAME);
     } catch (err) {
         console.error(LOG_PREFIX, 'Character export failed', err);
-        toastr.error(String(err.message || err), 'SillyNPC');
+        toastr.error(String(err.message || err), PRODUCT_NAME);
     }
 }
 
@@ -137,14 +137,14 @@ export async function importCharacterFile(onDone) {
             }
 
             const result = await importCharacters(payload, { onCollision: async () => choice });
-            toastr.success(describeResult(result), 'SillyNPC');
+            toastr.success(describeResult(result), PRODUCT_NAME);
             // Anything the import could not do exactly as asked - a lorebook it had
             // nowhere to write, or an entry already kept for that name.
-            for (const note of result.notes) toastr.info(note, 'SillyNPC');
+            for (const note of result.notes) toastr.info(note, PRODUCT_NAME);
             onDone?.();
         } catch (err) {
             console.error(LOG_PREFIX, 'Character import failed', err);
-            toastr.error(String(err.message || err), 'SillyNPC');
+            toastr.error(String(err.message || err), PRODUCT_NAME);
         }
     };
 

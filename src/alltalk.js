@@ -1,5 +1,5 @@
 import { getSettings } from './settings.js';
-import { LOG_PREFIX, debugLog } from './constants.js';
+import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 
 /**
  * A small AllTalk client (fork).
@@ -101,7 +101,7 @@ async function pump() {
                 url = await prepare(item);
             } catch (err) {
                 console.warn(LOG_PREFIX, 'Speech failed', err);
-                toastr.warning(`Voice could not be generated: ${err.message || err}`, 'SillyNPC');
+                toastr.warning(`Voice could not be generated: ${err.message || err}`, PRODUCT_NAME);
                 continue;
             }
             if (mine !== epoch) { URL.revokeObjectURL(url); break; }

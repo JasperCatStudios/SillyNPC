@@ -5,7 +5,7 @@ import {
     activeThreads, rankedThreads, setThreadPinned, threadLimits,
 } from './threads.js';
 import { scanHistoryForThreads } from './history-scan.js';
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { currentMessageIndex } from './utils.js';
 import { buildSettingToggle, buildSettingNumber } from './ui-shared.js';
 import { POPUP_TYPE, Popup } from '../../../../popup.js';
@@ -213,13 +213,13 @@ async function askForThread(redraw) {
         quote: quote.value,
     });
     if (!thread) {
-        toastr.warning('A thread needs to say what is outstanding.', 'SillyNPC');
+        toastr.warning('A thread needs to say what is outstanding.', PRODUCT_NAME);
         return;
     }
 
     const state = loadStateFromMetadata();
     if (!addThread(state, thread)) {
-        toastr.info('Something with that line is already being kept.', 'SillyNPC');
+        toastr.info('Something with that line is already being kept.', PRODUCT_NAME);
         return;
     }
     // Labelled, so it is an undo step - the same as closing or dropping one. A
@@ -281,12 +281,12 @@ export function renderThreads(container) {
             const result = await scanHistoryForThreads(({ chunk, of }) => {
                 scan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Pass ${chunk} of ${of}...`;
             });
-            if (!result.ok) toastr.error(result.reason, 'SillyNPC');
-            else if (!result.opened) toastr.info('Nothing left hanging that it could find.', 'SillyNPC');
-            else toastr.success(`Found ${result.opened} across ${result.read} message(s).`, 'SillyNPC');
+            if (!result.ok) toastr.error(result.reason, PRODUCT_NAME);
+            else if (!result.opened) toastr.info('Nothing left hanging that it could find.', PRODUCT_NAME);
+            else toastr.success(`Found ${result.opened} across ${result.read} message(s).`, PRODUCT_NAME);
         } catch (err) {
             console.error(LOG_PREFIX, 'Thread scan failed', err);
-            toastr.error(String(err?.message || err), 'SillyNPC');
+            toastr.error(String(err?.message || err), PRODUCT_NAME);
         } finally {
             redraw();
         }
@@ -299,7 +299,7 @@ export function renderThreads(container) {
     byHand.addEventListener('click', () => {
         askForThread(redraw).catch(err => {
             console.error(LOG_PREFIX, 'Adding a thread failed', err);
-            toastr.error(String(err?.message || err), 'SillyNPC');
+            toastr.error(String(err?.message || err), PRODUCT_NAME);
         });
     });
 

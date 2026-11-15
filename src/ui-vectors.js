@@ -223,7 +223,7 @@ function turnMasterOn() {
     vectorSettings().enabled = true;
     saveSettings();
     announce();
-    try { toastr.success('Vectors are on. Each kind of history still has its own switch.', 'SillyNPC vectors'); } catch { /* no toastr */ }
+    try { toastr.success('Vectors are on. Each kind of history still has its own switch.', 'Worldkit vectors'); } catch { /* no toastr */ }
 }
 
 /** A "Turn Vectors on" button; safe inside a <summary> (it does not open or close the box). */
@@ -352,7 +352,7 @@ function renderPanel(p) {
         ? `Switch on "Use Vectors for ${meta.label}" inside this panel or in the Vectors tab.`
         : data.badge?.reason === 'the Phone module is off'
             ? 'Switch the Phone module on under Modules > Phone; while it is off nothing of it is remembered.'
-            : 'The master switch "Use Vectors" in the SillyNPC menu, Vectors tab, is off.';
+            : 'The master switch "Use Vectors" in the Worldkit menu, Vectors tab, is off.';
     summary.append(badge);
     // The master switch is the one people cannot find: it can be flipped right here.
     if (!data.master && !p.embedded) summary.append(masterOnButton(true));
@@ -433,19 +433,19 @@ function renderPanel(p) {
             // Never left set: a busy panel is skipped by every redraw, and would stay stale.
             p.busy = false;
         }
-        if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
-        else toastr.success(`${res.inserted} remembered${res.removed ? `, ${res.removed} removed` : ''}.`, 'SillyNPC vectors');
+        if (res.error) toastr.warning(res.error, 'Worldkit vectors');
+        else toastr.success(`${res.inserted} remembered${res.removed ? `, ${res.removed} removed` : ''}.`, 'Worldkit vectors');
         p.render();
     };
     bar.append(
         button('Remember now', 'fa-play', 'Remember everything new, changed or failed', run('manual', 'Remembering')),
         button('Remember all again', 'fa-arrows-rotate', 'Remember every one again, replacing what is there', run('all', 'Remembering again')),
         button(moduleId === 'phone' ? 'Forget this contact' : 'Forget for this chat', 'fa-trash-can', 'Deletes what was remembered. The histories themselves stay and can be remembered again.', async () => {
-            const ok = await Popup.show.confirm('Forget what was remembered?', `Everything SillyNPC remembered for ${meta.label}${moduleId === 'phone' ? ` with ${p.scope}` : ' in this chat'} is deleted from SillyTavern's vector storage. Your histories are not touched.`);
+            const ok = await Popup.show.confirm('Forget what was remembered?', `Everything Worldkit remembered for ${meta.label}${moduleId === 'phone' ? ` with ${p.scope}` : ' in this chat'} is deleted from SillyTavern's vector storage. Your histories are not touched.`);
             if (!ok) return;
             const res = await purgeModule(moduleId, p.scope);
-            if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
-            else toastr.success('Forgotten.', 'SillyNPC vectors');
+            if (res.error) toastr.warning(res.error, 'Worldkit vectors');
+            else toastr.success('Forgotten.', 'Worldkit vectors');
         }, 'snpc-vec-danger'),
         progress,
     );
@@ -524,30 +524,30 @@ function renderRow(p, row) {
             const text = String(typed).trim();
             const original = String(row.text ?? '').trim();
             const res = await setEntry(moduleId, scope, row.id, { text: text === original ? '' : text });
-            if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
+            if (res.error) toastr.warning(res.error, 'Worldkit vectors');
         }));
         if (row.state === 'skip') {
             actions.append(iconButton('fa-hand-pointer', 'Remember this one now, by hand', async () => {
                 const res = await syncModule(moduleId, { mode: 'manual', scope, only: [row.id] });
-                if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
+                if (res.error) toastr.warning(res.error, 'Worldkit vectors');
             }));
         }
         actions.append(iconButton(row.enabled ? 'fa-toggle-on' : 'fa-toggle-off', row.enabled
             ? 'Turn off: forgotten, and never brought back'
             : 'Turn on again', async () => {
             const res = await setEntry(moduleId, scope, row.id, { enabled: !row.enabled });
-            if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
+            if (res.error) toastr.warning(res.error, 'Worldkit vectors');
         }, row.enabled ? 'is-on' : ''));
         actions.append(iconButton('fa-trash', `Delete. ${HOW_DELETE[moduleId]}`, async () => {
             const ok = await Popup.show.confirm('Delete this entry?', HOW_DELETE[moduleId]);
             if (!ok) return;
             const res = await deleteEntry(moduleId, scope, row);
-            if (res?.error) toastr.warning(res.error, 'SillyNPC vectors');
+            if (res?.error) toastr.warning(res.error, 'Worldkit vectors');
         }, 'snpc-vec-danger'));
     } else {
         actions.append(iconButton('fa-rotate-left', 'Restore: remember it again', async () => {
             const res = await setEntry(moduleId, scope, row.id, { deleted: false });
-            if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
+            if (res.error) toastr.warning(res.error, 'Worldkit vectors');
         }));
     }
 
@@ -688,12 +688,12 @@ async function runVectorize() {
     va.lines = vectorizeReport(decisions);
     const errors = va.lines.filter(l => l.level === 'error');
     const inserted = runs.reduce((n, d) => n + (Number(d.result?.inserted) || 0), 0);
-    if (errors.length) toastr.error(errors.map(l => l.text).join('\n'), 'SillyNPC vectors');
+    if (errors.length) toastr.error(errors.map(l => l.text).join('\n'), 'Worldkit vectors');
     else if (!runs.length) {
         const warned = va.lines.filter(l => l.level === 'warn');
-        if (warned.length) toastr.warning(warned.map(l => l.text).join('\n'), 'SillyNPC vectors: nothing remembered');
-        else toastr.info(va.lines.map(l => l.text).join('\n') || 'Nothing to remember.', 'SillyNPC vectors');
-    } else toastr.success(`Remembered ${inserted}.`, 'SillyNPC vectors');
+        if (warned.length) toastr.warning(warned.map(l => l.text).join('\n'), 'Worldkit vectors: nothing remembered');
+        else toastr.info(va.lines.map(l => l.text).join('\n') || 'Nothing to remember.', 'Worldkit vectors');
+    } else toastr.success(`Remembered ${inserted}.`, 'Worldkit vectors');
     refreshVectorizeBox();
 }
 
@@ -913,7 +913,7 @@ function renderGeneralTab(body, rerender) {
         + 'The same lists are also under Combat > History (rivalry record, fight talk), Modules > Games and the Phone settings. Stored by SillyTavern under data/<user>/vectors/ollama/sillynpc_*.'));
 }
 
-/** The Vectors tab in the SillyNPC menu. */
+/** The Vectors tab in the Worldkit menu. */
 export function renderVectorsView(view) {
     if (!view) return;
     loadStylesheet();

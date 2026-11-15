@@ -6,6 +6,7 @@ import { buildBulkBar, buildBulkCheckbox, spliceIndexes } from './ui-bulk-select
 import { renameCollectionId, renameCollectionField, renameStat, isNumericStat } from './status-logic.js';
 import { makeActivatable } from './utils.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * System Builder: the stats, collections and fields a System is made of.
  *
@@ -205,7 +206,7 @@ function buildCollectionsEditor(onRefresh) {
                         return;
                     }
                     if (col.fields.some(f => f !== field && f.name === newName)) {
-                        toastr.error(`This collection already has a field called "${newName}".`, 'SillyNPC');
+                        toastr.error(`This collection already has a field called "${newName}".`, PRODUCT_NAME);
                         e.target.value = oldName;
                         return;
                     }
@@ -215,7 +216,7 @@ function buildCollectionsEditor(onRefresh) {
                     // A rename that moved nothing and one that moved forty items look the
                     // same afterwards, and the difference is worth knowing.
                     if (moved) {
-                        toastr.success(`Renamed to "${newName}" and carried ${moved} item${moved === 1 ? '' : 's'} across.`, 'SillyNPC');
+                        toastr.success(`Renamed to "${newName}" and carried ${moved} item${moved === 1 ? '' : 's'} across.`, PRODUCT_NAME);
                     }
                     onRefresh();
                 });
@@ -287,7 +288,7 @@ function buildCollectionsEditor(onRefresh) {
                 return;
             }
             if (collections.some(c => c !== col && c.id === newId)) {
-                toastr.error(`A collection with the id "${newId}" already exists.`, 'SillyNPC');
+                toastr.error(`A collection with the id "${newId}" already exists.`, PRODUCT_NAME);
                 e.target.value = oldId;
                 return;
             }
@@ -295,7 +296,7 @@ function buildCollectionsEditor(onRefresh) {
             const moved = renameCollectionId(oldId, newId);
             saveSettings();
             if (moved) {
-                toastr.success(`Renamed to "${newId}" and carried ${moved} item${moved === 1 ? '' : 's'} across.`, 'SillyNPC');
+                toastr.success(`Renamed to "${newId}" and carried ${moved} item${moved === 1 ? '' : 's'} across.`, PRODUCT_NAME);
             }
             onRefresh();
         });
@@ -503,7 +504,7 @@ function buildStatsEditor(label, settingsKey, onRefresh) {
                 return;
             }
             if (stats.some(s => s !== stat && s.name === newName)) {
-                toastr.error(`This list already has a stat called "${newName}".`, 'SillyNPC');
+                toastr.error(`This list already has a stat called "${newName}".`, PRODUCT_NAME);
                 e.target.value = oldName;
                 return;
             }
@@ -517,12 +518,12 @@ function buildStatsEditor(label, settingsKey, onRefresh) {
             if (carried.references) parts.push(`${carried.references} reference${carried.references === 1 ? '' : 's'}`);
             if (carried.templateUpdated) parts.push('the display template');
             if (parts.length) {
-                toastr.success(`Renamed to "${newName}" and carried ${parts.join(', ')} across.`, 'SillyNPC');
+                toastr.success(`Renamed to "${newName}" and carried ${parts.join(', ')} across.`, PRODUCT_NAME);
             }
             // Not rewritten, because a selector can be built from a name in more ways than
             // can be recognised - but silence here would look like nothing was left behind.
             if (carried.cssMentions) {
-                toastr.warning(`Your custom CSS still mentions "${oldName}". Check it by hand.`, 'SillyNPC');
+                toastr.warning(`Your custom CSS still mentions "${oldName}". Check it by hand.`, PRODUCT_NAME);
             }
             onRefresh();
         });

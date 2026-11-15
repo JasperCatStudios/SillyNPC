@@ -3,7 +3,7 @@ import { Popup, POPUP_TYPE } from '../../../../popup.js';
 // it has to redraw. reprocess.js rather than chat.js: chat.js imports this file.
 import { triggerReprocess } from './reprocess.js';
 import { saveSettings } from './settings.js';
-import { LOG_PREFIX, debugLog } from './constants.js';
+import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { auditCharacter, fillLore, fillData } from './character-fill.js';
 import { generateCharacterImageLogic } from './api.js';
 
@@ -96,13 +96,13 @@ async function askPlan(char, audit) {
  */
 export async function fillCharacter(char, { onSave } = {}) {
     if (!char?.name) {
-        toastr.warning('Give the character a name first.', 'SillyNPC');
+        toastr.warning('Give the character a name first.', PRODUCT_NAME);
         return;
     }
 
     const audit = auditCharacter(char);
     if (!audit.anything) {
-        toastr.info(`${char.name} is already filled in.`, 'SillyNPC');
+        toastr.info(`${char.name} is already filled in.`, PRODUCT_NAME);
         return;
     }
 
@@ -114,10 +114,10 @@ export async function fillCharacter(char, { onSave } = {}) {
 
     /** @returns {Promise<boolean>} False when the run should stop. */
     const runLore = async () => {
-        toastr.info('Looking for a lore entry...', 'SillyNPC');
+        toastr.info('Looking for a lore entry...', PRODUCT_NAME);
         const result = await fillLore(char);
         if (!result.ok) {
-            toastr.error(`Lore: ${result.reason}`, 'SillyNPC');
+            toastr.error(`Lore: ${result.reason}`, PRODUCT_NAME);
             onSave?.();
             return false;
         }
@@ -130,13 +130,13 @@ export async function fillCharacter(char, { onSave } = {}) {
         if (chosen.lore && !(await runLore())) return;
 
         if (chosen.data || chosen.belongings) {
-            toastr.info('Reading the story for their details...', 'SillyNPC');
+            toastr.info('Reading the story for their details...', PRODUCT_NAME);
             const result = await fillData(char, {
                 fields: chosen.data,
                 collections: chosen.belongings,
             });
             if (!result.ok) {
-                toastr.error(`Fields: ${result.reason}`, 'SillyNPC');
+                toastr.error(`Fields: ${result.reason}`, PRODUCT_NAME);
                 onSave?.();
                 return;
             }
@@ -148,7 +148,7 @@ export async function fillCharacter(char, { onSave } = {}) {
         }
 
         if (chosen.image) {
-            toastr.info('Drawing a portrait...', 'SillyNPC');
+            toastr.info('Drawing a portrait...', PRODUCT_NAME);
             const imageUrl = await generateCharacterImageLogic(char, { referenceImages: [] });
             if (!Array.isArray(char.images)) char.images = [];
             if (!char.images.includes(imageUrl)) char.images.push(imageUrl);
@@ -161,12 +161,12 @@ export async function fillCharacter(char, { onSave } = {}) {
         }
     } catch (err) {
         console.error(LOG_PREFIX, 'Fill failed', err);
-        toastr.error(`Stopped: ${err?.message || err}`, 'SillyNPC');
+        toastr.error(`Stopped: ${err?.message || err}`, PRODUCT_NAME);
         onSave?.();
         return;
     }
 
     debugLog('Filled in', char.name, done);
-    toastr.success(done.join('. ') + '.', 'SillyNPC');
+    toastr.success(done.join('. ') + '.', PRODUCT_NAME);
     onSave?.();
 }

@@ -1,7 +1,7 @@
 import { Popup, POPUP_TYPE } from '../../../../popup.js';
 import { getSettings, saveSettings } from './settings.js';
 import { escapeHtml } from './utils.js';
-import { debugLog } from './constants.js';
+import { debugLog, PRODUCT_NAME } from './constants.js';
 import { findTemplateLabels, applyLabelFixes } from './template-labels.js';
 
 /** Every stat name the template could be referring to. */
@@ -51,7 +51,7 @@ export async function tidyTemplateLabels(onDone) {
     const found = findTemplateLabels(template, configuredFieldNames());
 
     if (!found.length) {
-        toastr.info('No hand-written labels found in the template.', 'SillyNPC');
+        toastr.info('No hand-written labels found in the template.', PRODUCT_NAME);
         return;
     }
 
@@ -90,6 +90,6 @@ export async function tidyTemplateLabels(onDone) {
     toastr.success(
         `Removed ${chosen.length} label${chosen.length === 1 ? '' : 's'}. `
         + 'Tick Name on a field to have its own name shown instead.',
-        'SillyNPC');
+        PRODUCT_NAME);
     onDone?.();
 }

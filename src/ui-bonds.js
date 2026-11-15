@@ -17,6 +17,7 @@ import {
     gateOverridden, setGateOverride, setGateOverridePart, clearGateOverride, levelName, meterTicks,
 } from './bonds-core.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * The Bonds tab (fork): the Bond Tracker's switches, its rules, and the bonds of the open chat.
  *
@@ -259,7 +260,7 @@ function renderPeople(view, rerender) {
     const bar = el('div', 'snpc-bond-toolbar');
     const updateAll = button('Update all now', 'fa-arrows-rotate', 'Read the newest reply again and apply what it changes (replaces what that reply did before)', async () => {
         const id = latestReplyId();
-        if (id < 0) { toastr.info('There is no reply to read yet.', 'SillyNPC'); return; }
+        if (id < 0) { toastr.info('There is no reply to read yet.', PRODUCT_NAME); return; }
         updateAll.disabled = true;
         await runBondUpdate(id, { force: true, button: true });
         rerender();
@@ -358,7 +359,7 @@ function personCard(person, settings, rerender) {
     actions.append(histBtn);
     const update = iconButton('fa-arrows-rotate', `Update ${person.name} now from the newest reply`, async () => {
         const id = latestReplyId();
-        if (id < 0) { toastr.info('There is no reply to read yet.', 'SillyNPC'); return; }
+        if (id < 0) { toastr.info('There is no reply to read yet.', PRODUCT_NAME); return; }
         update.classList.add('fa-spin');
         await runBondUpdate(id, { force: true, button: true, only: person.name });
         rerender();
@@ -806,7 +807,7 @@ function levelsTable(key, rerender, { what, unit, familial = false }) {
         min.classList.add('snpc-bond-num');
         const desc = input('text', level.description, (v) => updateSettings(x => { const l = find(x, level.id); if (l) l.description = v; }), { placeholder: 'How they act at this level' });
         const del = iconButton('fa-trash-can', `Delete this ${what} level (gates on it move to the top ${what} level)`, () => {
-            if (s[key].length <= 1) { toastr.info('There has to be at least one level.', 'SillyNPC'); return; }
+            if (s[key].length <= 1) { toastr.info('There has to be at least one level.', PRODUCT_NAME); return; }
             updateSettings(x => { x[key] = x[key].filter(y => y.id !== level.id); }, rerender);
         }, 'snpc-bond-danger');
         tr.append(min, desc, del);

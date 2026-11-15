@@ -8,6 +8,7 @@ import { renderLoadoutPicker } from '../../src/ui-gear.js';
 import { XP_PER_ENEMY } from '../../src/combat-level.js';
 import { fractionFromStatus, statusFromFraction, STATUS_DEFAULT } from '../../src/combat-status.js';
 import { project } from '../../src/combat-roles.js';
+import { wheelNote } from '../../src/combat-elements.js';
 import { profileText } from '../../src/profile-text.js';
 import { contextBlocks } from '../../src/context-blocks.js';
 import { requestOnConnection } from '../../src/connections.js';
@@ -26,6 +27,7 @@ import {
     startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, autoTurn,
 } from '../../src/combat-fight.js';
 
+import { PRODUCT_NAME } from '../../src/constants.js';
 /**
  * The combat button, in the same corner row as the phone and the games (fork).
  *
@@ -128,7 +130,7 @@ function recordFight() {
     if (!session.talkId) session.talkId = newTalkId();
     const record = fightRecord({ state, id: session.talkId, percentOf, spectators: session.spectators });
     if (!record) return;
-    try { addRecord(record); } catch (err) { console.warn('[SillyNPC] could not record the fight', err); }
+    try { addRecord(record); } catch (err) { console.warn('[Worldkit] could not record the fight', err); }
 }
 
 /** Everyone who fought gets XP for each enemy, win or lose, spar or fight. Only a sheet can keep it. */
@@ -146,7 +148,7 @@ function awardXp() {
         session.xp.push({ name: fighter.name, gained: out.gained, level: out.level, levelsGained: out.levelsGained });
     }
     saveSettings();
-    for (const x of session.xp) if (x.levelsGained) toastr.success(`${x.name} reached level ${x.level}!`, 'SillyNPC');
+    for (const x of session.xp) if (x.levelsGained) toastr.success(`${x.name} reached level ${x.level}!`, PRODUCT_NAME);
 }
 
 function xpLines() {
@@ -169,7 +171,7 @@ function keepTalk() {
             date: sceneClock()?.dateText || '', spectators: session.spectators,
         });
         if (entry) recordTalk('combat', entry);
-    } catch (err) { console.warn('[SillyNPC] could not keep the fight talk', err); }
+    } catch (err) { console.warn('[Worldkit] could not keep the fight talk', err); }
 }
 
 function persistAll() {
@@ -327,8 +329,8 @@ async function postReport() {
         await getContext().executeSlashCommandsWithOptions(`/sys ${text}`, { displayCommand: false, showOutput: false });
         if (session) session.reported = true;
     } catch (err) {
-        console.error('[SillyNPC] combat report failed', err);
-        toastr.error('Could not post the combat report to chat.', 'SillyNPC');
+        console.error('[Worldkit] combat report failed', err);
+        toastr.error('Could not post the combat report to chat.', PRODUCT_NAME);
         if (session) session.failed = true;
     }
     if (session) session.posting = false;
@@ -415,7 +417,7 @@ function drawBattle(body) {
         if (!affordable && action.cost?.amount) button.title = `Needs ${action.cost.amount} ${type.pools.find(p => p.role === action.cost.pool)?.label || action.cost.pool}. ${tip}`;
         button.addEventListener('click', () => {
             const result = takeTurn(type, state, action.key, target.id);
-            if (!result.ok) { toastr.warning(result.reason, 'SillyNPC'); return; }
+            if (!result.ok) { toastr.warning(result.reason, PRODUCT_NAME); return; }
             persistAll();
             draw();
             watcherLine({ actor, events: result.events || [] });
@@ -522,7 +524,7 @@ function drawSetup(body) {
     reset.addEventListener('click', () => {
         const foe = foes.find(f => f.id === select.value) || foes[0];
         const n = resetStatus(type, [player, foe]);
-        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: neither has a combat sheet yet.', 'SillyNPC');
+        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: neither has a combat sheet yet.', PRODUCT_NAME);
         check.click();
     });
     body.append(check, reset, statusBox);
@@ -598,7 +600,11 @@ function drawReady(body) {
     body.append(columns);
 
     if (ready.spectators?.length) body.append(el('small', 'notes', `Watching: ${ready.spectators.map(r => r.name).join(', ')}.`));
-    const r = rate(type, peopleFor(type, player, foe));
+    const people = peopleFor(type, player, foe);
+    // A world with an elemental wheel (Black Clover): how the two affinities meet. Nothing for the others.
+    const wheel = wheelNote(type, project(people[0].data, type), project(people[1].data, type), player.name || 'You', foe.name);
+    if (wheel) body.append(el('small', 'notes snpc-fight-wheel', wheel));
+    const r = rate(type, people);
     const turns = mode === 'spar' ? Math.max(2, Math.round(r.turns * SPAR_SHARE)) : Math.round(r.turns);
     body.append(el('small', 'snpc-fight-pace', `${r.label}: about ${turns} turns (each side's action counts as one).`));
 
@@ -728,7 +734,7 @@ function drawWatchSetup(body, type, player, foes) {
     watchReset.title = 'Puts everyone picked back to full health (S+). For when you are testing.';
     watchReset.addEventListener('click', () => {
         const n = resetStatus(type, picked());
-        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: none of them has a combat sheet yet.', 'SillyNPC');
+        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: none of them has a combat sheet yet.', PRODUCT_NAME);
         watchCheck.click();
     });
     body.append(watchCheck, watchReset, watchStatus);
@@ -1040,7 +1046,7 @@ async function watcherLine(turn) {
             speakLine(name, line);
         }
     } catch (err) {
-        console.error('[SillyNPC] spectator line failed', err);
+        console.error('[Worldkit] spectator line failed', err);
     }
     if (session) session.talking = false;
     keepTalk();
@@ -1113,7 +1119,7 @@ async function lineAfterTurn(turn) {
             speakLine(actor.name, line);
         }
     } catch (err) {
-        console.error('[SillyNPC] combat line failed', err);
+        console.error('[Worldkit] combat line failed', err);
     }
     if (session) session.talking = false;
     // Said after the fight ended: the kept talk gets it too.
@@ -1163,7 +1169,7 @@ async function groupReply(names, me) {
     const history = session.chat.slice(-10).map(m => `${m.who}: ${m.text}`).join('\n');
     const raw = await requestOnConnection('combatProfileId', groupChatSystem(names, me), history, Math.min(500, 110 * names.length));
     const lines = parseGroupReply(raw, names, { also: [me, ...Object.values(session.state.fighters).map(f => f.name), ...(session.spectators || [])].filter(n => !names.includes(n)) });
-    if (!lines.length) { toastr.info('None of them had anything to say.', 'SillyNPC'); return; }
+    if (!lines.length) { toastr.info('None of them had anything to say.', PRODUCT_NAME); return; }
     for (const { who, text } of lines) {
         const line = dialogueOnly(text, who);
         if (!line || !session) continue;
@@ -1175,9 +1181,9 @@ async function groupReply(names, me) {
 async function sendTalk(text) {
     if (!session || session.talking || !text.trim()) return;
     const to = session.talkTo || chatCast()[0];
-    if (!to) { toastr.info('Nobody to talk to.', 'SillyNPC'); return; }
+    if (!to) { toastr.info('Nobody to talk to.', PRODUCT_NAME); return; }
     const targets = talkTargets(to).slice(0, GROUP_TALK_MAX);
-    if (!targets.length) { toastr.info('Nobody to talk to.', 'SillyNPC'); return; }
+    if (!targets.length) { toastr.info('Nobody to talk to.', PRODUCT_NAME); return; }
     const me = session.state.fighters.player?.name || 'You';
     session.chat.push({ who: me, text: text.trim(), mine: true });
     session.talking = true;
@@ -1197,8 +1203,8 @@ async function sendTalk(text) {
             if (line) speakLine(name, line);
         }
     } catch (err) {
-        console.error('[SillyNPC] combat talk failed', err);
-        toastr.error('They could not answer.', 'SillyNPC');
+        console.error('[Worldkit] combat talk failed', err);
+        toastr.error('They could not answer.', PRODUCT_NAME);
     }
     if (session) session.talking = false;
     keepTalk();

@@ -1,6 +1,6 @@
 import { renderExtensionTemplateAsync } from '../../../../extensions.js';
 import { POPUP_TYPE, Popup } from '../../../../popup.js';
-import { extensionName, LOG_PREFIX } from './constants.js';
+import { extensionName, LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { getSettings, saveSettings, exportSettingsData, importSettingsData } from './settings.js';
 import { 
     createCharacter, 
@@ -427,11 +427,11 @@ function buildSyncAllRow(characters) {
         btn.disabled = true;
         try {
             const { linked, checked } = await syncAllLorebooks();
-            if (linked) toastr.success(`Linked ${linked} of ${checked}.`, 'SillyNPC');
-            else toastr.info(`No matching entries found for ${checked}.`, 'SillyNPC');
+            if (linked) toastr.success(`Linked ${linked} of ${checked}.`, PRODUCT_NAME);
+            else toastr.info(`No matching entries found for ${checked}.`, PRODUCT_NAME);
         } catch (err) {
             console.error(LOG_PREFIX, 'Sync all failed', err);
-            toastr.error(String(err.message || err), 'SillyNPC');
+            toastr.error(String(err.message || err), PRODUCT_NAME);
         }
         renderCardGrid();
     });
@@ -448,7 +448,7 @@ function buildSyncAllRow(characters) {
         const name = (await Popup.show.input('New category', 'Enter a name:'))?.trim();
         if (!name) return;
         if (!createCategory(name)) {
-            toastr.info(`"${name}" already exists.`, 'SillyNPC');
+            toastr.info(`"${name}" already exists.`, PRODUCT_NAME);
             return;
         }
         renderCardGrid();
@@ -623,7 +623,7 @@ function ensureGridBulk() {
         allIds: () => (getSettings().characters || []).map(c => c.id),
         onDelete: (ids) => {
             for (const id of ids) deleteCharacter(id);
-            toastr.success(`Deleted ${ids.length} character(s).`, 'SillyNPC');
+            toastr.success(`Deleted ${ids.length} character(s).`, PRODUCT_NAME);
         },
         onRefresh: () => renderCardGrid(),
         extra: [
@@ -1473,7 +1473,7 @@ async function importData() {
         if (!file) return;
         try {
             const text = await file.text();
-            const confirm = await Popup.show.confirm('Import Data', 'This will overwrite your current SillyNPC characters and settings. Continue?');
+            const confirm = await Popup.show.confirm('Import Data', 'This will overwrite your current Worldkit characters and settings. Continue?');
             if (!confirm) return;
 
             importSettingsData(text);

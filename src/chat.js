@@ -1,4 +1,4 @@
-import { LOG_PREFIX, BUILT_IN_DEFAULT_AVATAR, paletteColorFor, debugLog } from './constants.js';
+import { LOG_PREFIX, BUILT_IN_DEFAULT_AVATAR, paletteColorFor, debugLog, PRODUCT_NAME } from './constants.js';
 import { getSettings } from './settings.js';
 import { getContext } from '../../../../st-context.js';
 import { findCharacter, getActiveCharacters, getChatCast } from './characters.js';
@@ -983,7 +983,7 @@ function addRefreshButtonToMessage(mesEl) {
         reprocessAllMessages();
         updateHUD();
         if (typeof toastr !== 'undefined') {
-            toastr.info('Tracker and chat redrawn.', 'SillyNPC');
+            toastr.info('Tracker and chat redrawn.', PRODUCT_NAME);
         }
     });
     toolbar.insertBefore(btn, toolbar.firstChild);

@@ -2,7 +2,7 @@ import { getSettings, saveSettings } from './settings.js';
 import { buildSettingToggle, buildSettingSlider, buildSettingSelect } from './ui-shared.js';
 import { triggerReprocess } from './chat.js';
 import { updateHUD, resetHudPosition } from './ui-hud.js';
-import { HUD_LAYOUTS, hudLayoutFor } from './constants.js';
+import { HUD_LAYOUTS, hudLayoutFor, PRODUCT_NAME } from './constants.js';
 
 /**
  * The floating HUD's settings tab.
@@ -197,7 +197,7 @@ export function renderHudView(container) {
         resetHudBtn.title = 'Discard the dragged position and snap the HUD back to its corner.';
         resetHudBtn.addEventListener('click', () => {
             resetHudPosition();
-            toastr.info('HUD position reset.', 'SillyNPC');
+            toastr.info('HUD position reset.', PRODUCT_NAME);
         });
         resetHudWrap.appendChild(resetHudBtn);
         container.append(resetHudWrap);

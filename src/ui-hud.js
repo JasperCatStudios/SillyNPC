@@ -413,7 +413,7 @@ export function updateHUD(updatedState = null) {
         // visible, so returning here used to leave the previous chat's numbers on screen
         // looking like the current ones - the failure state was indistinguishable from
         // working, which is the worst way for it to fail.
-        console.warn('SillyNPC: HUD update skipped - state or player data missing', state);
+        console.warn('Worldkit: HUD update skipped - state or player data missing', state);
         hudContainer.style.display = 'none';
         return;
     }

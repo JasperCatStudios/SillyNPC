@@ -8,6 +8,7 @@ import {
     specialChoices, effectLine, toolsForFight, SLOT_LABELS,
 } from './combat-gear-view.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * Weapons and tools on a character's combat sheet (fork).
  *
@@ -328,7 +329,7 @@ export function renderLoadoutPicker(record, type, { mode = 'fight', onChange = (
     const gear = effectiveGear(type, getTypeData(record, type.dataKey)) || { items: [], equipped: { main: null, off: null, focus: null }, belt: [] };
 
     const apply = (result) => {
-        if (!result.ok) toastr.warning(result.reason, 'SillyNPC');
+        if (!result.ok) toastr.warning(result.reason, PRODUCT_NAME);
         else saveSettings();
         onChange();
     };

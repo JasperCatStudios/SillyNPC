@@ -1,4 +1,4 @@
-import { debugLog } from './constants.js';
+import { debugLog, PRODUCT_NAME } from './constants.js';
 import { eventSource } from '../../../../events.js';
 import { POPUP_TYPE, POPUP_RESULT, Popup } from '../../../../popup.js';
 import { getSettings } from './settings.js';
@@ -495,7 +495,7 @@ function attachModalListeners(dom) {
 async function openRestorePicker() {
     const points = playerHistory();
     if (points.length < 2) {
-        toastr.info('This chat has no earlier player state recorded yet.', 'SillyNPC');
+        toastr.info('This chat has no earlier player state recorded yet.', PRODUCT_NAME);
         return false;
     }
 
@@ -540,14 +540,14 @@ async function openRestorePicker() {
 
     const outcome = restorePlayerFromMessage(Number(select.value));
     if (!outcome) {
-        toastr.error('Nothing recorded for that message.', 'SillyNPC');
+        toastr.error('Nothing recorded for that message.', PRODUCT_NAME);
         return false;
     }
     toastr.success(
         outcome.exact
             ? `Restored from message ${select.value}.`
             : `Restored from message ${select.value}, reconstructed (${outcome.reason}).`,
-        'SillyNPC');
+        PRODUCT_NAME);
     return true;
 }
 

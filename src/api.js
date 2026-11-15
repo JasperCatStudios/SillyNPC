@@ -65,7 +65,7 @@ export async function createLoreEntry(char, targetWorld, entryName) {
  * Reads the scene first and falls back to the card, since a character who is not in the
  * room right now still has everything they own recorded there.
  *
- * @param {object} char The SillyNPC character card.
+ * @param {object} char The Worldkit character card.
  * @returns {string} Empty when nothing is known, so the caller can substitute a note.
  */
 /**
@@ -557,9 +557,9 @@ export function characterImagePrefix(name) {
  * character could have six pictures in the folder and know about one. This walks the
  * configured folder and hands each file to the character whose prefix it carries.
  *
- * Only finds what SillyNPC itself wrote. Images generated through SillyTavern's own
+ * Only finds what Worldkit itself wrote. Images generated through SillyTavern's own
  * gallery are named after the character *card* - "The Dungeon Master_2026-05-28@...jpg" -
- * so they carry no clue about which SillyNPC character uses them, and are left alone
+ * so they carry no clue about which Worldkit character uses them, and are left alone
  * rather than guessed at.
  *
  * @returns {Promise<{ scanned: number, added: number, characters: number }>}
@@ -961,7 +961,7 @@ ${fullPrompt}` : fullPrompt;
             throw new Error(
                 'SillyTavern has no Google AI Studio API key saved. Add one under '
                 + 'API Connections (Chat Completion -> Google AI Studio); the key is read '
-                + 'server-side and is never handled by SillyNPC.',
+                + 'server-side and is never handled by Worldkit.',
             );
         }
         throw new Error(

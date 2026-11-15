@@ -1,4 +1,4 @@
-import { LOG_PREFIX, IMAGE_MAX_DIMENSION, IMAGE_PORTRAIT_MAX_DIMENSION, IMAGE_JPEG_QUALITY, debugLog } from './constants.js';
+import { LOG_PREFIX, IMAGE_MAX_DIMENSION, IMAGE_PORTRAIT_MAX_DIMENSION, IMAGE_JPEG_QUALITY, debugLog, PRODUCT_NAME } from './constants.js';
 import { getContext } from '../../../../st-context.js';
 import { getSecretLabelById, resolveSecretKey, secret_state } from '../../../../secrets.js';
 
@@ -237,7 +237,7 @@ export async function pickAndProcessImages({ fullSize = false, multiple = true }
                 toastr.error(
                     files.length === 1 ? 'Could not read that image.'
                         : `Could not read ${failed} of ${files.length} images.`,
-                    'SillyNPC');
+                    PRODUCT_NAME);
             }
             resolve(out);
         }, { once: true });

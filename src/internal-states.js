@@ -6,7 +6,7 @@ import { getRegexedString, regex_placement } from '../../../regex/engine.js';
 import { getSettings } from './settings.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
-import { LOG_PREFIX, debugLog } from './constants.js';
+import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 
 /**
  * The preset's Internal States, kept outside the story (fork).
@@ -277,7 +277,7 @@ export async function generateInternalStates(messageId, { force = false } = {}) 
     } catch (err) {
         console.warn(LOG_PREFIX, 'Internal States failed', err);
         failures.set(key, String(err?.message || err));
-        toastr.warning(`Internal States could not be written: ${err?.message || err}`, 'SillyNPC');
+        toastr.warning(`Internal States could not be written: ${err?.message || err}`, PRODUCT_NAME);
     } finally {
         inFlight.delete(key);
         setBusy(messageId, false);

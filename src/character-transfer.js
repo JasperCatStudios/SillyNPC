@@ -129,13 +129,13 @@ export function parseTransferFile(text) {
         throw new Error(Array.isArray(data.characters)
             ? 'That looks like a full settings backup rather than a character file. '
               + 'Import it from Advanced, which replaces everything rather than adding to it.'
-            : 'That is not a SillyNPC character file.');
+            : 'That is not a Worldkit character file.');
     }
     if (!Array.isArray(data.characters) || data.characters.length === 0) {
         throw new Error('That character file has nobody in it.');
     }
     if (Number(data.version) > TRANSFER_VERSION) {
-        throw new Error(`That file was written by a newer version of SillyNPC (${data.version}).`);
+        throw new Error(`That file was written by a newer version of Worldkit (${data.version}).`);
     }
 
     return data;

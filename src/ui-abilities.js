@@ -6,6 +6,7 @@ import {
     allTypes, activeCombatType, saveUserAbility, deleteUserAbility, resetUserAbility, baseAbilities,
 } from './combat-access.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * Abilities on screen (fork): a picker for the character page, sorted by category, and the
  * editor for making and changing them, which lives in the Combat tab.
@@ -95,7 +96,7 @@ export function abilityPicker(type, held, onChange) {
                 const full = held.size >= MAX_ABILITIES && !held.has(a.id);
                 if (full) { chip.classList.add('is-locked'); chip.title = `${tip(type, a)}\n\nAll ${MAX_ABILITIES} slots are used. Take one off first.`; }
                 chip.addEventListener('click', () => {
-                    if (full) { toastr.info(`Up to ${MAX_ABILITIES} abilities can be equipped. Take one off first.`, 'SillyNPC'); return; }
+                    if (full) { toastr.info(`Up to ${MAX_ABILITIES} abilities can be equipped. Take one off first.`, PRODUCT_NAME); return; }
                     if (held.has(a.id)) held.delete(a.id); else held.add(a.id);
                     onChange(held);
                     draw();
@@ -341,13 +342,13 @@ export function renderAbilityEditor(host, rerender) {
     save.addEventListener('click', () => {
         const ability = build();
         if (isNew) ability.id = freeId(list, ability.label || 'ability');
-        if (!ability.label) { toastr.warning('Give it a name.', 'SillyNPC'); return; }
+        if (!ability.label) { toastr.warning('Give it a name.', PRODUCT_NAME); return; }
         const errors = check(ability);
         if (errors.length) { problems.replaceChildren(...errors.map(e => el('div', 'snpc-aed-problem', e))); return; }
         saveUserAbility(type.id, ability);
         selected = ability.id;
         draft = null;
-        toastr.success(`${ability.label} saved.`, 'SillyNPC');
+        toastr.success(`${ability.label} saved.`, PRODUCT_NAME);
         rerender();
     });
     buttons.append(save);

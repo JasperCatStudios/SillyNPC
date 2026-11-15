@@ -10,7 +10,7 @@ import { promptById } from './prompts.js';
 import { world_names } from '../../../../world-info.js';
 import { extension_settings } from '../../../../extensions.js';
 import { Popup, POPUP_TYPE, POPUP_RESULT } from '../../../../popup.js';
-import { LOG_PREFIX, NARRATOR_RULES_PROMPT, SILLYNPC_THEMES, GEMINI_IMAGE_MODELS, PORTRAIT_SHAPES, debugLog, setDebugLogging } from './constants.js';
+import { LOG_PREFIX, NARRATOR_RULES_PROMPT, SILLYNPC_THEMES, GEMINI_IMAGE_MODELS, PORTRAIT_SHAPES, debugLog, setDebugLogging, PRODUCT_NAME } from './constants.js';
 import { buildLoreExcerpt, resolvePortraitShape, getLastLoreConnection, resolveImageSecretId, scanFolderForCharacterImages, persistGeneratedImage, findOrphanedImages, deleteImageFiles } from './api.js';
 import { getSecretLabelById } from '../../../../secrets.js';
 import { getRequestHeaders } from '../../../../../script.js';
@@ -206,7 +206,7 @@ export function renderWritingRulesView(view, onReprocessMessages) {
             view.append(buildSettingToggle({
                 key: 'dialogueFormatInPromptList',
                 label: "Manage In SillyTavern's Prompt List",
-                help: "Puts the dialogue format into SillyTavern's own prompt list, under AI Response Configuration, where it can be dragged among the system prompts, given another depth, or switched off beside everything else. It goes in as In-Chat at depth 0, which is where it already sits, so switching this on moves nothing until you move it. The entry is kept in your chat completion preset: it is exported with that preset, and loading a different one drops it until SillyNPC puts it back. The text stays here - the list owns only where it goes and whether it is sent. Chat Completion only: there is no such list on Text Completion.",
+                help: "Puts the dialogue format into SillyTavern's own prompt list, under AI Response Configuration, where it can be dragged among the system prompts, given another depth, or switched off beside everything else. It goes in as In-Chat at depth 0, which is where it already sits, so switching this on moves nothing until you move it. The entry is kept in your chat completion preset: it is exported with that preset, and loading a different one drops it until Worldkit puts it back. The text stays here - the list owns only where it goes and whether it is sent. Chat Completion only: there is no such list on Text Completion.",
                 onChange: () => {
                     // At once rather than at the next message: the list entry is
                     // what makes the block appear there at all, and a setting whose
@@ -266,7 +266,7 @@ export function renderWritingRulesView(view, onReprocessMessages) {
             view.append(buildSettingToggle({
                 key: 'narratorRulesInPromptList',
                 label: "Manage In SillyTavern's Prompt List",
-                help: "Puts the narrator rules into SillyTavern's own prompt list, under AI Response Configuration, where it can be dragged among the system prompts, given another depth, or switched off beside everything else. It goes in as In-Chat at depth 0, which is where it already sits, so switching this on moves nothing until you move it. The entry is kept in your chat completion preset: it is exported with that preset, and loading a different one drops it until SillyNPC puts it back. The text stays here - the list owns only where it goes and whether it is sent. Chat Completion only: there is no such list on Text Completion.",
+                help: "Puts the narrator rules into SillyTavern's own prompt list, under AI Response Configuration, where it can be dragged among the system prompts, given another depth, or switched off beside everything else. It goes in as In-Chat at depth 0, which is where it already sits, so switching this on moves nothing until you move it. The entry is kept in your chat completion preset: it is exported with that preset, and loading a different one drops it until Worldkit puts it back. The text stays here - the list owns only where it goes and whether it is sent. Chat Completion only: there is no such list on Text Completion.",
                 onChange: () => {
                     // At once rather than at the next message: the list entry is
                     // what makes the block appear there at all, and a setting whose
@@ -388,12 +388,12 @@ export function renderAdvancedView(view, handlers = {}) {
 
     const title = document.createElement('h3');
     title.className = 'sillynpc-section-title';
-    title.textContent = 'SillyNPC';
+    title.textContent = PRODUCT_NAME;
     view.appendChild(title);
 
     view.append(buildSettingToggle({
         key: 'enabled',
-        label: 'Enable SillyNPC',
+        label: 'Enable Worldkit',
         help: 'The master switch. Off, nothing is decorated, no prompt is sent and the '
             + 'tracker reads nothing - your characters and everything they hold are kept.',
         onChange: () => triggerReprocess(),
@@ -459,7 +459,7 @@ export function renderAdvancedView(view, handlers = {}) {
     view.append(buildSettingToggle({
         key: 'debugLogging',
         label: 'Log Requests To The Console',
-        help: 'Prints one line in the browser console for every request SillyNPC makes - '
+        help: 'Prints one line in the browser console for every request Worldkit makes - '
             + 'lore, extraction and portraits - naming the connection, the model and which '
             + 'API key it used. Off by default because extraction runs after every message. '
             + 'Open the console with F12.',
@@ -612,10 +612,10 @@ export function renderDefaultView(view, rerender) {
                 settings.defaultImages.push({ src: stored, tags: [], gender: '' });
             }
             saveSettings();
-            toastr.success(`Added ${picked.length} face${picked.length === 1 ? '' : 's'}.`, 'SillyNPC');
+            toastr.success(`Added ${picked.length} face${picked.length === 1 ? '' : 's'}.`, PRODUCT_NAME);
         } catch (err) {
             console.error(LOG_PREFIX, 'Could not add fallback portraits', err);
-            toastr.error(String(err.message || err), 'SillyNPC');
+            toastr.error(String(err.message || err), PRODUCT_NAME);
         } finally {
             addBtn.disabled = false;
             rerender?.();
@@ -726,7 +726,7 @@ export function renderGenerationSettingsView(view) {
         ],
         help: "SillyTavern's Image Generation draws with whatever that extension is already "
             + 'set to - source, model, sampler, steps - shared with /imagine and everything '
-            + 'else in SillyTavern. SillyNPC adds only the prompt and the shape. The Gemini '
+            + 'else in SillyTavern. Worldkit adds only the prompt and the shape. The Gemini '
             + 'option is configured here instead and is independent of those settings; it '
             + "exists because that extension's Google source lists only imagen-* and veo-*, "
             + 'so the Gemini image models cannot be reached any other way.',
@@ -853,15 +853,15 @@ export function renderGenerationSettingsView(view) {
         try {
             const { scanned, added, characters } = await scanFolderForCharacterImages();
             if (!added) {
-                toastr.info(`Looked at ${scanned} file${scanned === 1 ? '' : 's'}; nothing new to add.`, 'SillyNPC');
+                toastr.info(`Looked at ${scanned} file${scanned === 1 ? '' : 's'}; nothing new to add.`, PRODUCT_NAME);
             } else {
                 toastr.success(
                     `Added ${added} image${added === 1 ? '' : 's'} to ${characters} character${characters === 1 ? '' : 's'}.`,
-                    'SillyNPC',
+                    PRODUCT_NAME,
                 );
             }
         } catch (err) {
-            toastr.error(err.message, 'SillyNPC');
+            toastr.error(err.message, PRODUCT_NAME);
         } finally {
             scanBtn.disabled = false;
         }
@@ -872,7 +872,7 @@ export function renderGenerationSettingsView(view) {
     scanNote.style.cssText = 'display:block; margin-top:4px;';
     scanNote.textContent = 'Matches files in the folder above to characters by the name they '
         + "were saved under, and adds anything missing to that character's image list. "
-        + "Only finds images SillyNPC generated: pictures made through SillyTavern's own "
+        + "Only finds images Worldkit generated: pictures made through SillyTavern's own "
         + 'gallery are named after the character card, so there is nothing in the filename '
         + 'to match them by.';
 
@@ -900,7 +900,7 @@ export function renderGenerationSettingsView(view) {
             if (!files.length) {
                 toastr.info(
                     `Looked at ${scanned} file${scanned === 1 ? '' : 's'}; every one is still in use.`,
-                    'SillyNPC');
+                    PRODUCT_NAME);
                 return;
             }
 
@@ -916,12 +916,12 @@ export function renderGenerationSettingsView(view) {
 
             const { deleted, failed } = await deleteImageFiles(files);
             if (failed) {
-                toastr.warning(`Deleted ${deleted}; ${failed} could not be removed.`, 'SillyNPC');
+                toastr.warning(`Deleted ${deleted}; ${failed} could not be removed.`, PRODUCT_NAME);
             } else {
-                toastr.success(`Deleted ${deleted} unused portrait${deleted === 1 ? '' : 's'}.`, 'SillyNPC');
+                toastr.success(`Deleted ${deleted} unused portrait${deleted === 1 ? '' : 's'}.`, PRODUCT_NAME);
             }
         } catch (err) {
-            toastr.error(err.message, 'SillyNPC');
+            toastr.error(err.message, PRODUCT_NAME);
         } finally {
             tidyBtn.disabled = false;
         }
@@ -1113,7 +1113,7 @@ function buildBackendDestinationNote() {
 
     note.textContent = `Sends to the Image Generation extension, currently set to: ${where}. `
         + `${size}. Its own prompt prefix and negative prompt are added to yours. `
-        + 'The key is whichever SillyTavern has active for that source; SillyNPC cannot choose it on this path.';
+        + 'The key is whichever SillyTavern has active for that source; Worldkit cannot choose it on this path.';
     return note;
 }
 

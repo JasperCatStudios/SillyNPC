@@ -10,7 +10,9 @@ export const extensionName = _match
     ? (_scriptUrl.includes('third-party') ? `third-party/${_match[1]}` : _match[1]) 
     : 'third-party/SillyNPC';
 
-export const LOG_PREFIX = '[SillyNPC]';
+/** What the product is called on screen. The folder, the settings key and the CSS prefix keep the old internal name so saved data and themes keep working. */
+export const PRODUCT_NAME = 'Worldkit';
+export const LOG_PREFIX = `[${PRODUCT_NAME}]`;
 
 // Auto-downscale uploaded images to keep extension_settings small.
 /**

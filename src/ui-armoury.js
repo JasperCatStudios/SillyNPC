@@ -5,6 +5,7 @@ import { kindChoices, tierChoices, effectLine, readableOn, tierBadge } from './c
 import { TOOL_EFFECTS } from './combat-gear-defaults.js';
 import { tierBadgeElement } from './ui-gear.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * The Armoury (fork): the weapon rules of the active world, in one place, and the world's named
  * weapons.
@@ -303,7 +304,7 @@ function addNamedForm(type, rules, rerender) {
     const add = el('button', 'menu_button', 'Add to the Armoury');
     add.type = 'button';
     add.addEventListener('click', () => {
-        if (!name.value.trim()) { toastr.info('Give the weapon a name first.', 'SillyNPC'); return; }
+        if (!name.value.trim()) { toastr.info('Give the weapon a name first.', PRODUCT_NAME); return; }
         saveArmouryItem(type.id, { name: name.value, kind: kind.value, tier: tier.value, desc: desc.value });
         rerender();
     });

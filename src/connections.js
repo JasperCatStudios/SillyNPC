@@ -3,7 +3,7 @@ import { getSettings } from './settings.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 
 /**
- * Which connection profile each part of SillyNPC runs on (fork).
+ * Which connection profile each part of Worldkit runs on (fork).
  *
  * One list for the whole extension, drawn as the Connections tab. Most rows are ordinary
  * settings that already existed (lore, portraits, the tracker...) and are simply gathered here;
@@ -90,7 +90,7 @@ export function renderConnectionsView(view) {
 
     const intro = document.createElement('p');
     intro.className = 'notes sillynpc-tab-intro';
-    intro.textContent = 'Choose which connection profile each part of SillyNPC uses. Anything left on '
+    intro.textContent = 'Choose which connection profile each part of Worldkit uses. Anything left on '
         + '"Main API" uses the connection you are chatting with. Needs the Connection Manager extension.';
     view.append(intro);
 

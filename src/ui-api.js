@@ -7,7 +7,7 @@ import { pickAndProcessImage } from './utils.js';
 import { world_names } from '../../../../world-info.js';
 import { getChatLorebookName } from './lorebook.js';
 import { getSettings, saveSettings } from './settings.js';
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { makeActivatable } from './utils.js';
 import { 
     createLoreEntry, 
@@ -18,7 +18,7 @@ import {
 
 export async function generateLoreEntry(char, { onSave } = {}) {
     if (!char.name) {
-        toastr.warning('Please give the character a name first.', 'SillyNPC');
+        toastr.warning('Please give the character a name first.', PRODUCT_NAME);
         return;
     }
 
@@ -184,7 +184,7 @@ export async function generateLoreEntry(char, { onSave } = {}) {
         onOpen: (p) => { p.dlg.style.width = '650px'; },
         onClosing: () => {
             if (isGenerating) {
-                toastr.info('Generation in progress, please wait.', 'SillyNPC');
+                toastr.info('Generation in progress, please wait.', PRODUCT_NAME);
                 return false;
             }
             return true;
@@ -212,7 +212,7 @@ export async function generateLoreEntry(char, { onSave } = {}) {
             createBtn.style.display = 'none';
         } catch (err) {
             console.error(LOG_PREFIX, 'Failed to create lore entry', err);
-            toastr.error(String(err?.message || err), 'SillyNPC');
+            toastr.error(String(err?.message || err), PRODUCT_NAME);
             createBtn.disabled = false;
         }
     });
@@ -245,12 +245,12 @@ export async function generateLoreEntry(char, { onSave } = {}) {
             if (excerpt?.trimmed) {
                 toastr.info(
                     `Read ${excerpt.used} of ${excerpt.available} messages (excerpt size limit).`,
-                    'SillyNPC');
+                    PRODUCT_NAME);
             }
             toastr.success('Generation complete.');
         } catch (err) {
             console.error(LOG_PREFIX, 'Lore generation failed', err);
-            toastr.error(String(err?.message || err), 'SillyNPC');
+            toastr.error(String(err?.message || err), PRODUCT_NAME);
         } finally {
             genBtn.disabled = false;
             isGenerating = false;
@@ -491,10 +491,10 @@ export async function generateCharacterImage(char, { onSave } = {}) {
 
     let imageUrl;
     try {
-        toastr.info('Requesting image generation...', 'SillyNPC');
+        toastr.info('Requesting image generation...', PRODUCT_NAME);
         imageUrl = await generateCharacterImageLogic(char, { referenceImages: choice.references });
     } catch (err) {
-        toastr.error(`Generation failed: ${err.message}`, 'SillyNPC');
+        toastr.error(`Generation failed: ${err.message}`, PRODUCT_NAME);
         return;
     }
 
@@ -502,7 +502,7 @@ export async function generateCharacterImage(char, { onSave } = {}) {
 
     if (action === 'discard') {
         await deleteGeneratedImage(imageUrl);
-        toastr.info('Generated image discarded.', 'SillyNPC');
+        toastr.info('Generated image discarded.', PRODUCT_NAME);
         return;
     }
 
@@ -514,7 +514,7 @@ export async function generateCharacterImage(char, { onSave } = {}) {
 
     toastr.success(
         action === 'use' ? 'Character image updated.' : 'Image saved to this character.',
-        'SillyNPC',
+        PRODUCT_NAME,
     );
     onSave?.();
 }

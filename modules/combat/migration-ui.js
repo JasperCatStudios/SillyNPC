@@ -1,7 +1,7 @@
 import { POPUP_TYPE, Popup } from '../../../../../popup.js';
 import { loadWorldInfo, world_names } from '../../../../../world-info.js';
 import { getSettings } from '../../src/settings.js';
-import { LOG_PREFIX } from '../../src/constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from '../../src/constants.js';
 import { combatPrefs } from '../../src/combat-access.js';
 import { planFromLegacy } from '../../src/combat-plan.js';
 import { planFromLore } from '../../src/combat-lore-parse.js';
@@ -64,12 +64,12 @@ function overwriteOption(items) {
 async function confirmAndRun(type, wrap, ok, items, label, chosen, overwrite, rerender) {
     if (!(await new Popup(wrap, POPUP_TYPE.CONFIRM, '', { okButton: ok, cancelButton: 'Cancel' }).show())) return;
     const picked = chosen();
-    toastr.info('Saving a backup, then copying...', 'SillyNPC');
+    toastr.info('Saving a backup, then copying...', PRODUCT_NAME);
     const result = await runMigration(type, picked, { label, overwrite: overwrite.get() });
     if (!result.ok) {
-        toastr.error(result.reason, 'SillyNPC');
+        toastr.error(result.reason, PRODUCT_NAME);
     } else {
-        toastr.success(`Copied ${result.values} value${result.values === 1 ? '' : 's'} onto ${result.characters} character${result.characters === 1 ? '' : 's'}. The old keys were not touched.`, 'SillyNPC');
+        toastr.success(`Copied ${result.values} value${result.values === 1 ? '' : 's'} onto ${result.characters} character${result.characters === 1 ? '' : 's'}. The old keys were not touched.`, PRODUCT_NAME);
     }
     rerender();
 }
@@ -77,7 +77,7 @@ async function confirmAndRun(type, wrap, ok, items, label, chosen, overwrite, re
 /** Copy combat data from the old flat keys. */
 export async function openLegacyMigration(type, rerender) {
     const items = planFromLegacy(records(), type);
-    if (!items.length) { toastr.info('No character has combat data in the old keys.', 'SillyNPC'); return; }
+    if (!items.length) { toastr.info('No character has combat data in the old keys.', PRODUCT_NAME); return; }
 
     const wrap = el('div', 'sillynpc-combat-dialog');
     wrap.append(el('h3', '', 'Copy combat data'));
@@ -93,7 +93,7 @@ export async function openLegacyMigration(type, rerender) {
 
 /** Import from a lorebook entry holding Attributes{...} / Proficiencies{...} blocks. */
 export async function openLoreImport(type, rerender) {
-    if (!type.loreImport) { toastr.info(`${type.name} has no lorebook table format.`, 'SillyNPC'); return; }
+    if (!type.loreImport) { toastr.info(`${type.name} has no lorebook table format.`, PRODUCT_NAME); return; }
 
     const wrap = el('div', 'sillynpc-combat-dialog');
     wrap.append(el('h3', '', `Import from a lorebook`));
@@ -159,7 +159,7 @@ export async function openLoreImport(type, rerender) {
             entrySelect.disabled = false;
         } catch (err) {
             console.error(LOG_PREFIX, 'Could not read the lorebook', err);
-            toastr.error('Could not read that lorebook.', 'SillyNPC');
+            toastr.error('Could not read that lorebook.', PRODUCT_NAME);
         }
     });
     entrySelect.addEventListener('change', preview);
@@ -167,13 +167,13 @@ export async function openLoreImport(type, rerender) {
 
     if (!(await new Popup(wrap, POPUP_TYPE.CONFIRM, '', { okButton: 'Import', cancelButton: 'Cancel' }).show())) return;
     const picked = ticked();
-    if (!plan || !picked.length) { toastr.info('Nothing was chosen.', 'SillyNPC'); return; }
+    if (!plan || !picked.length) { toastr.info('Nothing was chosen.', PRODUCT_NAME); return; }
 
-    toastr.info('Saving a backup, then copying...', 'SillyNPC');
+    toastr.info('Saving a backup, then copying...', PRODUCT_NAME);
     const label = `Lorebook import: ${entries[entrySelect.value]?.comment || worldSelect.value}`;
     const done = await runMigration(type, picked, { label, overwrite: overwrite.get() });
-    if (!done.ok) toastr.error(done.reason, 'SillyNPC');
-    else toastr.success(`Imported ${done.values} value${done.values === 1 ? '' : 's'} onto ${done.characters} character${done.characters === 1 ? '' : 's'}.`, 'SillyNPC');
+    if (!done.ok) toastr.error(done.reason, PRODUCT_NAME);
+    else toastr.success(`Imported ${done.values} value${done.values === 1 ? '' : 's'} onto ${done.characters} character${done.characters === 1 ? '' : 's'}.`, PRODUCT_NAME);
     rerender();
 }
 
@@ -206,8 +206,8 @@ export function renderMigrationList(host, type, rerender) {
             + 'this can be undone from the list below. The narrator will no longer read these values from the old keys.'));
         if (!(await new Popup(wrap, POPUP_TYPE.CONFIRM, '', { okButton: 'Remove', cancelButton: 'Cancel' }).show())) return;
         const out = await runTidy(type);
-        if (!out.ok) toastr.error(out.reason, 'SillyNPC');
-        else toastr.success(out.keys ? `Removed ${out.keys} old key${out.keys === 1 ? '' : 's'} from ${out.characters} character${out.characters === 1 ? '' : 's'}.` : 'Nothing to remove.', 'SillyNPC');
+        if (!out.ok) toastr.error(out.reason, PRODUCT_NAME);
+        else toastr.success(out.keys ? `Removed ${out.keys} old key${out.keys === 1 ? '' : 's'} from ${out.characters} character${out.characters === 1 ? '' : 's'}.` : 'Nothing to remove.', PRODUCT_NAME);
         rerender();
     });
     actions.append(tidy);
@@ -229,9 +229,9 @@ export function renderMigrationList(host, type, rerender) {
             undo.type = 'button';
             undo.addEventListener('click', async () => {
                 const out = await undoById(m.id);
-                if (!out.ok) toastr.error(out.reason, 'SillyNPC');
-                else if (out.kept?.length) toastr.warning(`Restored ${out.restored}. Left as they are, because they were changed since: ${out.kept.join(', ')}.`, 'SillyNPC');
-                else toastr.success(`Restored ${out.restored} character${out.restored === 1 ? '' : 's'}.`, 'SillyNPC');
+                if (!out.ok) toastr.error(out.reason, PRODUCT_NAME);
+                else if (out.kept?.length) toastr.warning(`Restored ${out.restored}. Left as they are, because they were changed since: ${out.kept.join(', ')}.`, PRODUCT_NAME);
+                else toastr.success(`Restored ${out.restored} character${out.restored === 1 ? '' : 's'}.`, PRODUCT_NAME);
                 rerender();
             });
             row.append(undo);

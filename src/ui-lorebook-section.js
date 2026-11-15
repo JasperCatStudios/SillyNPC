@@ -3,7 +3,7 @@ import { loadWorldInfo } from '../../../../world-info.js';
 import { world_names } from '../../../../world-info.js';
 import { saveSettings } from './settings.js';
 import { escapeHtml } from './utils.js';
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { tryAutoSyncLorebook, updateLorebookEntry, deleteLorebookEntry } from './lorebook.js';
 import { generateLoreEntry } from './ui-api.js';
 
@@ -191,10 +191,10 @@ async function buildLorebookView(char) {
                     await deleteLorebookEntry(char.lorebook.world, char.lorebook.uid);
                     char.lorebook = null;
                     saveSettings();
-                    toastr.success(`Deleted "${name}".`, 'SillyNPC');
+                    toastr.success(`Deleted "${name}".`, PRODUCT_NAME);
                 } catch (err) {
                     console.error(LOG_PREFIX, 'Failed to delete lorebook entry', err);
-                    toastr.error(`Could not delete the entry: ${err.message || err}`, 'SillyNPC');
+                    toastr.error(`Could not delete the entry: ${err.message || err}`, PRODUCT_NAME);
                 }
                 onChange();
             });

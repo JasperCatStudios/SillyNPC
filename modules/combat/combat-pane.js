@@ -15,6 +15,7 @@ import { renderArmoury } from '../../src/ui-armoury.js';
 import { renderHistoryView } from '../../src/ui-history-inject.js';
 import { renderCombatButton } from './combat-window.js';
 
+import { PRODUCT_NAME } from '../../src/constants.js';
 /**
  * The Combat tab (fork), base module: pick a world type, see how it maps roles to its own
  * stats, and read every character's numbers under it. Read-only: nothing here writes to a
@@ -43,7 +44,7 @@ function makeEditable(td, { record, type, kind, id, legacy, rerender }) {
     td.classList.add('is-editable');
     td.addEventListener('click', () => {
         if (td.querySelector('input, select')) return;
-        if (legacy) { toastr.info('Copy this character over first, then the cells can be edited.', 'SillyNPC'); return; }
+        if (legacy) { toastr.info('Copy this character over first, then the cells can be edited.', PRODUCT_NAME); return; }
 
         const data = getTypeData(record, type.dataKey);
         let input;
@@ -83,7 +84,7 @@ function makeEditable(td, { record, type, kind, id, legacy, rerender }) {
                     : kind === 'stat' ? setStat(record, type, id, input.value)
                     : kind === 'meta' ? setMeta(record, type, id, input.value)
                         : setRank(record, type, id, input.value);
-                if (!result.ok) toastr.warning(result.reason, 'SillyNPC');
+                if (!result.ok) toastr.warning(result.reason, PRODUCT_NAME);
                 else saveSettings();
             }
             rerender();

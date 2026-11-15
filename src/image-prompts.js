@@ -4,7 +4,7 @@ import { getSettings } from './settings.js';
 import { getActiveCharacters } from './characters.js';
 import { charactersMentionedIn } from './mentions.js';
 import { placeWritingPrompt } from './prompt-slot.js';
-import { LOG_PREFIX, debugLog } from './constants.js';
+import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 
 /**
  * One image-generation prompt per character (fork).
@@ -87,7 +87,7 @@ export function initImagePromptInjection() {
 export async function generateFromCard(char) {
     const prompt = String(char?.imagePrompt ?? '').trim();
     if (!prompt) {
-        toastr.info('This character has no image prompt yet.', 'SillyNPC');
+        toastr.info('This character has no image prompt yet.', PRODUCT_NAME);
         return false;
     }
     const negative = String(char.imageNegative ?? '').trim();
@@ -101,7 +101,7 @@ export async function generateFromCard(char) {
         return true;
     } catch (err) {
         console.warn(LOG_PREFIX, 'Image generation from the card failed', err);
-        toastr.error('Could not start image generation. Is the Image Generation extension set up?', 'SillyNPC');
+        toastr.error('Could not start image generation. Is the Image Generation extension set up?', PRODUCT_NAME);
         return false;
     }
 }

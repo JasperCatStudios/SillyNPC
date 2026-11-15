@@ -8,6 +8,7 @@ import { adoptImageForCharacter, removeCharacterImage } from './api.js';
 import { generateCharacterImage } from './ui-api.js';
 import { makeActivatable } from './utils.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * The picture, full size, over the page.
  *
@@ -153,7 +154,7 @@ export function buildPortraitBlock(char, { onChange }) {
             if (answer === 'delete' && result.removed && !result.deletedFile) {
                 toastr.info(
                     'Taken off this character, but the file was kept: another character is using it.',
-                    'SillyNPC',
+                    PRODUCT_NAME,
                 );
             }
             onChange();

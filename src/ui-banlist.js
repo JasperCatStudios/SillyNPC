@@ -1,6 +1,6 @@
 import { POPUP_TYPE, POPUP_RESULT, Popup } from '../../../../popup.js';
 import { getSettings, saveSettings } from './settings.js';
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { updateExtensionTheme } from './ui-shared.js';
 import {
     banMode, bannedPhrases, scanForBanCandidates, addBannedPhrases, addNotPeople,
@@ -172,11 +172,11 @@ export function renderBanList(container) {
                 const ignored = addNotPeople(chosen.notPeople);
                 toastr.success(
                     `Banned ${banned} phrase(s), and added ${ignored} to Not Speakers.`,
-                    'SillyNPC');
+                    PRODUCT_NAME);
             }
         } catch (err) {
             console.error(LOG_PREFIX, 'Ban scan failed', err);
-            toastr.error(String(err?.message || err), 'SillyNPC');
+            toastr.error(String(err?.message || err), PRODUCT_NAME);
         } finally {
             redraw();
         }

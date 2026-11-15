@@ -6,6 +6,7 @@ import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts
 import { buildSettingSelect } from './ui-shared.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 
+import { PRODUCT_NAME } from './constants.js';
 /**
  * What the fork adds to a character's page: the picture prompt and the voice.
  *
@@ -79,9 +80,9 @@ export function renderCharacterExtras(char, container) {
         button('fa-copy', 'Copy', async () => {
             try {
                 await navigator.clipboard.writeText(char.imagePrompt || '');
-                toastr.success('Copied.', 'SillyNPC');
+                toastr.success('Copied.', PRODUCT_NAME);
             } catch {
-                toastr.error('Could not copy.', 'SillyNPC');
+                toastr.error('Could not copy.', PRODUCT_NAME);
             }
         }),
     );
@@ -316,7 +317,7 @@ export function renderInternalStatesSettings(container, rerender) {
         key: 'internalStatesPrompt',
         advanced: true,
         label: 'Instructions And Template',
-        help: 'What the writer is told. Empty uses the built-in, which follows the Mimostein preset.',
+        help: 'What the writer is told. Empty uses the built-in, which follows the Worldkit preset.',
         recommended: INTERNAL_STATES_SYSTEM,
         emptyNote: 'The built-in instructions are sent.',
         showTokens: true,

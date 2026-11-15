@@ -943,6 +943,30 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
     font-family: var(--sillynpc-font-serif);
 }
 
+/* Ink on the sheet. SillyTavern gives .menu_button, .notes and small text its own colour
+   (the host theme's body text, white on a dark host), which this light ground never
+   overrode: every button, the Combat and Games blurbs and the lines under the world-type
+   dropdown came out white on parchment. Only plain text and buttons are inked, so the
+   success, danger and warning colours elsewhere stay as they are. */
+.sillynpc-theme-tabletop-parchment .sillynpc-manage :is(.menu_button, label, p, small, .notes, summary, h3, h4, h5, legend),
+.sillynpc-theme-tabletop-parchment.sillynpc-manage :is(.menu_button, label, p, small, .notes, summary, h3, h4, h5, legend),
+.popup:has(.sillynpc-theme-tabletop-parchment) :is(.menu_button, label, small, .notes) {
+    color: var(--sillynpc-fg-primary);
+}
+.sillynpc-theme-tabletop-parchment .sillynpc-manage :is(small, .notes),
+.sillynpc-theme-tabletop-parchment.sillynpc-manage :is(small, .notes) {
+    color: var(--sillynpc-fg-secondary);
+}
+.sillynpc-theme-tabletop-parchment .sillynpc-manage .menu_button,
+.sillynpc-theme-tabletop-parchment.sillynpc-manage .menu_button {
+    background: rgba(122, 59, 31, 0.10);
+    border: 1px solid var(--sillynpc-border);
+}
+.sillynpc-theme-tabletop-parchment .sillynpc-manage .menu_button:hover,
+.sillynpc-theme-tabletop-parchment.sillynpc-manage .menu_button:hover {
+    background: rgba(122, 59, 31, 0.2);
+}
+
 .sillynpc-theme-tabletop-parchment .sillynpc-setting {
     border: 1px solid rgba(93, 64, 55, 0.3);
     background: rgba(255, 255, 255, 0.2);

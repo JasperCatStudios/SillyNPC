@@ -10,7 +10,7 @@ import { loadStateFromMetadata } from './status-logic.js';
 import { charactersMentionedIn } from './mentions.js';
 import { latestInternalStatesHtml } from './internal-states.js';
 import { sceneClock } from '../modules/shim.js';
-import { LOG_PREFIX, debugLog } from './constants.js';
+import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { drawBondSection, markBusy, markFailure, clearFailure, sectionKey } from './bond-section.js';
 import {
@@ -83,7 +83,7 @@ export function chatStore() {
         }
         if (count) {
             saveStore();
-            toastr.info(`Brought ${count} bond${count === 1 ? '' : 's'} over from Internal States.`, 'SillyNPC');
+            toastr.info(`Brought ${count} bond${count === 1 ? '' : 's'} over from Internal States.`, PRODUCT_NAME);
         }
     }
     return store;
@@ -233,7 +233,7 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
     } catch (err) {
         console.warn(LOG_PREFIX, 'Bond update failed', err);
         markFailure(shown, err?.message || err);
-        toastr.warning(`Bonds could not be updated: ${err?.message || err}`, 'SillyNPC');
+        toastr.warning(`Bonds could not be updated: ${err?.message || err}`, PRODUCT_NAME);
         return null;
     } finally {
         inFlight.delete(flight);
