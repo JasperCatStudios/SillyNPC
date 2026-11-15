@@ -33,6 +33,7 @@ import { renderAppearanceView, renderWritingRulesView, renderAdvancedView, rende
 import { renderPromptsView } from './ui-prompts.js';
 import { renderConnectionsView } from './connections.js';
 import { renderBondsView } from './ui-bonds.js';
+import { renderVitalsView } from './ui-vitals.js';
 import { renderVectorsView } from './ui-vectors.js';
 import { renderStatsView } from './ui-stats.js';
 import { renderStatusView } from './ui-tracker-settings.js';
@@ -309,6 +310,7 @@ function renderTrackerView(view) {
     for (const [id, label, hint] of [
         ['tracker', 'Tracker', 'Internal states, display and the rest of the tracker settings.'],
         ['bonds', 'Bonds', 'How the people in the story feel about you.'],
+        ['vitals', 'Vitals', 'Health, hunger and mood. On or off.'],
     ]) {
         const tab = document.createElement('button');
         tab.type = 'button';
@@ -329,6 +331,7 @@ function renderTrackerView(view) {
     view.append(body);
     try {
         if (trackerView === 'bonds') renderBondsView(body);
+        else if (trackerView === 'vitals') renderVitalsView(body);
         else renderStatusView(body);
     } catch (e) {
         console.error(LOG_PREFIX, `Tracker ${trackerView} view failed`, e);

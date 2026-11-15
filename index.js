@@ -41,6 +41,8 @@ import { initTts } from './src/tts.js';
 import { primeLore } from './src/profile-text.js';
 import { initInternalStates } from './src/internal-states.js';
 import { initBonds } from './src/bonds.js';
+import { initVitals } from './src/vitals.js';
+import { initVitalsSection } from './src/vitals-section.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
@@ -402,6 +404,12 @@ jQuery(async () => {
                 initBonds();
             } catch (bondsErr) {
                 console.error(LOG_PREFIX, 'initBonds failed', bondsErr);
+            }
+            try {
+                initVitals();
+                initVitalsSection();
+            } catch (vitalsErr) {
+                console.error(LOG_PREFIX, 'initVitals failed', vitalsErr);
             }
             // After the bonds and before the modules: its GENERATION_STARTED search is put first,
             // so it finishes before any module reads its picks. Off by default; off changes nothing.

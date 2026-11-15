@@ -21,6 +21,8 @@ export const CONNECTION_USES = [
       help: 'What characters think and feel.' },
     { id: 'bonds', label: 'Bonds', scope: 'root', key: 'bondProfileId',
       help: 'Reading each reply to propose bond changes and milestones (Bond Tracker, after-the-reply timing).' },
+    { id: 'vitals', label: 'Vitals', scope: 'root', key: 'vitalsProfileId',
+      help: 'Reading each reply to update health, hunger and mood (Vitals Tracker).' },
     { id: 'extraction', label: 'Tracker extraction', scope: 'tracker', key: 'extractionProfileId',
       help: 'Reading the chat to update stats, items and relationships.' },
     { id: 'scan', label: 'History scan', scope: 'tracker', key: 'scanProfileId',

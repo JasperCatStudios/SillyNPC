@@ -4836,3 +4836,22 @@ textarea.sillynpc-profile-input {
     .snpc-armoury-tier .sillynpc-combat-field,
     .snpc-armoury-row .sillynpc-combat-field { flex: 1 1 120px; }
 }
+
+/* ── Vitals tracker: the Status card and its settings view ─────────────────────────────── */
+.snpc-vit-card { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: var(--sillynpc-radius-md, 6px); background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
+.snpc-vit-title { font-weight: 700; letter-spacing: .04em; }
+.snpc-vit-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.snpc-vit-row.is-off { opacity: .55; }
+.snpc-vit-head { display: flex; justify-content: space-between; gap: 8px; grid-column: 1; }
+.snpc-vit-text { color: var(--sillynpc-fg-secondary, inherit); }
+.snpc-vit-track { grid-column: 1; height: 8px; border-radius: 4px; background: rgba(128,128,128,.25); overflow: hidden; }
+.snpc-vit-fill { height: 100%; background: var(--sillynpc-accent, #c9a96e); border-radius: 4px; transition: width .2s ease; }
+.snpc-vit-health .snpc-vit-fill { background: #5aa469; }
+.snpc-vit-hunger .snpc-vit-fill { background: #d08a3a; }
+.snpc-vit-mood .snpc-vit-fill { background: #8d7ac4; }
+.snpc-vit-energy .snpc-vit-fill { background: #5b8fd6; }
+.snpc-vit-reset { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.snpc-vit-people { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.snpc-vit-person { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.snpc-vit-preview { white-space: pre-wrap; margin-top: 8px; }
+.sillynpc-cv-status { margin: 10px 0; }

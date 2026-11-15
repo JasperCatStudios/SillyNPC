@@ -3,6 +3,7 @@ import { liveFactsFor } from './api.js';
 import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
+import { buildStatusCard } from './ui-vitals.js';
 import { levelFor, levelName, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
 
 /**
@@ -173,6 +174,13 @@ export async function renderProfileView(char, container) {
         .map(([name, value]) => chip(name, value));
     const statsRow = chipRow('Tracked', statChips);
     if (statsRow) right.append(statsRow);
+
+    // Mood, hunger, health and energy, each with its own reset. Redrawn in place after a reset.
+    const statusHost = document.createElement('div');
+    statusHost.className = 'sillynpc-cv-status';
+    const drawStatus = () => statusHost.replaceChildren(buildStatusCard(char, { onChange: drawStatus }));
+    try { drawStatus(); } catch (err) { console.warn('[Worldkit] could not draw the status card', err); }
+    right.append(statusHost);
 
     // Where they stand with the player, from the Bonds tab. Read only here; it is edited there.
     try {

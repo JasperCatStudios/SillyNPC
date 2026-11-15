@@ -261,6 +261,13 @@ export const defaultSettings = {
      */
     bonds: {},
     /**
+     * The Vitals Tracker: health, hunger and mood per person, per chat. Repaired on read by
+     * normalizeVitalsSettings in vitals-core.js, so an empty object is every default - which is off.
+     */
+    vitals: {},
+    /** Which connection reads replies for vitals. Empty means your main API. */
+    vitalsProfileId: '',
+    /**
      * Vectors for the histories (Ollama through SillyTavern's own vector endpoints). Repaired
      * on read by normalizeVectorSettings in vector-core.js, so an empty object is every
      * default - which is off. What is in each chat's collections is in the chat's metadata.

@@ -108,6 +108,12 @@ Reload SillyTavern.
 
 ---
 
+## Optional sample content
+
+Sample worlds, character packs, a lorebook, regex scripts and Fire Emblem artwork live in a separate repository so that installing the extension does not download them: **[Worldkit-Content](https://github.com/JasperCatStudios/Worldkit-Content)**. Download it from that page only if you want it and import the files you like. The extension works fully without it.
+
+---
+
 ## Menu Layout
 
 Advanced settings and fine-tuning parameters remain hidden until **Show Every Setting** is enabled in the **Advanced** tab. Every page has a search box above it, so a setting can be found without knowing which tab it is on.
