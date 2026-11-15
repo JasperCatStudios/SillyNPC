@@ -163,6 +163,48 @@
     background: color-mix(in srgb, var(--snpc-bond-accent) 55%, var(--SmartThemeBodyColor, #fff));
 }
 
+/* Romance: its own row under the meters, a switch and the romance level, desire only while on. */
+.snpc-bond-romance {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 2px;
+}
+
+.snpc-bond-romance-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.snpc-bond-romance-level {
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.snpc-bond-romance-switch.is-on {
+    border-color: #e88fb4;
+    background: color-mix(in srgb, #e88fb4 18%, transparent);
+}
+
+.snpc-bond-chip.is-locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.snpc-bond-meter-desire .snpc-bond-fill {
+    background: linear-gradient(90deg, #f5c2e7, #e88fb4);
+}
+
+.snpc-bond-na {
+    text-align: center;
+    margin: 0;
+}
+
 .snpc-bonds .snpc-bond-person .snpc-bond-lock {
     width: 100%;
     min-width: 0;
@@ -323,7 +365,7 @@
 
 .snpc-bond-history      .snpc-bond-tr { grid-template-columns: minmax(190px, 1.6fr) minmax(0, 1.2fr) minmax(0, 1.3fr) 30px; }
 .snpc-bond-levels       .snpc-bond-tr { grid-template-columns: minmax(0, 1.2fr) 80px minmax(0, 3fr) 30px; }
-.snpc-bond-gates-table  .snpc-bond-tr { grid-template-columns: minmax(0, 3fr) minmax(0, 1.4fr) minmax(0, 2fr) 30px; }
+.snpc-bond-gates-table  .snpc-bond-tr { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 30px; }
 .snpc-bond-presets      .snpc-bond-tr { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.5fr) 30px 30px 30px; }
 
 .snpc-bond-th {
@@ -445,9 +487,112 @@
     display: none;
 }
 
+/* ---- one person's own gates ---- */
+
+.snpc-bond-gov-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    max-width: 640px;
+}
+
+.snpc-bond-gov-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(110px, 170px) 26px;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border-left: 3px solid transparent;
+    border-radius: 0 4px 4px 0;
+    min-width: 0;
+}
+
+.snpc-bond-gov-row.is-changed {
+    border-left-color: var(--snpc-bond-accent);
+    background: color-mix(in srgb, var(--snpc-bond-accent) 12%, transparent);
+}
+
+.snpc-bond-gov-row.is-locked {
+    opacity: 0.55;
+}
+
+.snpc-bond-gov-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 6px;
+    min-width: 0;
+    font-size: var(--sillynpc-text-sm, 0.85em);
+}
+
+.snpc-bond-gov-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.snpc-bond-gov-track {
+    font-size: 0.8em;
+    padding: 0 5px;
+    border: 1px solid var(--snpc-bond-line);
+    border-radius: 999px;
+    color: var(--snpc-bond-muted);
+    white-space: nowrap;
+}
+
+.snpc-bond-gov-track.is-romance {
+    border-color: color-mix(in srgb, var(--snpc-bond-accent) 60%, transparent);
+}
+
+.snpc-bond-gov-global,
+.snpc-bond-gov-reason {
+    font-size: 0.85em;
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-gov-reason {
+    font-style: italic;
+}
+
+.snpc-bonds .snpc-bond-gov-select {
+    margin: 0;
+    padding: 1px 4px;
+    min-width: 0;
+    width: 100%;
+    font-size: var(--sillynpc-text-sm, 0.85em);
+}
+
+.snpc-bond-gov-row:not(.is-changed) .snpc-bond-gov-select {
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-gov-reset {
+    width: 24px;
+    height: 24px;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.8em;
+}
+
+.snpc-bond-gov-reset.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
 /* ---- phone width ---- */
 
 @media (max-width: 700px) {
+    /* Name and global requirement on one line, the choice and its reset under it. */
+    .snpc-bond-gov-row {
+        grid-template-columns: minmax(0, 1fr) 26px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--snpc-bond-line);
+    }
+
+    .snpc-bond-gov-label {
+        grid-column: 1 / -1;
+    }
+
     .snpc-bond-head {
         grid-template-columns: 30px minmax(0, 1fr) 120px auto;
         grid-template-areas:
@@ -493,3 +638,5 @@
 .sillynpc-bond-section .sillynpc-is-bar { display: flex; align-items: center; gap: 8px; font-size: 0.85em; opacity: 0.85; }
 .sillynpc-bond-section .sillynpc-is-title { font-weight: 600; }
 .sillynpc-bond-section .sillynpc-is-bar .mes_button { margin-left: auto; cursor: pointer; }
+.sillynpc-is-edit { width: 100%; font-family: monospace; font-size: 0.85em; margin-top: 6px; }
+.sillynpc-is-edit-row { display: flex; gap: 8px; margin-top: 4px; }

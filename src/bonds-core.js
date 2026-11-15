@@ -60,15 +60,23 @@ export const INLINE_TAG = 'bond_update';
  *   fromPlayer - how the player feels about the character. Set by hand; the model never moves it.
  *
  * The platonic level of an edge is levelFor(min(affection, trust)): warmth without trust, or
- * trust without warmth, does not make a friend. Respect is kept and shown, and desire is part
- * of the data model only (always 0 for now).
+ * trust without warmth, does not make a friend. Respect is kept and shown.
+ *
+ * Romance is a second, separate track read from desire (romantic and physical attraction) on
+ * its own levels. It is off on every edge until switched on by hand (edge.romance), and only
+ * counts while the person's lock is 'open'. Each edge has its own switch and its own desire, so
+ * a romance can be one-sided either way.
  */
 export const METERS = Object.freeze(['affection', 'trust', 'respect']);
 export const ALL_METERS = Object.freeze(['affection', 'trust', 'respect', 'desire']);
 export const METER_LABELS = Object.freeze({ affection: 'Affection', trust: 'Trust', respect: 'Respect', desire: 'Desire' });
 export const EDGE_DIRS = Object.freeze({ toPlayer: 'Toward you', fromPlayer: 'Your side' });
-/** What a bond may become. Stored only for now. */
+/** What a bond may become. Anything but 'open' keeps romance off, whatever the switches say. */
 export const BOND_LOCKS = Object.freeze({ open: 'Open', platonic: 'Platonic only', familial: 'Family' });
+/** Which scale a gate is read from. */
+export const GATE_TRACKS = Object.freeze({ platonic: 'Friendship', romance: 'Romance' });
+/** Romance gates: whether the character alone may start it, or both must feel it. */
+export const GATE_SCOPES = Object.freeze({ initiates: 'They may start it', mutual: 'Both must feel it' });
 export const STORE_VERSION = 2;
 
 /* ---- defaults ------------------------------------------------------------------------ */
@@ -85,25 +93,55 @@ export const DEFAULT_LEVELS = Object.freeze([
     { id: 'friend', name: 'Friend', min: 25, description: 'Enjoys their company, seeks them out, jokes with them.' },
     { id: 'close_friend', name: 'Close friend', min: 40, description: 'Comfortable and warm. Opens up, worries about them.' },
     { id: 'trusted', name: 'Trusted', min: 55, description: 'Deep trust. Would take risks for them and keep their secrets.' },
+    { id: 'confidant', name: 'Confidant', min: 70, description: 'Knows their heart. Would drop everything for them and expects the same.' },
+    { id: 'kindred', name: 'Kindred', min: 85, description: 'Family by choice. Loyalty that would survive anything.' },
+]);
+
+/** The platonic defaults before romance had its own track. Saved levels equal to these are upgraded. */
+export const LEGACY_DEFAULT_LEVELS = Object.freeze([
+    ...DEFAULT_LEVELS.slice(0, 7),
     { id: 'romantic', name: 'Romantic interest', min: 70, description: 'Attracted to them and aware of it. Nervous, hopeful, tender.' },
     { id: 'partner', name: 'Partner', min: 85, description: 'Committed to each other. Open affection and shared plans.' },
 ]);
 
-export const DEFAULT_GATES = Object.freeze([
-    { id: 'personal_talk', label: 'Talks about personal matters', kind: 'social', level: 'acquaintance' },
-    { id: 'first_name', label: 'Uses a nickname or pet name', kind: 'social', level: 'friend' },
-    { id: 'favours', label: 'Asks for or offers favours unprompted', kind: 'social', level: 'friend' },
-    { id: 'vulnerable', label: 'Shows fear, grief or weakness openly', kind: 'social', level: 'close_friend' },
-    { id: 'secrets', label: 'Shares real secrets', kind: 'social', level: 'trusted' },
-    { id: 'risk', label: 'Takes serious risks for them', kind: 'conduct', level: 'trusted' },
-    { id: 'casual_touch', label: 'Casual touch (shoulder, arm)', kind: 'intimacy', level: 'friend' },
-    { id: 'hug', label: 'Hugging', kind: 'intimacy', level: 'close_friend' },
-    { id: 'flirting', label: 'Flirting', kind: 'intimacy', level: 'close_friend' },
-    { id: 'hand_holding', label: 'Holding hands', kind: 'intimacy', level: 'romantic' },
-    { id: 'kissing', label: 'Kissing', kind: 'intimacy', level: 'romantic' },
-    { id: 'love_words', label: 'Says "I love you"', kind: 'intimacy', level: 'partner' },
-    { id: 'intimacy', label: 'Sexual intimacy', kind: 'intimacy', level: 'partner' },
+/** Thresholds on desire. Below the first, there is no romance yet. */
+export const DEFAULT_ROMANCE_LEVELS = Object.freeze([
+    { id: 'interest', name: 'Interest', min: 10, description: 'Notices them. A second glance, a little self-conscious around them.' },
+    { id: 'attraction', name: 'Attraction', min: 25, description: 'Drawn to them and aware of it. Seeks their attention, hopeful and a little nervous.' },
+    { id: 'courting', name: 'Courting', min: 40, description: 'Openly pursuing them: flirting with intent, invitations, small romantic gestures.' },
+    { id: 'dating', name: 'Dating', min: 55, description: 'Seeing each other on purpose. Tender, a little giddy, learning each other.' },
+    { id: 'devoted', name: 'Devoted', min: 70, description: 'Deeply in love. Puts them first and is not shy about showing it.' },
+    { id: 'partner', name: 'Partner', min: 85, description: 'A committed couple. Open affection, shared plans, a life woven together.' },
+    { id: 'bonded', name: 'Bonded', min: 95, description: 'A love that defines them both. Unshakeable devotion.' },
 ]);
+
+/*
+ * track: which scale the gate's level is on. scope (romance only): 'initiates' needs only the
+ * character's feeling; 'mutual' needs both sides at the level. minBond: a platonic level both
+ * sides must also have reached ('' for none).
+ */
+export const DEFAULT_GATES = Object.freeze([
+    { id: 'personal_talk', label: 'Talks about personal matters', kind: 'social', track: 'platonic', level: 'acquaintance' },
+    { id: 'first_name', label: 'Uses a nickname or pet name', kind: 'social', track: 'platonic', level: 'friend' },
+    { id: 'favours', label: 'Asks for or offers favours unprompted', kind: 'social', track: 'platonic', level: 'friend' },
+    { id: 'vulnerable', label: 'Shows fear, grief or weakness openly', kind: 'social', track: 'platonic', level: 'close_friend' },
+    { id: 'secrets', label: 'Shares real secrets', kind: 'social', track: 'platonic', level: 'trusted' },
+    { id: 'risk', label: 'Takes serious risks for them', kind: 'conduct', track: 'platonic', level: 'trusted' },
+    { id: 'casual_touch', label: 'Casual touch (shoulder, arm)', kind: 'intimacy', track: 'platonic', level: 'friend' },
+    { id: 'hug', label: 'Hugging', kind: 'intimacy', track: 'platonic', level: 'close_friend' },
+    { id: 'flirting', label: 'Flirting', kind: 'intimacy', track: 'romance', level: 'interest', scope: 'initiates' },
+    { id: 'hand_holding', label: 'Holding hands', kind: 'intimacy', track: 'romance', level: 'attraction', scope: 'mutual' },
+    { id: 'kissing', label: 'Kissing', kind: 'intimacy', track: 'romance', level: 'courting', scope: 'mutual' },
+    { id: 'love_words', label: 'Says "I love you"', kind: 'intimacy', track: 'romance', level: 'devoted', scope: 'initiates' },
+    { id: 'intimacy', label: 'Sexual intimacy', kind: 'intimacy', track: 'romance', level: 'partner', scope: 'mutual', minBond: 'trusted' },
+]);
+
+/** Where the default gates used to open, before romance had its own track. */
+const LEGACY_GATE_LEVELS = Object.freeze({
+    flirting: 'close_friend', hand_holding: 'romantic', kissing: 'romantic', love_words: 'partner', intimacy: 'partner',
+});
+/** Old platonic level ids that became romance levels, for custom gates still pointing at them. */
+const REMOVED_LEVEL_MAP = Object.freeze({ romantic: 'attraction', partner: 'partner' });
 
 export const DEFAULT_MILESTONES = Object.freeze([
     { id: 'first_meeting', label: 'First meeting', hint: 'They meet for the first time on screen.' },
@@ -136,6 +174,8 @@ export const DEFAULT_GROWTH = Object.freeze({
     windowGain: 12,
     /** Percent by which a rise shrinks as the bond nears the top of the scale. */
     slowdown: 50,
+    /** Percent of the rise caps (per turn and per window) desire gets: romance builds slower than warmth. */
+    desireRate: 50,
     decay: false,
     /** Turns a person can go unseen before their bond starts to fade. */
     decayAfter: 20,
@@ -185,6 +225,7 @@ export const BOND_DEFAULTS = Object.freeze({
     prompt: '',
     growth: DEFAULT_GROWTH,
     levels: DEFAULT_LEVELS,
+    romanceLevels: DEFAULT_ROMANCE_LEVELS,
     gates: DEFAULT_GATES,
     milestones: DEFAULT_MILESTONES,
     inject: DEFAULT_INJECT,
@@ -229,6 +270,7 @@ export function normalizeGrowth(raw) {
         windowTurns: int(r.windowTurns, 0, 500, d.windowTurns),
         windowGain: num(r.windowGain, 0, 1000, d.windowGain),
         slowdown: int(r.slowdown, 0, 95, d.slowdown),
+        desireRate: int(r.desireRate, 5, 100, d.desireRate),
         decay: Boolean(r.decay),
         decayAfter: int(r.decayAfter, 1, 1000, d.decayAfter),
         decayEvery: int(r.decayEvery, 1, 1000, d.decayEvery),
@@ -239,9 +281,8 @@ export function normalizeGrowth(raw) {
     };
 }
 
-/** Levels sorted by threshold, every id unique, never empty. */
-export function normalizeLevels(raw) {
-    const list = Array.isArray(raw) ? raw : clone(DEFAULT_LEVELS);
+function normalizeLevelList(raw, defaults, lo) {
+    const list = Array.isArray(raw) ? raw : clone(defaults);
     const seen = new Set();
     const out = [];
     for (const l of list) {
@@ -251,17 +292,70 @@ export function normalizeLevels(raw) {
         let id = slug(l.id) || slug(name) || newId('l');
         while (seen.has(id) || id === NEVER) id = `${id}_2`;
         seen.add(id);
-        out.push({ id, name, min: int(l.min, -1000, 1000, 0), description: str(l.description, 400) });
+        out.push({ id, name, min: int(l.min, lo, 1000, Math.max(lo, 0)), description: str(l.description, 400) });
     }
-    if (!out.length) return clone(DEFAULT_LEVELS);
+    if (!out.length) return clone(defaults);
     return out.sort((a, b) => a.min - b.min);
 }
 
-/** Gates pointing at a level that no longer exists unlock at the top level rather than at once. */
-export function normalizeGates(raw, levels) {
+/** Platonic levels sorted by threshold, every id unique, never empty. */
+export function normalizeLevels(raw) {
+    return normalizeLevelList(raw, DEFAULT_LEVELS, -1000);
+}
+
+/** Romance levels: thresholds on desire, which never goes below 0. */
+export function normalizeRomanceLevels(raw) {
+    return normalizeLevelList(raw, DEFAULT_ROMANCE_LEVELS, 0);
+}
+
+/**
+ * Saved platonic levels that are exactly the old defaults (same ids, same thresholds) get the
+ * new top two, Confidant and Kindred, in place of Romantic interest and Partner. Anything
+ * customised is left alone. Running it again changes nothing.
+ */
+export function migrateLevels(raw) {
+    if (!Array.isArray(raw) || raw.length !== LEGACY_DEFAULT_LEVELS.length) return raw;
+    const key = (l) => `${slug(l?.id)}:${Number(l?.min)}`;
+    const saved = new Set(raw.map(key));
+    if (!LEGACY_DEFAULT_LEVELS.every(l => saved.has(key(l)))) return raw;
+    const swap = { romantic: DEFAULT_LEVELS[7], partner: DEFAULT_LEVELS[8] };
+    return raw.map(l => (swap[slug(l.id)] ? { ...swap[slug(l.id)] } : l));
+}
+
+/**
+ * Gates saved before they had a track. A default gate still at its old default level takes the
+ * new default (romance track); a gate pointing at a platonic level that no longer exists
+ * (romantic, partner) moves to the matching romance level; every other gate becomes platonic,
+ * unchanged. Gates that already have a track are not touched, so it runs once.
+ */
+export function migrateGates(raw, platonicIds) {
+    if (!Array.isArray(raw)) return raw;
+    const ids = platonicIds instanceof Set ? platonicIds : new Set(platonicIds || []);
+    return raw.map((g) => {
+        if (!isObj(g) || Object.prototype.hasOwnProperty.call(GATE_TRACKS, g.track)) return g;
+        const id = slug(g.id);
+        if (LEGACY_GATE_LEVELS[id] && g.level === LEGACY_GATE_LEVELS[id]) {
+            const fresh = DEFAULT_GATES.find(d => d.id === id);
+            return { ...fresh, label: str(g.label, 120) || fresh.label, kind: g.kind || fresh.kind };
+        }
+        if (REMOVED_LEVEL_MAP[g.level] && !ids.has(g.level)) {
+            return { ...g, track: 'romance', level: REMOVED_LEVEL_MAP[g.level], scope: 'mutual' };
+        }
+        return { ...g, track: 'platonic' };
+    });
+}
+
+/**
+ * Gates repaired against both level lists. One pointing at a level that no longer exists on its
+ * track unlocks at that track's top level rather than at once; a min-bond level that no longer
+ * exists becomes the top platonic level.
+ */
+export function normalizeGates(raw, levels, romanceLevels = DEFAULT_ROMANCE_LEVELS) {
     const list = Array.isArray(raw) ? raw : clone(DEFAULT_GATES);
-    const ids = new Set(levels.map(l => l.id));
+    const platonicIds = new Set(levels.map(l => l.id));
+    const romanceIds = new Set(romanceLevels.map(l => l.id));
     const top = levels[levels.length - 1]?.id || NEVER;
+    const romanceTop = romanceLevels[romanceLevels.length - 1]?.id || NEVER;
     const seen = new Set();
     const out = [];
     for (const g of list) {
@@ -271,8 +365,11 @@ export function normalizeGates(raw, levels) {
         let id = slug(g.id) || slug(label) || newId('g');
         while (seen.has(id)) id = `${id}_2`;
         seen.add(id);
-        const level = g.level === NEVER ? NEVER : (ids.has(g.level) ? g.level : top);
-        out.push({ id, label, kind: pick(g.kind, GATE_KINDS, 'social'), level });
+        const track = pick(g.track, GATE_TRACKS, 'platonic');
+        const ids = track === 'romance' ? romanceIds : platonicIds;
+        const level = g.level === NEVER ? NEVER : (ids.has(g.level) ? g.level : (track === 'romance' ? romanceTop : top));
+        const minBond = !g.minBond || g.minBond === NEVER ? '' : (platonicIds.has(g.minBond) ? g.minBond : top);
+        out.push({ id, label, kind: pick(g.kind, GATE_KINDS, 'social'), track, level, scope: pick(g.scope, GATE_SCOPES, 'initiates'), minBond });
     }
     return out;
 }
@@ -323,7 +420,8 @@ export function normalizeBondInject(raw) {
 /** The whole settings object, repaired. Safe on undefined, on garbage, and on an older shape. */
 export function normalizeBondSettings(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
-    const levels = normalizeLevels(r.levels);
+    const levels = normalizeLevels(migrateLevels(r.levels));
+    const romanceLevels = normalizeRomanceLevels(r.romanceLevels);
     return {
         enabled: r.enabled === undefined ? BOND_DEFAULTS.enabled : Boolean(r.enabled),
         timing: pick(r.timing, BOND_TIMINGS, BOND_DEFAULTS.timing),
@@ -332,7 +430,8 @@ export function normalizeBondSettings(raw) {
         prompt: typeof r.prompt === 'string' ? r.prompt : '',
         growth: normalizeGrowth(r.growth),
         levels,
-        gates: normalizeGates(r.gates, levels),
+        romanceLevels,
+        gates: normalizeGates(migrateGates(r.gates, new Set(levels.map(l => l.id))), levels, romanceLevels),
         milestones: normalizeMilestonePresets(r.milestones),
         inject: normalizeBondInject(r.inject),
     };
@@ -373,15 +472,242 @@ export function levelFor(value, levels) {
     return { index, level: list[index], next: list[index + 1] || null };
 }
 
+/** The romance level a desire sits at: index -1 and level null below the first threshold. */
+export function romanceLevelFor(desire, romanceLevels) {
+    const list = romanceLevels?.length ? romanceLevels : DEFAULT_ROMANCE_LEVELS;
+    let index = -1;
+    for (let i = 0; i < list.length; i++) if (Number(desire) >= list[i].min) index = i;
+    return { index, level: list[index] || null, next: list[index + 1] || null };
+}
+
+/** Whether romance counts on one edge: its switch is on and the person's lock allows it. */
+export function romanceActive(person, dir = 'toPlayer') {
+    return (person?.lock ?? 'open') === 'open' && person?.edges?.[dir]?.romance === true;
+}
+
 /**
- * Which gates are open at a value, and for each closed one, the level that opens it.
+ * Where one edge stands on the romance track. Inactive: no level, whatever desire is stored.
+ * @returns {{ active: boolean, desire: number, index: number, level: object|null, next: object|null }}
+ */
+export function romanceState(person, dir, romanceLevels) {
+    const active = romanceActive(person, dir);
+    const desire = Number(person?.edges?.[dir]?.desire) || 0;
+    if (!active) return { active, desire, index: -1, level: null, next: null };
+    return { active, desire, ...romanceLevelFor(desire, romanceLevels) };
+}
+
+/* ---- per-person gate overrides --------------------------------------------------------- */
+
+/*
+ * person.gateOverrides: { [globalGateId]: { level?, off?, minBond?, scope? } }. An absent key
+ * means the global gate. off: true reads Never for this person and wins over a level. level is
+ * an id on the gate's own track; minBond a platonic level id, or '' for "nothing more"; scope
+ * only on romance gates.
+ */
+
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+/**
+ * One override checked against its global gate. Invalid fields are dropped; null when nothing
+ * valid is left. A level of 'never' is read as off.
+ */
+export function cleanGateOverride(raw, gate, settings = null) {
+    if (!isObj(raw) || !gate) return null;
+    const levels = settings?.levels?.length ? settings.levels : DEFAULT_LEVELS;
+    const rl = settings?.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS;
+    const trackLevels = gate.track === 'romance' ? rl : levels;
+    const out = {};
+    if (raw.off === true || raw.level === NEVER) out.off = true;
+    if (typeof raw.level === 'string' && trackLevels.some(l => l.id === raw.level)) out.level = raw.level;
+    if (raw.minBond === '' || (typeof raw.minBond === 'string' && levels.some(l => l.id === raw.minBond))) out.minBond = raw.minBond;
+    if (gate.track === 'romance' && typeof raw.scope === 'string' && hasOwn(GATE_SCOPES, raw.scope)) out.scope = raw.scope;
+    return Object.keys(out).length ? out : null;
+}
+
+/**
+ * A person's overrides, repaired. With settings, each is checked against the global gate of
+ * that id and dropped when the gate is gone; without (a store read before settings are known),
+ * only the shape is checked, and effectiveGate checks the rest when the gate is evaluated.
+ */
+export function normalizeGateOverrides(raw, settings = null) {
+    const out = {};
+    if (!isObj(raw)) return out;
+    const gates = Array.isArray(settings?.gates) ? settings.gates : null;
+    for (const [id, o] of Object.entries(raw)) {
+        if (!id || slug(id) !== id || !isObj(o)) continue;
+        if (gates) {
+            const gate = gates.find(g => g?.id === id);
+            const clean = gate ? cleanGateOverride(o, gate, settings) : null;
+            if (clean) out[id] = clean;
+            continue;
+        }
+        const clean = {};
+        if (o.off === true || o.level === NEVER) clean.off = true;
+        if (typeof o.level === 'string' && o.level !== NEVER && slug(o.level) === o.level && o.level) clean.level = o.level;
+        if (o.minBond === '' || (typeof o.minBond === 'string' && slug(o.minBond) === o.minBond)) clean.minBond = o.minBond;
+        if (typeof o.scope === 'string' && hasOwn(GATE_SCOPES, o.scope)) clean.scope = o.scope;
+        if (Object.keys(clean).length) out[id] = clean;
+    }
+    return out;
+}
+
+/**
+ * The gate as it applies to one person: the global gate with their override laid over it. The
+ * one place an override is read, so every reader of a person's gates agrees.
+ */
+export function effectiveGate(gate, person, settings = null) {
+    if (!gate) return gate;
+    const all = person?.gateOverrides;
+    const o = isObj(all) && hasOwn(all, gate.id) ? cleanGateOverride(all[gate.id], gate, settings) : null;
+    if (!o) return gate;
+    const g = { ...gate };
+    if (o.level) g.level = o.level;
+    if (o.off) g.level = NEVER;
+    if (hasOwn(o, 'minBond')) g.minBond = o.minBond;
+    if (o.scope) g.scope = o.scope;
+    return g;
+}
+
+/** Whether a person's effective gate differs from the global one. */
+export function gateOverridden(gate, person, settings = null) {
+    const e = effectiveGate(gate, person, settings);
+    if (!gate || e === gate) return false;
+    return e.level !== gate.level || (e.minBond || '') !== (gate.minBond || '')
+        || (gate.track === 'romance' && e.scope !== gate.scope);
+}
+
+/**
+ * Sets the level part of one person's override for a global gate: '' (or nothing) goes back to
+ * the global level, NEVER switches it off, anything else is a level on the gate's track. Other
+ * override fields are kept; an override left empty is removed.
+ */
+export function setGateOverride(person, gate, value, settings = null) {
+    if (!person || !gate?.id) return false;
+    if (!isObj(person.gateOverrides)) person.gateOverrides = {};
+    const all = person.gateOverrides;
+    const cur = { ...(isObj(all[gate.id]) ? all[gate.id] : {}) };
+    delete cur.level;
+    delete cur.off;
+    if (value === NEVER) cur.off = true;
+    else if (value) cur.level = value;
+    const clean = cleanGateOverride(cur, gate, settings);
+    if (clean) all[gate.id] = clean;
+    else delete all[gate.id];
+    return true;
+}
+
+/** Removes one person's override for a gate, or every override when no id is given. */
+export function clearGateOverride(person, gateId = '') {
+    if (!person) return false;
+    if (!gateId) { person.gateOverrides = {}; return true; }
+    if (!isObj(person.gateOverrides) || !hasOwn(person.gateOverrides, gateId)) return false;
+    delete person.gateOverrides[gateId];
+    return true;
+}
+
+/**
+ * Whether one gate is open for a person, and if not, why. The person's override for it, if
+ * any, is applied first (effectiveGate). A platonic or family lock beats any override.
+ *
+ * why: 'never' (set to never, or a level that no longer exists), 'lock' (the bond is platonic or
+ * family), 'off' (the character's romance is switched off), 'level' (the character has not
+ * reached it; needs is the level), 'one-sided' (mutual, and the player's romance is off),
+ * 'player-level' (mutual, and the player's side has not reached it), 'bond' (minBond not reached
+ * on both sides; needs is that platonic level).
+ * @returns {{ open: boolean, why: string, needs: object|null }}
+ */
+export function evaluateGate(rawGate, person, settings) {
+    const levels = settings.levels;
+    const shut = (why, needs = null) => ({ open: false, why, needs });
+    if (rawGate?.track === 'romance' && (person?.lock ?? 'open') !== 'open') return shut('lock');
+    const gate = effectiveGate(rawGate, person, settings);
+    if (!gate || gate.level === NEVER) return shut('never');
+    const to = person?.edges?.toPlayer;
+    const from = person?.edges?.fromPlayer;
+    const toValue = to ? platonicValue(to) : Number(person?.value) || 0;
+    if (gate.track === 'romance') {
+        const rl = settings.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS;
+        const at = rl.findIndex(l => l.id === gate.level);
+        if (at === -1) return shut('never');
+        const mine = romanceState(person, 'toPlayer', rl);
+        if (!mine.active) return shut('off');
+        if (mine.index < at) return shut('level', rl[at]);
+        if (gate.scope === 'mutual') {
+            const theirs = romanceState(person, 'fromPlayer', rl);
+            if (!theirs.active) return shut('one-sided', rl[at]);
+            if (theirs.index < at) return shut('player-level', rl[at]);
+        }
+    } else {
+        const at = levels.findIndex(l => l.id === gate.level);
+        if (at === -1) return shut('never');
+        if (levelFor(toValue, levels).index < at) return shut('level', levels[at]);
+    }
+    if (gate.minBond) {
+        const at = levels.findIndex(l => l.id === gate.minBond);
+        const fromValue = from ? platonicValue(from) : toValue;
+        if (at !== -1 && (levelFor(toValue, levels).index < at || levelFor(fromValue, levels).index < at)) return shut('bond', levels[at]);
+    }
+    return { open: true, why: '', needs: null };
+}
+
+/**
+ * Every gate for one person, both tracks, with the reason each closed one is closed.
+ * @returns {{ allowed: object[], locked: { gate: object, why: string, needs: object|null }[] }}
+ */
+export function personGateStatus(person, settings, { kind = '' } = {}) {
+    const allowed = [];
+    const locked = [];
+    for (const gate of settings.gates || []) {
+        if (kind && gate.kind !== kind) continue;
+        const r = evaluateGate(gate, person, settings);
+        if (r.open) allowed.push(gate);
+        else locked.push({ gate, why: r.why, needs: r.needs });
+    }
+    return { allowed, locked };
+}
+
+/**
+ * One person's gates as prompt text: what is allowed, then what is not and why, grouped so the
+ * next step reads first. One-sided romance is said plainly.
+ */
+export function personGateText(person, settings, { kind = '', showLocked = true, playerName = 'the player' } = {}) {
+    const chosen = (settings.gates || []).filter(g => !kind || g.kind === kind);
+    if (!chosen.length) return '';
+    const { allowed, locked } = personGateStatus(person, settings, { kind });
+    const out = [`Allowed now: ${allowed.length ? allowed.map(g => g.label).join('; ') : 'nothing beyond ordinary courtesy'}.`];
+    if (!showLocked || !locked.length) return out.join(' ');
+    const groups = new Map();
+    const add = (key, order, text, label) => {
+        if (!groups.has(key)) groups.set(key, { order, text, labels: [] });
+        groups.get(key).labels.push(label);
+    };
+    for (const { gate, why, needs } of locked) {
+        const min = needs ? needs.min : 0;
+        if (why === 'level' && gate.track !== 'romance') add(`p:${needs.id}`, min, `Not yet (needs ${needs.name})`, gate.label);
+        else if (why === 'level') add(`r:${needs.id}`, 1000 + min, `Not yet (needs romance at ${needs.name})`, gate.label);
+        else if (why === 'player-level') add(`pl:${needs.id}`, 2000 + min, `Not until ${playerName} feels it too (needs both at ${needs.name})`, gate.label);
+        else if (why === 'one-sided') add('one', 3000, `Not mutual (${playerName} does not return the feeling)`, gate.label);
+        else if (why === 'bond') add(`b:${needs.id}`, 4000 + min, `Not until trust runs deeper (needs ${needs.name} on both sides)`, gate.label);
+        else if (why === 'lock' || why === 'off') add('noromance', 5000, 'Never (not a romantic bond)', gate.label);
+        else add('never', 6000, 'Never', gate.label);
+    }
+    for (const g of [...groups.values()].sort((a, b) => a.order - b.order)) out.push(`${g.text}: ${g.labels.join('; ')}.`);
+    return out.join(' ');
+}
+
+/**
+ * Which platonic gates are open at a value, and for each closed one, the level that opens it.
+ * Romance gates are left out: they depend on both edges, see personGateStatus.
  * @returns {{ allowed: object[], locked: { gate: object, needs: object|null }[] }}
  */
-export function gateStatus(value, gates, levels) {
+export function gateStatus(value, gates, levels, person = null) {
     const { index } = levelFor(value, levels);
     const allowed = [];
     const locked = [];
-    for (const gate of gates || []) {
+    for (const raw of gates || []) {
+        if (raw.track === 'romance') continue;
+        // A person's own gates, when there is a person: see effectiveGate.
+        const gate = person ? effectiveGate(raw, person, { levels }) : raw;
         if (gate.level === NEVER) { locked.push({ gate, needs: null }); continue; }
         const at = levels.findIndex(l => l.id === gate.level);
         if (at !== -1 && at <= index) allowed.push(gate);
@@ -394,10 +720,10 @@ export function gateStatus(value, gates, levels) {
  * The gates as prompt text: what is allowed, and what is not yet and why.
  * @param {{ kind?: string, showLocked?: boolean }} [opts] kind limits it to one kind, e.g. 'intimacy'.
  */
-export function gateText(value, gates, levels, { kind = '', showLocked = true } = {}) {
-    const chosen = kind ? (gates || []).filter(g => g.kind === kind) : (gates || []);
+export function gateText(value, gates, levels, { kind = '', showLocked = true, person = null } = {}) {
+    const chosen = (gates || []).filter(g => g.track !== 'romance' && (!kind || g.kind === kind));
     if (!chosen.length) return '';
-    const { allowed, locked } = gateStatus(value, chosen, levels);
+    const { allowed, locked } = gateStatus(value, chosen, levels, person);
     const lines = [];
     lines.push(`Allowed now: ${allowed.length ? allowed.map(g => g.label).join('; ') : 'nothing beyond ordinary courtesy'}.`);
     if (showLocked && locked.length) {
@@ -461,8 +787,8 @@ export function normalizeEdge(raw, growth = DEFAULT_GROWTH, seed = {}) {
         affection: meter('affection'),
         trust: meter('trust'),
         respect: meter('respect'),
-        // Data model only for now: nothing proposes or shows it.
-        desire: tenth(num(e.desire, growth.min, growth.max, 0)),
+        // Romantic and physical attraction: its own track, never below 0, starting at 0.
+        desire: tenth(num(e.desire, 0, Math.max(0, growth.max), 0)),
         romance: Boolean(e.romance),
         gains: Object.fromEntries(ALL_METERS.map(k => [k, normalizeGains(gains ? gains[k] : seedGains[k])])),
     };
@@ -481,17 +807,25 @@ export function syncValue(person) {
     return person?.value;
 }
 
+/** The bottom of one meter's scale: desire starts at nothing and cannot go below it. */
+export const meterFloor = (meter, growth = DEFAULT_GROWTH) => (meter === 'desire' ? 0 : growth.min);
+
 /** Sets one meter by hand, clamped to the scale, and keeps the mirror in step. */
 export function setMeter(person, dir, meter, value, growth = DEFAULT_GROWTH) {
     const edge = person?.edges?.[dir];
     const v = Number(value);
     if (!edge || !ALL_METERS.includes(meter) || !Number.isFinite(v)) return false;
-    edge[meter] = tenth(Math.max(growth.min, Math.min(growth.max, v)));
+    edge[meter] = tenth(Math.max(meterFloor(meter, growth), Math.min(growth.max, v)));
     syncValue(person);
     return true;
 }
 
-export function normalizePerson(raw, growth = DEFAULT_GROWTH) {
+/**
+ * One person, repaired. With settings, their gate overrides are checked against the global
+ * gates (overrides of deleted gates and invalid levels are dropped); people saved before
+ * overrides existed get none.
+ */
+export function normalizePerson(raw, growth = DEFAULT_GROWTH, settings = null) {
     const p = raw && typeof raw === 'object' ? raw : {};
     const inj = p.inject && typeof p.inject === 'object' ? p.inject : {};
     const edges = isObj(p.edges) ? p.edges : {};
@@ -512,6 +846,8 @@ export function normalizePerson(raw, growth = DEFAULT_GROWTH) {
         // Off: never updated automatically and never injected. The numbers are kept.
         tracked: p.tracked !== false,
         lock: pick(p.lock, BOND_LOCKS, 'open'),
+        /** This person's own gates, laid over the global ones. See effectiveGate. */
+        gateOverrides: normalizeGateOverrides(p.gateOverrides, settings),
         edges: { toPlayer, fromPlayer },
         inject: {
             level: inj.level !== false,
@@ -525,11 +861,11 @@ export function normalizePerson(raw, growth = DEFAULT_GROWTH) {
     };
 }
 
-export function normalizeStore(raw, growth = DEFAULT_GROWTH) {
+export function normalizeStore(raw, growth = DEFAULT_GROWTH, settings = null) {
     const r = raw && typeof raw === 'object' ? raw : {};
     const people = [];
     for (const p of Array.isArray(r.people) ? r.people : []) {
-        const person = normalizePerson(p, growth);
+        const person = normalizePerson(p, growth, settings);
         if (person.name && !people.some(x => sameName(x.name, person.name))) people.push(person);
     }
     return {
@@ -559,6 +895,17 @@ export function ensurePerson(store, name, growth = DEFAULT_GROWTH) {
 /* ---- growth -------------------------------------------------------------------------- */
 
 /**
+ * The growth rules one meter runs under. Desire has its own scale (0 to the top, starting at 0)
+ * and only desireRate percent of the rise caps, so romance builds slower than warmth.
+ */
+export function meterGrowth(growth, meter) {
+    const g = growth || DEFAULT_GROWTH;
+    if (meter !== 'desire') return g;
+    const rate = (Number.isFinite(Number(g.desireRate)) ? Number(g.desireRate) : DEFAULT_GROWTH.desireRate) / 100;
+    return { ...g, min: 0, start: 0, maxGain: g.maxGain * rate, windowGain: g.windowGain * rate, decayFloor: 0 };
+}
+
+/**
  * The change a turn may really make, given what the model proposed.
  *
  * In order: the per-turn caps, the slowdown near the top, the rolling window, the scale.
@@ -570,7 +917,7 @@ export function ensurePerson(store, name, growth = DEFAULT_GROWTH) {
  * @returns {{ delta: number, limited: string[] }} limited names the rules that bit.
  */
 export function clampGrowth(subject, proposed, growth, turn, meter = 'value') {
-    const g = growth || DEFAULT_GROWTH;
+    const g = meterGrowth(growth || DEFAULT_GROWTH, meter);
     let delta = Number(proposed);
     const limited = [];
     if (!Number.isFinite(delta) || delta === 0) return { delta: 0, limited };
@@ -702,18 +1049,19 @@ function firstJsonObject(text) {
 /**
  * The per-meter change one bond entry asks for. Accepts the current shape (affection, trust,
  * respect, flat or under `deltas`) and the version 1 shape, whose single `delta` counts as
- * affection and trust. Also used on updates remembered on old swipes.
- * @returns {{ affection: number, trust: number, respect: number }}
+ * affection and trust. Also used on updates remembered on old swipes. desire is read whenever
+ * given; whether it counts is applyTurn's call (only on an edge whose romance is on).
+ * @returns {{ affection: number, trust: number, respect: number, desire: number }}
  */
 export function bondDeltas(b) {
     const src = isObj(b?.deltas) ? b.deltas : (b || {});
     const given = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
     const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-    if (!METERS.some(k => given(src[k])) && given(b?.delta)) {
+    if (!ALL_METERS.some(k => given(src[k])) && given(b?.delta)) {
         const d = n(b.delta);
-        return { affection: d, trust: d, respect: 0 };
+        return { affection: d, trust: d, respect: 0, desire: 0 };
     }
-    return { affection: n(src.affection), trust: n(src.trust), respect: n(src.respect) };
+    return { affection: n(src.affection), trust: n(src.trust), respect: n(src.respect), desire: n(src.desire) };
 }
 
 /**
@@ -769,7 +1117,7 @@ export function revertTurn(store, key, growth = DEFAULT_GROWTH) {
         const edge = person.edges?.[ch.dir === 'fromPlayer' ? 'fromPlayer' : 'toPlayer'];
         const meter = ALL_METERS.includes(ch.meter) ? ch.meter : 'affection';
         if (!edge) continue;
-        edge[meter] = tenth(Math.max(growth.min, Math.min(growth.max, (Number(edge[meter]) || 0) - delta)));
+        edge[meter] = tenth(Math.max(meterFloor(meter, growth), Math.min(growth.max, (Number(edge[meter]) || 0) - delta)));
         // A version 1 gain was migrated into both affection and trust; it leaves both windows.
         for (const k of legacy ? ['affection', 'trust'] : [meter]) {
             edge.gains[k] = (edge.gains[k] || []).filter(g => !(g.turn === rec.turn && g.amount === delta));
@@ -843,7 +1191,8 @@ export function applyTurn(store, update, settings, ctx) {
         // Only the character's own edge. The player's side is theirs to set by hand.
         const edge = person.edges.toPlayer;
         const want = bondDeltas(b);
-        for (const meter of METERS) {
+        // Desire only moves while this edge's romance is on; otherwise it stays frozen.
+        for (const meter of romanceActive(person, 'toPlayer') ? ALL_METERS : METERS) {
             const { delta, limited } = clampGrowth(edge, want[meter], growth, turn, meter);
             if (!delta) continue;
             edge[meter] = tenth(edge[meter] + delta);
@@ -983,27 +1332,72 @@ function playerSideLevel(person, levels) {
     return edge ? levelFor(platonicValue(edge), levels).level.name : '';
 }
 
+const LOCK_TEXT = Object.freeze({
+    platonic: (name, pl) => `${name} and ${pl} are platonic only: no romance between them.`,
+    familial: (name, pl) => `${name} and ${pl} are family: no romance between them.`,
+});
+
+/**
+ * The romance line for the story prompt, or '' when neither side's romance is on. Says plainly
+ * when the feeling is one-sided, either way, and what that means for shared acts.
+ */
+export function romanceText(person, settings, playerName = 'the player') {
+    const rl = settings.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS;
+    const c = romanceState(person, 'toPlayer', rl);
+    const p = romanceState(person, 'fromPlayer', rl);
+    if (!c.active && !p.active) return '';
+    const name = person.name;
+    const feel = (s) => (s.level ? s.level.name : 'no romantic feelings yet');
+    const parts = ['Romance:'];
+    if (c.active) {
+        parts.push(`${name} toward ${playerName}: ${feel(c)} (desire ${fmt(c.desire)})${c.level?.description ? ` - ${c.level.description}` : '.'}`);
+    }
+    if (c.active && p.active) {
+        parts.push(`${playerName} toward ${name}: ${feel(p)} (desire ${fmt(p.desire)}).`);
+        if (c.index > p.index) {
+            parts.push(p.index < 0
+                ? `${playerName} does not feel the same way: ${name} may pine, hint or confess, but mutual romantic acts do not happen.`
+                : `${playerName} does not feel as strongly: ${name} may pine, hint or confess, but shared romantic acts go no further than ${p.level.name}.`);
+        } else if (p.index > c.index) {
+            parts.push(c.index < 0
+                ? `${name} does not feel that way about ${playerName}: they may notice and respond kindly or awkwardly, but they do not return it.`
+                : `${name} does not feel as strongly as ${playerName}: they return it only as far as ${c.level.name}.`);
+        }
+    } else if (c.active) {
+        if (c.index >= 0) parts.push(`${playerName} does not feel the same way: ${name} may pine, hint or confess, but mutual romantic acts do not happen.`);
+    } else {
+        parts.push(p.index >= 0
+            ? `${playerName} is drawn to ${name} (${p.level.name}), but ${name} does not feel that way about ${playerName}: they may notice and respond kindly, awkwardly or not at all, but they do not return it.`
+            : `${playerName} has no romantic feelings for ${name} yet.`);
+    }
+    return parts.join(' ');
+}
+
 /** One person's block for the story prompt, honouring their own injection switches. '' if none apply. */
 export function bondBlock(person, settings, playerName = 'the player', picks = null) {
     if (!person?.tracked) return '';
     const flags = person.inject || {};
     if (!flags.level && !flags.gates && !flags.history) return '';
-    const { levels, gates, growth, inject } = settings;
+    const { levels, growth, inject } = settings;
     const value = bondValue(person);
     const { level, next } = levelFor(value, levels);
     const out = [];
     if (flags.level) {
         const meters = person.edges?.toPlayer ? meterText(person.edges.toPlayer) : fmt(value);
         const side = playerSideLevel(person, levels);
+        const lock = LOCK_TEXT[person.lock];
         out.push(`${person.name} toward ${playerName}: ${level.name} (${meters}; of ${growth.max})`
             + `${level.description ? ` - ${level.description}` : ''}`
             + `${next ? ` Next level: ${next.name} at ${next.min}.` : ''}`
-            + `${side ? ` ${playerName} feels about them: ${side}.` : ''}`);
+            + `${side ? ` ${playerName} feels about them: ${side}.` : ''}`
+            + `${lock ? ` ${lock(person.name, playerName)}` : ''}`);
+        const romance = romanceText(person, settings, playerName);
+        if (romance) out.push(romance);
     } else {
         out.push(`${person.name} toward ${playerName}:`);
     }
     if (flags.gates) {
-        const g = gateText(value, gates, levels, { showLocked: inject.showLocked });
+        const g = personGateText(person, settings, { showLocked: inject.showLocked, playerName });
         if (g) out.push(g);
     }
     if (flags.history && inject.historyCount > 0 && person.history.length) {
@@ -1055,6 +1449,18 @@ function rulesText(settings, people, playerName, lastDate = '') {
     if (lines(g.raises).length) out.push(`Raises a bond: ${lines(g.raises).join('; ')}.`);
     if (lines(g.lowers).length) out.push(`Lowers a bond: ${lines(g.lowers).join('; ')}.`);
     out.push(`Levels (from the lower of affection and trust): ${settings.levels.map(l => `${l.name} (${l.min}+)`).join(', ')}.`);
+    // Desire is only asked for where the user switched romance on; for everyone else it is ignored.
+    const romantic = people.filter(p => romanceActive(p, 'toPlayer'));
+    if (romantic.length) {
+        const rl = settings.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS;
+        const dg = meterGrowth(g, 'desire');
+        out.push(`desire: romantic and physical attraction toward ${playerName}, from 0 to ${g.max}, separate from affection (a close friend can feel no desire at all). `
+            + `Give desire ONLY for: ${romantic.map(p => p.name).join(', ')}, whose romance is switched on; never for anyone else. `
+            + `Between -${fmt(g.maxLoss)} and +${fmt(dg.maxGain)}; it grows slowly, and 0 is the usual answer. `
+            + `Romance levels (from desire): ${rl.map(l => `${l.name} (${l.min}+)`).join(', ')}.`);
+    } else {
+        out.push('Leave out desire: nobody\'s romance is switched on.');
+    }
     const auto = settings.milestones.filter(m => m.auto);
     if (auto.length) {
         out.push('Milestones (type id: when to record it):');
@@ -1068,22 +1474,55 @@ function rulesText(settings, people, playerName, lastDate = '') {
             const meters = p.edges?.toPlayer ? meterText(p.edges.toPlayer) : fmt(bondValue(p));
             const side = playerSideLevel(p, settings.levels);
             const done = settings.milestones.filter(m => m.once && hasMilestone(p, m.id)).map(m => m.id);
+            const rl = settings.romanceLevels;
+            const cr = romanceState(p, 'toPlayer', rl);
+            const pr = romanceState(p, 'fromPlayer', rl);
             out.push(`- ${p.name}: ${meters} (${level.name})`
+                + `${cr.active ? `; desire ${fmt(cr.desire)} (${cr.level ? cr.level.name : 'no romance yet'})` : ''}`
                 + `${side ? `; ${playerName} feels about them: ${side}` : ''}`
+                + `${pr.active ? `; ${playerName}'s romance: ${pr.level ? pr.level.name : 'none yet'}` : ''}`
                 + `${done.length ? `; already recorded: ${done.join(', ')}` : ''}`);
         }
     }
     return out.join('\n');
 }
 
-const JSON_SHAPE = '{"date":"Friday, February 07, 1182","bonds":[{"name":"Name","affection":1,"trust":0,"respect":0,"reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
+const JSON_SHAPE = '{"date":"Friday, February 07, 1182","bonds":[{"name":"Name","affection":1,"trust":0,"respect":0,"desire":0,"reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
 
 export const BOND_SYSTEM = [
-    'You track how the characters of a roleplay feel about the player, {{user}}: affection, trust and respect. You read the newest exchange and propose small, believable changes.',
+    'You track how the characters of a roleplay feel about the player, {{user}}: affection, trust and respect, and desire for those whose romance is switched on. You read the newest exchange and propose small, believable changes.',
     'Output ONLY one JSON object, no commentary, no code fences:',
     JSON_SHAPE,
-    'List every named character (never {{user}}) who took part in the latest message, with 0 for every meter that did not change. Empty arrays are fine.',
+    'List every named character (never {{user}}) who took part in the latest message, with 0 for every meter that did not change. Give desire only for the characters the rules name; leave it out or 0 for everyone else. Empty arrays are fine.',
 ].join('\n');
+
+/* ---- the section under a reply ------------------------------------------------------- */
+
+const signed = (n, plus = '') => `${n < 0 ? '-' : plus}${Math.abs(n)}`;
+
+/**
+ * The BOND TRACKER block for one reply: every tracked person, with what this reply changed. The
+ * display regexes in regex/ dress it; DESIRE appears only while the character's romance is on:
+ *
+ *   - <b>Kaito</b> → <b>Mira</b> | AFFECTION: +34 | TRUST: 20 | RESPECT: 15 | DESIRE: 40 | LEVEL: Friend · Courting (+2 affection)
+ */
+export function trackerBlockHtml(store, record, settings, playerName) {
+    const people = (store?.people || []).filter(p => p.tracked).slice(0, 12);
+    if (!people.length) return '';
+    const changes = record?.changes || [];
+    const lines = people.map((person) => {
+        const edge = person.edges?.toPlayer || {};
+        const value = person.edges?.toPlayer ? platonicValue(edge) : Number(person.value) || 0;
+        const romance = romanceState(person, 'toPlayer', settings.romanceLevels);
+        const level = [levelFor(value, settings.levels)?.level?.name || '', romance.level?.name || ''].filter(Boolean).join(' · ');
+        const mine = changes.filter(c => c.name === person.name && c.dir !== 'fromPlayer' && Number(c.delta));
+        const note = mine.length ? ` (${mine.map(c => `${Number(c.delta) > 0 ? '+' : ''}${c.delta} ${c.meter || 'affection'}`).join(', ')})` : '';
+        const r = (k) => Math.round(Number(edge[k]) || 0);
+        const desire = romance.active ? ` | DESIRE: ${Math.max(0, r('desire'))}` : '';
+        return `- <b>${person.name}</b> → <b>${playerName}</b> | AFFECTION: ${signed(r('affection'), '+')} | TRUST: ${signed(r('trust'))} | RESPECT: ${signed(r('respect'))}${desire} | LEVEL: ${level}${note}`;
+    });
+    return `<details><summary>💞 BOND TRACKER</summary>\n${lines.join('\n')}\n</details>`;
+}
 
 /** The system and user text for the separate request. */
 export function buildMonitorPrompt(settings, people, { playerName = 'the player', recent = '', latest = '', speaker = '', lastDate = '' } = {}) {

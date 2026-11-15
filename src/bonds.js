@@ -16,7 +16,7 @@ import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { drawBondSection, markBusy, markFailure, clearFailure, sectionKey } from './bond-section.js';
 import {
     normalizeBondSettings, normalizeStore, findPerson, ensurePerson, timingAction,
-    applyTurn, revertTurn, parseUpdate, stripInlineBlock, milestoneDate,
+    applyTurn, revertTurn, setMeter, parseUpdate, stripInlineBlock, milestoneDate,
     parseLegacyBonds, migrateLegacy, selectPeople, buildBondInjection,
     buildMonitorPrompt, buildInlineInstruction,
 } from './bonds-core.js';
@@ -68,8 +68,10 @@ export function chatStore() {
     const context = getContext();
     const meta = context?.chatMetadata;
     if (!meta || !context.chatId) return null;
-    const growth = bondSettings().growth;
-    const store = normalizeStore(meta[META_KEY], growth);
+    const settings = bondSettings();
+    const growth = settings.growth;
+    // Settings too, so per-person gate overrides of gates since deleted are dropped.
+    const store = normalizeStore(meta[META_KEY], growth, settings);
     meta[META_KEY] = store;
     if (!store.migrated) {
         let count = 0;
@@ -241,6 +243,19 @@ function drawSectionFor(mesEl) {
         playerName: playerName(),
         latest: id === latestReplyId(),
         redo: () => { runBondUpdate(id, { force: true, button: true }).catch(err => console.warn(LOG_PREFIX, err)); },
+        onEdit: (entries) => {
+            const growth = bondSettings().growth;
+            for (const e of entries) {
+                const person = chatStore()?.people.find(p => p.name.toLowerCase() === e.name.toLowerCase());
+                if (!person) continue;
+                editPerson(person.name, (p) => {
+                    setMeter(p, 'toPlayer', 'affection', e.affection, growth);
+                    setMeter(p, 'toPlayer', 'trust', e.trust, growth);
+                    setMeter(p, 'toPlayer', 'respect', e.respect, growth);
+                    if (e.desire !== null && p.edges?.toPlayer?.romance && (p.lock ?? 'open') === 'open') setMeter(p, 'toPlayer', 'desire', e.desire, growth);
+                });
+            }
+        },
     });
 }
 

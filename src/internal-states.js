@@ -199,6 +199,8 @@ async function request(userPrompt) {
 const inFlight = new Set();
 /** Why the last attempt at a message failed, shown in its section. */
 const failures = new Map();
+/** Messages whose block is open for editing, by "id:swipe". */
+const editing = new Set();
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -292,7 +294,9 @@ function setBusy(messageId, busy) {
 
 /** The block dressed by the preset's display regexes, then made safe to insert. */
 function dress(html) {
-    let out = String(html ?? '');
+    // GM's Notebook entries sit on their own lines in the text, which HTML runs together:
+    // put a break between one "- [R]/[T]/[D]" entry and the next (not after one already broken).
+    let out = String(html ?? '').replace(/(?<!<br\s*\/?>|<\/summary>)[ \t]*\n[ \t]*-[ \t]*\[([RTD])\]/g, '<br>- [$1]');
     if (getSettings().internalStatesApplyRegex !== false) {
         try {
             out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
@@ -340,10 +344,45 @@ export function drawSection(mesEl) {
         e.stopPropagation();
         generateInternalStates(id, { force: true });
     });
-    bar.append(title, status, redo);
+    const pen = document.createElement('div');
+    pen.className = 'mes_button fa-solid fa-pen-to-square';
+    pen.title = 'Edit the Internal States';
+    pen.style.display = record ? '' : 'none';
+    pen.addEventListener('click', (e) => {
+        e.stopPropagation();
+        editing.add(`${id}:${message.swipe_id ?? 0}`);
+        drawSection(mesEl);
+    });
+    bar.append(title, status, pen, redo);
+    redo.style.marginLeft = '0';
+    pen.style.marginLeft = 'auto';
     section.append(bar);
 
-    if (record) {
+    if (record && editing.has(`${id}:${message.swipe_id ?? 0}`)) {
+        const box = document.createElement('textarea');
+        box.className = 'text_pole sillynpc-is-edit';
+        box.rows = 14;
+        box.value = record.html;
+        const row = document.createElement('div');
+        row.className = 'sillynpc-is-edit-row';
+        const save = document.createElement('div');
+        save.className = 'menu_button';
+        save.textContent = 'Save';
+        save.addEventListener('click', () => {
+            store(message, { ...record, html: box.value, edited: true });
+            editing.delete(`${id}:${message.swipe_id ?? 0}`);
+            drawSection(mesEl);
+        });
+        const cancel = document.createElement('div');
+        cancel.className = 'menu_button';
+        cancel.textContent = 'Cancel';
+        cancel.addEventListener('click', () => {
+            editing.delete(`${id}:${message.swipe_id ?? 0}`);
+            drawSection(mesEl);
+        });
+        row.append(save, cancel);
+        section.append(box, row);
+    } else if (record) {
         const body = document.createElement('div');
         body.className = 'sillynpc-is-body mes_text';
         body.innerHTML = dress(record.html);
