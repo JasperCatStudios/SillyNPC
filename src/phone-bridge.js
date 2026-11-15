@@ -75,14 +75,16 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
     const b = normalizeBridge(bridge);
     const none = (reason) => ({ fire: false, reason, picks: [] });
     if (b.mode === 'off') return none('off');
-    if (b.mode === 'manual' && !armed) return none('not asked for');
-    if (b.mode === 'random') {
+    // asked for by hand (the button or /phonetexts): it happens on the next reply, in either mode
+    const asked = Boolean(armed);
+    if (b.mode === 'manual' && !asked) return none('not asked for');
+    if (b.mode === 'random' && !asked) {
         // at 100% (testing) it is every reply: the cooldown is not waited for
         if (b.chance < 100 && since < b.cooldown) return none('cooling down');
         if (!(rng() * 100 < b.chance)) return none('not this time');
     }
     // asked for by hand: anyone with texts; at random: only the people in the scene (when set)
-    const wantScene = b.mode === 'random' && b.onlyScene;
+    const wantScene = b.mode === 'random' && b.onlyScene && !asked;
     const picks = [];
     let anyTexts = false;
     for (const c of contacts || []) {
@@ -96,16 +98,56 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
     }
     if (!picks.length) return none(anyTexts ? (wantScene ? 'nobody texted is in the scene, or nothing new' : 'nothing new to give') : 'no texts yet');
     picks.sort((x, y) => y.last - x.last);
-    return { fire: true, reason: b.mode === 'manual' ? 'asked for' : 'random', picks: picks.slice(0, b.maxContacts).map(({ id, name, messages }) => ({ id, name, messages })) };
+    return { fire: true, reason: asked ? 'asked for' : 'random', picks: picks.slice(0, b.maxContacts).map(({ id, name, messages }) => ({ id, name, messages })) };
 }
 
-/** The block that goes to the story model. */
-export function bridgeText({ picks, user = 'the player', instruction = DEFAULT_BRIDGE_INSTRUCTION }) {
+/**
+ * How long ago a text was, in words. The story's own clock first (the scene time the text was sent
+ * at against the scene time now); the real clock when there is none.
+ * @param {{ ts?: number, sc?: number|null }} msg
+ * @param {{ clock?: { ms: number } | null, nowMs?: number }} [time]
+ * @returns {string} "just now", "25 minutes ago", "3 hours ago", "2 days ago"... or '' when it cannot be told
+ */
+export function agoText(msg, { clock = null, nowMs = Date.now() } = {}) {
+    let minutes;
+    if (clock && Number.isFinite(Number(clock.ms)) && msg && msg.sc !== undefined && msg.sc !== null && Number.isFinite(Number(msg.sc))) {
+        minutes = (Number(clock.ms) - Number(msg.sc)) / 60000;
+    } else if (msg && Number.isFinite(Number(msg.ts)) && Number(msg.ts) > 0) {
+        minutes = (Number(nowMs) - Number(msg.ts)) / 60000;
+    } else return '';
+    const m = Math.floor(Math.max(0, minutes));
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'} ago`;
+    if (m < 2) return 'just now';
+    if (m < 60) return plural(m, 'minute');
+    if (m < 60 * 24) return plural(Math.floor(m / 60), 'hour');
+    if (m < 60 * 24 * 14) return plural(Math.floor(m / 1440), 'day');
+    if (m < 60 * 24 * 60) return plural(Math.floor(m / 10080), 'week');
+    return plural(Math.floor(m / 43200), 'month');
+}
+
+/** "It is now ...": the story's date and time, or the real ones when the story has none. */
+export function nowLine({ clock = null, nowMs = Date.now() } = {}) {
+    if (clock && (clock.dateText || clock.timeText)) return `It is now ${[clock.dateText, clock.timeText].filter(Boolean).join(', ')} (story time).`;
+    const d = new Date(nowMs);
+    return `It is now ${d.toLocaleDateString()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (real time).`;
+}
+
+/**
+ * The block that goes to the story model. With `time` ({ clock, nowMs }) every text says how long
+ * ago it was sent and the block says what time it is now; without it, no times are written.
+ * These words are only for the model: nothing here is ever shown in the phone.
+ */
+export function bridgeText({ picks, user = 'the player', instruction = DEFAULT_BRIDGE_INSTRUCTION, time = null }) {
     if (!picks || !picks.length) return '';
     return picks.map((p) => {
-        const lines = p.messages.map(m => `- ${m.who === 'user' ? user : (m.name || p.name)}: ${textOf(m)}`);
+        const lines = p.messages.map((m) => {
+            const ago = time ? agoText(m, time) : '';
+            return `- ${m.who === 'user' ? user : (m.name || p.name)}${ago ? ` (${ago})` : ''}: ${textOf(m)}`;
+        });
         const how = String(instruction || DEFAULT_BRIDGE_INSTRUCTION).replace(/<<contact>>/gi, p.name).replace(/<<user>>/gi, user);
-        return `[PHONE TEXTS between ${p.name} and ${user}, newest last:\n${lines.join('\n')}\n${how}]`;
+        const last = time ? agoText(p.messages[p.messages.length - 1], time) : '';
+        const when = time ? `${nowLine(time)}${last ? ` The last text was sent ${last}.` : ''}\n` : '';
+        return `[PHONE TEXTS between ${p.name} and ${user}, newest last:\n${when}${lines.join('\n')}\n${how}]`;
     }).join('\n\n');
 }
 

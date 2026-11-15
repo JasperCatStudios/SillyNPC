@@ -1,5 +1,8 @@
 import { eventSource, event_types, saveSettingsDebounced, name1, substituteParams, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../../script.js';
 import { placeWritingPrompt, promptListAvailable } from '../../src/prompt-slot.js';
+import { SlashCommand } from '../../../../../slash-commands/SlashCommand.js';
+import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../../../slash-commands/SlashCommandArgument.js';
+import { SlashCommandParser } from '../../../../../slash-commands/SlashCommandParser.js';
 import { extension_settings, getContext } from '../../../../../extensions.js';
 // Fork: the phone's people are SillyNPC's characters, not SillyTavern's cards.
 import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
@@ -355,6 +358,7 @@ const L = {
         set_vision: 'Пусть персонажи видят фото, которые я отправляю',
         br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)',
         br_mode_hint: 'Иногда последние сообщения из телефона попадают к модели истории, и персонаж может о них вспомнить. В чате они не показываются.',
+        br_test: 'проверка', br_default: 'по умолчанию', br_chance_where: 'Работает в случайном режиме.', br_chance_set: 'Шанс: {n}%.',
         br_chance: 'Шанс, %', br_chance_hint: '5 — редко. 100 = в каждом ответе, для проверки (пауза не учитывается)',
         br_cooldown: 'Пауза (ответов между разами)', br_msgs: 'Сколько последних сообщений', br_max: 'Переписок сразу (1-4)',
         br_onlynew: 'Только сообщения, которых ещё не давали', br_onlyscene: 'Только те, кто в сцене (случайный режим)', br_notify: 'Показывать небольшое уведомление, когда это случается',
@@ -437,6 +441,7 @@ const L = {
         set_vision: 'Let characters see the photos I send',
         br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random (hidden)',
         br_mode_hint: 'Now and then the latest phone texts go to the story model so the character can bring them up. They are never shown in the chat.',
+        br_test: 'testing', br_default: 'default', br_chance_where: 'Used in Random mode.', br_chance_set: 'Chance set to {n}%.',
         br_chance: 'Chance, %', br_chance_hint: '5 is rare. 100 = every reply, for testing (ignores the cooldown)',
         br_cooldown: 'Cooldown (replies between two times)', br_msgs: 'Texts given (latest)', br_max: 'Conversations at once (1-4)',
         br_onlynew: 'Only texts not given before', br_onlyscene: 'Only people who are in the scene (random mode)', br_notify: 'Show a small notice when it happens',
@@ -2463,6 +2468,60 @@ function bridgeTurnKey(type) {
 }
 
 const BRIDGE_NAME = 'SillyNPC - Phone Texts';
+
+/** The time words in the block are the story's clock first, the real one as the fallback (never shown in the phone). */
+function bridgeTime() {
+    let clock = null;
+    try { clock = sceneClock(); } catch (e) { clock = null; }
+    return { clock, nowMs: Date.now() };
+}
+
+/** Asks for the phone texts to go with the next reply (or takes the request back). */
+function setBridgeArmed(on) {
+    settings.bridgeArmed = Boolean(on);
+    saveSettings();
+    try { $('#rph-br-ask').text(settings.bridgeArmed ? t('br_cancel') : t('br_ask')); } catch (e) { /* drawer not open */ }
+}
+
+/** /phonetexts: ask for the texts on the next reply; "cancel" takes it back; "status" says where it stands. */
+function phoneTextsCommand(_args, value) {
+    const word = String(value || '').trim().toLowerCase();
+    const b = bridgeBox();
+    if (word === 'status') {
+        return `Phone in the story: ${b.mode}${b.mode === 'random' ? `, ${b.chance}% a reply` : ''}${settings.bridgeArmed ? ', asked for on the next reply' : ''}.`;
+    }
+    if (word === 'cancel' || word === 'off' || word === 'no') {
+        setBridgeArmed(false);
+        toastr.info(t('br_cancelled'));
+        return '';
+    }
+    if (b.mode === 'off') {
+        toastr.warning('Phone in the story is off. Switch it to On request or Random in the phone settings first.');
+        return '';
+    }
+    setBridgeArmed(true);
+    toastr.info(t('br_asked'));
+    return '';
+}
+
+function registerPhoneTextsCommand() {
+    try {
+        SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+            name: 'phonetexts',
+            aliases: ['phone-texts'],
+            callback: phoneTextsCommand,
+            returns: 'a short status when asked for, otherwise nothing',
+            unnamedArgumentList: [
+                SlashCommandArgument.fromProps({
+                    description: 'cancel (take the request back) or status (say where it stands); leave empty to bring the recent phone texts into the next reply',
+                    typeList: [ARGUMENT_TYPE.STRING],
+                    isRequired: false,
+                }),
+            ],
+            helpString: 'Brings the recent phone texts into the next story reply, once. Works when Phone in the story is set to On request or Random. /phonetexts cancel takes it back; /phonetexts status says where it stands.',
+        }));
+    } catch (e) { console.warn('[Phone] could not register /phonetexts', e); }
+}
 /**
  * Puts the block in the prompt, or takes it out (empty text). On Chat Completion it goes through
  * SillyTavern's prompt list (depth 0, system, order 500 to start with; after that the list is the
@@ -2509,7 +2568,7 @@ function onBridgeGeneration(type, _options, dryRun) {
             bridgeTurn = key ? { key, text: '', names: [] } : null;
             return;
         }
-        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction });
+        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime() });
         const names = res.picks.map(p => p.name);
         bridgeApply(text);
         markShown(settings.bridgeShown, res.picks);
@@ -2530,7 +2589,7 @@ function bridgePreview() {
     let res;
     if (b.mode === 'off') res = { fire: false, reason: 'off', picks: [] };
     else res = chooseBridge({ bridge: { ...b, chance: 100 }, contacts: bridgeContacts(), shown: settings.bridgeShown, armed: true, since: Infinity });
-    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction }) : '';
+    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime() }) : '';
     return { res, text };
 }
 
@@ -2559,11 +2618,19 @@ function setupBridgeUI() {
         $('#rph-br-preview').toggle(b.mode !== 'off');
     };
     const askLabel = () => $('#rph-br-ask').text(settings.bridgeArmed ? t('br_cancel') : t('br_ask'));
-    const bnum = (sel, key, min, max) => $(sel).val(b[key]).on('change', function () {
+    const bnum = (sel, key, min, max) => $(sel).val(b[key]).on('change input', function (e) {
         const n = Number(this.value);
+        // typing saves a valid number at once (without rewriting the box); leaving the box tidies it
+        if (e.type === 'input') {
+            if (this.value !== '' && Number.isFinite(n)) { b[key] = Math.max(min, Math.min(max, Math.round(n))); save(); }
+            return;
+        }
         b[key] = Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : normalizeBridge({})[key];
         $(this).val(b[key]); save();
     });
+    const setChance = (v) => { b.chance = v; $('#rph-br-chance').val(v); save(); };
+    $('#rph-br-chance-100').on('click', () => { setChance(100); toastr.info(t('br_chance_set', { n: 100 })); });
+    $('#rph-br-chance-5').on('click', () => { setChance(5); toastr.info(t('br_chance_set', { n: 5 })); });
     const bcheck = (sel, key) => $(sel).prop('checked', !!b[key]).on('change', function () { b[key] = this.checked; save(); });
     $('#rph-br-mode').val(BRIDGE_MODES.includes(b.mode) ? b.mode : 'off').on('change', function () {
         b.mode = BRIDGE_MODES.includes(this.value) ? this.value : 'off';
@@ -2587,8 +2654,8 @@ function setupBridgeUI() {
     });
     $('#rph-br-instr-reset').on('click', () => { b.instruction = DEFAULT_BRIDGE_INSTRUCTION; $('#rph-br-instr').val(b.instruction); save(); });
     $('#rph-br-ask').on('click', () => {
-        settings.bridgeArmed = !settings.bridgeArmed;
-        save(); askLabel();
+        setBridgeArmed(!settings.bridgeArmed);
+        askLabel();
         toastr.info(settings.bridgeArmed ? t('br_asked') : t('br_cancelled'));
     });
     $('#rph-br-preview').on('click', () => openBridgePreview());
@@ -4361,12 +4428,16 @@ function settingsHtml() {
                 <option value="manual">${t('br_manual')}</option>
                 <option value="random">${t('br_random')}</option>
             </select>
-            <div class="rph-br-random">
+            <div>
                 <div class="rph-row">
-                    <div><label for="rph-br-chance">${t('br_chance')}</label><input type="number" min="0" max="100" id="rph-br-chance" class="text_pole"></div>
+                    <div><label for="rph-br-chance">${t('br_chance')}</label><input type="number" min="0" max="100" step="1" id="rph-br-chance" class="text_pole"></div>
                     <div><label for="rph-br-cooldown">${t('br_cooldown')}</label><input type="number" min="0" max="50" id="rph-br-cooldown" class="text_pole"></div>
                 </div>
-                <small>${t('br_chance_hint')}</small>
+                <div class="rph-btnrow">
+                    <button class="menu_button" id="rph-br-chance-100" title="${escapeHtml(t('br_chance_hint'))}">100% (${t('br_test')})</button>
+                    <button class="menu_button" id="rph-br-chance-5">5% (${t('br_default')})</button>
+                </div>
+                <small>${t('br_chance_hint')} ${t('br_chance_where')}</small>
             </div>
             <div class="rph-row">
                 <div><label for="rph-br-msgs">${t('br_msgs')}</label><input type="number" min="1" max="30" id="rph-br-msgs" class="text_pole"></div>
@@ -4744,6 +4815,7 @@ jQuery(() => {
     eventSource.on(event_types.CHAT_CHANGED, () => { scrollOffset = 0; renderButton(); renderBubbles(); });
     // Fork: the phone in the story
     eventSource.on(event_types.GENERATION_STARTED, onBridgeGeneration);
+    registerPhoneTextsCommand();
     eventSource.on('sillynpc-phone-refresh', () => renderBubbles(true));
     // the cards' pictures: SillyTavern may finish loading the cards after the phone first drew
     // (a page reload); one more look then, cheap — nothing is redrawn unless a picture changed
