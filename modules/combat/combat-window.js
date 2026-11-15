@@ -1162,7 +1162,7 @@ function groupChatSystem(names, me) {
 async function groupReply(names, me) {
     const history = session.chat.slice(-10).map(m => `${m.who}: ${m.text}`).join('\n');
     const raw = await requestOnConnection('combatProfileId', groupChatSystem(names, me), history, Math.min(500, 110 * names.length));
-    const lines = parseGroupReply(raw, names);
+    const lines = parseGroupReply(raw, names, { also: [me, ...Object.values(session.state.fighters).map(f => f.name), ...(session.spectators || [])].filter(n => !names.includes(n)) });
     if (!lines.length) { toastr.info('None of them had anything to say.', 'SillyNPC'); return; }
     for (const { who, text } of lines) {
         const line = dialogueOnly(text, who);

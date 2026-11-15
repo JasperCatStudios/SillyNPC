@@ -1,4 +1,5 @@
-import { eventSource, event_types, saveSettingsDebounced, name1, substituteParams } from '../../../../../../script.js';
+import { eventSource, event_types, saveSettingsDebounced, name1, substituteParams, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../../script.js';
+import { placeWritingPrompt, promptListAvailable } from '../../src/prompt-slot.js';
 import { extension_settings, getContext } from '../../../../../extensions.js';
 // Fork: the phone's people are SillyNPC's characters, not SillyTavern's cards.
 import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
@@ -7,7 +8,8 @@ import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
-import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
+import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
+import { BRIDGE_MODES, BRIDGE_ROLES, DEFAULT_BRIDGE_INSTRUCTION, normalizeBridge, chooseBridge, bridgeText, markShown } from '../../src/phone-bridge.js';
 import { createGroup, addMember, removeMember, membersOf, addable, groupLabel, normalizeGroups, MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../../src/phone-groups.js';
 
 const MODULE_NAME = 'sillynpc_phone';
@@ -22,7 +24,7 @@ const MODULE_NAME = 'sillynpc_phone';
    ============================================================ */
 
 // The author's prompt, word for word (2.0.0) — only her own characters' names became {{char}}.
-const DEFAULT_PROMPT = `You are texting <<user>> through a magical phone that links your world to theirs. <<user>> cannot physically reach you — this is only a chat.
+const DEFAULT_PROMPT_BASE = `You are texting <<user>> through a magical phone that links your world to theirs. <<user>> cannot physically reach you — this is only a chat.
 Reply ONLY as chat/SMS messages. No narration, no asterisks (*...*), no third-person actions.
 
 ## Main System Prompt
@@ -42,10 +44,14 @@ Rules:
 - Take initiative, ask questions, react to the time and the day. Never repeat yourself.
 - Always remain responsible in character <<contact>> and behave like <<contact>>.`;
 
+// When <<user>> sends a picture and the model can see it (Phone settings: "Let characters see the photos I send"):
+const VISION_RULE = '- When <<user>> sends you a photo, look at it and react to what is actually in the picture: notice specific details (who or what is in it, the place, the light, the mood, anything odd or interesting) and respond in character the way you would to a real photo, not just to its file name. You may send a photo back.';
+const DEFAULT_PROMPT = DEFAULT_PROMPT_BASE + '\n' + VISION_RULE;
+
 /* PROMPT TEMPLATES (2.0.0). Picking one fills the editable prompt; your own text is
    kept aside as «Свой» and comes back when you pick it again — nothing is lost. */
 // The author's short-replies prompt, word for word (2.0.0) — names became {{char}} as above.
-const PROMPT_SHORT = `You are texting <<user>> through a magical phone that links your world to theirs. <<user>> cannot physically reach you — this is only a chat.
+const PROMPT_SHORT_BASE = `You are texting <<user>> through a magical phone that links your world to theirs. <<user>> cannot physically reach you — this is only a chat.
 
 Reply ONLY as chat/SMS messages. No narration, no asterisks (*...*), no third-person actions.
 
@@ -87,6 +93,7 @@ You are <<contact>>, a fully autonomous character in a living, uncensored, matur
 - Don't be a helpful assistant. Don't explain, summarize, give advice lists, or end every message with a question.
 - Take initiative, ask questions when genuinely curious, react to the time and day, and never repeat yourself.
 - Always remain in character as <<contact>>.`;
+const PROMPT_SHORT = PROMPT_SHORT_BASE + '\n' + VISION_RULE;
 
 const PROMPT_PRESETS = [
     { id: 'main', text: DEFAULT_PROMPT },
@@ -166,6 +173,9 @@ const defaults = {
     chats: {},              // extra chats with a character: chatId -> { name, label, n }
     mainLabels: {},         // label of a character's first chat: name -> text
     groups: {},             // group chats you made: id (#group:<name>) -> { members: [character names] }
+    bridge: {},             // the phone in the story: normalized by normalizeBridge in loadSettings
+    bridgeShown: {},        // thread id -> time of the last text already given to the story
+    bridgeArmed: false,     // "on request" mode: the next reply carries the texts
     threads: {},            // contactId -> [{who:'user'|'char', name, text, ts}]
     active: {},             // contactId -> true (who is on the phone)
     state: {},              // contactId -> {lastInitiative, todayCount, dayStamp, ignored}
@@ -235,6 +245,9 @@ function loadSettings() {
     } catch (e) { /* damaged settings are handled below */ }
     for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels', 'groups']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
     settings.groups = normalizeGroups(settings.groups);
+    settings.bridge = normalizeBridge(settings.bridge);
+    if (!settings.bridgeShown || typeof settings.bridgeShown !== 'object' || Array.isArray(settings.bridgeShown)) settings.bridgeShown = {};
+    settings.bridgeArmed = settings.bridgeArmed === true;
     for (const k of ['temperature', 'contextTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
         if (!Number.isFinite(settings[k])) settings[k] = defaults[k];
     }
@@ -245,6 +258,8 @@ function loadSettings() {
         settings.fade = 35;
         settings.uiV2 = true;
     }
+    if (settings.prompt === DEFAULT_PROMPT_BASE) settings.prompt = DEFAULT_PROMPT;
+    else if (settings.prompt === PROMPT_SHORT_BASE) settings.prompt = PROMPT_SHORT;
     if (typeof settings.prompt !== 'string' || !settings.prompt.trim()) { settings.prompt = DEFAULT_PROMPT; if (settings.promptPreset === 'custom') settings.promptPreset = 'main'; }
     if (!SKINS.includes(settings.skin)) settings.skin = 'arc';
     // (2.0.2) a hand-edited or damaged settings file: a thread that is not a list, an empty slot
@@ -338,6 +353,17 @@ const L = {
         clear: 'Очистить переписку', cleared: 'Переписка очищена.', clear_confirm: 'Точно стереть: {name}?',
         ask_photo: 'Попросить прислать фото', ask_photo_off: 'Попросить фото: включи генерацию фото в настройках телефона',
         set_vision: 'Пусть персонажи видят фото, которые я отправляю',
+        br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)',
+        br_mode_hint: 'Иногда последние сообщения из телефона попадают к модели истории, и персонаж может о них вспомнить. В чате они не показываются.',
+        br_chance: 'Шанс, %', br_chance_hint: '5 — редко. 100 = в каждом ответе, для проверки (пауза не учитывается)',
+        br_cooldown: 'Пауза (ответов между разами)', br_msgs: 'Сколько последних сообщений', br_max: 'Переписок сразу (1-4)',
+        br_onlynew: 'Только сообщения, которых ещё не давали', br_onlyscene: 'Только те, кто в сцене (случайный режим)', br_notify: 'Показывать небольшое уведомление, когда это случается',
+        br_inlist: 'Показать в списке промптов SillyTavern (Chat Completion)', br_inlist_hint: 'Блок становится записью списка: глубина 0, система, порядок 500 — потом его можно переставить там. Роль ниже действует, только если список выключен.', br_order: 'Порядок вставки',
+        br_depth: 'Глубина', br_role: 'Роль', br_role_system: 'Система', br_role_user: 'Пользователь', br_role_assistant: 'Ассистент',
+        br_instr: 'Инструкция', br_instr_hint: '<<contact>> и <<user>> заменяются именами.', br_instr_reset: 'Сбросить',
+        br_ask: 'Передать сообщения в следующий ответ', br_cancel: 'Отмена', br_asked: 'Следующий ответ получит сообщения из телефона.', br_cancelled: 'Отменено.',
+        br_preview: 'Показать, что отправилось бы сейчас', br_notice: 'Сообщения из телефона переданы в историю: {names}',
+        br_prev_title: 'Телефон в истории: проверка (ничего не отправлено)', br_prev_fire: 'Сработало бы: да', br_prev_nofire: 'Сработало бы: нет', br_prev_reason: 'Причина', br_prev_none: '(нечего отправлять)',
         vision_failed: 'Эта модель не смогла посмотреть фото, поэтому они увидели только его название.',
         attach: 'Прикрепить фото или файлы', attach_limit: 'За раз — не больше 8 вложений; лишние пропущены.',
         just_now: 'только что', min_ago: '{n} мин назад', hr_ago: '{n} ч назад', day_ago: '{n} дн назад',
@@ -409,6 +435,17 @@ const L = {
         clear: 'Clear thread', cleared: 'Thread cleared.', clear_confirm: 'Really erase: {name}?',
         ask_photo: 'Ask for a photo', ask_photo_off: 'Ask for a photo: turn on photo generation in the phone settings',
         set_vision: 'Let characters see the photos I send',
+        br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random (hidden)',
+        br_mode_hint: 'Now and then the latest phone texts go to the story model so the character can bring them up. They are never shown in the chat.',
+        br_chance: 'Chance, %', br_chance_hint: '5 is rare. 100 = every reply, for testing (ignores the cooldown)',
+        br_cooldown: 'Cooldown (replies between two times)', br_msgs: 'Texts given (latest)', br_max: 'Conversations at once (1-4)',
+        br_onlynew: 'Only texts not given before', br_onlyscene: 'Only people who are in the scene (random mode)', br_notify: 'Show a small notice when it happens',
+        br_inlist: "Show in SillyTavern's prompt list (Chat Completion)", br_inlist_hint: 'The block becomes a prompt-list entry: depth 0, system, order 500 to start with, and you can move it there afterwards. The role below only applies when the list is switched off.', br_order: 'Injection order',
+        br_depth: 'Depth', br_role: 'Role', br_role_system: 'System', br_role_user: 'User', br_role_assistant: 'Assistant',
+        br_instr: 'Instruction', br_instr_hint: '<<contact>> and <<user>> are replaced by the names.', br_instr_reset: 'Reset',
+        br_ask: 'Bring the texts into the next reply', br_cancel: 'Cancel', br_asked: 'The next reply will carry the phone texts.', br_cancelled: 'Cancelled.',
+        br_preview: 'Preview what would be sent now', br_notice: 'Phone texts sent to the story: {names}',
+        br_prev_title: 'Phone in the story: preview (nothing was sent)', br_prev_fire: 'Would fire: yes', br_prev_nofire: 'Would fire: no', br_prev_reason: 'Reason', br_prev_none: '(nothing to send)',
         vision_failed: 'This model could not look at the photo, so they only saw its name.',
         attach: 'Attach photos or files', attach_limit: 'Up to 8 attachments at once; the rest were skipped.',
         just_now: 'just now', min_ago: '{n} min ago', hr_ago: '{n} h ago', day_ago: '{n} d ago',
@@ -2156,6 +2193,7 @@ async function callAIComplete(system, user, imageUrls) {
             if (!shouldRetryWithoutImages(e, pics.length)) throw e;
             // most likely a model without vision: ask again with the names only, and say so once
             console.warn('[Phone] the request with photos failed, retrying without them', e);
+            if (lastVision) { lastVision.retried = true; lastVision.error = String(e?.message || e).slice(0, 200); }
             toastr.info(t('vision_failed'));
             out = await callAI(system, user);
         }
@@ -2311,6 +2349,32 @@ ${reasonLine || ''}`;
 
 /* THE PROMPT VIEWER (fork). Shows exactly what is sent: the next request for a contact, built
    now without sending it, or the last one that went out. */
+/** Asks the model, with no character and no story, what is in the player's newest photo. Says what it can and cannot do. */
+async function testVision(contactId) {
+    if (!settings.vision) return 'Vision is OFF. Tick "Let characters see the photos I send" in the phone settings first.';
+    if (!settings.profileId) return 'No connection profile is chosen for the phone. Pictures only go to the model through a connection profile: choose one in the phone settings.';
+    if (!contactId) return 'No contact is open.';
+    const photo = newestPlayerPhoto(threadOf(contactId));
+    if (!photo) return 'You have not sent a photo in this conversation yet. Send one, then test again.';
+    let url = await storedDataUrl(photo.key);
+    if (!url) url = await storedDataUrl(photo.fallbackKey);
+    if (!url) url = photo.inline;
+    if (!url) return 'The photo is in the thread but its picture is no longer in the browser store (it may have been cleared), so it cannot be sent. Send it again.';
+    try {
+        const answer = await callAI(
+            'You describe pictures. Do not roleplay and do not use a character voice.',
+            'Describe what is in the attached picture in one or two plain sentences. If you cannot see any attached picture, answer exactly: NO IMAGE VISIBLE.',
+            [url],
+        );
+        const blind = /NO IMAGE VISIBLE/i.test(answer);
+        return `Sent 1 picture (about ${dataKb(url)} KB).\n\nThe model answered:\n${answer}\n\n` + (blind
+            ? 'RESULT: the model says it cannot see the picture. This model or connection profile has no vision, or the connection drops images.'
+            : 'RESULT: the model can see pictures through this connection profile. If a character still does not describe a photo, the character is simply answering in character: ask them directly, for example "What is in this photo? Describe it."');
+    } catch (e) {
+        return `The request failed:\n${String(e?.message || e)}\n\nThat usually means this model does not accept pictures.`;
+    }
+}
+
 function openPromptViewer(contactId) {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'text-align:left';
@@ -2323,20 +2387,212 @@ function openPromptViewer(contactId) {
     const show = (req, label) => {
         if (!req) { info.textContent = label; pre.textContent = 'Nothing to show yet.'; return; }
         info.textContent = `${label} - about ${estTokens(req.sys) + estTokens(req.user)} tokens (${estTokens(req.sys)} system, ${estTokens(req.user)} message)`;
-        pre.textContent = `===== SYSTEM =====\n${req.sys}\n\n===== MESSAGE =====\n${req.user}`;
+        // The text below only ever shows the [photo: name] tag. Whether a picture was really handed
+        // to the model is said here: the settings, the photos found, and what was sent.
+        const vision = visionReport(req.vision !== undefined ? req.vision : null);
+        pre.textContent = `===== VISION =====\n${vision.lines.join('\n')}\n\n===== SYSTEM =====\n${req.sys}\n\n===== MESSAGE =====\n${req.user}`;
     };
     const mk = (text, fn) => { const b = document.createElement('div'); b.className = 'menu_button'; b.textContent = text; b.addEventListener('click', fn); bar.append(b); };
     const target = (contactId && !isGroup(contactId)) ? contactId : currentContact();
     const preview = () => {
         if (!target) { show(null, 'No contact is open.'); return; }
-        show(buildRequest(contactMembers(target), '', false, target), `Next request for ${target} (not sent)`);
+        const req = buildRequest(contactMembers(target), '', false, target);
+        const would = { enabled: Boolean(settings.vision), hasProfile: Boolean(settings.profileId), found: 0, sent: 0, retried: false, error: '', items: [] };
+        const picks = pickVisionImages(threadOf(target), { max: MAX_VISION_IMAGES });
+        would.found = picks.length;
+        would.sent = would.enabled && would.hasProfile ? picks.length : 0;
+        req.vision = would;
+        show(req, `Next request for ${target} (not sent)`);
     };
     mk('Next request', preview);
+    mk('Test vision', async () => {
+        info.textContent = 'Vision test: the model is asked plainly what is in your latest photo, with no character and no story.';
+        pre.textContent = 'Asking...';
+        pre.textContent = await testVision(target);
+    });
     mk('Last sent', () => show(lastSent, lastSent ? `Last sent: ${lastSent.kind} for ${lastSent.contact}, ${new Date(lastSent.at).toLocaleTimeString()}` : 'Nothing has been sent yet.'));
     mk('Copy', async () => { try { await navigator.clipboard.writeText(pre.textContent); toastr.success('Copied.'); } catch (e) { toastr.error('Could not copy.'); } });
     wrap.append(bar, info, pre);
     preview();
     new Popup(wrap, POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true, okButton: 'Close' }).show();
+}
+
+/* THE PHONE IN THE STORY (fork) ---------------------------------------------------------------
+   Now and then the latest texts of someone who is in the main chat go to the story model, so the
+   character can bring them up. The decision and the wording live in src/phone-bridge.js; this is
+   the wiring: the contacts, the prompt slot, the per-turn cache and the settings drawer. */
+const BRIDGE_KEY = 'sillynpc_phone_bridge';
+let bridgeSince = Infinity;     // replies since it last happened (random mode's cooldown); not saved
+let bridgeTurn = null;          // { key, text, names } the decision made for the current turn, reused by a swipe or regenerate
+
+function bridgeBox() { return settings.bridge || (settings.bridge = normalizeBridge({})); }
+
+/**
+ * One conversation per character: the chat open with them when it is theirs, otherwise their first.
+ * Their other chats, and group threads, are never brought into the story.
+ */
+function bridgeContacts() {
+    const out = [];
+    const seen = new Set();
+    const open = settings.current;
+    for (const id of activeNames()) {
+        if (isGroup(id)) continue;
+        const name = baseName(id);
+        if (seen.has(name)) continue;
+        seen.add(name);
+        const useId = open && open !== name && chatInfo(open) && baseName(open) === name ? open : name;
+        const thread = settings.threads[useId];
+        if (!Array.isArray(thread) || !thread.length) continue;
+        let inScene = false;
+        try { inScene = contactMembers(useId).some(openChatHas); } catch (e) { inScene = false; }
+        out.push({ id: useId, name, inScene, messages: threadOf(useId) });
+    }
+    return out;
+}
+
+// One turn = one chat, one length, one last message. A swipe or regenerate sees the chat WITH the
+// reply it throws away, so that reply is left out; the same turn then gets the same key.
+function bridgeTurnKey(type) {
+    try {
+        const ctx = getContext();
+        const chat = Array.isArray(ctx.chat) ? ctx.chat.slice() : [];
+        if ((type === 'regenerate' || type === 'swipe') && chat.length && !chat[chat.length - 1]?.is_user) chat.pop();
+        const last = chat[chat.length - 1];
+        return [ctx.chatId ?? '', chat.length, last?.send_date ?? '', String(last?.mes ?? '').length].join('|');
+    } catch (e) { return ''; }
+}
+
+const BRIDGE_NAME = 'SillyNPC - Phone Texts';
+/**
+ * Puts the block in the prompt, or takes it out (empty text). On Chat Completion it goes through
+ * SillyTavern's prompt list (depth 0, system, order 500 to start with; after that the list is the
+ * player's to move). Elsewhere, or with the list switched off, it is an ordinary in-chat prompt
+ * with the chosen depth and role.
+ */
+function bridgeApply(text) {
+    const b = bridgeBox();
+    if (b.inList && promptListAvailable()) {
+        placeWritingPrompt(BRIDGE_KEY, text, { inList: true, depth: b.depth, order: b.order, name: BRIDGE_NAME });
+        return;
+    }
+    // not in the list: make sure no list entry is left holding old text, then use the extension slot
+    placeWritingPrompt(BRIDGE_KEY, '', { inList: false });
+    const role = extension_prompt_roles[String(b.role).toUpperCase()] ?? extension_prompt_roles.SYSTEM;
+    setExtensionPrompt(BRIDGE_KEY, text, extension_prompt_types.IN_CHAT, b.depth, false, role);
+}
+
+function bridgeNotice(names) {
+    if (bridgeBox().notify && names.length && typeof toastr !== 'undefined') toastr.info(t('br_notice', { names: names.join(', ') }));
+}
+
+function onBridgeGeneration(type, _options, dryRun) {
+    if (dryRun || type === 'quiet' || type === 'impersonate') return;
+    try {
+        // always empty first: nothing stale stays in the prompt (and when it is off, the list entry goes too)
+        const b = bridgeBox();
+        if (!settings.enabled || b.mode === 'off') {
+            placeWritingPrompt(BRIDGE_KEY, '', { inList: false });
+            setExtensionPrompt(BRIDGE_KEY, '', extension_prompt_types.IN_CHAT, 0, false);
+            return;
+        }
+        bridgeApply('');
+        const key = bridgeTurnKey(type);
+        // a swipe or regenerate of the same turn: the same text, nothing marked or spent twice
+        if (key && bridgeTurn && bridgeTurn.key === key) {
+            if (bridgeTurn.text) bridgeApply(bridgeTurn.text);
+            return;
+        }
+        const armed = settings.bridgeArmed === true;
+        const res = chooseBridge({ bridge: b, contacts: bridgeContacts(), shown: settings.bridgeShown, armed, since: bridgeSince });
+        if (!res.fire) {
+            bridgeSince += 1;
+            bridgeTurn = key ? { key, text: '', names: [] } : null;
+            return;
+        }
+        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction });
+        const names = res.picks.map(p => p.name);
+        bridgeApply(text);
+        markShown(settings.bridgeShown, res.picks);
+        bridgeSince = 0;
+        if (armed) settings.bridgeArmed = false;
+        bridgeTurn = key ? { key, text, names } : null;
+        saveSettings();
+        bridgeNotice(names);
+        try { $('#rph-br-ask').text(t('br_ask')); } catch (e) { /* drawer not open */ }
+    } catch (e) {
+        console.warn('[Phone] story bridge failed', e);
+    }
+}
+
+/** What would be sent now, without marking anything or touching the request flag. */
+function bridgePreview() {
+    const b = bridgeBox();
+    let res;
+    if (b.mode === 'off') res = { fire: false, reason: 'off', picks: [] };
+    else res = chooseBridge({ bridge: { ...b, chance: 100 }, contacts: bridgeContacts(), shown: settings.bridgeShown, armed: true, since: Infinity });
+    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction }) : '';
+    return { res, text };
+}
+
+function openBridgePreview() {
+    const { res, text } = bridgePreview();
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'text-align:left';
+    const head = document.createElement('b');
+    head.textContent = t('br_prev_title');
+    const info = document.createElement('small');
+    info.style.display = 'block';
+    info.textContent = `${res.fire ? t('br_prev_fire') : t('br_prev_nofire')} - ${t('br_prev_reason')}: ${res.reason}`;
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow:auto; font-size:.85em; user-select:text';
+    pre.textContent = text || t('br_prev_none');
+    wrap.append(head, info, pre);
+    new Popup(wrap, POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true, okButton: 'Close' }).show();
+}
+
+function setupBridgeUI() {
+    const b = bridgeBox();
+    const save = () => saveSettings();
+    const showFor = () => {
+        $('#rph-bridge .rph-br-random').toggle(b.mode === 'random');
+        $('#rph-bridge .rph-br-manual').toggle(b.mode === 'manual');
+        $('#rph-br-preview').toggle(b.mode !== 'off');
+    };
+    const askLabel = () => $('#rph-br-ask').text(settings.bridgeArmed ? t('br_cancel') : t('br_ask'));
+    const bnum = (sel, key, min, max) => $(sel).val(b[key]).on('change', function () {
+        const n = Number(this.value);
+        b[key] = Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : normalizeBridge({})[key];
+        $(this).val(b[key]); save();
+    });
+    const bcheck = (sel, key) => $(sel).prop('checked', !!b[key]).on('change', function () { b[key] = this.checked; save(); });
+    $('#rph-br-mode').val(BRIDGE_MODES.includes(b.mode) ? b.mode : 'off').on('change', function () {
+        b.mode = BRIDGE_MODES.includes(this.value) ? this.value : 'off';
+        if (b.mode !== 'manual') settings.bridgeArmed = false;
+        save(); showFor(); askLabel();
+    });
+    bnum('#rph-br-chance', 'chance', 0, 100);
+    bnum('#rph-br-cooldown', 'cooldown', 0, 50);
+    bnum('#rph-br-msgs', 'messages', 1, 30);
+    bnum('#rph-br-max', 'maxContacts', 1, 4);
+    bnum('#rph-br-depth', 'depth', 0, 20);
+    bnum('#rph-br-order', 'order', 0, 1000);
+    bcheck('#rph-br-inlist', 'inList');
+    bcheck('#rph-br-onlynew', 'onlyNew');
+    bcheck('#rph-br-onlyscene', 'onlyScene');
+    bcheck('#rph-br-notify', 'notify');
+    $('#rph-br-role').val(b.role).on('change', function () { b.role = BRIDGE_ROLES.includes(this.value) ? this.value : 'system'; save(); });
+    $('#rph-br-instr').val(b.instruction).on('change', function () {
+        b.instruction = String(this.value).trim() ? String(this.value).slice(0, 800) : DEFAULT_BRIDGE_INSTRUCTION;
+        $(this).val(b.instruction); save();
+    });
+    $('#rph-br-instr-reset').on('click', () => { b.instruction = DEFAULT_BRIDGE_INSTRUCTION; $('#rph-br-instr').val(b.instruction); save(); });
+    $('#rph-br-ask').on('click', () => {
+        settings.bridgeArmed = !settings.bridgeArmed;
+        save(); askLabel();
+        toastr.info(settings.bridgeArmed ? t('br_asked') : t('br_cancelled'));
+    });
+    $('#rph-br-preview').on('click', () => openBridgePreview());
+    showFor(); askLabel();
 }
 
 /* WHAT ELSE GOES WITH A REQUEST (fork) --------------------------------------------------- */
@@ -2356,7 +2612,11 @@ function buildRequest(names, reasonLine, isInitiative, contactId) {
     const sys = buildSystem(names, reasonLine);
     const lastSc = th.length ? th[th.length - 1].sc : null;
     const head = [personaBlock(), extensionMemoryBlock(), timeContext(lastTs, lastSc), diaryBlock(names, primary)];
+    // Photos from the player waiting for an answer, which the model is shown when vision is on: say so,
+    // so a custom prompt without the photo rule still reacts to what is in them.
+    const seeing = settings.vision && settings.profileId ? pickVisionImages(th, { max: MAX_VISION_IMAGES }).length : 0;
     const tail = [
+        seeing ? `[${name1 || 'The player'} just sent you ${seeing === 1 ? 'a photo' : `${seeing} photos`} with this message, attached to this request, and you can see ${seeing === 1 ? 'it' : 'them'}. Look at ${seeing === 1 ? 'it' : 'them'} and react to what is actually in the picture, with specific details, in character. Do not just answer the file name.]` : '',
         isGroup(primary) ? '[This is a GROUP thread: several of you are in the same conversation and may talk to each other.]' : '',
         isInitiative
             ? '[Write the next message(s) NOW, on your own initiative. Do not greet formally; continue naturally from everything above.]'
@@ -2394,16 +2654,28 @@ async function storedDataUrl(key) {
     } catch (e) { /* falls back to the thumbnail */ }
     return '';
 }
+// What the last request did about pictures, for the prompt viewer's Vision section.
+let lastVision = null;
+const dataKb = (url) => Math.max(1, Math.round(String(url).length * 0.75 / 1024));
 async function visionUrlsFor(contactId) {
-    if (!settings.vision || !settings.profileId) return [];
+    const v = { at: Date.now(), contact: contactId, enabled: Boolean(settings.vision), hasProfile: Boolean(settings.profileId), found: 0, sent: 0, retried: false, error: '', items: [] };
+    lastVision = v;
+    if (!v.enabled || !v.hasProfile) return [];
     try {
         const out = [];
-        for (const p of pickVisionImages(threadOf(contactId), { max: MAX_VISION_IMAGES })) {
-            const url = (await storedDataUrl(p.key)) || (await storedDataUrl(p.fallbackKey)) || p.inline;
-            if (url) out.push(url);
+        const picks = pickVisionImages(threadOf(contactId), { max: MAX_VISION_IMAGES });
+        v.found = picks.length;
+        for (const p of picks) {
+            let source = '';
+            let url = await storedDataUrl(p.key);
+            if (url) source = p.fallbackKey ? 'large copy' : 'stored thumbnail';
+            if (!url) { url = await storedDataUrl(p.fallbackKey); if (url) source = 'stored thumbnail'; }
+            if (!url && p.inline) { url = p.inline; source = 'inline thumbnail'; }
+            if (url) { out.push(url); v.items.push({ source, kb: dataKb(url) }); }
         }
+        v.sent = out.length;
         return out;
-    } catch (e) { console.warn('[Phone] could not prepare photos for the model', e); return []; }
+    } catch (e) { console.warn('[Phone] could not prepare photos for the model', e); v.error = String(e?.message || e); return []; }
 }
 
 async function generateReply(names, reasonLine, isInitiative, contactId) {
@@ -2412,6 +2684,7 @@ async function generateReply(names, reasonLine, isInitiative, contactId) {
     const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId);
     lastSent = { at: Date.now(), contact: primary, kind: isInitiative ? 'initiative' : 'reply', sys, user };
     const pics = await visionUrlsFor(primary);
+    lastSent.vision = lastVision;
     const raw = await callAIComplete(sys, user, pics);
     const msgs = parseReply(raw, names.concat(['SYSTEM']), castOfContact(primary));
     // text came back but nothing in it could be shown: keep it where it can be read
@@ -4080,6 +4353,48 @@ function settingsHtml() {
             <label class="checkbox_label"><input type="checkbox" id="rph-vision"><span>${t('set_vision')}</span></label>
             </div>
 
+            <div class="rph-box" id="rph-bridge"><div class="rph-boxhead">📲 ${t('br_hdr')}</div>
+            <small>${t('br_mode_hint')}</small>
+            <label for="rph-br-mode">${t('br_mode')}</label>
+            <select id="rph-br-mode" class="text_pole">
+                <option value="off">${t('br_off')}</option>
+                <option value="manual">${t('br_manual')}</option>
+                <option value="random">${t('br_random')}</option>
+            </select>
+            <div class="rph-br-random">
+                <div class="rph-row">
+                    <div><label for="rph-br-chance">${t('br_chance')}</label><input type="number" min="0" max="100" id="rph-br-chance" class="text_pole"></div>
+                    <div><label for="rph-br-cooldown">${t('br_cooldown')}</label><input type="number" min="0" max="50" id="rph-br-cooldown" class="text_pole"></div>
+                </div>
+                <small>${t('br_chance_hint')}</small>
+            </div>
+            <div class="rph-row">
+                <div><label for="rph-br-msgs">${t('br_msgs')}</label><input type="number" min="1" max="30" id="rph-br-msgs" class="text_pole"></div>
+                <div><label for="rph-br-max">${t('br_max')}</label><input type="number" min="1" max="4" id="rph-br-max" class="text_pole"></div>
+            </div>
+            <label class="checkbox_label"><input type="checkbox" id="rph-br-onlynew"><span>${t('br_onlynew')}</span></label>
+            <label class="checkbox_label rph-br-random"><input type="checkbox" id="rph-br-onlyscene"><span>${t('br_onlyscene')}</span></label>
+            <label class="checkbox_label"><input type="checkbox" id="rph-br-notify"><span>${t('br_notify')}</span></label>
+            <label class="checkbox_label"><input type="checkbox" id="rph-br-inlist"><span>${t('br_inlist')}</span></label>
+            <small>${t('br_inlist_hint')}</small>
+            <div class="rph-row">
+                <div><label for="rph-br-order">${t('br_order')}</label><input type="number" min="0" max="1000" id="rph-br-order" class="text_pole"></div>
+            </div>
+            <div class="rph-row">
+                <div><label for="rph-br-depth">${t('br_depth')}</label><input type="number" min="0" max="20" id="rph-br-depth" class="text_pole"></div>
+                <div><label for="rph-br-role">${t('br_role')}</label>
+                    <select id="rph-br-role" class="text_pole">${BRIDGE_ROLES.map(r => `<option value="${r}">${escapeHtml(t('br_role_' + r))}</option>`).join('')}</select></div>
+            </div>
+            <label for="rph-br-instr">${t('br_instr')}</label>
+            <textarea id="rph-br-instr" class="text_pole" rows="4" maxlength="800"></textarea>
+            <small>${t('br_instr_hint')}</small>
+            <div class="rph-btnrow"><button class="menu_button" id="rph-br-instr-reset">${t('br_instr_reset')}</button></div>
+            <div class="rph-btnrow">
+                <div class="menu_button rph-br-manual" id="rph-br-ask">${t('br_ask')}</div>
+                <div class="menu_button" id="rph-br-preview">${t('br_preview')}</div>
+            </div>
+            </div>
+
             <div class="rph-box"><div class="rph-boxhead">🔊 ${t('set_voice')}</div>
             <label class="checkbox_label"><input type="checkbox" id="rph-tts"><span>${t('tts_on')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-tts-auto"><span>${t('tts_auto')}</span></label>
@@ -4308,6 +4623,7 @@ function setupUI() {
     $('#rph-tts').prop('checked', !!settings.tts).on('change', function () { settings.tts = this.checked; saveSettings(); });
     $('#rph-tts-auto').prop('checked', !!settings.ttsAuto).on('change', function () { settings.ttsAuto = this.checked; saveSettings(); });
 
+    setupBridgeUI();
     setupImageUI();
 }
 
@@ -4426,6 +4742,8 @@ jQuery(() => {
     ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, markActivity, { passive: true }));
     eventSource.on(event_types.MESSAGE_SENT, markActivity);
     eventSource.on(event_types.CHAT_CHANGED, () => { scrollOffset = 0; renderButton(); renderBubbles(); });
+    // Fork: the phone in the story
+    eventSource.on(event_types.GENERATION_STARTED, onBridgeGeneration);
     eventSource.on('sillynpc-phone-refresh', () => renderBubbles(true));
     // the cards' pictures: SillyTavern may finish loading the cards after the phone first drew
     // (a page reload); one more look then, cheap — nothing is redrawn unless a picture changed

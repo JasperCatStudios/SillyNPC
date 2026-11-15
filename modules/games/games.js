@@ -9,7 +9,8 @@ import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js
 import { addRecord, tallyAgainst, rivalryBlock } from '../../src/rivalry.js';
 import { tallyText } from '../../src/rivalry-core.js';
 import { MAX_TABLE_OPPONENTS, clampTable, tableLimit, tableOk, gameRecord, gameTalkEntry } from '../../src/game-seats.js';
-import { groupInstruction, parseGroupReply } from '../../src/group-talk.js';
+import { parseGroupReply } from '../../src/group-talk.js';
+import { addressees, tableTranscript, tableSystem } from '../../src/table-prompt.js';
 import {
     pigNew, pigRoll as tPigRoll, pigBank as tPigBank, pigBotDie, pigBotShouldBank,
     bjNew, bjHit as tBjHit, bjStand as tBjStand, bjValue, bjBotWantsHit, bjDealerPlay,
@@ -1637,7 +1638,7 @@ function resolveGame() {
 const TABLE_TYPES = ['pig', 'bj', 'poker', 'whist', 'bottle'];
 const isTableType = (type) => TABLE_TYPES.includes(type);
 /** True while one of the group engines (not the bottle, not a one-opponent game) is being played. */
-const engineTable = () => Boolean(gameState.table && gameState.table.engine);
+const engineTable = () => Boolean(gameState.active && gameState.table && gameState.table.engine);
 const tableOpponents = () => (gameState.table ? gameState.table.names : []);
 const dispFor = (name) => (gameState.dispositions && gameState.dispositions[name]) || { mode: 'fair', skill: 3 };
 const joinNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || 'someone');
@@ -1772,8 +1773,55 @@ Also a "skill" from 1 (clumsy) to 5 (sharp). Output ONLY JSON keyed by name: {"N
     } catch (e) { console.error('[Games] dispositions error:', e); }
 }
 
-/** What several characters say about one event, in ONE request. They answer as "Name: line"; anyone may stay quiet. */
-async function tableComment(event, speakers, force = false) {
+/** Where the game stands, in words, for the table talk. */
+function tableStanding() {
+    const type = gameState.gameType;
+    const me = userName();
+    if (type === 'bj' && gameState.bjT) {
+        const s = gameState.bjT;
+        const up = s.phase === 'done' || s.phase === 'dealer' ? `${bjValue(s.dealer.cards)}` : `${bjValue([s.dealer.cards[0]])} showing`;
+        const rows = s.players.map((p) => {
+            const r = s.results ? s.results.find(x => x.name === p.name) : null;
+            return `${p.name === me ? `${me} (the player)` : p.name}: ${bjValue(p.cards)}${r ? `, ${r.outcome === 'win' ? 'won against the dealer' : r.outcome === 'push' ? 'tied with the dealer' : 'lost to the dealer'}` : p.status === 'bust' ? ', bust' : ''}`;
+        });
+        return `Blackjack. ${s.dealer.name} is the dealer (${up}) and does not play for themselves. ${rows.join('; ')}.`;
+    }
+    if (type === 'pig' && gameState.pigT) {
+        const s = gameState.pigT;
+        return `Dice (Pig), first to ${s.target}. ${s.players.map(p => `${p.name === me ? `${me} (the player)` : p.name}: ${p.score}`).join('; ')}.`;
+    }
+    if (type === 'poker' && gameState.pkT) {
+        const s = gameState.pkT;
+        return `Five-card draw poker. ${pkDealerName(s)} deals. Chips: ${s.seats.map(x => `${x.name === me ? `${me} (the player)` : x.name} ${x.chips}${x.out ? ' (out)' : x.folded ? ' (folded)' : ''}`).join('; ')}. Pot ${s.pot}.`;
+    }
+    if (type === 'whist' && gameState.whT) {
+        const s = gameState.whT;
+        return `Whist, trumps ${s.trump}. Team one: ${s.names[0]} (the player) and ${s.names[2]}, ${s.tricks[0] + s.tricks[2]} tricks. Team two: ${s.names[1]} and ${s.names[3]}, ${s.tricks[1] + s.tricks[3]} tricks.`;
+    }
+    return '';
+}
+
+/** A character's part at this table, for the prompt: dealer, partner, and so on. */
+function tableRole(name) {
+    const type = gameState.gameType;
+    if (type === 'bj' && gameState.bjT && gameState.bjT.dealer.name === name) return 'the dealer';
+    if (type === 'poker' && gameState.pkT) {
+        if (gameState.pkT.fixedDealer === name) return 'the dealer, who deals and does not play';
+        if (!gameState.pkT.fixedDealer && gameState.pkT.seats[gameState.pkT.button]?.name === name) return 'on the dealer button this hand';
+    }
+    if (type === 'whist' && gameState.whT) {
+        const i = gameState.whT.names.indexOf(name);
+        if (i === 2) return `${userName()}'s partner`;
+        if (i === 1 || i === 3) return 'on the other team';
+    }
+    return '';
+}
+
+/**
+ * What several characters say, in ONE request. They answer as "Name: line"; anyone may stay quiet.
+ * `directed` names who the player was speaking to: only they answer (see table-prompt.js).
+ */
+async function tableComment(event, speakers, force = false, { directed = [] } = {}) {
     if (!apiKey() || !speakers.length) return;
     const now = Date.now();
     if (!force) {
@@ -1784,35 +1832,34 @@ async function tableComment(event, speakers, force = false) {
     const sess = gameSession;
     const context = getContext();
     const num = Math.min(settings.contextMessages || 10, context.chat.length);
-    const main = context.chat.slice(-num).filter(m => !m.is_system).map(m => `${m.name}: ${m.mes}`).join('\n\n').slice(-1200);
-    const lines = gameState.chatLog.slice(-6).filter(m => m.sender === 'user' || m.sender === 'bot')
-        .map(m => `${m.sender === 'user' ? userName() : (m.who || '?')}: ${m.text}`).join('\n');
-    const people = speakers.map((n) => {
+    const story = context.chat.slice(-num).filter(m => !m.is_system).map(m => `${m.name}: ${m.mes}`).join('\n\n').slice(-1200);
+    const people = tableOpponents().map((n) => {
         const char = characters.find(c => c.name === n);
         const d = dispFor(n);
         const hint = d.mode === 'cheat' ? ' (secretly bending the rules: sly and confident, never admits it)'
             : d.mode === 'throw' ? ' (secretly letting others win: warm and playful, never admits it)' : '';
-        return `- ${n}${hint}: ${char ? String(char.personality || char.description || '').replace(/\s+/g, ' ').substring(0, 250) : ''}`;
-    }).join('\n');
-    const system = `You voice several characters playing ${gameLabel()} with ${userName()}.
-Story context:
-${main}
-
-Game chat so far:
-${lines}
-
-The people at the table:
-${people}
-
-Event: ${event}
-
-Rules: ${DIALOGUE_RULE} Speak in ${langName()}, in character, very short (1 to 2 sentences each). ${groupInstruction(speakers, userName())}`;
+        return { name: n, role: tableRole(n), hint, about: char ? String(char.personality || char.description || '') : '' };
+    });
+    const system = tableSystem({
+        user: userName(), game: gameLabel(), people, speakers, directed, event,
+        standing: tableStanding(),
+        transcript: tableTranscript(gameState.chatLog, userName()),
+        story,
+        rules: `Speak in ${langName()}. ${DIALOGUE_RULE}`,
+    });
     addGameChatMessage('typing', t('thinking', { name: joinNames(speakers) }));
     try {
         const out = await callApi([{ role: 'system', content: system }], { maxTokens: Math.min(400, 90 * speakers.length) });
         removeTypingIndicator();
         if (sess !== gameSession) return;
-        for (const { who, text } of parseGroupReply(out, speakers)) {
+        const said = parseGroupReply(out, speakers, { also: [userName(), ...tableOpponents().filter(n => !speakers.includes(n))] });
+        // whoever was spoken to answers first, whatever order the model wrote them in
+        said.sort((a, b) => {
+            const ra = directed.indexOf(a.who);
+            const rb = directed.indexOf(b.who);
+            return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb);
+        });
+        for (const { who, text } of said) {
             const line = dialogueOnly(text, who);
             if (line) { addGameChatMessage('bot', line, who); speakLine(who, line); }
         }
@@ -2226,6 +2273,8 @@ function cardHtml(c, hidden) {
 function renderGameArea() {
     const canvas = $('#rpg-game-canvas');
     canvas.empty();
+    refreshOpponentHeader();
+    refreshTalkTo();
 
     if (!gameState.active) {
         canvas.html(`
@@ -2270,7 +2319,6 @@ function renderGameArea() {
         renderGameArea();
     });
 
-    refreshTalkTo();
     if (renderTableGame(canvas)) {
         /* a group game drew itself */
     }
@@ -2523,7 +2571,7 @@ function renderGameModal() {
                             </div>
                         </div>
                         <div class="rpg-game-chat" id="rpg-game-chat-log"></div>
-                        <select id="rpg-game-talk-to" class="rpg-game-input" style="display:none; margin: 4px 0"></select>
+                        <select id="rpg-game-talk-to" class="rpg-game-talk-to" style="display:none"></select>
                         <div class="rpg-game-input-container">
                             <input type="text" class="rpg-game-input" id="rpg-game-input-field" placeholder="${t('say_something')}">
                             <button class="rpg-game-send" id="rpg-game-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
@@ -2620,6 +2668,40 @@ function removeTypingIndicator() {
     gameState.chatLog = gameState.chatLog.filter(m => m.sender !== 'typing');
 }
 
+/** The characters sitting at the open table (not the persona), for the header. Empty for a one-opponent game. */
+function seatedNames() {
+    if (!gameState.active) return [];
+    if (engineTable()) return [...gameState.table.names];
+    if (gameState.gameType === 'bottle' && gameState.bottle?.players) return gameState.bottle.players.filter(p => !p.isUser).map(p => p.name);
+    return [];
+}
+
+/** The window's top strip: one portrait for one opponent, every portrait for a table. */
+function refreshOpponentHeader() {
+    const box = $('.rpg-game-opponent');
+    if (!box.length) return;
+    box.find('.rpg-opp-faces').remove();
+    const names = seatedNames();
+    const single = box.find('.rpg-game-opp-avatar');
+    if (names.length < 2) {
+        if (single.attr('src')) single.show();
+        $('#rpg-game-opp-name').text(gameState.opponentName);
+        return;
+    }
+    single.hide();
+    const faces = $('<div class="rpg-opp-faces"></div>');
+    for (const n of names) {
+        const char = characters.find(c => c.name === n);
+        const face = char && char.avatar
+            ? $('<img class="rpg-opp-face" alt="">').attr('src', char.avatar).on('error', function () { $(this).replaceWith($('<span class="rpg-opp-face rpg-opp-initial"></span>').text(n.slice(0, 1).toUpperCase()).attr('title', n)); })
+            : $('<span class="rpg-opp-face rpg-opp-initial"></span>').text(n.slice(0, 1).toUpperCase());
+        face.attr('title', n);
+        faces.append(face);
+    }
+    box.prepend(faces);
+    $('#rpg-game-opp-name').text(names.join(', '));
+}
+
 /** Who the table-talk box talks to: everyone (one request for all) or one person. Only at a group table. */
 function refreshTalkTo() {
     const sel = $('#rpg-game-talk-to');
@@ -2641,36 +2723,61 @@ async function sendGameMessage() {
     input.val('');
     addGameChatMessage('user', text);
     if (engineTable()) {
-        const to = String($('#rpg-game-talk-to').val() || '*');
-        await tableComment(`${userName()} said in game chat${to === '*' ? '' : ` to ${to}`}: "${text}"`, to === '*' ? tableBots() : [to], true);
+        // Spoken to somebody by name, or picked in the box, it is for them; otherwise for the table.
+        const picked = String($('#rpg-game-talk-to').val() || '*');
+        const directed = picked !== '*' ? [picked] : addressees(text, tableBots());
+        const to = directed.length ? joinNames(directed) : 'everyone at the table';
+        // the person spoken to answers first; the others may then react to both of them
+        const speakers = directed.length ? [...directed, ...tableBots().filter(n => !directed.includes(n))] : tableBots();
+        await tableComment(`${userName()} says to ${to}: "${text}"`, speakers, true, { directed });
         return;
     }
     await generateAiCommentary(`${userName()} said in game chat: "${text}"`, true);
 }
 
-function injectGameSummaryToChat() {
+/** The game's report as plain text for the chat: what was played, who won, where it stood, what was said at the table. */
+function gameReportText() {
+    const me = userName();
     const charName = (gameState.gameType === 'bottle' && gameState.bottle)
         ? gameState.bottle.players.filter(p => !p.isUser).map(p => p.name).join(', ')
         : (engineTable() ? joinNames(gameState.table.names) : gameState.opponentName);
     const gameName = t('gn_' + gameState.gameType);
-    let resultWord = t('res_draw');
-    if (gameState.winner === 'user') resultWord = t('res_user');
-    if (gameState.winner === 'bot') resultWord = gameState.winners && gameState.winners.length ? t('res_bot', {name: joinNames(gameState.winners)}) : t('res_bot', {name: charName});
-    const dialogue = gameState.chatLog
+    let result = 'It ended in a draw.';
+    if (gameState.winners && gameState.winners.length) result = `${joinNames(gameState.winners)} won.`;
+    else if (gameState.winner === 'user') result = `${me} won.`;
+    else if (gameState.winner === 'bot') result = `${charName} won.`;
+    else if (gameState.gameType === 'bottle') result = 'Nobody wins this one.';
+    const lines = [`[Game report: ${gameName}, ${me} with ${charName}]`, `Result: ${result}`];
+    const standing = engineTable() ? tableStanding() : '';
+    if (standing) lines.push(`Final: ${standing}`);
+    const talk = gameState.chatLog
         .filter(m => m.sender === 'user' || m.sender === 'bot')
-        .map(m => m.sender === 'user' ? `${userName()}: ${m.text}` : `${m.who || charName}: ${m.text}`)
-        .join('\n');
-    let summaryText = t('summary_line', {user: userName(), char: charName, game: gameName, result: resultWord});
-    if (dialogue) summaryText += `\n\n${dialogue}`;
-    // append rather than replace — never destroy what the user was typing
-    const cur = $('#send_textarea').val();
-    $('#send_textarea').val((cur ? cur + '\n\n' : '') + summaryText).trigger('input');
+        .map(m => `${m.sender === 'user' ? me : (m.who || charName)}: ${m.text}`);
+    if (talk.length) lines.push('Table talk:', ...talk.map(l => `- ${l}`));
+    return lines.join('\n');
+}
+
+/** Posts the report to the chat as a system message (the way the combat report is), not into the input box. */
+async function injectGameSummaryToChat() {
+    const text = gameReportText()
+        .replace(/\|/g, '/')
+        .replace(/\{\{/g, '{ {')
+        .replace(/\}\}/g, '} }');
+    try {
+        await getContext().executeSlashCommandsWithOptions(`/sys ${text}`, { displayCommand: false, showOutput: false });
+        toastr.success('Result posted to the chat.');
+    } catch (err) {
+        // never lose it: fall back to the input box, appended so what was being typed stays
+        console.error('[Games] could not post the report to the chat', err);
+        const cur = $('#send_textarea').val();
+        $('#send_textarea').val((cur ? cur + '\n\n' : '') + text).trigger('input');
+        toastr.error('Could not post the result to the chat, so it was put in the input box instead.');
+    }
     $('#rpg-game-modal').removeClass('visible');
     keepTalk({ leaving: true, final: true });
     gameSession++;
     gameState.active = false;
     gameState.chatLog = [];
-    toastr.success(t('result_added'));
 }
 
 /* ============================================================
