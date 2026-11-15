@@ -2,8 +2,9 @@ import { getContext } from '../../../../../extensions.js';
 import { eventSource, event_types } from '../../../../../../script.js';
 import { getSettings, saveSettings } from '../../src/settings.js';
 import { getPlayerCard } from '../../src/status-logic.js';
-import { hasTypeData, getTypeData, normalizeWeapon } from '../../src/combat-store.js';
-import { setWeapon, setStatus, addXp } from '../../src/combat-edit.js';
+import { hasTypeData, getTypeData } from '../../src/combat-store.js';
+import { setStatus, addXp } from '../../src/combat-edit.js';
+import { renderLoadoutPicker } from '../../src/ui-gear.js';
 import { XP_PER_ENEMY } from '../../src/combat-level.js';
 import { fractionFromStatus, statusFromFraction, STATUS_DEFAULT } from '../../src/combat-status.js';
 import { project } from '../../src/combat-roles.js';
@@ -18,9 +19,10 @@ import { rate, calibrate, SPAR_SHARE } from '../../src/combat-pace.js';
 import { activeCombatType, combatPrefs, personaRecordFor, isCombatDisabled } from '../../src/combat-access.js';
 import { lastTaggedSpeaker, sceneClock } from '../shim.js';
 import { recordTalk } from '../../src/talk-store.js';
+import { andList, sidesOfFight, talkEntry, fightRecord } from '../../src/combat-talk.js';
 import { newTalkId } from '../../src/talk-log.js';
 import {
-    startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, chooseAction,
+    startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, autoTurn,
 } from '../../src/combat-fight.js';
 
 /**
@@ -36,6 +38,16 @@ const BANDS = { miss: 'Miss', stalemate: 'Stalemate', hit: 'Hit', strong: 'Stron
 
 let panel = null;
 let session = null;
+/** The step between setup and the fight: who, what stakes, and a last look at the equipment. Null when not on it. */
+let ready = null;
+/** Setup: 'play' to fight yourself, 'watch' to spectate others (fork). */
+let setupMode = 'play';
+/** Who is on each team on the watch setup screen, as character ids. */
+let watchPick = { a: [], b: [], mode: 'fight' };
+/** Whose equipment panels are open on the watch equipment screen. */
+const openWho = new Set();
+/** People chosen to look on, as character ids (fork). */
+let spectatorPick = [];
 
 const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -107,44 +119,15 @@ function persist(type, fighter, record) {
     if (setStatus(record, type, statusFromFraction(health.cur / health.max)).ok) saveSettings();
 }
 
-const andList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || 'someone');
-
-/** Who fought on each side, the player's side first. */
-function sidesOfFight(state) {
-    const all = Object.values(state.fighters);
-    const me = state.fighters.player || null;
-    const mine = all.filter(f => f.side === 'player');
-    // The player first on their side, then their allies.
-    mine.sort((a, b) => (a === me ? -1 : b === me ? 1 : 0));
-    return { me, mine, foes: all.filter(f => f.side === 'foe') };
-}
-
-/** One record for the whole fight: everyone on both sides, allies and every foe. */
+/** One record for the whole fight: everyone on both sides, allies and every foe, and who watched. */
 function recordFight() {
     const { state } = session;
-    const { me, mine, foes } = sidesOfFight(state);
-    if (!mine.length || !foes.length) return;
-    const lost = state.over.loser === 'player';
-    const hp = (f) => { const h = f.view.pools.health; return h ? `${percentOf(h.cur, h.max)}%` : '?'; };
-    const kind = state.mode === 'spar' ? 'spar' : 'fight';
-    const lead = me?.name || mine[0].name;
-    const allies = mine.filter(f => f !== me).map(f => f.name);
-    const company = allies.length ? `, fighting alongside ${andList(allies)},` : '';
-    const foeNames = foes.map(f => f.name);
     // One id for the fight, shared by this record and the fight's talk (keepTalk), so the story
     // prompt can tell they are the same fight and never sends it twice.
     if (!session.talkId) session.talkId = newTalkId();
-    try {
-        addRecord({
-            event: session.talkId,
-            kind: 'combat', game: kind === 'spar' ? 'Spar' : 'Fight',
-            sideA: mine.map(f => f.name), sideB: foeNames,
-            winner: lost ? 'B' : 'A',
-            userSide: me ? 'A' : '', player: me?.name || '',
-            summary: `${lead}${company} ${lost ? 'lost to' : 'beat'} ${andList(foeNames)} in a ${kind}, ${state.round} round${state.round === 1 ? '' : 's'}. `
-                + `Left standing: ${[...mine, ...foes].map(f => `${f.name} ${hp(f)}`).join(', ')} health.`,
-        });
-    } catch (err) { console.warn('[SillyNPC] could not record the fight', err); }
+    const record = fightRecord({ state, id: session.talkId, percentOf, spectators: session.spectators });
+    if (!record) return;
+    try { addRecord(record); } catch (err) { console.warn('[SillyNPC] could not record the fight', err); }
 }
 
 /** Everyone who fought gets XP for each enemy, win or lose, spar or fight. Only a sheet can keep it. */
@@ -179,26 +162,12 @@ function xpLines() {
 function keepTalk() {
     if (!session?.state?.over) return;
     try {
-        const { state } = session;
-        const sides = sidesOfFight(state);
-        const me = sides.me?.name || 'You';
-        const mine = sides.mine.map(f => f.name);
-        const foes = sides.foes.map(f => f.name);
-        const lost = state.over.loser === 'player';
         if (!session.talkId) session.talkId = newTalkId();
-        const winner = lost ? (andList(foes) || 'they') : andList(mine.length ? mine : [me]);
-        recordTalk('combat', {
-            id: session.talkId,
-            at: Date.now(),
-            title: `${state.mode === 'spar' ? 'Spar' : 'Fight'} vs ${foes.join(', ') || 'someone'}`,
-            // Everyone but the player: allies and foes. The sides say who stood where.
-            with: [...mine.filter(n => n !== sides.me?.name), ...foes],
-            sideA: mine,
-            sideB: foes,
-            date: sceneClock()?.dateText || '',
-            lines: session.chat.map(m => ({ who: m.who, text: m.text })),
-            result: `${winner} won after ${state.round} round${state.round === 1 ? '' : 's'}`,
+        const entry = talkEntry({
+            state: session.state, chat: session.chat, id: session.talkId, at: Date.now(),
+            date: sceneClock()?.dateText || '', spectators: session.spectators,
         });
+        if (entry) recordTalk('combat', entry);
     } catch (err) { console.warn('[SillyNPC] could not keep the fight talk', err); }
 }
 
@@ -218,20 +187,9 @@ function playOneFoe() {
     if (!session || session.state.over) return null;
     const actor = currentActor(session.state);
     if (!actor || actor.side === 'player') return null;
-    const target = living(session.state, 'player')[0];
-    const action = target ? chooseAction(session.type, actor.view, actor.weapon, {
-        me: actor, foe: target, mode: session.state.mode,
-        diff: actor.side === 'player' ? session.state.diff : -session.state.diff,
-    }) : null;
-    let events = [];
-    if (!target || !action) {
-        actor.down = true;
-        skipTurn(session.state, `${actor.name} has nothing they can do.`);
-    } else {
-        events = takeTurn(session.type, session.state, action.key, target.id).events || [];
-    }
+    const turn = autoTurn(session.type, session.state);
     persistAll();
-    return { actor, events };
+    return turn;
 }
 
 /** Pools that read as a condition, not a count: Health 97%, not 194/200. Resources stay numbers. */
@@ -312,6 +270,10 @@ function describe(event) {
 }
 
 function outcomeWord(state) {
+    if (session?.spectator) {
+        const won = state.order.map(id => state.fighters[id]).filter(f => f.side !== state.over.loser).map(f => f.name);
+        return `${andList(won)} ${state.mode === 'spar' ? 'win the spar' : 'won the fight'}.`;
+    }
     const youLost = state.over.loser === 'player';
     return state.mode === 'spar'
         ? (youLost ? 'You yield.' : 'They yield.')
@@ -362,6 +324,7 @@ async function postReport() {
 }
 
 function drawBattle(body) {
+    if (session.spectator) { drawWatch(body); return; }
     const { state, type } = session;
     const head = el('div', 'snpc-fight-sides');
     const ids = state.order.slice().sort((a, b) => (state.fighters[a].side === 'player' ? -1 : 1) - (state.fighters[b].side === 'player' ? -1 : 1));
@@ -371,6 +334,7 @@ function drawBattle(body) {
     });
     body.append(head);
 
+    if (session.spectators?.length) body.append(el('small', 'snpc-fight-order', `Watching: ${session.spectators.join(', ')}.`));
     if (session.pace) body.append(el('small', 'snpc-fight-order', `${session.pace.label} fight, aiming for about ${Math.round(session.pace.target)} turns.`));
     const order = el('small', 'snpc-fight-order');
     order.textContent = 'Order: ' + state.order
@@ -416,7 +380,7 @@ function drawBattle(body) {
         body.append(el('p', 'snpc-fight-turn', first ? `${actor.name} goes first.` : `${actor.name}'s turn.`));
         const go = el('button', 'menu_button', first ? 'Begin' : 'Continue');
         go.type = 'button';
-        go.addEventListener('click', () => { const turn = playOneFoe(); draw(); lineAfterTurn(turn); });
+        go.addEventListener('click', () => { const turn = playOneFoe(); draw(); lineAfterTurn(turn); watcherLine(turn); });
         const row = el('div', 'snpc-fight-actions');
         row.append(go);
         body.append(row);
@@ -442,6 +406,7 @@ function drawBattle(body) {
             if (!result.ok) { toastr.warning(result.reason, 'SillyNPC'); return; }
             persistAll();
             draw();
+            watcherLine({ actor, events: result.events || [] });
         });
         row.append(button);
     }
@@ -455,36 +420,6 @@ function drawBattle(body) {
     });
     row.append(yieldBtn);
     body.append(row);
-}
-
-/** Weapon fields for one person in the setup screen. Saved onto their record as you type. */
-function weaponEditor(title, record, type) {
-    const box = el('div', 'snpc-fight-weapon-edit');
-    box.append(el('div', 'snpc-fight-weapon-title', title));
-    const w = getTypeData(record, type.dataKey).weapon || { name: '', prof: '', power: 0 };
-    const name = el('input', 'text_pole');
-    name.placeholder = 'Weapon, e.g. Dual scimitars';
-    name.value = w.name || '';
-    const prof = el('select', 'text_pole');
-    prof.append(new Option('any weapon', ''));
-    for (const p of type.proficiencies) {
-        if ((p.roles || []).some(r => r === 'weapon' || r === 'magic')) prof.append(new Option(p.label, p.id));
-    }
-    prof.value = w.prof || '';
-    const power = el('input', 'text_pole');
-    power.type = 'number';
-    power.title = 'Power bonus';
-    power.value = w.power || 0;
-    const save = () => {
-        const out = setWeapon(record, type, { name: name.value, prof: prof.value, power: power.value });
-        if (out.ok) saveSettings();
-        else toastr.warning(out.reason, 'SillyNPC');
-    };
-    for (const i of [name, prof, power]) i.addEventListener('change', save);
-    const row = el('div', 'snpc-fight-weapon-row');
-    row.append(name, prof, power);
-    box.append(row);
-    return { box, read: () => ({ name: name.value, prof: prof.value, power: power.value }) };
 }
 
 function drawSetup(body) {
@@ -505,6 +440,17 @@ function drawSetup(body) {
 
     body.append(el('p', 'snpc-fight-type', type.name));
 
+    const modes = el('div', 'snpc-fight-modes');
+    for (const [id, text, tip] of [['play', 'Fight', 'You take the turns'], ['watch', 'Watch', 'Pick two teams and spectate, talking to the fighters as it goes']]) {
+        const b = el('button', `menu_button${setupMode === id ? ' is-active' : ''}`, text);
+        b.type = 'button';
+        b.title = tip;
+        b.addEventListener('click', () => { setupMode = id; draw(); });
+        modes.append(b);
+    }
+    body.append(modes);
+    if (setupMode === 'watch') { drawWatchSetup(body, type, player, foes); return; }
+
     const who = el('label', 'snpc-fight-field', 'Against');
     const select = el('select', 'text_pole');
     for (const foe of foes) {
@@ -516,21 +462,6 @@ function drawSetup(body) {
     if (suggestedFoe) select.value = suggestedFoe.id;
     who.append(select);
     body.append(who);
-
-    // Weapons: yours, and whoever you picked. Saved on the character, so they stick.
-    const weapons = el('div', 'snpc-fight-weapons');
-    const mineW = weaponEditor(player.name || 'You', player, type);
-    weapons.append(mineW.box);
-    let foeW = null;
-    const drawFoeWeapon = () => {
-        if (foeW) foeW.box.remove();
-        const foe = foes.find(f => f.id === select.value) || foes[0];
-        foeW = weaponEditor(foe.name, foe, type);
-        weapons.append(foeW.box);
-    };
-    drawFoeWeapon();
-    select.addEventListener('change', drawFoeWeapon);
-    body.append(weapons);
 
     const mode = el('label', 'snpc-fight-field', 'Stakes');
     const modeSelect = el('select', 'text_pole');
@@ -557,7 +488,7 @@ function drawSetup(body) {
     body.append(diff);
 
     if (!hasTypeData(player, type.dataKey)) {
-        body.append(el('small', 'notes', "You have no combat sheet for this world, so the type's defaults are used. Setting a weapon above gives you one."));
+        body.append(el('small', 'notes', "You have no combat sheet for this world, so the type's defaults are used. Choosing a weapon on the next screen gives you one."));
     }
 
     // Condition: what each of them is carrying in from earlier fights.
@@ -589,10 +520,7 @@ function drawSetup(body) {
 
     const peopleNow = () => {
         const foe = foes.find(f => f.id === select.value) || foes[0];
-        return [
-            { id: 'player', name: player.name || 'You', side: 'player', data: startData(player, type), weapon: normalizeWeapon(mineW.read()) },
-            { id: foe.id, name: foe.name, side: 'foe', data: startData(foe, type), weapon: normalizeWeapon(foeW.read()) },
-        ];
+        return peopleFor(type, player, foe);
     };
 
     // How hard this fight is, from level and the gap between their stats and yours.
@@ -607,31 +535,473 @@ function drawSetup(body) {
     modeSelect.addEventListener('change', showPace);
     body.append(paceLine);
 
-    const start = el('button', 'menu_button snpc-fight-start', 'Start');
+    drawSpectatorPicker(body, foes);
+
+    // Start no longer begins the fight: it opens the equipment screen, where you can still back out.
+    const start = el('button', 'menu_button snpc-fight-start', 'Next: equipment');
     start.type = 'button';
     start.addEventListener('click', () => {
         const foe = foes.find(f => f.id === select.value) || foes[0];
-        const mod = Number(diffSelect.selectedOptions[0]?.dataset.mod) || 0;
-        const people = peopleNow();
-        const mode = modeSelect.value;
-        const pace = calibrate(type, people, { mode, diff: mod });
-        const state = startFight(type, people, { mode, diff: mod, seed: Date.now(), poolScale: pace.scale });
-        session = {
-            type,
-            state,
-            pace,
-            records: new Map([['player', player], [foe.id, foe]]),
-            chat: [],
-            talkTo: foe.name,
-            talking: false,
-            saved: false,
-            reported: false,
-            posting: false,
-            failed: false,
-        };
+        ready = { type, player, foe, mode: modeSelect.value, diffMod: Number(diffSelect.selectedOptions[0]?.dataset.mod) || 0, spectators: chosenSpectators(foes, [player, foe]) };
         draw();
     });
     body.append(start);
+}
+
+/** The two fighters as startFight takes them. Their weapons come from their own sheets. */
+function peopleFor(type, player, foe) {
+    return [
+        { id: 'player', name: player.name || 'You', side: 'player', data: startData(player, type) },
+        { id: foe.id, name: foe.name, side: 'foe', data: startData(foe, type) },
+    ];
+}
+
+/**
+ * The equipment screen (fork): the last look before a fight. Each side's weapons and tool belt can
+ * be changed here (they are saved on the character), the difficulty is shown as it now stands, and
+ * nothing has begun until Begin: Back returns to setup, and closing the window leaves nothing behind.
+ */
+function drawReady(body) {
+    if (ready.watch) { drawWatchReady(body); return; }
+    const { type, player, foe, mode } = ready;
+    body.append(el('p', 'snpc-fight-type', type.name));
+    body.append(el('p', 'snpc-fight-turn', `${mode === 'spar' ? 'Spar' : 'Fight'} against ${foe.name}. Get ready.`));
+
+    const columns = el('div', 'snpc-fight-weapons snpc-fight-ready');
+    for (const [record, title] of [[player, player.name || 'You'], [foe, foe.name]]) {
+        const box = el('div', 'snpc-fight-weapon-edit');
+        box.append(el('div', 'snpc-fight-weapon-title', title));
+        box.append(renderLoadoutPicker(record, type, { mode, onChange: () => draw() }));
+        columns.append(box);
+    }
+    body.append(columns);
+
+    if (ready.spectators?.length) body.append(el('small', 'notes', `Watching: ${ready.spectators.map(r => r.name).join(', ')}.`));
+    const r = rate(type, peopleFor(type, player, foe));
+    const turns = mode === 'spar' ? Math.max(2, Math.round(r.turns * SPAR_SHARE)) : Math.round(r.turns);
+    body.append(el('small', 'snpc-fight-pace', `${r.label}: about ${turns} turns (each side's action counts as one).`));
+
+    const row = el('div', 'snpc-fight-actions');
+    const begin = el('button', 'menu_button snpc-fight-start', 'Begin');
+    begin.type = 'button';
+    begin.addEventListener('click', () => beginFight());
+    const back = el('button', 'menu_button', 'Back');
+    back.type = 'button';
+    back.title = 'Nothing has started. Go back and change who or how you fight.';
+    back.addEventListener('click', () => { ready = null; draw(); });
+    row.append(begin, back);
+    body.append(row);
+}
+
+/** Starts the fight set up on the equipment screen. */
+function beginFight() {
+    if (!ready) return;
+    const { type, player, foe, mode, diffMod } = ready;
+    const watchers = (ready.spectators || []).map(r => r.name);
+    const people = peopleFor(type, player, foe);
+    const pace = calibrate(type, people, { mode, diff: diffMod });
+    const state = startFight(type, people, { mode, diff: diffMod, seed: Date.now(), poolScale: pace.scale });
+    ready = null;
+    session = {
+        type,
+        state,
+        pace,
+        records: new Map([['player', player], [foe.id, foe]]),
+        spectators: watchers,
+        chat: [],
+        talkTo: foe.name,
+        talking: false,
+        saved: false,
+        reported: false,
+        posting: false,
+        failed: false,
+    };
+    draw();
+}
+
+
+/* ------------------------------------------------------------------- watching (fork) */
+
+const MAX_TEAM = 4;
+const SPEEDS = [['Slow', 3200], ['Normal', 1600], ['Fast', 600]];
+
+/** Everyone who can be put in a fight to watch: the persona too, played by the computer. */
+function watchCast(player, foes) {
+    const all = [player, ...foes].filter(Boolean);
+    return all.filter((r, i) => all.findIndex(x => x.id === r.id) === i);
+}
+
+/** Teams as they stand, fixed up: only people who exist, nobody twice, at least one a side. */
+function tidyPicks(cast) {
+    const ids = new Set(cast.map(r => r.id));
+    const taken = new Set();
+    const clean = (list) => list.filter(id => ids.has(id) && !taken.has(id) && taken.add(id)).slice(0, MAX_TEAM);
+    watchPick.a = clean(watchPick.a);
+    watchPick.b = clean(watchPick.b);
+    for (const side of ['a', 'b']) {
+        if (watchPick[side].length) continue;
+        const free = cast.find(r => !taken.has(r.id));
+        if (free) { watchPick[side].push(free.id); taken.add(free.id); }
+    }
+}
+
+function drawWatchSetup(body, type, player, foes) {
+    const cast = watchCast(player, foes);
+    if (cast.length < 2) {
+        body.append(el('p', 'notes', 'Watching needs at least two characters.'));
+        return;
+    }
+    tidyPicks(cast);
+    body.append(el('p', 'notes', `Pick the two teams, one to ${MAX_TEAM} a side, and watch them fight. Everyone is played by the computer, and you can talk to any of them as it goes.`));
+
+    const teams = el('div', 'snpc-fight-teams-setup');
+    for (const [side, title] of [['a', 'Team A'], ['b', 'Team B']]) {
+        const box = el('div', `snpc-fight-team-box is-${side}`);
+        box.append(el('div', 'snpc-fight-team-title', title));
+        const used = new Set([...watchPick.a, ...watchPick.b]);
+        watchPick[side].forEach((id, slot) => {
+            const row = el('div', 'snpc-fight-team-row');
+            const select = el('select', 'text_pole');
+            for (const r of cast) {
+                const option = new Option(r.name + (hasTypeData(r, type.dataKey) ? '' : ' (defaults)'), r.id);
+                option.disabled = used.has(r.id) && r.id !== id;
+                select.append(option);
+            }
+            select.value = id;
+            select.addEventListener('change', () => { watchPick[side][slot] = select.value; draw(); });
+            row.append(select);
+            if (watchPick[side].length > 1) {
+                const del = el('button', 'menu_button', '×');
+                del.type = 'button';
+                del.title = 'Take them out of the team';
+                del.addEventListener('click', () => { watchPick[side].splice(slot, 1); draw(); });
+                row.append(del);
+            }
+            box.append(row);
+        });
+        const free = cast.find(r => !used.has(r.id));
+        if (watchPick[side].length < MAX_TEAM && free) {
+            const add = el('button', 'menu_button', '+ Add a fighter');
+            add.type = 'button';
+            add.addEventListener('click', () => { watchPick[side].push(free.id); draw(); });
+            box.append(add);
+        }
+        teams.append(box);
+    }
+    body.append(teams);
+
+    const mode = el('label', 'snpc-fight-field', 'Stakes');
+    const modeSelect = el('select', 'text_pole');
+    modeSelect.append(new Option('Spar: guard, then yield', 'spar'));
+    modeSelect.append(new Option('Fight: health', 'fight'));
+    if (!type.pools.some(p => p.role === 'guard')) { modeSelect.options[0].disabled = true; watchPick.mode = 'fight'; }
+    modeSelect.value = watchPick.mode;
+    modeSelect.addEventListener('change', () => { watchPick.mode = modeSelect.value; });
+    mode.append(modeSelect);
+    body.append(mode);
+    body.append(el('small', 'snpc-fight-pace', `${watchPick.a.length} against ${watchPick.b.length}. The side with fewer fighters has its back to the wall: a small edge for each foe more than it has friends.`));
+
+    const fighting = new Set([...watchPick.a, ...watchPick.b]);
+    drawSpectatorPicker(body, cast.filter(r => !fighting.has(r.id)));
+
+    const next = el('button', 'menu_button snpc-fight-start', 'Next: equipment');
+    next.type = 'button';
+    next.addEventListener('click', () => {
+        const byId = new Map(cast.map(r => [r.id, r]));
+        ready = {
+            watch: true, type, mode: watchPick.mode,
+            a: watchPick.a.map(id => byId.get(id)).filter(Boolean),
+            b: watchPick.b.map(id => byId.get(id)).filter(Boolean),
+            spectators: chosenSpectators(cast, [...watchPick.a, ...watchPick.b].map(id => ({ id }))),
+        };
+        openWho.clear();
+        draw();
+    });
+    body.append(next);
+}
+
+/** The equipment screen for a watched fight: a panel for each fighter, nothing starts until Begin. */
+function drawWatchReady(body) {
+    const { type, mode } = ready;
+    body.append(el('p', 'snpc-fight-type', type.name));
+    body.append(el('p', 'snpc-fight-turn', `${mode === 'spar' ? 'A spar' : 'A fight'}: ${ready.a.length} against ${ready.b.length}. Look over the equipment, then begin.`));
+    if (ready.spectators?.length) body.append(el('small', 'notes', `Watching: ${ready.spectators.map(r => r.name).join(', ')}.`));
+    for (const [list, title] of [[ready.a, 'Team A'], [ready.b, 'Team B']]) {
+        body.append(el('div', 'snpc-fight-team-title', title));
+        for (const record of list) {
+            const box = el('details', 'snpc-fight-weapon-edit');
+            box.open = openWho.has(record.id);
+            box.addEventListener('toggle', () => { if (box.open) openWho.add(record.id); else openWho.delete(record.id); });
+            box.append(el('summary', 'snpc-fight-weapon-title', record.name));
+            box.append(renderLoadoutPicker(record, type, { mode, onChange: () => draw() }));
+            body.append(box);
+        }
+    }
+    const row = el('div', 'snpc-fight-actions');
+    const begin = el('button', 'menu_button snpc-fight-start', 'Begin');
+    begin.type = 'button';
+    begin.addEventListener('click', () => beginWatch());
+    const back = el('button', 'menu_button', 'Back');
+    back.type = 'button';
+    back.title = 'Nothing has started. Go back and change the teams.';
+    back.addEventListener('click', () => { ready = null; draw(); });
+    row.append(begin, back);
+    body.append(row);
+}
+
+/** Starts the watched fight set up on its equipment screen. */
+function beginWatch() {
+    if (!ready?.watch) return;
+    const { type, mode, a, b } = ready;
+    const watchers = (ready.spectators || []).map(r => r.name);
+    const records = new Map();
+    const people = [];
+    a.forEach((r, i) => { records.set(`a${i + 1}`, r); people.push({ id: `a${i + 1}`, name: r.name, side: 'player', data: startData(r, type) }); });
+    b.forEach((r, i) => { records.set(`b${i + 1}`, r); people.push({ id: `b${i + 1}`, name: r.name, side: 'foe', data: startData(r, type) }); });
+    const state = startFight(type, people, { mode, diff: 0, seed: Date.now(), poolScale: 1 });
+    ready = null;
+    session = {
+        type, state, pace: null, records, chat: [], talkTo: '', talking: false, saved: false, reported: false, posting: false, failed: false,
+        spectators: watchers, spectator: true, auto: false, speed: SPEEDS[1][1], chatter: 'notable', timer: null,
+    };
+    draw();
+}
+
+function stopAuto() {
+    if (session) session.auto = false;
+    if (session?.timer) clearTimeout(session.timer);
+    if (session) session.timer = null;
+}
+
+/** One turn of a watched fight: whoever's turn it is plays it, and may say a word. */
+function watchStep() {
+    if (!session?.spectator || session.state.over) return;
+    const turn = autoTurn(session.type, session.state);
+    persistAll();
+    draw();
+    if (turn && worthAWord(turn)) lineAfterTurn(turn);
+    if (turn) watcherLine(turn);
+}
+
+/** Whether this turn is worth a line from the one who took it, by the Chatter setting. */
+function worthAWord(turn) {
+    const mode = session.chatter;
+    if (mode === 'off') return false;
+    if (mode === 'every') return true;
+    return isNotable(turn);
+}
+
+function scheduleAuto() {
+    if (!session?.auto || session.state.over) return;
+    session.timer = setTimeout(() => {
+        if (!session?.auto) return;
+        // Wait while someone is speaking (the reply to the viewer, or a fighter's line).
+        if (!session.talking) watchStep();
+        scheduleAuto();
+    }, session.speed);
+}
+
+function drawWatch(body) {
+    const { state } = session;
+    const teams = el('div', 'snpc-fight-teams');
+    for (const [side, title] of [['player', 'Team A'], ['foe', 'Team B']]) {
+        const col = el('div', 'snpc-fight-team');
+        col.append(el('div', 'snpc-fight-team-title', `${title} (${living(state, side).length} standing)`));
+        for (const id of state.order.filter(x => state.fighters[x].side === side).sort()) col.append(fighterCard(state.fighters[id]));
+        teams.append(col);
+    }
+    body.append(teams);
+
+    if (session.spectators?.length) body.append(el('small', 'snpc-fight-order', `Also watching: ${session.spectators.join(', ')}.`));
+    const order = el('small', 'snpc-fight-order');
+    order.textContent = `Round ${state.round}` + (state.over ? '' : `  ·  next: ${currentActor(state)?.name || '...'}`);
+    body.append(order);
+
+    const log = el('div', 'snpc-fight-log');
+    const lines = state.over ? state.log : state.log.slice(-14);
+    if (!lines.length) log.append(el('p', 'notes', 'Nothing has happened yet. Press Step or Play.'));
+    for (const event of lines) log.append(el('p', '', describe(event)));
+    body.append(log);
+    log.scrollTop = log.scrollHeight;
+
+    if (state.over) {
+        stopAuto();
+        const end = el('div', 'snpc-fight-result');
+        end.append(el('p', 'snpc-fight-end', outcomeWord(state)));
+        for (const line of xpLines()) end.append(el('small', 'snpc-fight-xp', line));
+        end.append(el('small', 'notes', session.reported ? 'The combat report was posted to the chat.'
+            : session.posting ? 'Posting the combat report...' : 'The combat report has not been posted.'));
+        body.append(end);
+        const row = el('div', 'snpc-fight-actions');
+        if (!session.reported && !session.posting) {
+            const post = el('button', 'menu_button', 'Post report to chat');
+            post.type = 'button';
+            post.addEventListener('click', () => { session.failed = false; postReport(); });
+            row.append(post);
+        }
+        const again = el('button', 'menu_button', 'New fight');
+        again.type = 'button';
+        again.addEventListener('click', () => { keepTalk(); session = null; draw(); });
+        row.append(again);
+        body.append(row);
+        if (!session.failed) postReport();
+        return;
+    }
+
+    const row = el('div', 'snpc-fight-actions snpc-fight-watchbar');
+    const step = el('button', 'menu_button', 'Step');
+    step.type = 'button';
+    step.title = 'Play one turn';
+    step.disabled = session.auto;
+    step.addEventListener('click', () => watchStep());
+    const play = el('button', 'menu_button', session.auto ? 'Pause' : 'Play');
+    play.type = 'button';
+    play.addEventListener('click', () => {
+        if (session.auto) stopAuto();
+        else { session.auto = true; scheduleAuto(); }
+        draw();
+    });
+    const speed = el('select', 'text_pole');
+    for (const [label, ms] of SPEEDS) speed.append(new Option(label, String(ms)));
+    speed.value = String(session.speed);
+    speed.title = 'How long between turns';
+    speed.addEventListener('change', () => { session.speed = Number(speed.value); });
+    const chatter = el('select', 'text_pole');
+    for (const [label, id] of [['Quiet', 'off'], ['Big moments', 'notable'], ['Every turn', 'every']]) chatter.append(new Option(`Chatter: ${label}`, id));
+    chatter.value = session.chatter;
+    chatter.title = 'How often a fighter says a line after their turn';
+    chatter.addEventListener('change', () => { session.chatter = chatter.value; });
+    const skip = el('button', 'menu_button', 'Skip to the end');
+    skip.type = 'button';
+    skip.title = 'Play the rest out at once';
+    skip.addEventListener('click', () => {
+        stopAuto();
+        let guard = 0;
+        while (!session.state.over && guard++ < 2000) autoTurn(session.type, session.state);
+        persistAll();
+        draw();
+    });
+    const leave = el('button', 'menu_button', 'Stop watching');
+    leave.type = 'button';
+    leave.title = 'Leave without a result: nothing is recorded';
+    leave.addEventListener('click', () => { stopAuto(); session = null; draw(); });
+    row.append(step, play, speed, chatter, skip, leave);
+    body.append(row);
+}
+
+
+/* ------------------------------------------------------------ spectators (fork) */
+
+const MAX_SPECTATORS = 6;
+
+/**
+ * "Spectators", for a fight you are in or one you watch: characters who look on. They are named in
+ * the fight's history and talk (so a later scene can recall who saw it), can be talked to, and now
+ * and then say a word about a big moment. They never fight and never count toward a result.
+ * The picker redraws only itself, so the rest of the setup keeps what was chosen.
+ */
+function drawSpectatorPicker(body, candidates) {
+    const box = el('div', 'snpc-fight-spectators');
+    const draw = () => {
+        box.replaceChildren();
+        const ids = new Set(candidates.map(r => r.id));
+        spectatorPick = spectatorPick.filter((id, i) => ids.has(id) && spectatorPick.indexOf(id) === i).slice(0, MAX_SPECTATORS);
+        box.append(el('div', 'snpc-fight-team-title', 'Spectators (optional)'));
+        box.append(el('small', 'notes', 'People who watch from the side. They are written into the fight\'s history and can be talked to.'));
+        spectatorPick.forEach((id, slot) => {
+            const row = el('div', 'snpc-fight-team-row');
+            const select = el('select', 'text_pole');
+            for (const r of candidates) {
+                const option = new Option(r.name, r.id);
+                option.disabled = spectatorPick.includes(r.id) && r.id !== id;
+                select.append(option);
+            }
+            select.value = id;
+            select.addEventListener('change', () => { spectatorPick[slot] = select.value; draw(); });
+            const del = el('button', 'menu_button', '×');
+            del.type = 'button';
+            del.title = 'Send them away';
+            del.addEventListener('click', () => { spectatorPick.splice(slot, 1); draw(); });
+            row.append(select, del);
+            box.append(row);
+        });
+        const free = candidates.find(r => !spectatorPick.includes(r.id));
+        if (spectatorPick.length < MAX_SPECTATORS && free) {
+            const add = el('button', 'menu_button', '+ Add a spectator');
+            add.type = 'button';
+            add.addEventListener('click', () => { spectatorPick.push(free.id); draw(); });
+            box.append(add);
+        }
+    };
+    draw();
+    body.append(box);
+}
+
+/** The spectators chosen, as records, leaving out anyone who is fighting. */
+function chosenSpectators(candidates, fighters) {
+    const out = [];
+    for (const id of spectatorPick) {
+        const r = candidates.find(c => c.id === id);
+        if (r && !fighters.some(f => f.id === r.id) && !out.includes(r)) out.push(r);
+    }
+    return out;
+}
+
+/** Whether this turn was a big moment: someone fell, a critical, a passive, a counter, a heavy blow. */
+function isNotable(turn) {
+    return Boolean(turn?.events?.some((e) => {
+        const target = session.state.fighters[e.target];
+        const pool = target?.view.pools[e.pool];
+        return e.down || e.band === 'crit' || e.counter || e.passives?.length || (pool && e.taken / Math.max(1, pool.max) >= 0.2);
+    }));
+}
+
+function fightSoFar() {
+    const { state } = session;
+    const people = state.order.map(id => `${state.fighters[id].name}: ${standing(state.fighters[id])}${state.fighters[id].down ? ', out of it' : ''}`).join('; ');
+    const recent = state.log.slice(-6).map(describe).join('\n');
+    return `[THE FIGHT SO FAR: round ${state.round}. ${people}.\n${recent}]`;
+}
+
+function watcherSystem(name) {
+    const { state, type } = session;
+    const record = (getSettings().characters || []).find(c => c?.name === name);
+    const profile = record ? String(profileText(record) || '').slice(0, 2500) : '';
+    const sides = sidesOfFight(state);
+    const fighting = `${andList(sides.mine.map(f => f.name))} against ${andList(sides.foes.map(f => f.name))}`;
+    return [
+        ...contextBlocks('combat'),
+        `You are ${name}, watching ${state.mode === 'spar' ? 'a sparring match' : 'a real fight'} (${type.name}) between ${fighting}. `
+        + 'You are standing to the side and are not fighting. Do not decide how any blow lands. ' + DIALOGUE_RULE,
+        profile ? `[ABOUT ${name}:\n${profile}\n]` : '',
+        fightSoFar(),
+    ].filter(Boolean).join('\n\n');
+}
+
+/** Now and then, after a big moment, one of the spectators says a line about it (never over another speaker). */
+async function watcherLine(turn) {
+    if (!session?.spectators?.length || session.talking || !isNotable(turn)) return;
+    // Every other big moment, so the side does not talk over the fight.
+    session.notableCount = (session.notableCount || 0) + 1;
+    if (session.notableCount % 2) return;
+    session.watcherAt = ((session.watcherAt ?? -1) + 1) % session.spectators.length;
+    const name = session.spectators[session.watcherAt];
+    const system = `${watcherSystem(name)}\n\n[React to what just happened in one short line, in your own voice.] ${DIALOGUE_RULE}`;
+    session.talking = true;
+    drawChat();
+    try {
+        const raw = await requestOnConnection('combatProfileId', system, `${name}:`, 120);
+        const line = dialogueOnly(raw, name);
+        if (session && line) {
+            session.chat.push({ who: name, text: line });
+            speakLine(name, line);
+        }
+    } catch (err) {
+        console.error('[SillyNPC] spectator line failed', err);
+    }
+    if (session) session.talking = false;
+    keepTalk();
+    drawChat();
 }
 
 
@@ -640,7 +1010,13 @@ function drawSetup(body) {
 function chatCast() {
     const names = [];
     const add = (n) => { if (n && !names.includes(n)) names.push(n); };
+    if (session?.spectator) {
+        for (const f of Object.values(session.state.fighters)) add(f.name);
+        for (const n of session.spectators || []) add(n);
+        return names;
+    }
     if (session) {
+        for (const n of session.spectators || []) add(n);
         for (const f of Object.values(session.state.fighters)) if (f.side === 'foe') add(f.name);
     }
     for (const c of getSettings().characters || []) add(c?.name);
@@ -654,6 +1030,7 @@ function standing(f) {
 }
 
 function chatSystem(name) {
+    if (session.spectators?.includes(name)) return watcherSystem(name);
     const { state, type } = session;
     const record = (getSettings().characters || []).find(c => c?.name === name);
     const profile = record ? String(profileText(record) || '').slice(0, 2500) : '';
@@ -662,7 +1039,9 @@ function chatSystem(name) {
     const people = state.order.map(id => `${state.fighters[id].name}: ${standing(state.fighters[id])}${state.fighters[id].down ? ', out of it' : ''}`).join('; ');
     return [
         ...contextBlocks('combat'),
-        `You are ${name}, in the middle of ${state.mode === 'spar' ? 'a sparring match' : 'a real fight'} (${type.name}) with ${me} present. `
+        (session.spectator
+            ? `You are ${name}, in the middle of ${state.mode === 'spar' ? 'a sparring match' : 'a real fight'} (${type.name}). Someone is watching from the side and talking to you; they are not fighting. `
+            : `You are ${name}, in the middle of ${state.mode === 'spar' ? 'a sparring match' : 'a real fight'} (${type.name}) with ${me} present. `)
         + 'Do not decide how any blow lands. ' + DIALOGUE_RULE,
         profile ? `[ABOUT ${name}:\n${profile}\n]` : '',
         rivalryBlock(name, me),
@@ -672,7 +1051,7 @@ function chatSystem(name) {
 
 /** After an opponent's turn they say one line, dialogue only, in the table talk. */
 async function lineAfterTurn(turn) {
-    if (!session || !turn?.actor) return;
+    if (!session || !turn?.actor || session.talking) return;
     const { actor, events } = turn;
     const target = events.length ? session.state.fighters[events[0].target] : null;
     const what = events.length
@@ -739,7 +1118,7 @@ function drawChat() {
     pane.append(to);
 
     const log = el('div', 'snpc-fight-chat-log');
-    if (!session.chat.length) log.append(el('p', 'notes', 'Say something to them while you fight.'));
+    if (!session.chat.length) log.append(el('p', 'notes', session.spectator ? 'Talk to the fighters while you watch.' : 'Say something to them while you fight.'));
     for (const m of session.chat) {
         const row = el('div', `snpc-fight-bubble${m.mine ? ' is-mine' : ''}`);
         row.append(el('b', '', m.who), el('span', '', m.text));
@@ -768,6 +1147,7 @@ function draw() {
     const body = panel.querySelector('.snpc-fight-body');
     body.replaceChildren();
     if (session) drawBattle(body);
+    else if (ready) drawReady(body);
     else drawSetup(body);
     drawChat();
 }
@@ -781,7 +1161,7 @@ function openPanel() {
         const close = el('button', 'snpc-fight-close', '×');
         close.type = 'button';
         close.title = 'Close';
-        close.addEventListener('click', () => panel.classList.remove('is-open'));
+        close.addEventListener('click', () => { if (session?.auto) { stopAuto(); draw(); } panel.classList.remove('is-open'); });
         // History is always one click away, in a fight or out of one: narrowed to the opponent when there is one.
         const hist = el('button', 'snpc-fight-histbtn', 'History');
         hist.type = 'button';
@@ -824,7 +1204,9 @@ export function renderCombatButton() {
 }
 
 function endSession() {
+    stopAuto();
     session = null;
+    ready = null;
     if (panel) panel.classList.remove('is-open');
 }
 

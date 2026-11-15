@@ -156,7 +156,7 @@ const ADAPTERS = {
                 label: `${sidesText(r, you)}: ${r.game || (r.kind === 'game' ? 'Game' : 'Fight')}`,
                 sub: winnerText(r, you),
                 // Who took part; the history block only writes a person's own records.
-                people: [...sideNames(r, 'A', you), ...sideNames(r, 'B', you)],
+                people: [...sideNames(r, 'A', you), ...sideNames(r, 'B', you), ...(r.spectators || [])],
             }));
         },
         remove(entry) {

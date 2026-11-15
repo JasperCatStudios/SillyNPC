@@ -11,18 +11,20 @@
 
 export const BLEACH_ABILITIES = Object.freeze([
     // Zanpakutō: sword releases, from a first release up to a full bankai. Cost climbs a little faster than power.
+    // Each needs a held zanpakutō at that release (a Bankai move needs one set to Bankai); a fighter with no gear
+    // on their sheet is not held back, so older saves keep what they had.
     { id: 'shikai_release', label: 'Shikai Release', category: 'Zanpakutō', kind: 'active', prof: 'zanjutsu', power: 4,
-      cost: { pool: 'resource', amount: 18 }, desc: 'Call the blade by name and let its first form answer.' },
+      cost: { pool: 'resource', amount: 18 }, needs: { ladder: 'release', tier: 'shikai' }, desc: 'Call the blade by name and let its first form answer.' },
     { id: 'shikai_special', label: 'Shikai Special Ability', category: 'Zanpakutō', kind: 'active', prof: 'zanjutsu', power: 5,
-      cost: { pool: 'resource', amount: 22 }, desc: 'The released blade turns its own strange gift on the foe.' },
+      cost: { pool: 'resource', amount: 22 }, needs: { ladder: 'release', tier: 'shikai' }, desc: 'The released blade turns its own strange gift on the foe.' },
     { id: 'getsuga', label: 'Getsuga Tenshō', category: 'Zanpakutō', kind: 'active', prof: 'zanjutsu', power: 8,
-      cost: { pool: 'resource', amount: 24 }, desc: 'A crescent of reiatsu from the blade.' },
+      cost: { pool: 'resource', amount: 24 }, needs: { ladder: 'release', tier: 'shikai' }, desc: 'A crescent of reiatsu from the blade.' },
     { id: 'shikai_full', label: 'Shikai Full Force', category: 'Zanpakutō', kind: 'active', prof: 'zanjutsu', power: 9,
-      cost: { pool: 'resource', amount: 31 }, desc: 'Every drop of spirit poured into one released stroke.' },
+      cost: { pool: 'resource', amount: 31 }, needs: { ladder: 'release', tier: 'shikai' }, desc: 'Every drop of spirit poured into one released stroke.' },
     { id: 'bankai', label: 'Bankai', category: 'Zanpakutō', kind: 'active', prof: 'zanjutsu', power: 11,
-      cost: { pool: 'resource', amount: 37 }, desc: 'The blade reaches its final form and the whole field feels it.' },
+      cost: { pool: 'resource', amount: 37 }, needs: { ladder: 'release', tier: 'bankai' }, desc: 'The blade reaches its final form and the whole field feels it.' },
     { id: 'final_getsuga', label: 'Final Getsuga Tenshō', category: 'Zanpakutō', kind: 'active', prof: 'zanjutsu', power: 12,
-      cost: { pool: 'resource', amount: 39 }, desc: 'A last, black-edged wave that costs more than it should.' },
+      cost: { pool: 'resource', amount: 39 }, needs: { ladder: 'release', tier: 'bankai' }, desc: 'A last, black-edged wave that costs more than it should.' },
     { id: 'zanpakuto_resonance', label: 'Zanpakutō Resonance', category: 'Zanpakutō', kind: 'passive', trigger: 'attack', chance: 'a.presence/39',
       effect: { dmgMult: 1.4 }, desc: 'The spirit of the blade sings along with the stroke.' },
 

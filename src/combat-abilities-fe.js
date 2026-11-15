@@ -1,5 +1,5 @@
 /**
- * Fire Emblem ability library (fork). Pure data, no imports.
+ * Fire Emblem ability library (fork). Pure data; the only import is the relic arts, which are data too.
  *
  * Costs are Energy (guard, about 33). Passives are free but rare (a few percent at middling stats),
  * attacks cost roughly 1.5 Energy for each point of power above the basic 5 (so a fighter holding
@@ -8,22 +8,56 @@
  * only about two fights in three against an equal with none. See tests/combat/ability-library.test.mjs.
  */
 
+import { FE_RELIC_ARTS } from './combat-abilities-fe-relics.js';
+
 export const FE_ABILITIES = Object.freeze([
-    // Crests: rare passive flares of an inherited power. Low chance, strong effect.
+    // Crests: every crest of the game, as a rare passive flare of an inherited power. The chance follows the
+    // game's own major-crest rate; effects the engine has no field for (counter-prevention, sparing spell uses)
+    // are approximated and say so.
+    { id: 'crest_ernest', label: 'Crest of Ernest', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.speed/39 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'The crest may press the attack so the foe cannot answer. Here it adds force to the blow (counter-prevention is approximated).' },
+    { id: 'crest_macuil', label: 'Crest of Macuil', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/39 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'A crest may flare and add force to a spell.' },
+    { id: 'crest_seiros', label: 'Crest of Seiros', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.presence/26 + 1',
+      effect: { dmgMult: 1.4 }, desc: 'A crest may flare and add force to a combat art.' },
+    { id: 'crest_dominic', label: 'Crest of Dominic', category: 'Crests', kind: 'passive', trigger: 'turnStart', chance: 'a.luck/39 + 1',
+      effect: { heal: 0.08 }, desc: 'The crest may spare the cost of a spell. Here it returns some strength (resource sparing is approximated).' },
+    { id: 'crest_fraldarius', label: 'Crest of Fraldarius', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/32 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'A crest may flare and add force to a weapon blow.' },
+    { id: 'crest_noa', label: 'Crest of Noa', category: 'Crests', kind: 'passive', trigger: 'turnStart', chance: 'a.luck/39 + 1',
+      effect: { heal: 0.08 }, desc: 'The crest may spare the cost of a spell. Here it returns some strength (resource sparing is approximated).' },
+    { id: 'crest_cethleann', label: 'Crest of Cethleann', category: 'Crests', kind: 'passive', trigger: 'turnStart', chance: 'a.presence/32 + 1',
+      effect: { heal: 0.15 }, desc: 'Recovery magic may flow stronger and mend more.' },
+    { id: 'crest_daphnel', label: 'Crest of Daphnel', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.speed/26 + 1',
+      effect: { dmgMult: 1.4 }, desc: 'A crest may flare and add force to a combat art.' },
+    { id: 'crest_blaiddyd', label: 'Crest of Blaiddyd', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/39 + 1',
+      effect: { dmgMult: 2 }, desc: 'A beast stirs in the blood and a combat art lands twice as hard.' },
+    { id: 'crest_gloucester', label: 'Crest of Gloucester', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.luck/39 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'A crest may flare and add force to a spell.' },
+    { id: 'crest_goneril', label: 'Crest of Goneril', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.speed/32 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'The crest may press the attack so the foe cannot answer. Here it adds force to the blow (counter-prevention is approximated).' },
+    { id: 'crest_cichol', label: 'Crest of Cichol', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.presence/32 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'The crest may press the attack so the foe cannot answer. Here it adds force to the blow (counter-prevention is approximated).' },
+    { id: 'crest_aubin', label: 'Crest of Aubin', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.speed/39 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'The crest may press the attack so the foe cannot answer. Here it adds force to the blow (counter-prevention is approximated).' },
+    { id: 'crest_gautier', label: 'Crest of Gautier', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.accuracy/26 + 1',
+      effect: { dmgMult: 1.4 }, desc: 'A crest may flare and add force to a combat art.' },
+    { id: 'crest_indech', label: 'Crest of Indech', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.defense/39 + 1',
+      effect: { dmgMult: 1.8 }, desc: 'The blow may come twice over.' },
+    { id: 'crest_beast', label: 'Crest of The Beast', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/32 + 1',
+      effect: { dmgMult: 1.3 }, desc: 'A crest may flare and add force to a weapon blow.' },
+    { id: 'crest_charon', label: 'Crest of Charon', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/26 + 1',
+      effect: { dmgMult: 1.4 }, desc: 'A crest may flare and add force to a combat art.' },
+    { id: 'crest_timotheos', label: 'Crest of Timotheos', category: 'Crests', kind: 'passive', trigger: 'turnStart', chance: 'a.presence/39 + 1',
+      effect: { heal: 0.08 }, desc: 'The crest may spare the cost of a spell. Here it returns some strength (resource sparing is approximated).' },
+    { id: 'crest_riegan', label: 'Crest of Riegan', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.luck/32 + 1',
+      effect: { drain: 0.3 }, desc: 'A combat art may return a third of the damage it deals as health. Not in a spar.' },
+    { id: 'crest_chevalier', label: 'Crest of Chevalier', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/32 + 1',
+      effect: { drain: 0.3 }, desc: 'A combat art may return a third of the damage it deals as health. Not in a spar.' },
+    { id: 'crest_lamine', label: 'Crest of Lamine', category: 'Crests', kind: 'passive', trigger: 'turnStart', chance: 'a.presence/39 + 1',
+      effect: { heal: 0.08 }, desc: 'The crest may spare the cost of a spell. Here it returns some strength (resource sparing is approximated).' },
     { id: 'crest_flame', label: 'Crest of Flames', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.luck/22 + 1',
-      effect: { dmgMult: 1.5 }, desc: 'A crest may flare as you strike, adding half again to the blow.' },
-    { id: 'crest_blaiddyd', label: 'Crest of the Beast', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.attack/39 + 1',
-      effect: { dmgMult: 2 }, desc: 'A beast stirs in the blood and the blow lands twice as hard.' },
-    { id: 'crest_gautier', label: 'Crest of the Hunter', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.accuracy/32 + 1',
-      effect: { dmgMult: 1.4 }, desc: 'An old hunting instinct guides the strike to a weak spot.' },
-    { id: 'crest_cichol', label: 'Crest of the Dragon', category: 'Crests', kind: 'passive', trigger: 'attack', chance: 'a.presence/39 + 1',
-      effect: { dmgMult: 1.8 }, desc: 'Draconic might rises for a moment and floods the weapon.' },
-    { id: 'crest_fraldarius', label: 'Crest of the Shield', category: 'Crests', kind: 'passive', trigger: 'defend', chance: 'a.defense/32 + 1',
-      effect: { block: 0.5 }, desc: 'A glowing crest may turn half of a blow aside.' },
-    { id: 'crest_riegan', label: 'Crest of the Ward', category: 'Crests', kind: 'passive', trigger: 'defend', chance: 'a.luck/28 + 1',
-      effect: { block: 0.35 }, desc: 'A faint ward answers a strike before it lands.' },
-    { id: 'crest_seiros', label: 'Crest of the Saint', category: 'Crests', kind: 'passive', trigger: 'turnStart', chance: 'a.presence/32 + 1',
-      effect: { heal: 0.15 }, desc: 'A gentle light may mend wounds as the turn begins.' },
+      effect: { dmgMult: 1.3, drain: 0.3 }, desc: 'Flames may flare as you strike: the blow lands harder and feeds you a share of what it deals. Not in a spar.' },
 
     // Combat Skills: passive skills that sharpen a blow. Chance rises with the stat they trade on.
     { id: 'wrath', label: 'Wrath', category: 'Combat Skills', kind: 'passive', trigger: 'attack', chance: 'a.attack/34 + 1',
@@ -77,16 +111,6 @@ export const FE_ABILITIES = Object.freeze([
     { id: 'deadeye', label: 'Deadeye', category: 'Combat Arts', kind: 'active', prof: 'bow', power: 15,
       cost: { pool: 'guard', amount: 16 }, desc: 'One patient breath, one arrow, one clean line.' },
 
-    // Heroic Relics: the strongest single actions, each the weapon of a legend. Expensive.
-    { id: 'thunderbrand', label: 'Thunderbrand', category: 'Heroic Relics', kind: 'active', prof: 'sword', power: 15,
-      cost: { pool: 'guard', amount: 16 }, desc: 'A sword of lightning, drawn for a single decisive stroke.' },
-    { id: 'areadbhar', label: 'Areadbhar', category: 'Heroic Relics', kind: 'active', prof: 'lance', power: 16,
-      cost: { pool: 'guard', amount: 17 }, desc: 'A spear that flashes like a falling star.' },
-    { id: 'failnaught', label: 'Failnaught', category: 'Heroic Relics', kind: 'active', prof: 'bow', power: 17,
-      cost: { pool: 'guard', amount: 18 }, desc: 'A bow of the hunt, whose arrow never misses its mark.' },
-    { id: 'aymr', label: 'Aymr', category: 'Heroic Relics', kind: 'active', prof: 'axe', power: 18,
-      cost: { pool: 'guard', amount: 19 }, desc: 'An axe of the old beast-kings, heavy enough to split a wall.' },
-
     // Tomes: spells. Reason is the offensive school, Faith the light school. Same pricing as Combat Arts.
     { id: 'wind', label: 'Wind', category: 'Tomes', kind: 'active', prof: 'reason', power: 7,
       cost: { pool: 'guard', amount: 4 }, desc: 'A sharp gust that cuts like a blade.' },
@@ -124,4 +148,7 @@ export const FE_ABILITIES = Object.freeze([
       effect: { counter: 0.6 }, desc: 'Being hit only makes you hit back.' },
     { id: 'bloodthirst', label: 'Bloodthirst', category: 'Risk and Reward', kind: 'active', prof: 'sword', power: 9,
       cost: { pool: 'guard', amount: 12 }, effect: { drain: 0.3, missingBonus: 0.5 }, desc: 'A hungry strike that feeds on the wound it makes. Not in a spar.' },
+
+    // The relics' own arts: each comes with its weapon (the Heroic Relics abilities became weapons).
+    ...FE_RELIC_ARTS,
 ]);

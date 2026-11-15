@@ -505,3 +505,31 @@
     width: auto; margin: 0; cursor: pointer; white-space: nowrap;
 }
 .sillynpc-combat-persona input[type="checkbox"] { margin: 0; width: auto; flex: none; }
+/* ---- The equipment screen before a fight ---- */
+.snpc-loadout { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.snpc-loadout .sillynpc-combat-field { display: flex; flex-direction: column; gap: 2px; }
+.snpc-loadout .snpc-tier { align-self: flex-start; margin-top: 2px; }
+.snpc-loadout-heading { font-size: 0.85em; font-weight: 700; margin-top: 4px; }
+.snpc-loadout-tool { display: flex; align-items: center; gap: 6px; font-size: 0.9em; }
+/* Tools in a spar are shown but cannot be used: muted, with a plain note under them. */
+.snpc-loadout-tool.is-unusable { opacity: 0.65; text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+.snpc-fight-ready { align-items: flex-start; }
+
+/* Watching a fight (fork): two teams side by side, a play bar, and team pickers. */
+.snpc-fight-modes { display: flex; gap: 6px; margin-bottom: 8px; }
+.snpc-fight-modes .menu_button.is-active { outline: 2px solid #2c5f8a; }
+.snpc-fight-teams, .snpc-fight-teams-setup { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+.snpc-fight-team, .snpc-fight-team-box { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.snpc-fight-team-title { font-weight: 600; font-size: 0.9em; opacity: 0.85; }
+.snpc-fight-team-box.is-a { border-left: 4px solid #2c5f8a; padding-left: 6px; }
+.snpc-fight-team-box.is-b { border-left: 4px solid #8a2c2c; padding-left: 6px; }
+.snpc-fight-team-row { display: flex; gap: 4px; }
+.snpc-fight-team-row select { flex: 1; min-width: 0; }
+.snpc-fight-watchbar { flex-wrap: wrap; align-items: center; }
+.snpc-fight-watchbar select { width: auto; }
+.snpc-fight-weapon-edit > summary { cursor: pointer; }
+@media (max-width: 600px) {
+    .snpc-fight-teams, .snpc-fight-teams-setup { grid-template-columns: 1fr; }
+}
+.snpc-fight-teams .snpc-fight-person { padding: 6px; gap: 6px; }
+.snpc-fight-teams .snpc-fight-face { width: 36px; height: 36px; flex: none; }

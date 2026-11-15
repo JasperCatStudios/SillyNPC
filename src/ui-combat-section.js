@@ -3,11 +3,12 @@ import { project, ladderOf, rolesUsingStat, PROF_ROLES } from './combat-roles.js
 import { getTypeData, hasTypeData } from './combat-store.js';
 import { detectLegacy } from './combat-migrate.js';
 import { planFromLegacy } from './combat-plan.js';
-import { setStat, setMeta, setRank, setWeapon, setStatus, setAbilities, setXp, setLevel, removeUnknown, visibleProfs } from './combat-edit.js';
+import { setStat, setMeta, setRank, setStatus, setAbilities, setXp, setLevel, removeUnknown, visibleProfs } from './combat-edit.js';
 import { combatPrefs, allTypes, activeCombatType, isPersonaChar, setPersonaChar } from './combat-access.js';
 import { runMigration } from './combat-run.js';
 import { generateCombatSheet } from './combat-generate.js';
 import { abilityPicker } from './ui-abilities.js';
+import { renderGearBlock } from './ui-gear.js';
 import { STATUS_RUNGS, STATUS_DEFAULT } from './combat-status.js';
 import { XP_PER_LEVEL, readLevel, hasLevelMeta } from './combat-level.js';
 
@@ -188,7 +189,9 @@ function renderType(record, type, rerender, options) {
             if (m.type === 'choice') {
                 input = el('select', 'text_pole');
                 input.append(new Option('-', ''));
-                for (const o of m.options || []) input.append(new Option(o, o));
+                const have = data.meta[m.id];
+                const opts = have && !(m.options || []).includes(have) ? [have, ...(m.options || [])] : (m.options || []);
+                for (const o of opts) input.append(new Option(o, o));
                 input.value = data.meta[m.id] ?? '';
             } else {
                 input = el('input', 'text_pole');
@@ -235,32 +238,19 @@ function renderType(record, type, rerender, options) {
         body.append(row);
     }
 
-    // Weapon: what they fight with in the combat window.
+    // Condition: how hurt they are. Fights start from this and write it back afterwards.
     {
-        const w = data.weapon || { name: '', prof: '', power: 0 };
         const row = el('div', 'sillynpc-combat-meta');
-        const nameIn = el('input', 'text_pole');
-        nameIn.placeholder = 'e.g. Dual scimitars';
-        nameIn.value = w.name || '';
-        const profSel = el('select', 'text_pole');
-        profSel.append(new Option('any', ''));
-        for (const p of type.proficiencies) {
-            if ((p.roles || []).some(r => r === 'weapon' || r === 'magic')) profSel.append(new Option(p.label, p.id));
-        }
-        profSel.value = w.prof || '';
-        const powIn = el('input', 'text_pole');
-        powIn.type = 'number';
-        powIn.value = w.power || 0;
-        const save = () => commit(setWeapon(record, type, { name: nameIn.value, prof: profSel.value, power: powIn.value }), null);
-        for (const i of [nameIn, profSel, powIn]) i.addEventListener('change', save);
         const statusSel = el('select', 'text_pole');
         for (const g of [...STATUS_RUNGS].reverse()) statusSel.append(new Option(g === STATUS_DEFAULT ? `${g} (healthy)` : g === STATUS_RUNGS[0] ? `${g} (near death)` : g, g));
         statusSel.value = data.status || STATUS_DEFAULT;
         statusSel.addEventListener('change', () => commit(setStatus(record, type, statusSel.value), null));
-        row.append(field('Status', statusSel, 'How hurt they are. Fights start from this and update it afterwards. Set S+ to fully rest.'), field('Weapon', nameIn), field('Used with', profSel, 'Only actions of this kind are offered'),
-            field('Power bonus', powIn, 'Added to the power of every attack'));
+        row.append(field('Status', statusSel, 'How hurt they are. Fights start from this and update it afterwards. Set S+ to fully rest.'));
         body.append(row);
     }
+
+    // Weapons and tools: what they attack with, and carry, in the combat window.
+    body.append(renderGearBlock(record, type, { commit }));
 
     // Abilities this character has, by category, for this world type only.
     if ((type.abilities || []).length) {

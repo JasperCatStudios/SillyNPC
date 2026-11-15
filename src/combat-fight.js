@@ -1,8 +1,8 @@
 import { mulberry32 } from './combat-formula.js';
 import { project } from './combat-roles.js';
 import { resolveAttack, rollInitiative, grantsFollowUp, previewOdds } from './combat-math.js';
-import { resolveAbilities, abilityActions, passivesFor, fires, heals, blowMult } from './combat-abilities.js';
-import { resolveLoadout, weaponName } from './combat-gear.js';
+import { resolveAbilities, abilityList, abilityActions, passivesFor, fires, heals, blowMult } from './combat-abilities.js';
+import { resolveLoadout, weaponName, gearRules, gatedAbilities } from './combat-gear.js';
 import { buildGearActions } from './combat-weapons.js';
 
 /**
@@ -161,6 +161,62 @@ export function chooseAction(type, view, weapon, extra = {}) {
     return best || attacks[0];
 }
 
+/** The side that opposes this one. */
+const otherSide = (side) => (side === 'player' ? 'foe' : 'player');
+
+/**
+ * Team fights (fork). Anyone may fight on either side, one to four a side (see gear teams). The
+ * outnumbered get their back to the wall: for each foe more than they have friends standing, a
+ * bonus to hit and to damage, capped. Even sides, and every 1 against 1, get nothing.
+ * @returns {{ hit: number, mult: number }}
+ */
+export function teamEdge(type, state, actor) {
+    const wall = gearRules(type).teams.backToWall;
+    const extra = Math.min(Math.max(0, wall.max || 0), Math.max(0, living(state, otherSide(actor.side)).length - living(state, actor.side).length));
+    return { hit: extra * (wall.hitPerFoe || 0), mult: 1 + extra * (wall.multPerFoe || 0) };
+}
+
+/**
+ * Who this fighter goes for when nobody is choosing for them: the opponent they would hurt most,
+ * counted as a share of that opponent's health, with the badly hurt favoured (finishing a wounded
+ * foe beats chipping a fresh one). Deterministic. Null when nobody opposes them.
+ */
+export function pickTarget(type, state, actor) {
+    const hit = state.mode === 'spar' && actor.view.pools.guard ? 'guard' : 'health';
+    let best = null;
+    let bestScore = -1;
+    for (const foe of living(state, otherSide(actor.side))) {
+        const pool = foe.view.pools[hit];
+        const max = Math.max(1, pool?.max || 1);
+        const hurt = pool ? 1 - pool.cur / max : 0;
+        const score = bestExpected(type, actor, foe, state.diff * (actor.side === 'player' ? 1 : -1), state.mode) / max + 0.5 * hurt;
+        if (score > bestScore + 1e-9) { best = foe; bestScore = score; }
+    }
+    return best;
+}
+
+/**
+ * The current fighter takes their turn by themselves: the computer's best choice against the
+ * opponent they would pick. A fighter with nothing they can do (or nobody to hit) stands down.
+ * @returns {{ actor: object, events: object[] } | null} null when the fight is over
+ */
+export function autoTurn(type, state) {
+    if (!state || state.over) return null;
+    const actor = currentActor(state);
+    if (!actor) return null;
+    const target = pickTarget(type, state, actor);
+    const action = target ? chooseAction(type, actor.view, actor.weapon, {
+        me: actor, foe: target, mode: state.mode, diff: playerDiff(state, actor),
+    }) : null;
+    if (!target || !action) {
+        actor.down = true;
+        skipTurn(state, `${actor.name} has nothing they can do.`);
+        return { actor, events: [] };
+    }
+    const out = takeTurn(type, state, action.key, target.id);
+    return { actor, events: out.events || [] };
+}
+
 function spend(fighter, action) {
     const amount = Number(action?.cost?.amount) || 0;
     if (!amount) return;
@@ -271,7 +327,7 @@ export function startFight(type, people, opts = {}) {
             loadout, gearActions,
             // What they hold, in words, for the screen and the report: only when they really hold something.
             weaponName: loadout.main.default ? (p.weapon?.name || '') : weaponName(loadout),
-            abilities: resolveAbilities(type, p.data?.abilities).filter(ab => !Array.isArray(ab.modes) || ab.modes.includes(mode)),
+            abilities: gatedAbilities(gearRules(type), abilityList(type), resolveAbilities(type, p.data?.abilities), loadout).filter(ab => !Array.isArray(ab.modes) || ab.modes.includes(mode)),
             shield: 0,
             sig: JSON.stringify([p.data?.stats, p.data?.meta, p.data?.profs, p.data?.abilities, p.weapon, loadout.main, loadout.off, loadout.focus]),
         };
@@ -384,16 +440,17 @@ export function takeTurn(type, state, actionKey, targetId) {
     // hand: 'off' is the second blade of a pair (or a separate off-hand weapon): a lesser strike.
     const strike = (follow, hand = 'main') => {
         const off = hand === 'off' ? actor.gearActions?.off : null;
+        const edge = teamEdge(type, state, actor);
         const result = resolveAttack(type, actor.view, target.view, {
             prof: action.prof, power: off ? off.power : actionPower(action, actor), channel: action.channel,
-        }, { rng: state.rng, diff: playerDiff(state, actor), gear: off ? off.gear : action.gear });
+        }, { rng: state.rng, diff: playerDiff(state, actor) + edge.hit, gear: off ? off.gear : action.gear });
         let damage = result.damage;
         const notes = [];
         let blocked = 0;
         let drain = Number(action.effect?.drain) || 0;
         let firedDefend = [];
         if (damage > 0) {
-            let mult = blowMult(action.effect, actor.view) * (follow ? followMult : 1);
+            let mult = blowMult(action.effect, actor.view) * (follow ? followMult : 1) * edge.mult;
             for (const ab of passivesFor(actor.abilities, 'attack', state.mode, actor.view)) {
                 if (!fires(ab, actor.view, target.view, state.rng)) continue;
                 mult *= blowMult(ab.effect, actor.view);

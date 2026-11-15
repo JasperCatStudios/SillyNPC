@@ -1,9 +1,10 @@
 import { GENERIC_TIERS } from './combat-gear-defaults.js';
+import { FE_CATALOGUE } from './combat-gear-fe-weapons.js';
 
 /**
  * Fire Emblem gear (fork): data only, like combat-abilities-fe.js. The tier ladder is the one the
- * generic rules use (Training, Iron, Bronze, Silver, Hero Relic); the series itself puts Bronze
- * below Iron, so swap two entries here if you want canon order. Weapon kinds name the
+ * generic rules use (Training, Common, Bronze, Iron, Steel, Silver, Hero Relic), which is the
+ * series' own order of metals. Weapon kinds name the
  * proficiency they are trained with, and the old fixed attacks (Iron Sword, Iron Lance...) keep
  * their keys for old saves. Kind power and hit are relative to those basic attacks (a plain sword
  * is 0 and 0); brawling has no basic attack, so gauntlets and fists carry their own numbers.
@@ -25,5 +26,7 @@ export const FE_GEAR = {
         { id: 'tome', label: 'Tome', slot: 'focus', hands: 0, dualable: false, range: 'ranged', prof: 'reason', channel: 'magic', power: 0, hit: 0, weight: 2, verb: 'casts at' },
         { id: 'staff', label: 'Staff', slot: 'focus', hands: 0, dualable: false, range: 'ranged', prof: 'faith', channel: 'magic', power: 0, hit: 0, weight: 2, verb: 'channels' },
     ],
+    // Named weapons (the Armoury's built-in half), including the relics that used to be abilities.
+    catalogue: FE_CATALOGUE,
     unarmed: 'fists',
 };

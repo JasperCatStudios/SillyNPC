@@ -6,7 +6,8 @@
  *
  * A record has two sides, each a list of names, and a winner side:
  *   { id, at, kind, game, sideA: [name], sideB: [name], winner: 'A'|'B'|'draw',
- *     userSide: 'A'|'B'|'', player, opponent, result, summary, note }
+ *     userSide: 'A'|'B'|'', player, opponent, result, summary, note,
+*     spectators?: [name] }  (spectators only when someone watched; they are not on a side)
  * userSide says which side the player (the user's persona) was on, '' when only other people
  * took part. player is the player's name as it was recorded. opponent and result are the old
  * single-opponent fields; they are kept, derived from the sides, so older readers still work:
@@ -81,8 +82,11 @@ export function normalizeRecord(raw) {
     // The game or fight this record came from: the same id its table talk is kept under, so the
     // two are known to be one event. Older records have none (see rivalry-inject-core.js).
     const event = str(r.event, 60).replace(/[^A-Za-z0-9_-]/g, '');
+    // People who watched but did not fight: named in the history, never counted in a result.
+    const spectators = sideList(r.spectators).filter(n => !sideA.some(x => same(x, n)) && !sideB.some(x => same(x, n)) && !same(n, player));
     return {
         ...(event ? { event } : {}),
+        ...(spectators.length ? { spectators } : {}),
         id: str(r.id, 40) || newId(),
         at: Number.isFinite(Number(r.at)) ? Number(r.at) : Date.now(),
         kind: KINDS.includes(r.kind) ? r.kind : 'combat',
@@ -138,11 +142,21 @@ export function sideOf(record, person) {
 /** Whether a person took part, on either side. */
 export const tookPart = (record, person) => Boolean(sideOf(record, person));
 
+/** Whether a person looked on (a spectator) without fighting. */
+export const watched = (record, person) => Boolean(person) && (record.spectators || []).some(n => same(n, person));
+
+/**
+ * Whether a person knows of this fight: they fought in it or they watched it. Anyone else does
+ * not, so it never reaches what they know or how they talk. Wins and losses still count only
+ * what they took part in.
+ */
+export const knowsOf = (record, person) => tookPart(record, person) || watched(record, person);
+
 /** Every person (not the player) with at least one record, in the order they first appear. */
 export function peopleIn(records, playerName = '') {
     const names = [];
     for (const r of asRecords(records)) {
-        for (const n of othersIn(r)) {
+        for (const n of [...othersIn(r), ...(r.spectators || [])]) {
             if (playerName && same(n, playerName)) continue;
             if (!names.some(x => same(x, n))) names.push(n);
         }
@@ -237,13 +251,15 @@ export function companyText(record, person, playerName = '') {
  * shows up in how they talk. Only records they took part in. Empty when there is nothing.
  */
 export function describeRivalry(records, person, playerName = 'the player') {
-    const mine = asRecords(records).filter(r => tookPart(r, person));
+    const mine = asRecords(records).filter(r => knowsOf(r, person));
     if (!mine.length) return '';
     const fights = tally(mine, person, 'combat');
     const games = tally(mine, person, 'game');
     const parts = [];
     if (fights.total) parts.push(`${fights.total} fight${fights.total === 1 ? '' : 's'} (${tallyText(fights)})`);
     if (games.total) parts.push(`${games.total} game${games.total === 1 ? '' : 's'} (${tallyText(games)})`);
-    const recent = mine.slice(-4).map(r => recordLine(r, playerName));
+    const looked = mine.filter(r => !tookPart(r, person)).length;
+    if (looked) parts.push(`watched ${looked} more`);
+    const recent = mine.slice(-4).map(r => `${tookPart(r, person) ? '' : '[watched] '}${recordLine(r, playerName)}`);
     return `[HISTORY OF ${person.toUpperCase()} (WITH ${playerName.toUpperCase()} AND OTHERS): ${parts.join('; ')}. Results are from ${person}'s side. Most recent: ${recent.join(' | ')}. Let it colour how ${person} behaves; do not recite it.]`;
 }

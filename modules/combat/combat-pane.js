@@ -11,6 +11,7 @@ import {
 } from '../../src/combat-access.js';
 import { renderMigrationList, openLegacyMigration } from './migration-ui.js';
 import { renderAbilityEditor } from '../../src/ui-abilities.js';
+import { renderArmoury } from '../../src/ui-armoury.js';
 import { renderHistoryView } from '../../src/ui-history-inject.js';
 import { renderCombatButton } from './combat-window.js';
 
@@ -365,6 +366,7 @@ const VIEWS = [
     { id: 'settings', label: 'Settings', render: renderSettings },
     { id: 'roster', label: 'Roster', render: renderRoster },
     { id: 'abilities', label: 'Abilities', render: renderAbilityEditor },
+    { id: 'armoury', label: 'Armoury', render: renderArmoury },
     { id: 'history', label: 'History', render: renderHistoryView },
 ];
 let activeView = 'settings';

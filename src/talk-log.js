@@ -8,9 +8,10 @@
  *
  * Store shape (chat metadata `sillynpc_talk`):
  *   { games: [entry], combat: [entry] }, oldest first, at most TALK_MAX_ENTRIES per kind.
- *   entry = { id, at, title, with: [name], date, lines: [{ who, text }], result, sideA?, sideB? }
+ *   entry = { id, at, title, with: [name], date, lines: [{ who, text }], result, sideA?, sideB?, spectators? }
  *   with is everyone at the table but the player. sideA / sideB, when present, say who stood
  *   where (the player's side first); older entries have none and read exactly as before.
+ *   spectators, when present, are people who watched without fighting (also listed in with).
  *
  * Pure: no DOM, no SillyTavern imports, so node can test it.
  */
@@ -57,12 +58,13 @@ export function normalizeTalkEntry(raw) {
     const result = str(r.result, 300);
     if (!kept.length && !result) return null;
     const at = Number(r.at);
-    const withList = [...new Set((Array.isArray(r.with) ? r.with : []).map(n => str(n, 80)).filter(Boolean))].slice(0, 8);
+    const withList = [...new Set((Array.isArray(r.with) ? r.with : []).map(n => str(n, 80)).filter(Boolean))].slice(0, 14);
     const side = (v) => [...new Set((Array.isArray(v) ? v : []).map(n => str(n, 80)).filter(Boolean))].slice(0, 12);
     const sideA = side(r.sideA);
     const sideB = side(r.sideB);
     // Sides only when both are known: one side alone says nothing about who faced whom.
     const sides = sideA.length && sideB.length ? { sideA, sideB } : {};
+    const spectators = side(r.spectators).filter(n => !sideA.includes(n) && !sideB.includes(n));
     return {
         id,
         at: Number.isFinite(at) && at > 0 ? at : 0,
@@ -72,6 +74,7 @@ export function normalizeTalkEntry(raw) {
         lines: kept,
         result,
         ...sides,
+        ...(spectators.length ? { spectators } : {}),
     };
 }
 
@@ -128,7 +131,8 @@ const withText = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')
 
 /** Who was there: "<joiner>A and B against C" with sides, "<joiner>A and B" (the others) without. */
 const company = (e, joiner) => {
-    if (e.sideA && e.sideB) return `${joiner}${withText(e.sideA)} against ${withText(e.sideB)}`;
+    const watched = e.spectators?.length ? `, watched by ${withText(e.spectators)}` : '';
+    if (e.sideA && e.sideB) return `${joiner}${withText(e.sideA)} against ${withText(e.sideB)}${watched}`;
     return e.with.length ? `${joiner}${withText(e.with)}` : '';
 };
 

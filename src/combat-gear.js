@@ -179,6 +179,7 @@ export function normalizeGear(raw) {
         dual: numbersOver(GENERIC_DUAL, g.dual),
         burden: str(g.burden, 200),
         tools,
+        catalogue: list(g.catalogue).slice(0, 300).map(normalizeItem).filter(i => i.name && i.kind),
         flee: numbersOver(GENERIC_FLEE, g.flee),
         teams: {
             maxPerSide: int(teams.maxPerSide, 1, 4, GENERIC_TEAMS.maxPerSide),
@@ -268,6 +269,75 @@ export const toolKindOf = (rules, id) => rules.tools.find(t => t.id === id) || n
 /** The ladder a kind uses, falling back to the default one. */
 export const ladderFor = (rules, kind) => rules.ladders[kind?.ladder] || rules.ladders.default;
 
+/**
+ * Gated abilities (fork). An ability may carry `needs`, what a held weapon must be for the ability
+ * to be usable. Every field given must hold on ONE held item (main hand, off hand or focus):
+ *
+ *   weapon   [names]  the item is one of these named weapons (the relic arts)
+ *   together [names]  ALL of these weapons are held at once, each at the needed tier (twin relics)
+ *   kind     [ids]    the item is one of these kinds
+ *   ladder   id       the item's kind uses this tier ladder
+ *   tier     id       the item is at this tier of its ladder or higher (Shikai, Bankai, Hero Relic...)
+ *
+ * An ability that names weapons belongs to them: it is offered whenever the weapon is held
+ * at the needed tier, and takes none of the five ability slots. One without a weapon name is picked
+ * like any other, and only works while the gear allows it. A fighter with no gear at all (an old
+ * save) is not held back by tier or kind needs, so nothing they had stops working.
+ */
+export function holdsFor(rules, needs, loadout) {
+    const n = obj(needs);
+    const held = [loadout?.main, loadout?.off, loadout?.focus].filter(i => i && !i.default);
+    const weapons = list(n.weapon).map(w => String(w).toLowerCase());
+    const together = list(n.together).map(w => String(w).toLowerCase());
+    if (!held.length) return !weapons.length && !together.length;
+    if (together.length) {
+        // Every named weapon must be held, and each at the needed tier.
+        const ok = together.every(name => held.some(item => String(item.name || '').toLowerCase() === name && holdsFor(rules, { ...n, together: undefined, weapon: [name] }, { main: item })));
+        if (!ok) return false;
+        if (!weapons.length && !n.kind && !n.ladder && !n.tier) return true;
+        if (!weapons.length) return held.some(item => holdsFor(rules, { ...n, together: undefined }, { main: item }));
+    }
+    return held.some((item) => {
+        const kind = kindOf(rules, item.kind);
+        if (weapons.length && !weapons.includes(String(item.name || '').toLowerCase())) return false;
+        if (list(n.kind).length && !list(n.kind).includes(item.kind)) return false;
+        const ladder = ladderFor(rules, kind);
+        if (n.ladder && (kind?.ladder || 'default') !== n.ladder) return false;
+        if (n.tier) {
+            const need = ladder.tiers.findIndex(t => t.id === n.tier);
+            const have = ladder.tiers.findIndex(t => t.id === item.tier);
+            if (need < 0 || have < need) return false;
+        }
+        return true;
+    });
+}
+
+/** The abilities a fighter really has: the ones picked whose needs are met, plus the weapon's own, less any category a held item mutes. */
+export function gatedAbilities(rules, library, picked, loadout) {
+    const have = new Set(list(picked).map(a => a.id));
+    const own = list(library).filter(a => (list(a?.needs?.weapon).length || list(a?.needs?.together).length) && !have.has(a.id));
+    // A held item that mutes a category (Veloshra mutes Crests) switches off every ability in it.
+    const muted = new Set([loadout?.main, loadout?.off, loadout?.focus].filter(i => i && !i.default && i.mutes).map(i => String(i.mutes).toLowerCase()));
+    return [...list(picked), ...own]
+        .filter(a => !muted.has(String(a.category || '').toLowerCase()))
+        .filter(a => !a.needs || holdsFor(rules, a.needs, loadout));
+}
+
+/** A line saying what an ability needs, for the screens: "Needs Bankai (Release)". */
+export function needsText(rules, needs) {
+    const n = obj(needs);
+    const bits = [];
+    if (list(n.together).length) bits.push(`${list(n.together).join(' and ')} together`);
+    if (list(n.weapon).length) bits.push(list(n.weapon).join(' or '));
+    if (n.tier) {
+        const ladder = n.ladder ? rules.ladders[n.ladder] : rules.ladders.default;
+        const tier = list(ladder?.tiers).find(t => t.id === n.tier);
+        bits.push(`${tier?.label || n.tier}${list(n.weapon).length || list(n.together).length ? ' tier' : ''} or higher`);
+    }
+    if (list(n.kind).length) bits.push(list(n.kind).map(k => kindOf(rules, k)?.label || k).join(' or '));
+    return bits.length ? `Needs ${bits.join(', ')}` : '';
+}
+
 /** A tier on a ladder: the named one, else the ladder's default, else its first. */
 export function tierOf(ladder, tierId) {
     const tiers = ladder?.tiers || [];
@@ -297,6 +367,8 @@ export function normalizeItem(raw) {
         pair: Boolean(i.pair),
         desc: str(i.desc, 300),
         special: str(i.special, 60),
+        partner: str(i.partner, 60),
+        mutes: str(i.mutes, 40),
         bonus: { power: clamp(num(b.power), -20, 40), hit: clamp(num(b.hit), -20, 20), crit: clamp(num(b.crit), 0, 100) },
     };
     if (i.tool) {
@@ -411,6 +483,9 @@ function strike(rules, kind, tier, item, extra = {}) {
         channel: kind.channel,
         verb: kind.verb,
         special: item?.special || '',
+        itemId: item?.id || '',
+        partner: item?.partner || '',
+        mutes: item?.mutes || '',
         pair: Boolean(item?.pair),
         hands: kind.hands,
         default: !item,
@@ -438,10 +513,14 @@ export function resolveLoadout(type, data, opts = {}) {
     const source = data?.gear ? data : { ...(data || {}), weapon: opts.weapon ?? data?.weapon };
     const gear = effectiveGear(type, source);
     const items = new Map((gear?.items || []).map(i => [i.id, i]));
-    const forItem = (item) => {
+    // `down` drops the item that many tiers on its ladder: a relic kept apart from its partner.
+    const forItem = (item, down = 0) => {
         const kind = kindOf(rules, item?.kind);
         if (!kind) return null;
-        return strike(rules, kind, tierOf(ladderFor(rules, kind), item.tier), item);
+        const ladder = ladderFor(rules, kind);
+        let tier = tierOf(ladder, item.tier);
+        if (down > 0) tier = ladder.tiers[Math.max(0, ladder.tiers.findIndex(t => t.id === tier?.id) - down)] || tier;
+        return strike(rules, kind, tier, item, down > 0 ? { separated: true } : {});
     };
 
     let main = gear?.equipped.main ? forItem(items.get(gear.equipped.main)) : null;
@@ -460,7 +539,17 @@ export function resolveLoadout(type, data, opts = {}) {
             if (o && o.hands === 1) off = { ...o, off: true };
         }
     }
-    const focus = gear?.equipped.focus ? forItem(items.get(gear.equipped.focus)) : null;
+    let focus = gear?.equipped.focus ? forItem(items.get(gear.equipped.focus)) : null;
+
+    // Items that name a partner (the twin relics) lose a tier while the partner is not also held.
+    const held = [main, off, focus].filter(s => s && !s.default).map(s => String(s.name || '').toLowerCase());
+    const apart = (s) => (s?.partner && !held.includes(s.partner.toLowerCase()) ? forItem(items.get(s.itemId), 1) : null);
+    const mainApart = apart(main);
+    if (mainApart) main = mainApart;
+    const offApart = off && apart(off);
+    if (offApart) off = { ...offApart, off: true };
+    const focusApart = apart(focus);
+    if (focusApart) focus = focusApart;
 
     const tools = [];
     for (const id of gear?.belt || []) {
@@ -470,6 +559,20 @@ export function resolveLoadout(type, data, opts = {}) {
         tools.push({ itemId: id, name: item.name || toolKind.label, kind: toolKind.id, verb: toolKind.verb, effect: toolKind.effect, uses: item.uses ?? item.maxUses ?? toolKind.uses });
     }
     return { main, off, focus, tools };
+}
+
+/**
+ * Can this item go in this slot? Hands for main and off, the focus slot for a book or staff;
+ * a tool goes on the belt. The one rule the edit functions and the screens both ask.
+ * @param {'main'|'off'|'focus'} slot
+ */
+export function fitsSlot(rules, item, slot) {
+    const kind = kindOf(rules, item?.kind);
+    if (!kind || item.tool) return { ok: false, reason: 'A tool goes on the belt, not in a hand.' };
+    if (slot === 'focus') return kind.slot === 'focus' ? { ok: true } : { ok: false, reason: 'Only a focus (a book or staff) goes there.' };
+    if (kind.slot === 'focus') return { ok: false, reason: 'A focus takes no hand: it goes in the focus slot.' };
+    if (slot === 'off' && (kind.slot === 'natural' || kind.hands !== 1)) return { ok: false, reason: 'The off hand takes a one-handed weapon.' };
+    return { ok: true };
 }
 
 /** A fighter's weapon(s) in words: "Dual Scimitars", "Silver Sword and Dagger", "Fists". */

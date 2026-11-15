@@ -56,6 +56,17 @@ export function normalizeAbility(raw) {
     if (num(e.drain) > 0 && kind !== 'defensive') effect.drain = Math.min(1, num(e.drain));
     if (num(e.counter) > 0 && kind === 'passive' && a.trigger === 'defend') effect.counter = Math.min(3, num(e.counter));
     out.effect = effect;
+    const nd = a.needs && typeof a.needs === 'object' ? a.needs : null;
+    if (nd) {
+        const names = (v) => (Array.isArray(v) ? v.map(x => str(x, 60)).filter(Boolean).slice(0, 12) : []);
+        const needs = {};
+        if (names(nd.weapon).length) needs.weapon = names(nd.weapon);
+        if (names(nd.together).length) needs.together = names(nd.together);
+        if (names(nd.kind).length) needs.kind = names(nd.kind);
+        if (str(nd.tier, 40)) needs.tier = str(nd.tier, 40);
+        if (str(nd.ladder, 40)) needs.ladder = str(nd.ladder, 40);
+        if (Object.keys(needs).length) out.needs = needs;
+    }
     return out;
 }
 

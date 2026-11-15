@@ -2,6 +2,7 @@ import { ROLE_SCHEMA_VERSION } from './combat-roles.js';
 import { FE_ABILITIES } from './combat-abilities-fe.js';
 import { BLEACH_ABILITIES } from './combat-abilities-bleach.js';
 import { FE_GEAR } from './combat-gear-fe.js';
+import { FE_CLASSES } from './combat-classes-fe.js';
 import { BLEACH_GEAR } from './combat-gear-bleach.js';
 
 /**
@@ -48,7 +49,7 @@ const FE = {
         { id: 'cha', label: 'Charm', abbr: 'CHA', scale: { min: 0, max: 100 }, default: 20 },
     ],
     meta: [
-        { id: 'class', label: 'Class', type: 'text', aliases: ['Class'] },
+        { id: 'class', label: 'Class', type: 'choice', options: FE_CLASSES, aliases: ['Class'] },
         { id: 'level', label: 'Level', type: 'number', min: 1, max: 40, default: 1, aliases: ['Level'] },
     ],
     modifier: { type: 'linear', center: 50, per: 10 },

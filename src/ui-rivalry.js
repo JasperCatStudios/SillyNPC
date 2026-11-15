@@ -1,7 +1,7 @@
 import { name1 } from '../../../../../script.js';
 import { listRecords, addRecord, updateRecord, removeRecord } from './rivalry.js';
 import {
-    tally, tallyVsPlayer, tallyText, sideList, sideNames, sideOf, tookPart, peopleIn, sidesText,
+    tally, tallyVsPlayer, tallyText, sideList, sideNames, sideOf, tookPart, knowsOf, peopleIn, sidesText,
 } from './rivalry-core.js';
 
 /**
@@ -107,7 +107,7 @@ function draw(filter) {
 
     const list = el('div', 'snpc-hist-list');
     // A person's history is the records they took part in, on either side.
-    const shown = all.filter(r => !who.value || tookPart(r, who.value)).reverse();
+    const shown = all.filter(r => !who.value || knowsOf(r, who.value)).reverse();
     if (!shown.length) list.append(el('p', 'notes', 'Nothing here yet. Fights and games are added when they end.'));
     for (const r of shown) list.append(recordRow(r, who.value));
     panel.append(list);

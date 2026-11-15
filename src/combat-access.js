@@ -110,7 +110,8 @@ export function resetUserTool(typeId, id) { saveGearOverlay(typeId, resetTool(us
 
 /** The world's Armoury: named weapons anyone can be given. */
 export function armoury(typeId) {
-    return userGearOverlay(typeId).catalogue;
+    const builtIn = (normalizeGear(baseGear(typeId)).catalogue || []).map(i => ({ ...i, builtIn: true }));
+    return [...builtIn, ...userGearOverlay(typeId).catalogue];
 }
 export function saveArmouryItem(typeId, item) { saveGearOverlay(typeId, saveCatalogueItem(userGearOverlay(typeId), item)); }
 export function deleteArmouryItem(typeId, id) { saveGearOverlay(typeId, removeCatalogueItem(userGearOverlay(typeId), id)); }

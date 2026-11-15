@@ -15,6 +15,9 @@ import { abilityChance } from './combat-math.js';
  *   defensive  chosen on the owner's turn, aimed at themselves:
  *                effect.block braces against the next blow, effect.heal restores health
  *
+ * needs (optional, any kind): what a held weapon must be for the ability to work, by name, kind, tier
+ * ladder and tier (see holdsFor in combat-gear.js). One that names a weapon comes with that weapon.
+ *
  * chance is a formula over the owner's roles, 0 to 100 (for example a role over four, plus five).
  * It is read through the same formula engine as everything else, so no stat is named here.
  *
@@ -126,6 +129,15 @@ export function validateAbilities(type, validateExpr) {
         if (num(e.drain) < 0 || num(e.drain) > 1) errors.push(`${name} drain must be between 0 and 1.`);
         if (num(e.counter) < 0 || num(e.counter) > 3) errors.push(`${name} counter must be between 0 and 3.`);
         if (num(e.counter) > 0 && !(a.kind === 'passive' && a.trigger === 'defend')) errors.push(`${name} counter only works on a defend passive.`);
+        if (a.needs !== undefined) {
+            const n = a.needs;
+            if (!n || typeof n !== 'object' || Array.isArray(n)) errors.push(`${name} needs must be an object.`);
+            else {
+                for (const k of ['weapon', 'kind', 'together']) if (n[k] !== undefined && !(Array.isArray(n[k]) && n[k].every(x => typeof x === 'string' && x))) errors.push(`${name} needs.${k} must be a list of names.`);
+                for (const k of ['tier', 'ladder']) if (n[k] !== undefined && typeof n[k] !== 'string') errors.push(`${name} needs.${k} must be a name.`);
+                if (!n.weapon?.length && !n.together?.length && !n.kind?.length && !n.tier && !n.ladder) warnings.push(`${name} has an empty needs, so it is never held back.`);
+            }
+        }
         if (num(e.drain) > 0 && a.kind === 'defensive') errors.push(`${name} drain needs a blow to take from.`);
     }
     return { errors, warnings };

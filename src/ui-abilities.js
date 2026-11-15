@@ -1,5 +1,6 @@
 import { validateExpr } from './combat-formula.js';
 import { validateAbilities, MAX_ABILITIES } from './combat-abilities.js';
+import { gearRules, needsText } from './combat-gear.js';
 import { groupByCategory, normalizeAbility, freeId } from './combat-ability-overlay.js';
 import {
     allTypes, activeCombatType, saveUserAbility, deleteUserAbility, resetUserAbility, baseAbilities,
@@ -41,6 +42,7 @@ function tip(type, a) {
     if (a.effect?.block) lines.push(`Blocks ${Math.round(a.effect.block * 100)}%`);
     if (a.effect?.heal) lines.push(`Heals ${Math.round(a.effect.heal * 100)}% (not in a spar)`);
     if (a.power) lines.push(`Power ${a.power}`);
+    if (a.needs) lines.push(needsText(gearRules(type), a.needs));
     return lines.filter(Boolean).join('\n');
 }
 
@@ -56,7 +58,8 @@ function tip(type, a) {
  */
 export function abilityPicker(type, held, onChange) {
     const root = el('div', 'snpc-abil-picker');
-    const list = type.abilities || [];
+    // An ability that names a weapon comes with that weapon, so it is not something to pick.
+    const list = (type.abilities || []).filter(a => !a.needs?.weapon?.length && !a.needs?.together?.length);
 
     const top = el('div', 'snpc-abil-top');
     const search = el('input', 'text_pole');
@@ -245,6 +248,16 @@ export function renderAbilityEditor(host, rerender) {
     const drain = el('input', 'text_pole'); drain.type = 'number'; drain.step = '0.05'; drain.min = '0'; drain.max = '1'; drain.value = a.effect?.drain ?? 0;
     const counter = el('input', 'text_pole'); counter.type = 'number'; counter.step = '0.1'; counter.min = '0'; counter.max = '3'; counter.value = a.effect?.counter ?? 0;
 
+    // What gear it needs (optional): see needs in combat-gear.js. Names are separated by commas.
+    const csv = (v) => (Array.isArray(v) ? v.join(', ') : '');
+    const needTogether = el('input', 'text_pole'); needTogether.value = csv(a.needs?.together); needTogether.placeholder = 'e.g. Twin Tide, Salt Fang';
+    const needWeapon = el('input', 'text_pole'); needWeapon.value = csv(a.needs?.weapon); needWeapon.placeholder = 'e.g. Thunderbrand';
+    const needTier = el('input', 'text_pole'); needTier.value = a.needs?.tier || ''; needTier.placeholder = 'e.g. relic, bankai';
+    const needLadder = el('input', 'text_pole'); needLadder.value = a.needs?.ladder || ''; needLadder.placeholder = 'e.g. release (blank: any)';
+    const readNeeds = () => {
+        const names = (v) => String(v).split(',').map(x => x.trim()).filter(Boolean);
+        return { together: names(needTogether.value), weapon: names(needWeapon.value), tier: needTier.value.trim(), ladder: needLadder.value.trim(), kind: a.needs?.kind };
+    };
     const groups = {
         trigger: field('When it can fire', trigger),
         chance: field('Chance (0 to 100, a formula)', chance, 'Over your roles, e.g. a.luck/4 + 5'),
@@ -292,6 +305,18 @@ export function renderAbilityEditor(host, rerender) {
     const g2 = el('div', 'snpc-aed-grid');
     g2.append(groups.trigger, groups.chance, groups.below, groups.prof, groups.power, groups.pool, groups.amount, groups.dmg, groups.missing, groups.drain, groups.block, groups.heal, groups.counter);
     form.append(g2);
+    const needsBox = el('details', 'snpc-gear-more');
+    needsBox.open = Boolean(a.needs);
+    needsBox.append(el('summary', '', 'Needs gear (optional)'));
+    const g3 = el('div', 'snpc-aed-grid');
+    g3.append(
+        field('All of these weapons held', needTogether, 'Weapons that must be held at once (twin relics). The ability comes with them.'),
+        field('Any of these weapons', needWeapon, 'One of these named weapons must be held. The ability comes with it.'),
+        field('Tier it must be at or above', needTier, "The tier's id on its ladder, such as relic or bankai."),
+        field('Tier ladder', needLadder, 'Only needed when the tier name exists on more than one ladder.'),
+    );
+    needsBox.append(g3);
+    form.append(needsBox);
     showKind();
 
     const problems = el('div', 'snpc-aed-problems');
@@ -302,6 +327,7 @@ export function renderAbilityEditor(host, rerender) {
         trigger: trigger.value, chance: chance.value, whenBelow: Number(below.value) / 100, prof: prof.value, power: power.value,
         cost: pool.value ? { pool: pool.value, amount: amount.value } : null,
         effect: { dmgMult: dmg.value, block: block.value, heal: heal.value, missingBonus: missing.value, drain: drain.value, counter: counter.value },
+        needs: readNeeds(),
     });
     const check = (ability) => {
         const others = list.filter(x => x.id !== ability.id);

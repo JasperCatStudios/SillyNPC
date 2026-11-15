@@ -17,11 +17,17 @@
 
 export const GEAR_VERSION = 1;
 
-/** Lowest first: the order IS the rank. `prefix` names a default weapon of that tier. */
+/**
+ * Lowest first: the order IS the rank (Training, Common, Bronze, Iron, Steel, Silver, Hero Relic).
+ * `prefix` names a default weapon of that tier. Common keeps the prefix "Iron" so a plain default
+ * weapon still reads "Iron Axe"; the real Iron tier sits above Bronze.
+ */
 export const GENERIC_TIERS = Object.freeze([
     { id: 'training', label: 'Training', prefix: 'Wooden', color: '#8d6e63', icon: 'fa-solid fa-seedling', rarity: 'Practice', power: -1, hit: 0, crit: 0, mult: 0.85 },
     { id: 'common', label: 'Common', prefix: 'Iron', color: '#9e9e9e', icon: 'fa-solid fa-circle', rarity: 'Common', power: 0, hit: 0, crit: 0, mult: 1 },
     { id: 'bronze', label: 'Bronze', prefix: 'Bronze', color: '#b87333', icon: 'fa-solid fa-medal', rarity: 'Uncommon', power: 1, hit: 1, crit: 2, mult: 1.05 },
+    { id: 'iron', label: 'Iron', prefix: 'Iron', color: '#78909c', icon: 'fa-solid fa-hammer', rarity: 'Uncommon', power: 1, hit: 1, crit: 3, mult: 1.07 },
+    { id: 'steel', label: 'Steel', prefix: 'Steel', color: '#a7b4bd', icon: 'fa-solid fa-shield', rarity: 'Uncommon', power: 1, hit: 1, crit: 4, mult: 1.09 },
     { id: 'silver', label: 'Silver', prefix: 'Silver', color: '#c0c7d0', icon: 'fa-solid fa-star', rarity: 'Rare', power: 2, hit: 1, crit: 5, mult: 1.12 },
     { id: 'relic', label: 'Hero Relic', prefix: '', color: '#e0b040', icon: 'fa-solid fa-crown', rarity: 'Legendary', power: 3, hit: 2, crit: 10, mult: 1.25, signature: true },
 ]);

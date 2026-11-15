@@ -607,6 +607,7 @@ export const TEMPLATES = Object.freeze({
             head = `${kind}${game}: ${sidesText(r, player)}, ${winnerText(r, player)}.`;
         }
         const bits = [head];
+        if (r.spectators?.length) bits.push(`Watched by ${r.spectators.length > 1 ? `${r.spectators.slice(0, -1).join(', ')} and ${r.spectators[r.spectators.length - 1]}` : r.spectators[0]}.`);
         if (r.summary) bits.push(r.summary);
         if (r.note) bits.push(r.note);
         return bits.join(' ');

@@ -1,4 +1,4 @@
-import { tally, tallyText, asRecords, peopleIn, tookPart, recordLine } from './rivalry-core.js';
+import { tally, tallyText, asRecords, peopleIn, tookPart, knowsOf, recordLine } from './rivalry-core.js';
 import { chooseEntries } from './vector-core.js';
 
 /**
@@ -70,7 +70,8 @@ export function normalizeInject(raw) {
 
 /**
  * Who gets into the prompt this time: anyone (but the player) who took part in a record, on
- * either side, so allies and people in fights between others count too.
+ * either side, or watched it as a spectator, so allies, people in fights between others and
+ * onlookers count too.
  *
  * @param {object[]} records Every record in the chat.
  * @param {object} opts normalizeInject() output
@@ -82,7 +83,7 @@ export function normalizeInject(raw) {
 export function selectOpponents(records, opts, ctx, playerName = '') {
     const list = asRecords(records);
     const names = peopleIn(list, playerName);
-    const theirs = (n) => list.filter(r => tookPart(r, n));
+    const theirs = (n) => list.filter(r => knowsOf(r, n));
     const lastAt = (n) => Math.max(...theirs(n).map(r => r.at));
     const count = (n) => theirs(n).length;
 
@@ -99,7 +100,8 @@ export function selectOpponents(records, opts, ctx, playerName = '') {
 
 /**
  * The text for one person: how it has gone for them, and the last few things that happened.
- * Only records they took part in (either side); fights between others are left out.
+ * Only records they took part in (either side) or watched; fights between others they did not
+ * see are left out, and a watched one is marked as such. Their tally counts only what they fought.
  *
  * mode.vectors with picks: the records written are the ones the vectors picked, and only those
  * (no newest-first filling), so the vectors are the one source of this history; a person with no
@@ -109,16 +111,18 @@ export function selectOpponents(records, opts, ctx, playerName = '') {
  * with its table talk); they are never written twice. The tallies still count them.
  */
 export function historyBlock(records, person, playerName, recent, picks = null, { vectors = false, skip = null } = {}) {
-    const mine = asRecords(records).filter(r => tookPart(r, person));
+    const mine = asRecords(records).filter(r => knowsOf(r, person));
     if (!mine.length) return '';
     const fights = tally(mine, person, 'combat');
     const games = tally(mine, person, 'game');
     const head = [];
     if (fights.total) head.push(`${fights.total} fight${fights.total === 1 ? '' : 's'} (${tallyText(fights)})`);
     if (games.total) head.push(`${games.total} game${games.total === 1 ? '' : 's'} (${tallyText(games)})`);
+    const looked = mine.filter(r => !tookPart(r, person)).length;
+    if (looked) head.push(`watched ${looked} more from the side`);
     const pool = skip?.size ? mine.filter(r => !skip.has(r.id)) : mine;
     const only = vectors && Array.isArray(picks);
-    const lines = chooseEntries(pool, picks, recent, { fill: !only }).map(r => `- ${recordLine(r, playerName)}`);
+    const lines = chooseEntries(pool, picks, recent, { fill: !only }).map(r => `- ${tookPart(r, person) ? '' : '[watched] '}${recordLine(r, playerName)}`);
     if (only && !lines.length) return '';
     return `${person}: ${head.join('; ')}. Results are from ${person}'s side.${lines.length ? `\n${lines.join('\n')}` : ''}`;
 }
@@ -154,7 +158,7 @@ export function buildInjectionWithin(records, names, opts, playerName = 'the pla
     const usable = [...new Set(picks)].filter((id) => {
         const r = byId.get(id);
         if (!r || mode.skip?.has?.(id)) return false;
-        return [...(r.sideA || []), ...(r.sideB || [])].some(n => wanted.has(low(n)) && low(n) !== low(playerName));
+        return [...(r.sideA || []), ...(r.sideB || []), ...(r.spectators || [])].some(n => wanted.has(low(n)) && low(n) !== low(playerName));
     });
     let n = usable.length;
     let text = buildInjection(records, names, opts, playerName, usable.slice(0, n), mode);

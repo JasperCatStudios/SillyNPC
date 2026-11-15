@@ -3,7 +3,7 @@ import { emptyTypeData, normalizeCombatBlock, normalizeWeapon } from './combat-s
 import { isStatus } from './combat-status.js';
 import {
     gearRules, kindOf, toolKindOf, ladderFor, tierOf, normalizeItem, normalizeCharGear, nextItemId,
-    migrateLegacyWeapon, defaultName, MAX_BELT,
+    migrateLegacyWeapon, defaultName, fitsSlot as fits, MAX_BELT,
 } from './combat-gear.js';
 import { MAX_ABILITIES } from './combat-abilities.js';
 import { applyXp, readLevel, hasLevelMeta, XP_PER_LEVEL } from './combat-level.js';
@@ -358,16 +358,6 @@ export function removeItem(record, type, id, at = Date.now()) {
     const data = record.combat.types[type.dataKey];
     mirrorWeapon(data, rules);
     log(data, `gear.${id}`, from.name, null, at);
-    return { ok: true };
-}
-
-/** Can this item go in this slot? Hands for main and off, the focus slot for a book or staff. */
-function fits(rules, item, slot) {
-    const kind = kindOf(rules, item?.kind);
-    if (!kind || item.tool) return { ok: false, reason: 'A tool goes on the belt, not in a hand.' };
-    if (slot === 'focus') return kind.slot === 'focus' ? { ok: true } : { ok: false, reason: 'Only a focus (a book or staff) goes there.' };
-    if (kind.slot === 'focus') return { ok: false, reason: 'A focus takes no hand: it goes in the focus slot.' };
-    if (slot === 'off' && (kind.slot === 'natural' || kind.hands !== 1)) return { ok: false, reason: 'The off hand takes a one-handed weapon.' };
     return { ok: true };
 }
 
