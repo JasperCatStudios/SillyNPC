@@ -4739,3 +4739,4 @@ textarea.sillynpc-profile-input {
     padding: 6px 10px;
     border-left: 3px solid var(--SmartThemeQuoteColor, #888);
 }
+.sillynpc-is-body { line-height: 1.4; overflow-wrap: anywhere; }

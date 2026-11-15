@@ -18,7 +18,7 @@ import {
     normalizeBondSettings, normalizeStore, findPerson, ensurePerson, timingAction,
     applyTurn, revertTurn, setMeter, parseUpdate, stripInlineBlock, milestoneDate,
     parseLegacyBonds, migrateLegacy, selectPeople, buildBondInjection,
-    buildMonitorPrompt, buildInlineInstruction,
+    buildMonitorPrompt, buildInlineInstruction, acceptRomanceSuggestion, declineRomanceSuggestion,
 } from './bonds-core.js';
 
 /**
@@ -122,6 +122,16 @@ function commit(update, ctx) {
         const label = settings.milestones.find(p => p.id === m.type)?.label || m.type;
         toastr.info(`${label}: ${m.name}`, 'Bond milestone');
     }
+    // Romance-unlock flags that passed every rule. Rare, so each one is announced.
+    const reasonOf = (name) => (update?.catalysts || []).find(c => String(c?.name || '').toLowerCase() === name.toLowerCase())?.reason || '';
+    for (const name of result.record.suggested || []) {
+        const why = reasonOf(name);
+        toastr.info(`${name} may be developing feelings for ${playerName()}${why ? `: ${why}` : '.'} Turn romance on or keep it platonic under the reply or in the Bonds tab.`, 'Romance suggestion');
+    }
+    for (const name of result.record.unlocked || []) {
+        const why = reasonOf(name);
+        toastr.info(`Romance is now on for ${name}'s side${why ? `: ${why}` : '.'}`, 'Romance unlocked');
+    }
     debugLog('Bonds updated', result.record);
     return result;
 }
@@ -209,6 +219,8 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
                 latest: String(message.mes),
                 speaker: message.name,
                 lastDate: chatStore()?.lastDate || '',
+                // The turn this read will count as, for the romance-unlock cooldown.
+                turn: (chatStore()?.turn ?? 0) + 1,
             });
             const focus = only ? `\n\nOnly ${only} matters for this update; leave everyone else out.` : '';
             const raw = await requestOnConnection('bondProfileId', system, user + focus, settings.maxTokens);
@@ -244,6 +256,8 @@ function drawSectionFor(mesEl) {
         refresh: () => redrawSection(id),
         latest: id === latestReplyId(),
         redo: () => { runBondUpdate(id, { force: true, button: true }).catch(err => console.warn(LOG_PREFIX, err)); },
+        onAccept: (name) => { acceptSuggestion(name); },
+        onDecline: (name) => { declineSuggestion(name); },
         onEdit: (entries) => {
             const growth = bondSettings().growth;
             for (const e of entries) {
@@ -360,7 +374,7 @@ export function applyBondPrompts(type = 'normal') {
     // so asking them for a bond block would only leak it into their output.
     if (on && type !== 'quiet' && type !== 'impersonate' && timingAction(settings, 'generation') === 'instruct') {
         const people = (chatStore()?.people || []).filter(p => p.tracked);
-        instruction = buildInlineInstruction(settings, people, playerName(), chatStore()?.lastDate || '');
+        instruction = buildInlineInstruction(settings, people, playerName(), chatStore()?.lastDate || '', (chatStore()?.turn ?? 0) + 1);
     }
     // At depth 0, right before the reply, so the instruction is the last thing the model reads.
     setExtensionPrompt(INLINE_KEY, instruction, extension_prompt_types.IN_CHAT, 0, false, extension_prompt_roles.SYSTEM);
@@ -376,6 +390,30 @@ export function editPerson(name, change) {
     change(person, store);
     saveStore();
     return person;
+}
+
+/**
+ * Answers one person's pending romance suggestion, then redraws the replies that showed it (the
+ * one it came from, and the newest, which shows every pending one). chatStore() returns a fresh
+ * object each call, so the redraw reads the saved state rather than a held reference.
+ */
+function answerSuggestion(name, change) {
+    const before = getPerson(name);
+    if (!before?.suggestion) return false;
+    const from = before.suggestion.messageId;
+    editPerson(before.name, change);
+    for (const id of new Set([from, latestReplyId()])) if (Number.isInteger(id) && id >= 0) redrawSection(id);
+    return true;
+}
+
+/** "Turn romance on": their side's romance goes on. Your side is never touched. */
+export function acceptSuggestion(name) {
+    return answerSuggestion(name, (p) => { acceptRomanceSuggestion(p); });
+}
+
+/** "Keep platonic": the suggestion is dropped and they are not suggested again for the cooldown. */
+export function declineSuggestion(name) {
+    return answerSuggestion(name, (p, store) => { declineRomanceSuggestion(p, store.turn); });
 }
 
 export function getPerson(name) {

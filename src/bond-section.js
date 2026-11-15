@@ -57,6 +57,40 @@ export function parseTrackerLines(text) {
     return out;
 }
 
+/**
+ * The people whose pending romance suggestion belongs under this reply: the ones it raised, and
+ * on the newest reply every pending one, so nothing waiting is out of sight.
+ */
+export function pendingSuggestions(store, messageId, latest = false) {
+    return (store?.people || []).filter(p => p?.suggestion && (latest || p.suggestion.messageId === messageId));
+}
+
+/** One compact card: who, why, and the two answers. Text only; nothing from the model becomes HTML. */
+function suggestionCard(person, mesEl, ctx) {
+    const card = document.createElement('div');
+    card.className = 'sillynpc-bond-suggest';
+    card.dataset.name = person.name;
+    const text = document.createElement('span');
+    text.className = 'sillynpc-bond-suggest-text';
+    const reason = person.suggestion.reason;
+    text.textContent = `${person.name} may be developing feelings${reason ? `: ${reason}` : '.'}`;
+    const redraw = () => (ctx.refresh ? ctx.refresh() : drawBondSection(mesEl, ctx));
+    const answer = (label, cls, title, fn) => {
+        const b = document.createElement('div');
+        b.className = `menu_button ${cls}`;
+        b.textContent = label;
+        b.title = title;
+        b.addEventListener('click', (e) => { e.stopPropagation(); try { fn?.(person.name); } finally { redraw(); } });
+        return b;
+    };
+    card.append(
+        text,
+        answer('Turn romance on', 'sillynpc-bond-suggest-accept', `Switch romance on for ${person.name}'s side. Your own side stays as you set it.`, ctx.onAccept),
+        answer('Keep platonic', 'sillynpc-bond-suggest-decline', `Keep it a friendship. ${person.name} is not suggested again for a while (the cooldown in the Bonds tab).`, ctx.onDecline),
+    );
+    return card;
+}
+
 /** The block dressed by the preset's display regexes, then made safe to insert. */
 function dress(html) {
     let out = html;
@@ -158,11 +192,15 @@ export function drawBondSection(mesEl, ctx) {
         const html = bondBlockHtml(store, record, settings, playerName);
         if (html) {
             const body = document.createElement('div');
-            body.className = 'sillynpc-is-body mes_text';
+            // Not "mes_text": SillyTavern's editor does find('.mes_text') and puts its edit box in every match, which
+            // left empty copies of it and erased the message when Done was pressed.
+            body.className = 'sillynpc-is-body';
             body.innerHTML = dress(html);
             section.append(body);
         }
     }
+
+    for (const person of pendingSuggestions(store, id, latest)) section.append(suggestionCard(person, mesEl, ctx));
 
     const anchor = mesEl.querySelector('.sillynpc-internal-states') || mesEl.querySelector('.sillynpc-status-box') || mesEl.querySelector('.mes_text');
     anchor?.insertAdjacentElement('afterend', section);

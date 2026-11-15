@@ -78,6 +78,16 @@ export const GATE_TRACKS = Object.freeze({ platonic: 'Friendship', romance: 'Rom
 /** Romance gates: whether the character alone may start it, or both must feel it. */
 export const GATE_SCOPES = Object.freeze({ initiates: 'They may start it', mutual: 'Both must feel it' });
 export const STORE_VERSION = 2;
+/**
+ * How a character's romance (their toPlayer edge) gets switched on. Manual: only by hand, and the
+ * model is never asked. Suggest: the model may flag a romantic turn, which waits for the user.
+ * Automatic: the flag switches it on. The player's own side is always set by hand.
+ */
+export const ROMANCE_UNLOCKS = Object.freeze({
+    manual: 'Manual - I switch it on',
+    suggest: 'Suggest - ask me',
+    auto: 'Automatic',
+});
 
 /* ---- defaults ------------------------------------------------------------------------ */
 
@@ -229,6 +239,12 @@ export const BOND_DEFAULTS = Object.freeze({
     gates: DEFAULT_GATES,
     milestones: DEFAULT_MILESTONES,
     inject: DEFAULT_INJECT,
+    /** See ROMANCE_UNLOCKS. */
+    romanceUnlock: 'manual',
+    /** The platonic value (lower of affection and trust) a character needs before a romance suggestion counts. */
+    romanceMinBond: 40,
+    /** Turns after "Keep platonic" before the same person may be suggested again. */
+    romanceCooldown: 10,
 });
 
 /* ---- small helpers ------------------------------------------------------------------- */
@@ -460,6 +476,9 @@ export function normalizeBondSettings(raw) {
         gates: normalizeGates(migrateGates(r.gates, new Set(levels.map(l => l.id))), levels, romanceLevels),
         milestones: normalizeMilestonePresets(r.milestones),
         inject: normalizeBondInject(r.inject),
+        romanceUnlock: pick(r.romanceUnlock, ROMANCE_UNLOCKS, BOND_DEFAULTS.romanceUnlock),
+        romanceMinBond: int(r.romanceMinBond, 0, 100, BOND_DEFAULTS.romanceMinBond),
+        romanceCooldown: int(r.romanceCooldown, 0, 200, BOND_DEFAULTS.romanceCooldown),
     };
 }
 
@@ -922,6 +941,22 @@ export function normalizePerson(raw, growth = DEFAULT_GROWTH, settings = null) {
         lastSeen: Number.isFinite(Number(p.lastSeen)) ? Number(p.lastSeen) : 0,
         lastReason: str(p.lastReason, 300),
         legacy: p.legacy && typeof p.legacy === 'object' ? { ...p.legacy } : null,
+        /** A pending romance suggestion for their side, waiting for the user. See ROMANCE_UNLOCKS. */
+        suggestion: normalizeSuggestion(p.suggestion),
+        /** The store turn of the last "Keep platonic", for the cooldown. */
+        declinedTurn: (typeof p.declinedTurn === 'number' || (typeof p.declinedTurn === 'string' && p.declinedTurn.trim() !== ''))
+            ? int(p.declinedTurn, 0, 1e9, null) : null,
+    };
+}
+
+/** A pending romance suggestion, repaired: { reason, messageId, turn, at }, or null. */
+export function normalizeSuggestion(raw) {
+    if (!isObj(raw)) return null;
+    return {
+        reason: str(raw.reason, 300),
+        messageId: Number.isInteger(raw.messageId) && raw.messageId >= 0 ? raw.messageId : null,
+        turn: int(raw.turn, 0, 1e9, 0),
+        at: Number.isFinite(Number(raw.at)) && typeof raw.at !== 'boolean' ? Number(raw.at) : 0,
     };
 }
 
@@ -954,6 +989,52 @@ export function ensurePerson(store, name, growth = DEFAULT_GROWTH) {
     const person = normalizePerson({ name, value: growth.start, lastSeen: store.turn, tracked: false }, growth);
     store.people.push(person);
     return person;
+}
+
+/* ---- romance unlock suggestions ------------------------------------------------------ */
+
+/**
+ * Whether the model may flag a person's feelings as turning romantic at this turn, and if not,
+ * why. The model is told who qualifies, but this is what decides: a flag for anyone else is
+ * dropped. Only the character's side (toPlayer) is ever considered.
+ *
+ * why: 'mode' (unlock is Manual), 'untracked', 'lock' (not Open), 'on' (their romance is already
+ * on), 'pending' (a suggestion already waits), 'cooldown' (declined too recently), 'bond' (below
+ * romanceMinBond).
+ * @returns {{ ok: boolean, why: string }}
+ */
+export function romanceEligibility(person, settings, turn) {
+    const no = (why) => ({ ok: false, why });
+    const mode = pick(settings?.romanceUnlock, ROMANCE_UNLOCKS, 'manual');
+    if (mode === 'manual') return no('mode');
+    if (!person || !person.tracked) return no('untracked');
+    if ((person.lock ?? 'open') !== 'open') return no('lock');
+    if (person.edges?.toPlayer?.romance === true) return no('on');
+    if (person.suggestion) return no('pending');
+    const cooldown = int(settings?.romanceCooldown, 0, 200, BOND_DEFAULTS.romanceCooldown);
+    if (Number.isFinite(person.declinedTurn) && cooldown > 0) {
+        // Without a turn to measure from, a recent decline is assumed to still hold.
+        if (!Number.isFinite(Number(turn)) || Number(turn) - person.declinedTurn < cooldown) return no('cooldown');
+    }
+    const min = int(settings?.romanceMinBond, 0, 100, BOND_DEFAULTS.romanceMinBond);
+    if (bondValue(person) < min) return no('bond');
+    return { ok: true, why: '' };
+}
+
+/** "Turn romance on": their side's romance goes on and the suggestion is gone. */
+export function acceptRomanceSuggestion(person) {
+    if (!person?.edges?.toPlayer) return false;
+    person.edges.toPlayer.romance = true;
+    person.suggestion = null;
+    return true;
+}
+
+/** "Keep platonic": the suggestion is gone and the cooldown starts at this turn. */
+export function declineRomanceSuggestion(person, turn) {
+    if (!person) return false;
+    person.suggestion = null;
+    person.declinedTurn = int(turn, 0, 1e9, 0);
+    return true;
 }
 
 /* ---- growth -------------------------------------------------------------------------- */
@@ -1148,7 +1229,13 @@ export function parseUpdate(text) {
     const milestones = (Array.isArray(data?.milestones) ? data.milestones : [])
         .filter(m => m && str(m.name) && str(m.type))
         .map(m => ({ name: str(m.name, 80), type: slug(m.type), note: str(m.note, 600) }));
-    return { bonds, milestones, date: str(data?.date, 80) };
+    const out = { bonds, milestones, date: str(data?.date, 80) };
+    // Romance-unlock flags. Only present when the model gave some; whether any count is applyTurn's call.
+    const catalysts = (Array.isArray(data?.catalysts) ? data.catalysts : [])
+        .filter(c => c && typeof c === 'object' && str(c.name))
+        .map(c => ({ name: str(c.name, 80), reason: str(c.reason, 300) }));
+    if (catalysts.length) out.catalysts = catalysts;
+    return out;
 }
 
 /**
@@ -1191,6 +1278,17 @@ export function revertTurn(store, key, growth = DEFAULT_GROWTH) {
     for (const ms of rec.milestones || []) {
         const person = findPerson(store, ms.name);
         if (person) removeMilestone(person, ms.id);
+    }
+    // A suggestion this turn made, still waiting, goes with it. One already answered was the user's.
+    for (const name of Array.isArray(rec.suggested) ? rec.suggested : []) {
+        const person = findPerson(store, name);
+        const s = person?.suggestion;
+        if (s && s.turn === rec.turn && s.messageId === (rec.messageId ?? null)) person.suggestion = null;
+    }
+    // A romance this turn switched on by itself is switched off again.
+    for (const name of Array.isArray(rec.unlocked) ? rec.unlocked : []) {
+        const person = findPerson(store, name);
+        if (person?.edges?.toPlayer) person.edges.toPlayer.romance = false;
     }
     store.turns.splice(at, 1);
     return true;
@@ -1289,6 +1387,27 @@ export function applyTurn(store, update, settings, ctx) {
             at: ctx.now ?? Date.now(), ...when,
         }, presets);
         record.milestones.push({ name: person.name, id: added.id, type: preset.id });
+    }
+
+    // Romance-unlock flags, after this turn's own changes. Never trusted: each is checked against
+    // romanceEligibility, and anything that fails is dropped without a word. Only toPlayer.
+    const mode = pick(settings.romanceUnlock, ROMANCE_UNLOCKS, 'manual');
+    if (mode !== 'manual') {
+        const flagged = new Set();
+        for (const c of Array.isArray(update?.catalysts) ? update.catalysts : []) {
+            if (!c || !accepts(c.name)) continue;
+            const person = findPerson(store, c.name);
+            if (!person || flagged.has(person.name.toLowerCase())) continue;
+            flagged.add(person.name.toLowerCase());
+            if (!romanceEligibility(person, settings, turn).ok) continue;
+            if (mode === 'auto') {
+                person.edges.toPlayer.romance = true;
+                (record.unlocked ||= []).push(person.name);
+            } else {
+                person.suggestion = { reason: str(c.reason, 300), messageId: ctx.messageId ?? null, turn, at: ctx.now ?? Date.now() };
+                (record.suggested ||= []).push(person.name);
+            }
+        }
     }
 
     // Fading, for the tracked people this reply did not involve. Only on a fresh turn: a forced
@@ -1499,7 +1618,7 @@ export function buildBondInjection(store, names, settings, playerName = 'the pla
 }
 
 /** The rules and vocabulary the model needs to propose an update, shared by both timings. */
-function rulesText(settings, people, playerName, lastDate = '') {
+function rulesText(settings, people, playerName, lastDate = '', turn = undefined) {
     const g = settings.growth;
     const out = [];
     out.push('date: the in-story date of the latest message, written exactly as "Weekday, Month DD, Year" (for example "Friday, February 07, 1182"). '
@@ -1529,6 +1648,10 @@ function rulesText(settings, people, playerName, lastDate = '') {
     } else {
         out.push('Leave out desire: nobody\'s romance is switched on.');
     }
+    // Romance-unlock flags: only outside Manual, and only when somebody qualifies. Otherwise the
+    // prompt is exactly what it was before the setting existed.
+    const eligible = catalystCandidates(settings, people, turn);
+    if (eligible.length) out.push(catalystRule(eligible, playerName));
     const auto = settings.milestones.filter(m => m.auto);
     if (auto.length) {
         out.push('Milestones (type id: when to record it):');
@@ -1555,7 +1678,23 @@ function rulesText(settings, people, playerName, lastDate = '') {
     return out.join('\n');
 }
 
+/** Who the model may flag as turning romantic: everyone in `people` romanceEligibility allows. */
+export function catalystCandidates(settings, people, turn) {
+    if (pick(settings?.romanceUnlock, ROMANCE_UNLOCKS, 'manual') === 'manual') return [];
+    return (people || []).filter(p => romanceEligibility(p, settings, turn).ok);
+}
+
+const CATALYST_SHAPE = '"catalysts":[{"name":"Name","reason":"short reason"}]';
+
+function catalystRule(eligible, playerName) {
+    return `catalysts: optional. Add ${CATALYST_SHAPE} to the JSON object only when the LATEST message shows a character's feelings toward ${playerName} `
+        + 'clearly turning romantic: a vulnerable moment, a charged confrontation, deepening intimacy. '
+        + `Only for: ${eligible.map(p => p.name).join(', ')}. At most one per person. Never on a hint, a joke or ordinary warmth; when in doubt, leave it out.`;
+}
+
 const JSON_SHAPE = '{"date":"Friday, February 07, 1182","bonds":[{"name":"Name","affection":1,"trust":0,"respect":0,"desire":0,"reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
+/** JSON_SHAPE with the romance-unlock flags, for the inline block when somebody may be flagged. */
+const JSON_SHAPE_CATALYSTS = `${JSON_SHAPE.slice(0, -1)},${CATALYST_SHAPE}}`;
 
 export const BOND_SYSTEM = [
     'You track how the characters of a roleplay feel about the player, {{user}}: affection, trust and respect, and desire for those whose romance is switched on. You read the newest exchange and propose small, believable changes.',
@@ -1593,10 +1732,10 @@ export function trackerBlockHtml(store, record, settings, playerName) {
 }
 
 /** The system and user text for the separate request. */
-export function buildMonitorPrompt(settings, people, { playerName = 'the player', recent = '', latest = '', speaker = '', lastDate = '' } = {}) {
+export function buildMonitorPrompt(settings, people, { playerName = 'the player', recent = '', latest = '', speaker = '', lastDate = '', turn = undefined } = {}) {
     const system = (String(settings.prompt || '').trim() || BOND_SYSTEM).replace(/\{\{user\}\}/gi, playerName);
     const user = [
-        rulesText(settings, people, playerName, lastDate),
+        rulesText(settings, people, playerName, lastDate, turn),
         '',
         recent ? `RECENT MESSAGES:\n${recent}\n` : '',
         `LATEST MESSAGE${speaker ? ` (${speaker})` : ''}:`,
@@ -1606,12 +1745,13 @@ export function buildMonitorPrompt(settings, people, { playerName = 'the player'
 }
 
 /** What the story model is told in the "with the reply" timing. */
-export function buildInlineInstruction(settings, people, playerName = 'the player', lastDate = '') {
+export function buildInlineInstruction(settings, people, playerName = 'the player', lastDate = '', turn = undefined) {
+    const shape = catalystCandidates(settings, people, turn).length ? JSON_SHAPE_CATALYSTS : JSON_SHAPE;
     return [
         '[Bond tracking]',
-        `After your reply, on its own line at the very end, write a hidden block: <${INLINE_TAG}>${JSON_SHAPE}</${INLINE_TAG}>`,
+        `After your reply, on its own line at the very end, write a hidden block: <${INLINE_TAG}>${shape}</${INLINE_TAG}>`,
         `It records how the latest exchange changed each character's bond with ${playerName}. It is removed before anyone reads the reply, so never refer to it in the story.`,
-        rulesText(settings, people, playerName, lastDate),
+        rulesText(settings, people, playerName, lastDate, turn),
         '[/Bond tracking]',
     ].join('\n');
 }

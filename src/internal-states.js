@@ -384,7 +384,9 @@ export function drawSection(mesEl) {
         section.append(box, row);
     } else if (record) {
         const body = document.createElement('div');
-        body.className = 'sillynpc-is-body mes_text';
+        // Not "mes_text": SillyTavern's editor does find('.mes_text') and puts its edit box in every match, which
+        // left empty copies of it and erased the message when Done was pressed.
+        body.className = 'sillynpc-is-body';
         body.innerHTML = dress(record.html);
         // Not nested in a details of its own when the preset's regexes already made one.
         if (!body.querySelector('details')) {

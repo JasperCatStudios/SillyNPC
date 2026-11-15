@@ -684,3 +684,27 @@
 .sillynpc-bond-section .sillynpc-is-bar .mes_button { margin-left: auto; cursor: pointer; }
 .sillynpc-is-edit { width: 100%; font-family: monospace; font-size: 0.85em; margin-top: 6px; }
 .sillynpc-is-edit-row { display: flex; gap: 8px; margin-top: 4px; }
+
+/* ---- romance unlock suggestions ---- */
+.snpc-bond-suggest,
+.sillynpc-bond-suggest {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--SmartThemeQuoteColor, #c9a96e);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor, #c9a96e) 10%, transparent);
+    border-radius: 0 6px 6px 0;
+}
+.snpc-bond-suggest { margin: 6px 0 2px; }
+.sillynpc-bond-suggest { margin: 6px 0 0; font-size: 0.9em; }
+.snpc-bond-suggest-text,
+.sillynpc-bond-suggest-text { flex: 1 1 14em; min-width: 0; }
+.snpc-bond-suggest-icon { color: var(--SmartThemeQuoteColor, #c9a96e); }
+.sillynpc-bond-suggest .menu_button { margin: 0; padding: 2px 10px; white-space: nowrap; }
+.snpc-bond-unlock-warn {
+    margin: 0 0 var(--sillynpc-space-md, 12px);
+    padding: 4px 10px;
+    border-left: 3px solid var(--sillynpc-warning, #ffb020);
+}

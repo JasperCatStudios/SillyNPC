@@ -7,9 +7,10 @@ import { mountVectorPanel } from './ui-vectors.js';
 import {
     bondSettings, saveBondSettings, chatStore, editPerson, removePerson, runBondUpdate,
     latestReplyId, currentBondInjection, todayForMilestone, playerName, BONDS_CHANGED_EVENT,
+    acceptSuggestion, declineSuggestion,
 } from './bonds.js';
 import {
-    BOND_TIMINGS, GATE_KINDS, NEVER, INJECT_POSITIONS, INJECT_ROLES, INJECT_TRIGGERS, INJECT_ORDERS,
+    ROMANCE_UNLOCKS, BOND_TIMINGS, GATE_KINDS, NEVER, INJECT_POSITIONS, INJECT_ROLES, INJECT_TRIGGERS, INJECT_ORDERS,
     BOND_DEFAULTS, BOND_SYSTEM, DEFAULT_LEVELS, DEFAULT_ROMANCE_LEVELS, DEFAULT_GATES, DEFAULT_MILESTONES,
     METERS, METER_LABELS, BOND_LOCKS, GATE_TRACKS, GATE_SCOPES,
     levelFor, personGateText, normalizePerson, addMilestone, editMilestone, removeMilestone,
@@ -218,6 +219,35 @@ function renderGeneral(view, rerender) {
             showTokens: true,
         })));
     }
+    renderRomanceUnlock(view, rerender);
+}
+
+/** How a character's romance gets switched on: by hand, by suggestion, or automatically. */
+function renderRomanceUnlock(view, rerender) {
+    const s = bondSettings();
+    const wrap = el('div', 'snpc-bond-unlock');
+    wrap.dataset.setting = 'bonds.romanceUnlock';
+    const mode = select(ROMANCE_UNLOCKS, s.romanceUnlock, (v) => updateSettings(x => { x.romanceUnlock = v; }, rerender));
+    mode.classList.add('snpc-bond-unlock-mode');
+    mode.title = 'How a character\'s romance (their side) gets switched on. '
+        + 'Manual: only by you, with the Romance switch on their card; the model is never asked. '
+        + 'Suggest: the reader may notice their feelings turning romantic and asks you first. '
+        + 'Automatic: it switches their romance on by itself and tells you. Your own side is always yours to set.';
+    wrap.append(card('Romance unlock', mode, 'Who switches a character\'s romance on. Only ever their side, never yours.'));
+    if (s.romanceUnlock !== 'manual') {
+        const min = input('number', s.romanceMinBond, (v) => updateSettings(x => { x.romanceMinBond = v; }, rerender), { min: 0, max: 100, step: 1 });
+        min.classList.add('snpc-bond-unlock-min');
+        min.title = 'A character is only suggested once the lower of their affection and trust has reached this (0 to 100).';
+        wrap.append(card('Minimum friendship', min, 'Below this, any romantic turn the reader notices is ignored.'));
+        const cool = input('number', s.romanceCooldown, (v) => updateSettings(x => { x.romanceCooldown = v; }, rerender), { min: 0, max: 200, step: 1 });
+        cool.classList.add('snpc-bond-unlock-cooldown');
+        cool.title = 'After "Keep platonic", the same character is not suggested again for this many turns (0 to 200). 0: no wait.';
+        wrap.append(card('Cooldown', cool, 'Turns after "Keep platonic" before they may be suggested again.'));
+    }
+    if (s.romanceUnlock === 'auto') {
+        wrap.append(el('p', 'notes snpc-bond-unlock-warn', 'Automatic switches a character\'s romance on without asking you. You can switch it off again on their card.'));
+    }
+    view.append(wrap);
 }
 
 /* ---- the people in this chat --------------------------------------------------------- */
@@ -351,10 +381,28 @@ function personCard(person, settings, rerender) {
 
     head.append(toggle, who, meters, lock, chips, actions);
     wrap.append(head);
+    if (person.suggestion && !person.untracked) wrap.append(suggestionBanner(person, rerender));
     wrap.append(playerSide(person, settings, rerender));
     wrap.append(personGates(person, settings, rerender));
     if (open) wrap.append(personBody(person, settings, rerender));
     return wrap;
+}
+
+/** A pending romance suggestion on a person's card, with the same two answers as under the reply. */
+function suggestionBanner(person, rerender) {
+    const banner = el('div', 'snpc-bond-suggest');
+    banner.append(el('i', 'fa-solid fa-heart snpc-bond-suggest-icon'));
+    const reason = person.suggestion.reason;
+    banner.append(el('span', 'snpc-bond-suggest-text', `${person.name} may be developing feelings${reason ? `: ${reason}` : '.'}`));
+    banner.append(
+        button('Turn romance on', '', `Switch romance on for ${person.name}'s side. Your own side stays as you set it.`, () => {
+            acceptSuggestion(person.name); rerender();
+        }, 'snpc-bond-suggest-accept'),
+        button('Keep platonic', '', `Keep it a friendship. ${person.name} is not suggested again until the cooldown has passed.`, () => {
+            declineSuggestion(person.name); rerender();
+        }, 'snpc-bond-suggest-decline'),
+    );
+    return banner;
 }
 
 /**
