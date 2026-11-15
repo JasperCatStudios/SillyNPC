@@ -11,7 +11,6 @@ import { charactersMentionedIn } from './mentions.js';
 import { latestInternalStatesHtml } from './internal-states.js';
 import { sceneClock } from '../modules/shim.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
-import { currentPicks } from './vector-service.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { drawBondSection, markBusy, markFailure, clearFailure, sectionKey } from './bond-section.js';
 import {
@@ -376,8 +375,8 @@ export function currentBondInjection({ everyone = false } = {}) {
         applies: everyone ? () => true : appliesFor(opts),
         rng: everyone ? () => 0 : Math.random,
     });
-    // Null unless vectors chose milestones for this turn; then they fill the history slots.
-    return buildBondInjection(store, names, settings, playerName(), currentPicks('bonds'));
+    // Bonds are current state and are not vectorized: the newest milestones fill the history slots.
+    return buildBondInjection(store, names, settings, playerName());
 }
 
 /** Sets or clears both prompts. Called on every generation. */

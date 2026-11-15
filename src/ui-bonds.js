@@ -3,7 +3,6 @@ import { Popup } from '../../../../popup.js';
 import { getActiveCharacters } from './characters.js';
 import { buildSettingToggle, buildSettingSelect, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
-import { mountVectorPanel } from './ui-vectors.js';
 import {
     bondSettings, saveBondSettings, chatStore, editPerson, removePerson, runBondUpdate,
     latestReplyId, currentBondInjection, todayForMilestone, playerName, BONDS_CHANGED_EVENT,
@@ -153,10 +152,6 @@ export function renderBondsView(view) {
     renderGates(view, rerender);
     renderMilestonePresets(view, rerender);
     renderInjection(view, rerender);
-    // Which milestones fill the history slots, and the list of what is vectorized. See ui-vectors.js.
-    const vectors = el('div');
-    view.append(vectors);
-    mountVectorPanel(vectors, 'bonds');
 
     const panel = view.closest('.sillynpc-tab-panel');
     if (panel) panel.scrollTop = scroll;

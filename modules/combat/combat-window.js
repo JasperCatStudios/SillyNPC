@@ -16,7 +16,9 @@ import { tallyText } from '../../src/rivalry-core.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
 import { rate, calibrate, SPAR_SHARE } from '../../src/combat-pace.js';
 import { activeCombatType, combatPrefs, personaRecordFor, isCombatDisabled } from '../../src/combat-access.js';
-import { lastTaggedSpeaker } from '../shim.js';
+import { lastTaggedSpeaker, sceneClock } from '../shim.js';
+import { recordTalk } from '../../src/talk-store.js';
+import { newTalkId } from '../../src/talk-log.js';
 import {
     startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, chooseAction,
 } from '../../src/combat-fight.js';
@@ -147,11 +149,38 @@ function xpLines() {
         : `${x.name}: +${x.gained} XP${x.levelsGained ? `, level ${x.level}!` : ''}`));
 }
 
+/*
+ * Fork: the fight's table talk, kept in the chat (talk-store.js) so the vectors can recall it.
+ * Written when the fight ends and again for each line said after, under one id per fight.
+ * A fight that is never finished is not kept.
+ */
+function keepTalk() {
+    if (!session?.state?.over) return;
+    try {
+        const { state } = session;
+        const me = state.fighters.player?.name || 'You';
+        const foes = Object.values(state.fighters).filter(f => f.side === 'foe').map(f => f.name);
+        const lost = state.over.loser === 'player';
+        if (!session.talkId) session.talkId = newTalkId();
+        const winner = lost ? (foes.join(' and ') || 'they') : me;
+        recordTalk('combat', {
+            id: session.talkId,
+            at: Date.now(),
+            title: `${state.mode === 'spar' ? 'Spar' : 'Fight'} vs ${foes.join(', ') || 'someone'}`,
+            with: foes,
+            date: sceneClock()?.dateText || '',
+            lines: session.chat.map(m => ({ who: m.who, text: m.text })),
+            result: `${winner} won after ${state.round} round${state.round === 1 ? '' : 's'}`,
+        });
+    } catch (err) { console.warn('[SillyNPC] could not keep the fight talk', err); }
+}
+
 function persistAll() {
     if (!session?.state.over || session.saved) return;
     session.saved = true;
     awardXp();
     recordFight();
+    keepTalk();
     for (const fighter of Object.values(session.state.fighters)) {
         persist(session.type, fighter, session.records.get(fighter.id));
     }
@@ -340,7 +369,7 @@ function drawBattle(body) {
         }
         const again = el('button', 'menu_button', 'New fight');
         again.type = 'button';
-        again.addEventListener('click', () => { session = null; draw(); });
+        again.addEventListener('click', () => { keepTalk(); session = null; draw(); });
         row.append(again);
         body.append(row);
         if (!session.failed) postReport();
@@ -633,6 +662,8 @@ async function lineAfterTurn(turn) {
         console.error('[SillyNPC] combat line failed', err);
     }
     if (session) session.talking = false;
+    // Said after the fight ended: the kept talk gets it too.
+    keepTalk();
     drawChat();
 }
 
@@ -656,6 +687,7 @@ async function sendTalk(text) {
         toastr.error('They could not answer.', 'SillyNPC');
     }
     if (session) session.talking = false;
+    keepTalk();
     drawChat();
 }
 

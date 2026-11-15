@@ -1,7 +1,7 @@
 /**
  * Vectors for SillyNPC's histories (fork): the decisions, without the I/O.
  *
- * Each module (bonds, rivalry, phone) hands this file its entries as plain
+ * Each module (rivalry, phone, games, combat) hands this file its entries as plain
  * objects. This file turns them into the text that is embedded, hashes that text, keeps a
  * manifest of what is in the vector collection, works out what a sync must insert and delete,
  * and turns a query's results into the entries a prompt should carry. vector-service.js does the
@@ -12,10 +12,15 @@
 
 /* ---- vocabulary ---------------------------------------------------------------------- */
 
+/*
+ * Only histories of what happened are vectorized. Bond numbers are the current state, not a
+ * history, so the Bond Tracker is never vectorized (an old `modules.bonds` setting is dropped).
+ */
 export const VECTOR_MODULES = Object.freeze({
-    bonds: { label: 'Bond Tracker', scope: 'chat', noun: 'milestone' },
     rivalry: { label: 'Rivalry history', scope: 'chat', noun: 'record' },
     phone: { label: 'Phone conversations', scope: 'contact', noun: 'message chunk' },
+    games: { label: 'Games table talk', scope: 'chat', noun: 'game' },
+    combat: { label: 'Fight table talk', scope: 'chat', noun: 'fight' },
 });
 export const MODULE_IDS = Object.freeze(Object.keys(VECTOR_MODULES));
 
@@ -39,12 +44,18 @@ export const VECTOR_DEFAULTS = Object.freeze({
     autoVectorize: true,
     timeoutMs: 2500,
     batchSize: 8,
+    /** Where the recalled games and fights go in the story prompt: messages back, and role. */
+    injectDepth: 2,
+    injectRole: 'system',
     modules: Object.freeze({
-        bonds: Object.freeze({ enabled: false }),
         rivalry: Object.freeze({ enabled: false }),
         phone: Object.freeze({ enabled: false, chunkSize: 4, recall: 3 }),
+        games: Object.freeze({ enabled: false, recall: 2 }),
+        combat: Object.freeze({ enabled: false, recall: 2 }),
     }),
 });
+
+export const INJECT_ROLES = Object.freeze(['system', 'user', 'assistant']);
 
 /* ---- small helpers ------------------------------------------------------------------- */
 
@@ -77,23 +88,52 @@ export function normalizeVectorSettings(raw) {
         autoVectorize: r.autoVectorize !== false,
         timeoutMs: int(r.timeoutMs, 300, 20000, d.timeoutMs),
         batchSize: int(r.batchSize, 1, 50, d.batchSize),
+        injectDepth: int(r.injectDepth, 0, 100, d.injectDepth),
+        injectRole: INJECT_ROLES.includes(r.injectRole) ? r.injectRole : d.injectRole,
+        // Only the modules listed are kept: an old `bonds` entry is dropped here.
         modules: {
-            bonds: { enabled: Boolean(mod('bonds').enabled) },
             rivalry: { enabled: Boolean(mod('rivalry').enabled) },
             phone: {
                 enabled: Boolean(mod('phone').enabled),
                 chunkSize: int(mod('phone').chunkSize, 2, 12, 4),
                 recall: int(mod('phone').recall, 1, 8, 3),
             },
+            games: { enabled: Boolean(mod('games').enabled), recall: int(mod('games').recall, 1, 6, 2) },
+            combat: { enabled: Boolean(mod('combat').enabled), recall: int(mod('combat').recall, 1, 6, 2) },
         },
         // Kept by reference: the phone's manifests live here, see vectors.js.
         phoneManifests: obj(r.phoneManifests),
     };
 }
 
-/** Whether a module's vectors are in use: the master switch and its own. */
+/** Whether a module's vectors are switched on: the master switch and its own. */
 export function moduleOn(settings, moduleId) {
     return Boolean(settings?.enabled && settings.modules?.[moduleId]?.enabled);
+}
+
+/**
+ * Whether a module's vectors are in use right now. The phone also needs the Phone module itself
+ * to be on: with the phone off, nothing of it is embedded, searched or sent.
+ *
+ * @param {object} settings normalizeVectorSettings() output
+ * @param {string} moduleId
+ * @param {{ phoneEnabled?: boolean }} [ctx]
+ */
+export function moduleActive(settings, moduleId, { phoneEnabled = false } = {}) {
+    if (!moduleOn(settings, moduleId)) return false;
+    return moduleId === 'phone' ? Boolean(phoneEnabled) : true;
+}
+
+/**
+ * What a panel's badge says about the switches, and why it is off when it is.
+ * @returns {{ on: boolean, reason: string, text: string }}
+ */
+export function vectorBadge(settings, moduleId, { phoneEnabled = false } = {}) {
+    let reason = '';
+    if (!settings?.enabled) reason = 'switch on Vectors in the SillyNPC menu';
+    else if (!settings.modules?.[moduleId]?.enabled) reason = 'module switch is off';
+    else if (moduleId === 'phone' && !phoneEnabled) reason = 'the Phone module is off';
+    return { on: !reason, reason, text: reason ? `off: ${reason}` : 'on' };
 }
 
 /**
@@ -192,12 +232,11 @@ export function stripHtml(html) {
 
 const RESULT_WORDS = { won: (p) => `${p} won`, lost: (p) => `${p} lost`, draw: () => 'it was a draw' };
 
-/** The embeddable text of one entry, per module. Plain sentences: that is what embedders match best. */
+/**
+ * The embeddable text of one entry, per module. Plain sentences: that is what embedders match
+ * best. Games and combat talk use talk-log.js's talkEmbedText.
+ */
 export const TEMPLATES = Object.freeze({
-    bonds(m, player = 'the player') {
-        const head = `${m.person} and ${player} - ${m.label || 'Milestone'}${m.date ? ` (${m.date})` : ''}`;
-        return m.note ? `${head}: ${m.note}` : head;
-    },
     rivalry(r, player = 'the player') {
         const kind = r.kind === 'game' ? 'Game' : 'Fight';
         const result = (RESULT_WORDS[r.result] || RESULT_WORDS.draw)(player);
@@ -389,7 +428,7 @@ export function manifestStatus(moduleId, manifest, entries) {
  *   'all'              re-vectorize every wanted entry, even those already in
  *   'cleanup'          only delete (disabled, deleted, stale and vanished entries); insert nothing
  * `only` restricts inserting to those ids and marks them by hand, so an entry the module would
- * skip (an untracked person's milestone) can still be vectorized when the user asks for it.
+ * skip (a phone chunk still being written) can still be vectorized when the user asks for it.
  *
  * The returned manifest is a copy. Inserted entries are not marked vectorized here: the caller
  * does that per batch with markInserted, so a failed batch leaves its entries pending.

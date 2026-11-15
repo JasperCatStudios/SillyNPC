@@ -48,6 +48,13 @@
     min-width: 0;
 }
 
+/* Off says why, so it may take two lines rather than be cut to "off: switch on…". */
+.snpc-vec-badge.is-off {
+    white-space: normal;
+    text-align: right;
+    color: var(--warning, #e0a040);
+}
+
 .snpc-vec-body {
     padding: 0 10px 10px;
     min-width: 0;

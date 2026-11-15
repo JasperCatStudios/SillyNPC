@@ -1,7 +1,7 @@
 import { renderVoiceSettings } from './ui-character-extras.js';
 import { getSettings, saveSettings } from './settings.js';
 import { moduleSends, setModuleSends } from './context-blocks.js';
-import { getModulePane } from './module-panes.js';
+import { getModulePane, moduleLoadState, onModuleLoad, missingModuleText } from './module-panes.js';
 
 /**
  * The Modules tab (fork): one place for everything that rides along with SillyNPC.
@@ -67,6 +67,39 @@ function returnWhenGone(view, borrowed) {
     observer.observe(document.body, { childList: true, subtree: true });
 }
 
+/**
+ * Takes back the panels a previous drawing of this view borrowed. Without this, redrawing the
+ * tab (every switch back to Modules does) cleared the view with the panels still in it: they
+ * left the page, the lookup for them found nothing, and the pane said the module had not loaded.
+ */
+function reclaimBorrowed(view) {
+    for (const mod of MODULES) {
+        if (!mod.drawer) continue;
+        for (const panel of view.querySelectorAll(mod.drawer)) holder().append(panel);
+    }
+}
+
+const watchers = new WeakMap();
+
+/**
+ * While a module's pane is missing, watches for it: a load that finishes or fails, or its
+ * drawer appearing (the Phone builds its drawer a moment after it loads). Then draws again.
+ */
+function watchForMissing(view, mods) {
+    watchers.get(view)?.();
+    let timer = 0;
+    let tries = 0;
+    const ids = new Set(mods.map(m => m.id));
+    const stop = () => { clearInterval(timer); off(); if (watchers.get(view) === stop) watchers.delete(view); };
+    const redraw = () => { stop(); if (view.isConnected) renderModulesView(view); };
+    const off = onModuleLoad((id) => { if (ids.has(id)) redraw(); });
+    timer = setInterval(() => {
+        if (!view.isConnected || ++tries > 120) { stop(); return; }
+        if (mods.some(m => (m.render ? getModulePane(m.id) : document.querySelector(m.drawer)))) redraw();
+    }, 500);
+    watchers.set(view, stop);
+}
+
 /** A switch, as a labelled checkbox. */
 function makeSwitch(checked, onChange) {
     const label = document.createElement('label');
@@ -88,6 +121,8 @@ let activePane = 'voices';
  * @param {HTMLElement} view
  */
 export function renderModulesView(view) {
+    reclaimBorrowed(view);
+    watchers.get(view)?.();
     view.replaceChildren();
 
     const title = document.createElement('h3');
@@ -186,6 +221,15 @@ export function renderModulesView(view) {
     // away from the real one, so offscreen only the headings are drawn.
     const live = view.isConnected;
     const borrowed = [];
+    const missingMods = [];
+    const missingNote = (pane, mod) => {
+        const missing = document.createElement('p');
+        const load = moduleLoadState(mod.id);
+        missing.className = `notes${load?.state === 'failed' ? ' sillynpc-module-error' : ''}`;
+        missing.textContent = missingModuleText(mod.name, load);
+        pane.append(missing);
+        missingMods.push(mod);
+    };
 
     for (const mod of MODULES) {
         add(mod.id, mod.icon, mod.name, (pane) => {
@@ -214,13 +258,17 @@ export function renderModulesView(view) {
             if (mod.render) {
                 const draw = getModulePane(mod.id);
                 if (draw) {
-                    draw(pane, { live, head, makeSwitch });
+                    try {
+                        draw(pane, { live, head, makeSwitch });
+                    } catch (err) {
+                        console.error('[SillyNPC]', `The ${mod.name} pane failed to draw`, err);
+                        const note = document.createElement('p');
+                        note.className = 'notes sillynpc-module-error';
+                        note.textContent = `${mod.name} loaded, but its pane failed to draw: ${err?.message || err}. Details are in the browser console.`;
+                        pane.append(note);
+                    }
                 } else if (live) {
-                    const missing = document.createElement('p');
-                    missing.className = 'notes';
-                    missing.textContent = 'This module has not loaded. Reload SillyTavern; if it stays missing, '
-                        + 'open the browser console and look for "Module" lines from SillyNPC.';
-                    pane.append(missing);
+                    missingNote(pane, mod);
                 }
                 return;
             }
@@ -241,15 +289,14 @@ export function renderModulesView(view) {
                     (box.closest('label') || box).classList.add('sillynpc-hidden');
                 }
             } else if (live) {
-                const missing = document.createElement('p');
-                missing.className = 'notes';
-                missing.textContent = 'This module has not loaded. Reload SillyTavern; if it stays missing, '
-                    + 'open the browser console and look for "Module" lines from SillyNPC.';
-                pane.append(missing);
+                missingNote(pane, mod);
             }
         });
     }
 
     show();
     if (borrowed.length) returnWhenGone(view, borrowed);
+    // A module that fails for good stays as it is: its error is the note, nothing to wait for.
+    const waiting = missingMods.filter(m => moduleLoadState(m.id)?.state !== 'failed');
+    if (waiting.length) watchForMissing(view, waiting);
 }

@@ -1,8 +1,8 @@
 import { eventSource } from '../../../../events.js';
 import { Popup } from '../../../../popup.js';
 import { saveSettings } from './settings.js';
-import { buildSettingToggle, buildSettingNumber, buildSettingSlider } from './ui-shared.js';
-import { VECTOR_MODULES, VECTOR_DEFAULTS } from './vector-core.js';
+import { buildSettingToggle, buildSettingNumber, buildSettingSlider, buildSettingSelect } from './ui-shared.js';
+import { VECTOR_MODULES, VECTOR_DEFAULTS, INJECT_ROLES } from './vector-core.js';
 import { vectorSettings, currentSource, testConnection } from './vector-service.js';
 import {
     panelData, syncModule, purgeModule, setEntry, deleteEntry, overview, phoneContacts, VECTORS_CHANGED_EVENT,
@@ -16,7 +16,12 @@ import {
  */
 
 const PAGE = 25;
-const STORE = { get: () => vectorSettings(), save: () => saveSettings(), defaults: VECTOR_DEFAULTS };
+/*
+ * Every write says so: a switch flipped in one place (the Vectors tab, a module's panel) must
+ * redraw the badges of the others, or a panel keeps saying "off" after it was switched on.
+ */
+const announce = () => { try { eventSource.emit(VECTORS_CHANGED_EVENT); } catch { /* not ready */ } };
+const STORE = { get: () => vectorSettings(), save: () => { saveSettings(); announce(); }, defaults: VECTOR_DEFAULTS };
 
 const STATE_LABELS = {
     done: ['Vectorized', 'fa-check'],
@@ -29,9 +34,17 @@ const STATE_LABELS = {
 };
 
 const HOW_DELETE = {
-    bonds: 'Deletes the milestone from the bond history too.',
     rivalry: 'Deletes the record from the rivalry history too.',
     phone: 'Takes these texts out of the vectors only; the phone keeps them.',
+    games: 'Deletes this game\'s table talk from the chat\'s log too.',
+    combat: 'Deletes this fight\'s table talk from the chat\'s log too.',
+};
+
+const MODULE_HELP = {
+    rivalry: 'Picks which records fill each opponent\'s history slots, instead of only the most recent.',
+    phone: 'Adds older texts from the same thread that match what is being said, beyond the messages the phone already re-reads. Needs the Phone module itself to be on.',
+    games: 'Keeps what was said at the games table, per chat, and puts the games that match the scene into the story prompt.',
+    combat: 'Keeps what was said during fights, per chat, and puts the fights that match the scene into the story prompt.',
 };
 
 const el = (tag, className, text) => {
@@ -83,6 +96,12 @@ function listen() {
             p.render();
         }
     });
+    // The Phone module's own switch changes what the phone panel's badge says.
+    document.addEventListener('change', (e) => {
+        if (e.target?.id !== 'rph-enabled') return;
+        // After the phone's own handler has saved the new value.
+        setTimeout(announce, 0);
+    });
 }
 
 function statusText(status) {
@@ -98,11 +117,17 @@ function statusText(status) {
 
 /* ---- the per-module panel ------------------------------------------------------------ */
 
+/** The badge's text: the status when on, and why when off. */
+export function badgeText(data) {
+    if (!data?.on) return data?.badge?.text || 'off';
+    return data.scopeNeeded ? 'on' : statusText(data.status);
+}
+
 /**
  * Mounts the Vectors panel for one module into host. Safe to call again on the same host.
  *
  * @param {HTMLElement} host
- * @param {'bonds'|'rivalry'|'phone'} moduleId
+ * @param {'rivalry'|'phone'|'games'|'combat'} moduleId
  */
 export function mountVectorPanel(host, moduleId) {
     if (!host || !VECTOR_MODULES[moduleId]) return;
@@ -134,9 +159,15 @@ function renderPanel(p) {
     details.open = Boolean(p.expanded);
     details.addEventListener('toggle', () => { p.expanded = details.open; });
     const summary = el('summary', 'snpc-vec-summary');
-    summary.append(el('i', 'fa-solid fa-diagram-project'), el('span', 'snpc-vec-title', 'Vectors'));
+    summary.append(el('i', 'fa-solid fa-diagram-project'), el('span', 'snpc-vec-title', `Vectors: ${meta.label}`));
     const data = panelData(moduleId, p.scope);
-    summary.append(el('span', 'snpc-vec-badge', data.on ? (data.scopeNeeded ? 'on' : statusText(data.status)) : 'off'));
+    const badge = el('span', `snpc-vec-badge${data.on ? '' : ' is-off'}`, badgeText(data));
+    if (!data.on) badge.title = data.badge?.reason === 'module switch is off'
+        ? `Switch on "Use Vectors For ${meta.label}" inside this panel or in the Vectors tab.`
+        : data.badge?.reason === 'the Phone module is off'
+            ? 'Switch the Phone module on under Modules > Phone; while it is off nothing of it is vectorized.'
+            : 'The master switch "Use Vectors" in the SillyNPC menu, Vectors tab, is off.';
+    summary.append(badge);
     details.append(summary);
     host.append(details);
     if (!details.open) return;
@@ -147,20 +178,24 @@ function renderPanel(p) {
         + 'Embedded by your own Ollama through SillyTavern; nothing leaves your machines.'));
 
     if (!data.master) {
-        body.append(el('p', 'notes snpc-vec-warn', 'Vectors are off for SillyNPC. Turn them on in the SillyNPC menu, Vectors tab. Until then this changes nothing.'));
+        body.append(el('p', 'notes snpc-vec-warn', 'Vectors are off for SillyNPC. Turn them on in the SillyNPC menu, Vectors tab ("Use Vectors"). Until then this changes nothing.'));
+    } else if (data.badge?.reason === 'the Phone module is off') {
+        body.append(el('p', 'notes snpc-vec-warn', 'The Phone module is off, so nothing of the phone is vectorized, searched or sent. Switch it on under Modules > Phone.'));
     }
 
     body.append(buildSettingToggle({
         store: STORE,
         key: `modules.${moduleId}.enabled`,
         label: `Use Vectors For ${meta.label}`,
-        help: moduleId === 'bonds'
-            ? 'Picks which milestones fill each person\'s history slots. Only tracked people are vectorized on their own; anyone else only when you vectorize them by hand below.'
-            : moduleId === 'rivalry'
-                ? 'Picks which records fill each opponent\'s history slots, instead of only the most recent.'
-                : 'Adds older texts from the same thread that match what is being said, beyond the messages the phone already re-reads.',
+        help: MODULE_HELP[moduleId],
         onChange: p.render,
     }));
+    if (moduleId === 'games' || moduleId === 'combat') {
+        body.append(buildSettingNumber({
+            store: STORE, key: `modules.${moduleId}.recall`, label: `${moduleId === 'games' ? 'Games' : 'Fights'} Recalled`, suffix: moduleId === 'games' ? 'games' : 'fights',
+            help: '1 to 6. How many related ones go into the story prompt; depth and role are in the Vectors tab.', onChange: p.render,
+        }));
+    }
     if (moduleId === 'phone') {
         body.append(buildSettingNumber({ store: STORE, key: 'modules.phone.recall', label: 'Older Chunks Recalled', suffix: 'chunks', help: '1 to 8.', onChange: p.render }));
         body.append(buildSettingNumber({ store: STORE, key: 'modules.phone.chunkSize', label: 'Messages Per Chunk', suffix: 'messages', advanced: true, help: '2 to 12. Changing it re-chunks threads that are vectorized again.', onChange: p.render }));
@@ -197,12 +232,19 @@ function renderPanel(p) {
         p.busy = true;
         for (const b of bar.querySelectorAll('button')) b.disabled = true;
         progress.textContent = `${label}…`;
-        const res = await syncModule(moduleId, {
-            mode,
-            scope: p.scope,
-            onProgress: (done, total) => { progress.textContent = total ? `${label}: ${done} of ${total}` : 'Nothing to do.'; },
-        });
-        p.busy = false;
+        let res;
+        try {
+            res = await syncModule(moduleId, {
+                mode,
+                scope: p.scope,
+                onProgress: (done, total) => { progress.textContent = total ? `${label}: ${done} of ${total}` : 'Nothing to do.'; },
+            });
+        } catch (err) {
+            res = { error: String(err?.message || err), inserted: 0, removed: 0 };
+        } finally {
+            // Never left set: a busy panel is skipped by every redraw, and would stay stale.
+            p.busy = false;
+        }
         if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
         else toastr.success(`${res.inserted} vectorized${res.removed ? `, ${res.removed} removed` : ''}.`, 'SillyNPC vectors');
         p.render();
@@ -219,7 +261,7 @@ function renderPanel(p) {
         }, 'snpc-vec-danger'),
         progress,
     );
-    if (!data.master) for (const b of bar.querySelectorAll('button')) if (!b.classList.contains('snpc-vec-danger')) b.disabled = true;
+    if (!data.on) for (const b of bar.querySelectorAll('button')) if (!b.classList.contains('snpc-vec-danger')) b.disabled = true;
     body.append(bar);
 
     renderList(body, p, data);
@@ -369,9 +411,9 @@ export function renderVectorsView(view) {
 
     view.append(el('h3', 'sillynpc-section-title', 'Vectors'));
     view.append(el('p', 'notes sillynpc-tab-intro',
-        'Embeds the Bond Tracker\'s milestones, the rivalry history and phone threads with your own Ollama, '
+        'Embeds the histories of what happened (the rivalry record, phone threads, and what was said at games and in fights) with your own Ollama, '
         + 'through SillyTavern\'s own vector storage, so each prompt carries the entries that matter to the scene instead of only the newest. '
-        + 'Positions, depths, roles and triggers stay as each module sets them; vectors only change which entries fill the slots. '
+        + 'Bonds are the current state, not a history, and are never vectorized. '
         + 'Off, or when Ollama does not answer in time, everything works exactly as before.'));
 
     view.append(buildSettingToggle({
@@ -418,6 +460,16 @@ export function renderVectorsView(view) {
     view.append(buildSettingToggle({ store: STORE, key: 'autoVectorize', label: 'Vectorize Automatically', help: 'Embeds new and edited entries a moment after they are written. Off: only when you press Vectorize now.' }));
     view.append(buildSettingNumber({ store: STORE, key: 'batchSize', label: 'Entries Per Request', suffix: 'entries', advanced: true, help: 'How many entries go to Ollama in one call while vectorizing, 1 to 50.' }));
 
+    view.append(el('h3', 'sillynpc-section-title', 'Recalled games and fights'));
+    view.append(el('p', 'notes', 'When Games or Fight table talk vectors are on, the games and fights that match the scene go into the story prompt '
+        + 'as one short block each ("[EARLIER GAMES THAT MAY MATTER]", "[EARLIER FIGHTS THAT MAY MATTER]"). Nothing is added without vectors.'));
+    view.append(buildSettingNumber({ store: STORE, key: 'injectDepth', label: 'Messages Back', suffix: 'messages', help: '0 is right after the newest message. 0 to 100.' }));
+    view.append(buildSettingSelect({
+        store: STORE, key: 'injectRole', label: 'Role',
+        options: INJECT_ROLES.map(r => ({ value: r, label: r[0].toUpperCase() + r.slice(1) })),
+        help: 'Who the block is said by.',
+    }));
+
     view.append(el('h3', 'sillynpc-section-title', 'Overview'));
     const s = vectorSettings();
     const table = el('div', 'snpc-vec-overview');
@@ -427,18 +479,19 @@ export function renderVectorsView(view) {
         const box = el('input');
         box.type = 'checkbox';
         box.checked = Boolean(s.modules[row.id]?.enabled);
-        box.addEventListener('change', () => { vectorSettings().modules[row.id].enabled = box.checked; saveSettings(); rerender(); });
+        box.addEventListener('change', () => { vectorSettings().modules[row.id].enabled = box.checked; saveSettings(); announce(); rerender(); });
         lab.append(box, el('span', '', row.label));
         const st = row.status;
+        const count = `${st.vectorized} of ${st.total}${st.stale ? ` · ${st.stale} stale` : ''}${st.errors ? ` · ${st.errors} failed` : ''}`;
         line.append(lab, el('span', 'snpc-vec-muted', row.scope),
-            el('span', '', `${st.vectorized} of ${st.total}${st.stale ? ` · ${st.stale} stale` : ''}${st.errors ? ` · ${st.errors} failed` : ''}`));
+            el('span', row.on ? '' : 'snpc-vec-muted', row.on ? count : `${count} · ${row.badge?.text || 'off'}`));
         const actions = el('div', 'snpc-vec-actions');
         if (row.id !== 'phone') {
             actions.append(iconButton('fa-play', 'Vectorize now', async () => {
                 const res = await syncModule(row.id, { mode: 'manual' });
                 if (res.error) toastr.warning(res.error, 'SillyNPC vectors');
                 else toastr.success(`${row.label}: ${res.inserted} vectorized.`, 'SillyNPC vectors');
-            }, s.enabled ? '' : 'disabled'));
+            }, row.on ? '' : 'disabled'));
             actions.append(iconButton('fa-trash-can', 'Purge for this chat', async () => {
                 const ok = await Popup.show.confirm('Purge these vectors?', `${row.label}: everything stored for this chat is deleted from the vector store. Histories are not touched.`);
                 if (ok) await purgeModule(row.id);
@@ -450,7 +503,7 @@ export function renderVectorsView(view) {
         table.append(line);
     }
     view.append(table);
-    view.append(el('p', 'notes', 'Each module\'s panel (Bonds tab, Combat > History, Phone settings) lists its entries, '
-        + 'where each can be viewed, edited, turned off or deleted. Bond and rivalry vectors are kept per chat; '
-        + 'phone vectors per contact, like the phone\'s threads. Stored by SillyTavern under data/<user>/vectors/ollama/sillynpc_*.'));
+    view.append(el('p', 'notes', 'Each module\'s panel (Combat > History for the rivalry record and fight talk, Modules > Games, Phone settings) lists its entries, '
+        + 'where each can be viewed, edited, turned off or deleted. Rivalry, games and fight vectors are kept per chat; '
+        + 'phone vectors per contact, like the phone\'s threads, and only while the Phone module is on. Stored by SillyTavern under data/<user>/vectors/ollama/sillynpc_*.'));
 }

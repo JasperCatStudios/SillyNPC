@@ -42,6 +42,7 @@ import { primeLore } from './src/profile-text.js';
 import { initInternalStates } from './src/internal-states.js';
 import { initBonds } from './src/bonds.js';
 import { initVectors } from './src/vectors.js';
+import { recordModuleLoad } from './src/module-panes.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
 
 function onMessageRendered(messageId) {
@@ -389,15 +390,25 @@ jQuery(async () => {
             eventSource.on(event_types.CHAT_CHANGED, () => primeLore().catch(() => { }));
             // Modules adapted from the RPG suite (AGPL-3.0). Each loads on its own, so one
             // failing, or one folder missing, takes nothing else with it.
+            // A failure is said out loud (console and one toast) and kept, so the Modules tab can
+            // show the real error where the module's pane should be.
             for (const name of ['phone', 'games', 'combat']) {
+                recordModuleLoad(name, 'loading');
                 import(`./modules/${name}/${name}.js`)
                     .then(() => {
                         const link = document.createElement('link');
                         link.rel = 'stylesheet';
                         link.href = new URL(`./modules/${name}/${name}.css`, import.meta.url).href;
                         document.head.append(link);
+                        recordModuleLoad(name, 'loaded');
                     })
-                    .catch(err => debugLog(`Module "${name}" not loaded`, err));
+                    .catch(err => {
+                        console.error(LOG_PREFIX, `Module "${name}" failed to load`, err);
+                        recordModuleLoad(name, 'failed', err);
+                        try {
+                            toastr.error(`The ${name} module failed to load: ${err?.message || err}`, 'SillyNPC', { preventDuplicates: true });
+                        } catch { /* toastr not there */ }
+                    });
             }
         } catch (err) {
             console.error(LOG_PREFIX, 'fork features failed to start', err);

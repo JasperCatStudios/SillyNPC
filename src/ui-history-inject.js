@@ -67,7 +67,7 @@ export function renderHistoryView(host, rerender) {
     host.append(toggle);
     // Vectors pick which records fill the slots; their list is useful even with injection off.
     const vectors = el('div');
-    if (!o.enabled) { host.append(vectors); mountVectorPanel(vectors, 'rivalry'); return; }
+    if (!o.enabled) { host.append(vectors); mountVectorPanel(vectors, 'rivalry'); mountFightTalk(host); return; }
 
     host.append(row('Where', select(INJECT_POSITIONS, o.position, v => set({ position: v }, true))));
     if (o.position === 'chat') host.append(row('Messages back', number(o.depth, 0, 100, v => set({ depth: v })), '0 is right after the newest message'));
@@ -95,4 +95,12 @@ export function renderHistoryView(host, rerender) {
     host.append(show, preview);
     host.append(vectors);
     mountVectorPanel(vectors, 'rivalry');
+    mountFightTalk(host);
+}
+
+/** What was said during fights in this chat: its own Vectors panel, with its own prompt block. */
+function mountFightTalk(host) {
+    const box = el('div');
+    host.append(box);
+    mountVectorPanel(box, 'combat');
 }

@@ -1,24 +1,27 @@
 import { eventSource, event_types } from '../../../../events.js';
 import { getContext } from '../../../../st-context.js';
 import { extension_settings } from '../../../../extensions.js';
-import { name1 } from '../../../../../script.js';
+import { name1, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../script.js';
 import { saveSettings } from './settings.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
 import {
-    VECTOR_MODULES, MODULE_IDS, moduleOn, TEMPLATES, chunkThread, buildQueryText,
+    VECTOR_MODULES, MODULE_IDS, moduleActive, vectorBadge, TEMPLATES, chunkThread, buildQueryText,
     ensureManifest, planSync, markInserted, markFailed, setEntryFlags, clearManifest, entryState,
     manifestStatus, embedText, collectionId, phoneKey, hashString, retrievePicks, formatRecalled,
 } from './vector-core.js';
 import {
     vectorSettings, currentSource, insertItems, deleteHashes, purgeCollection, service,
-    publishPicks, clearPicks, warnOnce,
+    publishPicks, currentPicks, clearPicks, warnOnce,
 } from './vector-service.js';
-import { chatStore, editPerson, BONDS_CHANGED_EVENT } from './bonds.js';
-import { bondEntryId, removeMilestone } from './bonds-core.js';
 import { listRecords, removeRecord, RIVALRY_CHANGED_EVENT } from './rivalry.js';
+import { listTalk, removeTalk, TALK_CHANGED_EVENT } from './talk-store.js';
+import { talkEmbedText, talkImportance, buildTalkInjection, TALK_KINDS } from './talk-log.js';
 
 /**
  * Vectors for SillyNPC's histories (fork): SillyTavern wiring.
+ *
+ * Only histories of what happened are vectorized: the rivalry record, phone threads, and the
+ * table talk of games and fights. Bonds are current state and never vectorized.
  *
  * Each module gets an adapter that lists its entries in vector-core's plain shape. A sync embeds
  * what is new or edited and removes what was disabled, deleted or changed. Before a generation a
@@ -96,6 +99,18 @@ function phoneSettings() {
     return extension_settings?.[PHONE_MODULE] || {};
 }
 
+/** The Phone module's own switch. Off: nothing of the phone is embedded, searched or sent. */
+export function phoneModuleEnabled() {
+    return phoneSettings().enabled === true;
+}
+
+const flags = () => ({ phoneEnabled: phoneModuleEnabled() });
+
+/** Whether this module's vectors do anything right now (master, its own switch, and the phone's). */
+export function moduleInUse(moduleId) {
+    return moduleActive(vectorSettings(), moduleId, flags());
+}
+
 /** Phone contacts that have a thread, for the panel's picker. */
 export function phoneContacts() {
     const threads = phoneSettings().threads || {};
@@ -105,36 +120,20 @@ export function phoneContacts() {
 /** A phone message as text worth embedding: inline images are dropped, they are only noise. */
 const phoneText = (t) => String(t ?? '').replace(/data:[^\s)\]]+/g, '[image]').slice(0, 1200);
 
+/** Games or combat talk in the adapters' shape: one embeddable item per game or fight. */
+export function talkAdapterEntries(kind, list) {
+    return (list || []).map(e => ({
+        id: e.id,
+        text: talkEmbedText(e, kind),
+        at: Number(e.at) || 0,
+        importance: talkImportance(e),
+        eligible: true,
+        label: `${e.title}${e.with?.length ? ` with ${e.with.join(', ')}` : ''}`,
+        sub: [e.date, e.result].filter(Boolean).join(' · '),
+    }));
+}
+
 const ADAPTERS = {
-    bonds: {
-        entries() {
-            const store = chatStore();
-            const out = [];
-            for (const person of store?.people || []) {
-                for (const m of person.history || []) {
-                    out.push({
-                        id: bondEntryId(person, m),
-                        text: TEMPLATES.bonds({ person: person.name, label: m.label, date: m.date, note: m.note }, player()),
-                        at: Number(m.at) || 0,
-                        // Milestones written by hand are the user's own emphasis.
-                        importance: m.auto ? 0 : 1,
-                        // Bond tracking is opt-in per person: untracked people stay out unless
-                        // the user vectorizes their milestones by hand.
-                        eligible: Boolean(person.tracked),
-                        label: `${person.name}: ${m.label || 'Milestone'}`,
-                        sub: [m.date, person.tracked ? '' : 'not tracked'].filter(Boolean).join(' · '),
-                        ref: { person: person.name, milestone: m.id },
-                    });
-                }
-            }
-            return out;
-        },
-        remove(entry) {
-            if (!entry?.ref) return false;
-            editPerson(entry.ref.person, (p) => removeMilestone(p, entry.ref.milestone));
-            return true;
-        },
-    },
     rivalry: {
         entries() {
             return listRecords().map(r => ({
@@ -173,6 +172,14 @@ const ADAPTERS = {
             }));
         },
         remove: null,
+    },
+    games: {
+        entries: () => talkAdapterEntries('games', listTalk('games')),
+        remove: (entry) => removeTalk('games', entry.id),
+    },
+    combat: {
+        entries: () => talkAdapterEntries('combat', listTalk('combat')),
+        remove: (entry) => removeTalk('combat', entry.id),
     },
 };
 
@@ -217,6 +224,10 @@ function changed() {
 export function syncModule(moduleId, { mode = 'manual', scope = '', only = null, onProgress, signal, quiet = false } = {}) {
     return queued(moduleId, scope, async () => {
         const result = { inserted: 0, removed: 0, failed: 0, error: '' };
+        // The Phone module switched off means nothing of the phone goes to the vector store.
+        if (moduleId === 'phone' && !phoneModuleEnabled() && mode !== 'cleanup') {
+            return { ...result, error: 'The Phone module is off, so its texts are not vectorized. Switch it on under Modules > Phone.' };
+        }
         const manifest0 = loadManifest(moduleId, scope);
         if (!manifest0) return { ...result, error: moduleId === 'phone' ? 'Choose a contact first.' : 'No chat is open.' };
         const entries = entriesOf(moduleId, scope);
@@ -311,7 +322,7 @@ export function setEntry(moduleId, scope, id, patch) {
     }).then(async (res) => {
         // An edit or a re-enable takes effect at once when auto-vectorize is on.
         const s = vectorSettings();
-        if (!res.error && moduleOn(s, moduleId) && s.autoVectorize && ('text' in patch || patch.enabled === true)) {
+        if (!res.error && moduleActive(s, moduleId, flags()) && s.autoVectorize && ('text' in patch || patch.enabled === true)) {
             await syncModule(moduleId, { mode: 'auto', scope, quiet: true });
         }
         return res;
@@ -319,8 +330,8 @@ export function setEntry(moduleId, scope, id, patch) {
 }
 
 /**
- * Deletes an entry. Bond milestones and rivalry records are deleted from the history itself,
- * which the next sync follows. State blocks and phone messages belong to the chat and the phone,
+ * Deletes an entry. Rivalry records and games/fight talk are deleted from the history itself,
+ * which the next sync follows. Phone messages belong to the phone,
  * so there it is a tombstone: out of the collection and never retrieved, but the message stays.
  */
 export async function deleteEntry(moduleId, scope, entry) {
@@ -341,9 +352,10 @@ export async function deleteEntry(moduleId, scope, entry) {
 export function panelData(moduleId, scope = '') {
     const s = vectorSettings();
     const master = s.enabled;
-    const on = moduleOn(s, moduleId);
+    const badge = vectorBadge(s, moduleId, flags());
+    const on = badge.on;
     if (moduleId === 'phone' && !scope) {
-        return { on, master, collection: '', status: manifestStatus(moduleId, null, []), rows: [], scopeNeeded: true };
+        return { on, master, badge, collection: '', status: manifestStatus(moduleId, null, []), rows: [], scopeNeeded: true };
     }
     const manifest = loadManifest(moduleId, scope, { persist: false });
     const entries = entriesOf(moduleId, scope);
@@ -361,6 +373,7 @@ export function panelData(moduleId, scope = '') {
     return {
         on,
         master,
+        badge,
         collection: manifest ? collectionFor(moduleId, scope, manifest) : '',
         status: manifestStatus(moduleId, manifest, entries),
         rows,
@@ -379,10 +392,11 @@ export function overview() {
                 const d = panelData('phone', c).status;
                 sum.total += d.total; sum.vectorized += d.vectorized; sum.stale += d.stale; sum.errors += d.errors;
             }
-            return { id, label: VECTOR_MODULES[id].label, on: moduleOn(vectorSettings(), id), status: sum, scope: `${contacts.length} contact${contacts.length === 1 ? '' : 's'}` };
+            const badge = vectorBadge(vectorSettings(), id, flags());
+            return { id, label: VECTOR_MODULES[id].label, on: badge.on, badge, status: sum, scope: `${contacts.length} contact${contacts.length === 1 ? '' : 's'}` };
         }
         const d = panelData(id);
-        return { id, label: VECTOR_MODULES[id].label, on: d.on, status: d.status, scope: 'this chat', collection: d.collection };
+        return { id, label: VECTOR_MODULES[id].label, on: d.on, badge: d.badge, status: d.status, scope: 'this chat', collection: d.collection };
     });
 }
 
@@ -426,9 +440,21 @@ async function onGenerationStarted(type, _options, dryRun) {
     // Quiet requests (the tracker's own, other extensions') are frequent and never a story reply.
     if (type === 'quiet') return;
     try {
+        await searchChatModules(type);
+    } catch (err) {
+        // Whatever went wrong, the generation goes ahead as if vectors were off.
+        clearPicks();
+        debugLog('Vector retrieval failed', err);
+    }
+    // Set or cleared every time: with vectors off or no picks, the block is gone.
+    applyTalkInjection();
+}
+
+async function searchChatModules(type) {
+    {
         const s = vectorSettings();
         if (!s.enabled) return;
-        const active = ['bonds', 'rivalry'].filter(id => moduleOn(s, id));
+        const active = ['rivalry', ...TALK_KINDS].filter(id => moduleActive(s, id, flags()));
         if (!active.length) return;
         const text = buildQueryText(getContext()?.chat || [], {
             count: s.queryMessages,
@@ -437,15 +463,54 @@ async function onGenerationStarted(type, _options, dryRun) {
         });
         if (!text) return;
         await Promise.all(active.map(async (id) => {
-            const r = await cachedPicks(id, '', text, {});
-            if (r.error) { warnOnce('search', `Vector search for ${VECTOR_MODULES[id].label} failed, using the newest entries instead. ${r.error}`); return; }
+            const talk = TALK_KINDS.includes(id);
+            // Games and fights are recalled whole, so only as many as their own recall setting.
+            const r = await cachedPicks(id, '', text, talk ? { topK: s.modules[id].recall } : {});
+            if (r.error) {
+                warnOnce('search', `Vector search for ${VECTOR_MODULES[id].label} failed, ${talk ? 'so none are recalled this time' : 'using the newest entries instead'}. ${r.error}`);
+                return;
+            }
             if (!Array.isArray(r.ids)) return;
             publishPicks(id, r.ids);
         }));
+    }
+}
+
+/* ---- recalled games and fights in the story prompt ----------------------------------- */
+
+const TALK_INJECT_KEY = 'sillynpc_talk_recall';
+
+/** The block this generation's picks make, or ''. Games and fights have no injection without vectors. */
+export function currentTalkInjection() {
+    const s = vectorSettings();
+    const picks = {};
+    const lists = {};
+    const recall = {};
+    for (const kind of TALK_KINDS) {
+        if (!moduleActive(s, kind, flags())) continue;
+        picks[kind] = currentPicks(kind);
+        lists[kind] = Array.isArray(picks[kind]) ? listTalk(kind) : [];
+        recall[kind] = s.modules[kind].recall;
+    }
+    return buildTalkInjection({ picks, lists, recall });
+}
+
+function applyTalkInjection() {
+    try {
+        const s = vectorSettings();
+        const text = currentTalkInjection();
+        if (!text) {
+            setExtensionPrompt(TALK_INJECT_KEY, '', extension_prompt_types.IN_CHAT, 0, false);
+            return;
+        }
+        const roles = {
+            system: extension_prompt_roles.SYSTEM,
+            user: extension_prompt_roles.USER,
+            assistant: extension_prompt_roles.ASSISTANT,
+        };
+        setExtensionPrompt(TALK_INJECT_KEY, text, extension_prompt_types.IN_CHAT, s.injectDepth, false, roles[s.injectRole]);
     } catch (err) {
-        // Whatever went wrong, the generation goes ahead as if vectors were off.
-        clearPicks();
-        debugLog('Vector retrieval failed', err);
+        debugLog('Could not set the recalled games and fights', err);
     }
 }
 
@@ -460,7 +525,8 @@ async function onGenerationStarted(type, _options, dryRun) {
 export async function recallPhone(contact, { recentFromTs = Infinity } = {}) {
     try {
         const s = vectorSettings();
-        if (!moduleOn(s, 'phone') || !contact) return '';
+        // The phone's own switch too: with the Phone module off, nothing of it is searched.
+        if (!moduleActive(s, 'phone', flags()) || !contact) return '';
         const thread = (phoneSettings().threads || {})[contact];
         if (!Array.isArray(thread) || !thread.length) return '';
         const you = player();
@@ -489,7 +555,7 @@ const timers = new Map();
 /** Schedules a quiet sync after the changes settle, when the module and auto-vectorize are on. */
 function scheduleSync(moduleId, scope = '') {
     const s = vectorSettings();
-    if (!moduleOn(s, moduleId) || !s.autoVectorize) return;
+    if (!moduleActive(s, moduleId, flags()) || !s.autoVectorize) return;
     const key = `${moduleId}|${scope}`;
     clearTimeout(timers.get(key));
     timers.set(key, setTimeout(() => {
@@ -504,13 +570,15 @@ export function initVectors() {
     // read the picks. SillyTavern awaits each listener in turn, so awaiting here is enough.
     eventSource.makeFirst(event_types.GENERATION_STARTED, onGenerationStarted);
 
-    eventSource.on(BONDS_CHANGED_EVENT, () => scheduleSync('bonds'));
     eventSource.on(RIVALRY_CHANGED_EVENT, () => scheduleSync('rivalry'));
+    eventSource.on(TALK_CHANGED_EVENT, (kind) => { if (TALK_KINDS.includes(kind)) scheduleSync(kind); });
     eventSource.on(PHONE_CHANGED_EVENT, (contact) => { if (contact) scheduleSync('phone', String(contact)); });
     eventSource.on(event_types.CHAT_CHANGED, () => {
         clearPicks();
         cache.clear();
+        // The last chat's recalled games and fights must not reach the next one.
+        applyTalkInjection();
         // Catch up on anything written while vectors were off or Ollama was down.
-        for (const id of ['bonds', 'rivalry']) scheduleSync(id);
+        for (const id of ['rivalry', ...TALK_KINDS]) scheduleSync(id);
     });
 }

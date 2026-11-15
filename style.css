@@ -4633,6 +4633,8 @@ textarea.sillynpc-profile-input {
 
 /* ---- Fork additions: the Modules tab ---- */
 .sillynpc-hidden { display: none !important; }
+/* A module that failed to load says so where its pane would be. */
+.sillynpc-module-error { color: var(--warning, #e0a040); white-space: pre-wrap; }
 .sillynpc-card { border: 1px solid var(--SmartThemeBorderColor, #444); border-radius: 10px; margin: 12px 0; overflow: hidden; }
 .sillynpc-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: rgba(127, 127, 127, .12); }
 .sillynpc-card-title { display: flex; gap: 12px; align-items: center; }

@@ -1,7 +1,9 @@
 import { getContext, extension_settings } from '../../../../../extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '../../../../../../script.js';
 // Fork: the opponents are SillyNPC's characters, not SillyTavern's cards.
-import { phoneCharacters as characters, activeCharacterNames, lastTaggedSpeaker } from '../shim.js';
+import { phoneCharacters as characters, activeCharacterNames, lastTaggedSpeaker, sceneClock } from '../shim.js';
+import { recordTalk } from '../../src/talk-store.js';
+import { newTalkId } from '../../src/talk-log.js';
 import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
 import { addRecord, tallyFor, rivalryBlock } from '../../src/rivalry.js';
@@ -417,6 +419,8 @@ Rules:
 
 // === GAME START (with hidden difficulty) ===
 async function startGame(type) {
+    // A replay: the last game's talk, with what was said after it ended, is kept first.
+    keepTalk({ leaving: true, final: true });
     gameSession++;                     // invalidate any timers from the previous game
     gameState.active = true;
     gameState.gameType = type;
@@ -1280,7 +1284,7 @@ function renderBottlePicker(cands) {
     const canvas = $('#rpg-game-canvas');
     canvas.empty();
     canvas.append(`<button class="rpg-back-btn" id="rpg-bt-back"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>`);
-    $('#rpg-bt-back').on('click', () => { gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
+    $('#rpg-bt-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
     const wrap = $('<div class="rpg-menu-container"></div>');
     wrap.append(`<div class="rpg-menu-title">${t('bt_pick_title')}</div><div class="rpg-bt-hint">${t('bt_pick_hint')}</div>`);
     cands.forEach((n, i) => wrap.append(`<label class="rpg-bt-cand"><input type="checkbox" data-i="${i}" ${n === gameState.opponentName ? 'checked' : ''}> ${escapeHtml(n)}</label>`));
@@ -1497,6 +1501,59 @@ function renderBottleArea(canvas) {
 /* ============================================================
    RESULT
    ============================================================ */
+/*
+ * Fork: the table talk is kept in the chat (talk-store.js) when a game ends or is left, so the
+ * vectors can recall it later. One entry per game: recorded when it is decided, and again with
+ * whatever was said after, when the table is left.
+ */
+let talk = null;                       // { session, id, result } of the game being kept
+function gameLabel() {
+    const type = gameState.gameType;
+    const key = `g_${type}`;
+    return (t(key) && t(key) !== key) ? t(key) : (type || 'Game');
+}
+function tableNames() {
+    if (gameState.gameType === 'bottle' && gameState.bottle?.players) {
+        return gameState.bottle.players.filter(p => !p.isUser).map(p => p.name);
+    }
+    return gameState.opponentName ? [gameState.opponentName] : [];
+}
+/**
+ * Writes this game's talk. result: how it ended, when known. leaving: the table is left, so an
+ * undecided game is "left unfinished". final: forget the game afterwards (its log is cleared next).
+ */
+function keepTalk({ result = '', leaving = false, final = false } = {}) {
+    try {
+        if (!gameState.gameType) return;
+        const lines = gameState.chatLog
+            .filter(m => m.sender === 'user' || m.sender === 'bot')
+            .map(m => ({ who: m.sender === 'user' ? userName() : (m.who || gameState.opponentName), text: m.text }));
+        const known = talk && talk.session === gameSession ? talk : null;
+        if (!lines.length && !result && !known?.result) return;
+        if (!known) talk = { session: gameSession, id: newTalkId(), result: '' };
+        if (result && !talk.result) talk.result = result;
+        if (leaving && !talk.result && gameState.active && gameState.gameType !== 'bottle') talk.result = 'left unfinished';
+        recordTalk('games', {
+            id: talk.id,
+            at: Date.now(),
+            title: gameLabel(),
+            with: tableNames(),
+            date: sceneClock()?.dateText || '',
+            lines,
+            result: talk.result,
+        });
+    } catch (e) {
+        console.warn('[Games] could not keep the table talk', e);
+    } finally {
+        if (final) talk = null;
+    }
+}
+function talkResult() {
+    if (gameState.winner === 'user') return `${userName()} won`;
+    if (gameState.winner === 'bot') return `${gameState.opponentName} won`;
+    return 'draw';
+}
+
 let recordedFor = -1;
 function recordGameResult() {
     if (recordedFor === gameSession) return;
@@ -1515,6 +1572,7 @@ function recordGameResult() {
 
 function resolveGame() {
     recordGameResult();
+    keepTalk({ result: talkResult() });
     let resultText = "";
     if (gameState.winner === 'user') resultText = t('result_win');
     else if (gameState.winner === 'bot') resultText = t('result_lose', {name: gameState.opponentName});
@@ -1564,12 +1622,14 @@ function renderGameArea() {
     `);
     $('#rpg-hist-btn').on('click', () => openRivalryEditor(gameState.opponentName));
     $('#rpg-back-btn').on('click', () => {
+        keepTalk({ leaving: true, final: true });
         gameSession++;                 // kill pending bot-turn timers
         gameState.active = false;
         gameState.chatLog = [];
         renderGameArea();
     });
     $('#rpg-surrender-btn').on('click', () => {
+        keepTalk({ result: `${userName()} surrendered`, final: true });
         gameSession++;                 // kill pending bot-turn timers
         addGameChatMessage('system', t('surrendered'));
         gameState.active = false;
@@ -1947,6 +2007,7 @@ function injectGameSummaryToChat() {
     const cur = $('#send_textarea').val();
     $('#send_textarea').val((cur ? cur + '\n\n' : '') + summaryText).trigger('input');
     $('#rpg-game-modal').removeClass('visible');
+    keepTalk({ leaving: true, final: true });
     gameSession++;
     gameState.active = false;
     gameState.chatLog = [];
@@ -1989,6 +2050,23 @@ function frameSettings(root) {
     });
 }
 
+/*
+ * Fork: the Vectors panel for the games' table talk, at the bottom of this drawer. Loaded on its
+ * own so that, if the vectors fail to load, the games still do.
+ */
+function mountTalkVectors(content) {
+    if (!content) return;
+    const host = document.createElement('div');
+    host.className = 'rpg-game-vectors';
+    content.append(host);
+    import('../../src/ui-vectors.js')
+        .then(m => m.mountVectorPanel(host, 'games'))
+        .catch(e => {
+            console.error('[Games] the Vectors panel did not load', e);
+            host.textContent = `Vectors panel did not load: ${e?.message || e}`;
+        });
+}
+
 function renderSettingsUI() {
     const html = `
 <div class="extension_settings rpg-game-settings">
@@ -2019,6 +2097,7 @@ function renderSettingsUI() {
 </div>`;
     $('#extensions_settings').append(html);
     frameSettings(document.querySelector('.rpg-game-settings'));
+    mountTalkVectors(document.querySelector('.rpg-game-settings .inline-drawer-content'));
     $('.rpg-game-settings .rpg-game-toggle').on('click', function () {
         $(this).next('.inline-drawer-content').slideToggle();
         $(this).find('.inline-drawer-icon').toggleClass('down up');
@@ -2093,6 +2172,9 @@ jQuery(() => {
         initUI();
         gameSession++;                 // never let old-chat game timers run on
         gameState.active = false;
+        // The old chat's talk cannot be written to the new chat's metadata: it is dropped.
+        talk = null;
+        gameState.chatLog = [];
         $('#rpg-game-modal').remove();
     });
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, () => { initUI(); });
