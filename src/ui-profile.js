@@ -3,7 +3,7 @@ import { liveFactsFor } from './api.js';
 import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
-import { levelFor, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
+import { levelFor, levelName, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
 
 /**
  * The character page you land on: what is known about somebody, laid out to be read.
@@ -184,9 +184,9 @@ export async function renderProfileView(char, container) {
             const edge = person.edges?.toPlayer;
             const value = edge ? platonicValue(edge) : (Number(person.value) || 0);
             const { level, next } = levelFor(value, bonds.levels);
-            const chips = [chip('Bond', `${level.name} (${value})`)];
+            const chips = [chip('Bond', `${levelName(level, person)} (${value})`)];
             if (edge) for (const k of METERS) chips.push(chip(METER_LABELS[k], String(edge[k])));
-            if (next) chips.push(chip('Next', `${next.name} at ${next.min}`));
+            if (next) chips.push(chip('Next', `${levelName(next, person)} at ${next.min}`));
             // Romance only while their side is switched on and the bond is Open.
             const romance = romanceState(person, 'toPlayer', bonds.romanceLevels);
             if (romance.active) chips.push(chip('Romance', `${romance.level ? romance.level.name : 'none yet'} (desire ${romance.desire})`));

@@ -86,15 +86,15 @@ export const STORE_VERSION = 2;
  * value has reached. Below zero is for people who dislike the player; most stories start at 0.
  */
 export const DEFAULT_LEVELS = Object.freeze([
-    { id: 'hostile', name: 'Hostile', min: -50, description: 'Openly hostile. Refuses help, may work against them.' },
-    { id: 'wary', name: 'Wary', min: -15, description: 'Distrustful and guarded. Short answers, keeps their distance.' },
-    { id: 'stranger', name: 'Stranger', min: 0, description: 'Polite or indifferent. Treats them like anyone else.' },
-    { id: 'acquaintance', name: 'Acquaintance', min: 10, description: 'Recognises them and is friendly in passing. Small talk.' },
-    { id: 'friend', name: 'Friend', min: 25, description: 'Enjoys their company, seeks them out, jokes with them.' },
-    { id: 'close_friend', name: 'Close friend', min: 40, description: 'Comfortable and warm. Opens up, worries about them.' },
-    { id: 'trusted', name: 'Trusted', min: 55, description: 'Deep trust. Would take risks for them and keep their secrets.' },
-    { id: 'confidant', name: 'Confidant', min: 70, description: 'Knows their heart. Would drop everything for them and expects the same.' },
-    { id: 'kindred', name: 'Kindred', min: 85, description: 'Family by choice. Loyalty that would survive anything.' },
+    { id: 'hostile', name: 'Hostile', familial: 'Bitter', min: -50, description: 'Openly hostile. Refuses help, may work against them.' },
+    { id: 'wary', name: 'Wary', familial: 'Strained', min: -15, description: 'Distrustful and guarded. Short answers, keeps their distance.' },
+    { id: 'stranger', name: 'Stranger', familial: 'Distant', min: 0, description: 'Polite or indifferent. Treats them like anyone else.' },
+    { id: 'acquaintance', name: 'Acquaintance', familial: 'Cordial', min: 10, description: 'Recognises them and is friendly in passing. Small talk.' },
+    { id: 'friend', name: 'Friend', familial: 'Warm', min: 25, description: 'Enjoys their company, seeks them out, jokes with them.' },
+    { id: 'close_friend', name: 'Close friend', familial: 'Close', min: 40, description: 'Comfortable and warm. Opens up, worries about them.' },
+    { id: 'trusted', name: 'Trusted', familial: 'Steadfast', min: 55, description: 'Deep trust. Would take risks for them and keep their secrets.' },
+    { id: 'confidant', name: 'Confidant', familial: 'Inseparable', min: 70, description: 'Knows their heart. Would drop everything for them and expects the same.' },
+    { id: 'kindred', name: 'Kindred', familial: 'Unbreakable', min: 85, description: 'Family by choice. Loyalty that would survive anything.' },
 ]);
 
 /** The platonic defaults before romance had its own track. Saved levels equal to these are upgraded. */
@@ -281,7 +281,7 @@ export function normalizeGrowth(raw) {
     };
 }
 
-function normalizeLevelList(raw, defaults, lo) {
+function normalizeLevelList(raw, defaults, lo, { familial = false } = {}) {
     const list = Array.isArray(raw) ? raw : clone(defaults);
     const seen = new Set();
     const out = [];
@@ -292,15 +292,41 @@ function normalizeLevelList(raw, defaults, lo) {
         let id = slug(l.id) || slug(name) || newId('l');
         while (seen.has(id) || id === NEVER) id = `${id}_2`;
         seen.add(id);
-        out.push({ id, name, min: int(l.min, lo, 1000, Math.max(lo, 0)), description: str(l.description, 400) });
+        const level = { id, name, min: int(l.min, lo, 1000, Math.max(lo, 0)), description: str(l.description, 400) };
+        // The name the level goes by between kin-like people. '' falls back to the name.
+        if (familial) level.familial = typeof l.familial === 'string' ? str(l.familial, 40) : '';
+        out.push(level);
     }
     if (!out.length) return clone(defaults);
     return out.sort((a, b) => a.min - b.min);
 }
 
-/** Platonic levels sorted by threshold, every id unique, never empty. */
+/** Platonic levels sorted by threshold, every id unique, never empty. Each has a familial name ('' for none). */
 export function normalizeLevels(raw) {
-    return normalizeLevelList(raw, DEFAULT_LEVELS, -1000);
+    return normalizeLevelList(raw, DEFAULT_LEVELS, -1000, { familial: true });
+}
+
+/**
+ * Levels saved before they had familial names: a level whose id is one of the default ids and
+ * that has no familial field at all gets the default familial name. Custom levels, and levels
+ * whose familial name was cleared on purpose (''), are left alone. Running it again changes nothing.
+ */
+export function migrateFamilial(raw) {
+    if (!Array.isArray(raw)) return raw;
+    return raw.map((l) => {
+        if (!isObj(l) || hasOwn(l, 'familial')) return l;
+        const d = DEFAULT_LEVELS.find(x => x.id === l.id);
+        return d ? { ...l, familial: d.familial } : l;
+    });
+}
+
+/**
+ * The name a platonic level goes by for one person: its familial name when their bond is
+ * Family and the level has one, otherwise its own name.
+ */
+export function levelName(level, person = null) {
+    if (!level) return '';
+    return person?.lock === 'familial' && level.familial ? level.familial : level.name;
 }
 
 /** Romance levels: thresholds on desire, which never goes below 0. */
@@ -420,7 +446,7 @@ export function normalizeBondInject(raw) {
 /** The whole settings object, repaired. Safe on undefined, on garbage, and on an older shape. */
 export function normalizeBondSettings(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
-    const levels = normalizeLevels(migrateLevels(r.levels));
+    const levels = normalizeLevels(migrateFamilial(migrateLevels(r.levels)));
     const romanceLevels = normalizeRomanceLevels(r.romanceLevels);
     return {
         enabled: r.enabled === undefined ? BOND_DEFAULTS.enabled : Boolean(r.enabled),
@@ -596,6 +622,25 @@ export function setGateOverride(person, gate, value, settings = null) {
     return true;
 }
 
+/**
+ * Sets the scope or min-bond part of one person's override for a global gate. undefined or null
+ * goes back to the global value; for minBond, '' means "nothing more" and a platonic level id
+ * that level; scope is 'initiates' or 'mutual' (romance gates only, see cleanGateOverride).
+ * Other override fields are kept; an override left empty is removed.
+ */
+export function setGateOverridePart(person, gate, field, value, settings = null) {
+    if (!person || !gate?.id || (field !== 'scope' && field !== 'minBond')) return false;
+    if (!isObj(person.gateOverrides)) person.gateOverrides = {};
+    const all = person.gateOverrides;
+    const cur = { ...(isObj(all[gate.id]) ? all[gate.id] : {}) };
+    delete cur[field];
+    if (value !== undefined && value !== null && (field === 'minBond' || value !== '')) cur[field] = value;
+    const clean = cleanGateOverride(cur, gate, settings);
+    if (clean) all[gate.id] = clean;
+    else delete all[gate.id];
+    return true;
+}
+
 /** Removes one person's override for a gate, or every override when no id is given. */
 export function clearGateOverride(person, gateId = '') {
     if (!person) return false;
@@ -683,11 +728,11 @@ export function personGateText(person, settings, { kind = '', showLocked = true,
     };
     for (const { gate, why, needs } of locked) {
         const min = needs ? needs.min : 0;
-        if (why === 'level' && gate.track !== 'romance') add(`p:${needs.id}`, min, `Not yet (needs ${needs.name})`, gate.label);
+        if (why === 'level' && gate.track !== 'romance') add(`p:${needs.id}`, min, `Not yet (needs ${levelName(needs, person)})`, gate.label);
         else if (why === 'level') add(`r:${needs.id}`, 1000 + min, `Not yet (needs romance at ${needs.name})`, gate.label);
         else if (why === 'player-level') add(`pl:${needs.id}`, 2000 + min, `Not until ${playerName} feels it too (needs both at ${needs.name})`, gate.label);
         else if (why === 'one-sided') add('one', 3000, `Not mutual (${playerName} does not return the feeling)`, gate.label);
-        else if (why === 'bond') add(`b:${needs.id}`, 4000 + min, `Not until trust runs deeper (needs ${needs.name} on both sides)`, gate.label);
+        else if (why === 'bond') add(`b:${needs.id}`, 4000 + min, `Not until trust runs deeper (needs ${levelName(needs, person)} on both sides)`, gate.label);
         else if (why === 'lock' || why === 'off') add('noromance', 5000, 'Never (not a romantic bond)', gate.label);
         else add('never', 6000, 'Never', gate.label);
     }
@@ -730,14 +775,14 @@ export function gateText(value, gates, levels, { kind = '', showLocked = true, p
         // Grouped by what unlocks them, lowest first, so the model sees the next step clearly.
         const groups = new Map();
         for (const { gate, needs } of locked) {
-            const key = needs ? needs.name : 'never';
+            const key = needs ? levelName(needs, person) : 'never';
             if (!groups.has(key)) groups.set(key, { needs, labels: [] });
             groups.get(key).labels.push(gate.label);
         }
         const ordered = [...groups.values()].sort((a, b) => (a.needs ? a.needs.min : Infinity) - (b.needs ? b.needs.min : Infinity));
         for (const g of ordered) {
             lines.push(g.needs
-                ? `Not yet (needs ${g.needs.name}): ${g.labels.join('; ')}.`
+                ? `Not yet (needs ${levelName(g.needs, person)}): ${g.labels.join('; ')}.`
                 : `Never: ${g.labels.join('; ')}.`);
         }
     }
@@ -809,6 +854,25 @@ export function syncValue(person) {
 
 /** The bottom of one meter's scale: desire starts at nothing and cannot go below it. */
 export const meterFloor = (meter, growth = DEFAULT_GROWTH) => (meter === 'desire' ? 0 : growth.min);
+
+/**
+ * The level ticks on one meter's bar, as percentages along it. Affection, trust and respect
+ * carry the platonic thresholds (named for the person, see levelName), desire the romance
+ * ones on its own 0-to-top scale. Thresholds at or past either end of the bar are left out.
+ * @returns {{ id: string, name: string, min: number, left: number }[]}
+ */
+export function meterTicks(meter, settings, person = null) {
+    const g = settings?.growth || DEFAULT_GROWTH;
+    const lo = meterFloor(meter, g);
+    const span = Math.max(1, g.max - lo);
+    const romance = meter === 'desire';
+    const list = romance
+        ? (settings?.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS)
+        : (settings?.levels?.length ? settings.levels : DEFAULT_LEVELS);
+    return list
+        .filter(l => l.min > lo && l.min < g.max)
+        .map(l => ({ id: l.id, name: romance ? l.name : levelName(l, person), min: l.min, left: ((l.min - lo) / span) * 100 }));
+}
 
 /** Sets one meter by hand, clamped to the scale, and keeps the mirror in step. */
 export function setMeter(person, dir, meter, value, growth = DEFAULT_GROWTH) {
@@ -1329,7 +1393,7 @@ export function meterText(edge) {
 /** The level name of the player's hand-set side, or '' when there is no such edge. */
 function playerSideLevel(person, levels) {
     const edge = person?.edges?.fromPlayer;
-    return edge ? levelFor(platonicValue(edge), levels).level.name : '';
+    return edge ? levelName(levelFor(platonicValue(edge), levels).level, person) : '';
 }
 
 const LOCK_TEXT = Object.freeze({
@@ -1386,9 +1450,9 @@ export function bondBlock(person, settings, playerName = 'the player', picks = n
         const meters = person.edges?.toPlayer ? meterText(person.edges.toPlayer) : fmt(value);
         const side = playerSideLevel(person, levels);
         const lock = LOCK_TEXT[person.lock];
-        out.push(`${person.name} toward ${playerName}: ${level.name} (${meters}; of ${growth.max})`
+        out.push(`${person.name} toward ${playerName}: ${levelName(level, person)} (${meters}; of ${growth.max})`
             + `${level.description ? ` - ${level.description}` : ''}`
-            + `${next ? ` Next level: ${next.name} at ${next.min}.` : ''}`
+            + `${next ? ` Next level: ${levelName(next, person)} at ${next.min}.` : ''}`
             + `${side ? ` ${playerName} feels about them: ${side}.` : ''}`
             + `${lock ? ` ${lock(person.name, playerName)}` : ''}`);
         const romance = romanceText(person, settings, playerName);
@@ -1449,6 +1513,10 @@ function rulesText(settings, people, playerName, lastDate = '') {
     if (lines(g.raises).length) out.push(`Raises a bond: ${lines(g.raises).join('; ')}.`);
     if (lines(g.lowers).length) out.push(`Lowers a bond: ${lines(g.lowers).join('; ')}.`);
     out.push(`Levels (from the lower of affection and trust): ${settings.levels.map(l => `${l.name} (${l.min}+)`).join(', ')}.`);
+    // Family bonds name the same levels differently; the model is told so it reads them alike.
+    if (people.some(p => p.lock === 'familial' && settings.levels.some(l => l.familial))) {
+        out.push(`For family bonds the same levels are called: ${settings.levels.map(l => levelName(l, { lock: 'familial' })).join(', ')}.`);
+    }
     // Desire is only asked for where the user switched romance on; for everyone else it is ignored.
     const romantic = people.filter(p => romanceActive(p, 'toPlayer'));
     if (romantic.length) {
@@ -1477,7 +1545,7 @@ function rulesText(settings, people, playerName, lastDate = '') {
             const rl = settings.romanceLevels;
             const cr = romanceState(p, 'toPlayer', rl);
             const pr = romanceState(p, 'fromPlayer', rl);
-            out.push(`- ${p.name}: ${meters} (${level.name})`
+            out.push(`- ${p.name}: ${meters} (${levelName(level, p)})`
                 + `${cr.active ? `; desire ${fmt(cr.desire)} (${cr.level ? cr.level.name : 'no romance yet'})` : ''}`
                 + `${side ? `; ${playerName} feels about them: ${side}` : ''}`
                 + `${pr.active ? `; ${playerName}'s romance: ${pr.level ? pr.level.name : 'none yet'}` : ''}`
@@ -1514,7 +1582,7 @@ export function trackerBlockHtml(store, record, settings, playerName) {
         const edge = person.edges?.toPlayer || {};
         const value = person.edges?.toPlayer ? platonicValue(edge) : Number(person.value) || 0;
         const romance = romanceState(person, 'toPlayer', settings.romanceLevels);
-        const level = [levelFor(value, settings.levels)?.level?.name || '', romance.level?.name || ''].filter(Boolean).join(' · ');
+        const level = [levelName(levelFor(value, settings.levels)?.level, person), romance.level?.name || ''].filter(Boolean).join(' · ');
         const mine = changes.filter(c => c.name === person.name && c.dir !== 'fromPlayer' && Number(c.delta));
         const note = mine.length ? ` (${mine.map(c => `${Number(c.delta) > 0 ? '+' : ''}${c.delta} ${c.meter || 'affection'}`).join(', ')})` : '';
         const r = (k) => Math.round(Number(edge[k]) || 0);

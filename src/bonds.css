@@ -365,6 +365,7 @@
 
 .snpc-bond-history      .snpc-bond-tr { grid-template-columns: minmax(190px, 1.6fr) minmax(0, 1.2fr) minmax(0, 1.3fr) 30px; }
 .snpc-bond-levels       .snpc-bond-tr { grid-template-columns: minmax(0, 1.2fr) 80px minmax(0, 3fr) 30px; }
+.snpc-bond-levels.has-familial .snpc-bond-tr { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 80px minmax(0, 3fr) 30px; }
 .snpc-bond-gates-table  .snpc-bond-tr { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 30px; }
 .snpc-bond-presets      .snpc-bond-tr { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.5fr) 30px 30px 30px; }
 
@@ -579,6 +580,34 @@
     pointer-events: none;
 }
 
+/* A romance gate's scope and minimum friendship, on a line under its level. */
+.snpc-bond-gov-extra {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    min-width: 0;
+}
+
+.snpc-bond-gov-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 150px;
+    min-width: 0;
+    margin: 0;
+}
+
+.snpc-bond-gov-fieldlabel {
+    font-size: 0.8em;
+    color: var(--snpc-bond-muted);
+    white-space: nowrap;
+}
+
+.snpc-bond-gov-mini:not(.is-diff) {
+    color: var(--snpc-bond-muted);
+}
+
 /* ---- phone width ---- */
 
 @media (max-width: 700px) {
@@ -616,6 +645,21 @@
         grid-template-columns: minmax(0, 1fr) 30px;
         padding-bottom: var(--snpc-bond-gap);
         border-bottom: 1px solid var(--snpc-bond-line);
+    }
+
+    /* Name, familial name and threshold on one line, the description under them. */
+    .snpc-bond-levels.has-familial .snpc-bond-tr {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 64px 30px;
+    }
+
+    .snpc-bond-levels.has-familial .snpc-bond-tr > :nth-child(4) {
+        grid-column: 1 / 4;
+        grid-row: 2;
+    }
+
+    .snpc-bond-levels.has-familial .snpc-bond-tr > :nth-child(5) {
+        grid-column: 4;
+        grid-row: 1;
     }
 
     .snpc-bond-presets .snpc-bond-tr {

@@ -14,7 +14,7 @@ import {
     METERS, METER_LABELS, BOND_LOCKS, GATE_TRACKS, GATE_SCOPES,
     levelFor, personGateText, normalizePerson, addMilestone, editMilestone, removeMilestone,
     toggleMilestone, hasMilestone, newId, platonicValue, setMeter, romanceState, meterFloor,
-    gateOverridden, setGateOverride, clearGateOverride,
+    gateOverridden, setGateOverride, setGateOverridePart, clearGateOverride, levelName, meterTicks,
 } from './bonds-core.js';
 
 /**
@@ -282,14 +282,14 @@ function personCard(person, settings, rerender) {
     }, 'snpc-bond-caret');
     const who = el('div', 'snpc-bond-who');
     who.append(el('span', 'snpc-bond-name', person.name));
-    who.append(el('span', 'snpc-bond-level', person.untracked ? 'Not tracked yet' : level.name));
+    who.append(el('span', 'snpc-bond-level', person.untracked ? 'Not tracked yet' : levelName(level, person)));
 
     // The character's own edge: three meters. The level comes from the lower of affection and trust.
     const meters = el('div', 'snpc-bond-meters');
     for (const k of METERS) meters.append(meterRow(person, 'toPlayer', k, settings, rerender));
     meters.title = next
-        ? `${level.name} (the lower of affection and trust). ${next.name} at ${next.min}.`
-        : `${level.name}, the top level.`;
+        ? `${levelName(level, person)} (the lower of affection and trust). ${levelName(next, person)} at ${next.min}.`
+        : `${levelName(level, person)}, the top level.`;
     // Romance is its own track: a switch per side, desire shown only while it is on.
     meters.append(romanceRow(person, 'toPlayer', settings, rerender));
 
@@ -301,7 +301,8 @@ function personCard(person, settings, rerender) {
     lock.classList.add('snpc-bond-lock');
     lock.title = 'What this bond may become. Open: romance can be switched on for either side. '
         + 'Platonic only or Family: romance stays off whatever the switches say - desire is frozen, no romance level is shown '
-        + 'and every romance gate reads Never.';
+        + 'and every romance gate reads Never. Family also shows the friendship levels by their familial names '
+        + '(set in the Familial name column under Levels).';
 
     const chips = el('div', 'snpc-bond-chips');
     chips.append(
@@ -357,8 +358,8 @@ function personCard(person, settings, rerender) {
 }
 
 /**
- * One meter of one edge: a bar and a number to set it by hand. Affection and trust carry the
- * platonic level ticks, desire the romance ones (on its own 0-to-top scale).
+ * One meter of one edge: a bar and a number to set it by hand. Affection, trust and respect carry
+ * the platonic level ticks, desire the romance ones (on its own 0-to-top scale). See meterTicks.
  */
 function meterRow(person, dir, meter, settings, rerender) {
     const g = settings.growth;
@@ -370,12 +371,10 @@ function meterRow(person, dir, meter, settings, rerender) {
     const fill = el('div', 'snpc-bond-fill');
     fill.style.width = `${Math.max(0, Math.min(100, ((v - lo) / span) * 100))}%`;
     bar.append(fill);
-    const marks = meter === 'desire' ? settings.romanceLevels : (meter === 'respect' ? [] : settings.levels);
-    for (const l of marks || []) {
-        if (l.min <= lo || l.min >= g.max) continue;
+    for (const t of meterTicks(meter, settings, person)) {
         const tick = el('span', 'snpc-bond-tick');
-        tick.style.left = `${((l.min - lo) / span) * 100}%`;
-        tick.title = `${l.name} at ${l.min}`;
+        tick.style.left = `${t.left}%`;
+        tick.title = `${t.name} at ${t.min}`;
         bar.append(tick);
     }
     const box = input('number', v, (nv) => {
@@ -437,7 +436,7 @@ function playerSide(person, settings, rerender) {
     const level = levelFor(platonicValue(person.edges?.fromPlayer), settings.levels).level;
     const romance = romanceState(person, 'fromPlayer', settings.romanceLevels);
     const romanceNote = romance.active ? ` · Romance: ${romance.level ? romance.level.name : 'none yet'}` : '';
-    side.append(el('summary', 'snpc-bond-side-summary', `${you}'s side: ${level.name}${romanceNote}`));
+    side.append(el('summary', 'snpc-bond-side-summary', `${you}'s side: ${levelName(level, person)}${romanceNote}`));
     side.append(el('small', 'notes', `How ${you} feels about ${person.name}. Set by hand only: the model is told it, but never changes it. `
         + 'Romance can be one-sided either way: acts both must feel need both sides switched on and high enough.'));
     const rows = el('div', 'snpc-bond-meters');
@@ -466,7 +465,11 @@ function personGates(person, settings, rerender) {
     details.append(el('small', 'notes', `What ${person.name} allows, where it differs from the gates below. Global follows the gate as set there.`));
 
     const lockKey = person.lock || 'open';
-    const nameOf = (list, id) => (id === NEVER ? 'Never' : (list.find(l => l.id === id)?.name || id));
+    const nameOf = (list, id) => {
+        if (id === NEVER) return 'Never';
+        const l = list.find(x => x.id === id);
+        return l ? (list === settings.levels ? levelName(l, person) : l.name) : id;
+    };
     const rows = el('div', 'snpc-bond-gov-rows');
     for (const gate of gates) {
         const list = gate.track === 'romance' ? settings.romanceLevels : settings.levels;
@@ -492,7 +495,7 @@ function personGates(person, settings, rerender) {
 
         const sel = el('select', 'text_pole snpc-bond-gov-select');
         sel.append(new Option(`Global (${globalLevel})`, ''));
-        for (const l of list) sel.append(new Option(l.name, l.id));
+        for (const l of list) sel.append(new Option(nameOf(list, l.id), l.id));
         sel.append(new Option('Never', NEVER));
         sel.value = o?.off ? NEVER : (o?.level || '');
         sel.title = `The level ${person.name} needs for this, instead of the global one`;
@@ -506,7 +509,9 @@ function personGates(person, settings, rerender) {
             editPerson(person.name, (p) => { clearGateOverride(p, gate.id); });
             rerender();
         }, `snpc-bond-gov-reset${o ? '' : ' disabled'}`);
+        reset.title = 'Back to the global gate (clears every choice on this row)';
         row.append(label, sel, reset);
+        if (gate.track === 'romance') row.append(personGateExtras(person, gate, o, settings, { locked, nameOf, rerender }));
         rows.append(row);
     }
     details.append(rows);
@@ -520,6 +525,56 @@ function personGates(person, settings, rerender) {
     bar.append(resetAll);
     details.append(bar);
     return details;
+}
+
+/** The value of the "Minimum friendship" select that means "nothing more" (minBond ''). */
+const NO_MIN = '__none';
+
+/**
+ * A romance gate's extra choices for one person, on a line under its level: who must feel it,
+ * and the friendship both sides must also have. Each starts at Global; one that differs from
+ * the global gate is highlighted like the level select.
+ */
+function personGateExtras(person, gate, o, settings, { locked, nameOf, rerender }) {
+    const wrap = el('div', 'snpc-bond-gov-extra');
+    const has = (k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o, k);
+    const field = (labelText, control) => {
+        const f = el('label', 'snpc-bond-gov-field');
+        f.append(el('span', 'snpc-bond-gov-fieldlabel', labelText), control);
+        return f;
+    };
+    const mini = (differs) => {
+        const s = el('select', `text_pole snpc-bond-gov-select snpc-bond-gov-mini${differs ? ' is-diff' : ''}`);
+        s.disabled = locked;
+        return s;
+    };
+
+    const scopeName = (v) => (v === 'mutual' ? 'Both sides' : 'Their side only');
+    const scope = mini(has('scope') && o.scope !== gate.scope);
+    scope.classList.add('snpc-bond-gov-scope');
+    scope.append(new Option(`Global (${scopeName(gate.scope)})`, ''), new Option('Their side only', 'initiates'), new Option('Both sides', 'mutual'));
+    scope.value = has('scope') ? o.scope : '';
+    scope.title = `Who must feel it for ${person.name}: their side only (they may start it), or both sides at that romance level`;
+    scope.addEventListener('change', () => {
+        editPerson(person.name, (p) => { setGateOverridePart(p, gate, 'scope', scope.value || null, settings); });
+        rerender();
+    });
+
+    const globalMin = gate.minBond ? nameOf(settings.levels, gate.minBond) : 'None';
+    const min = mini(has('minBond') && o.minBond !== (gate.minBond || ''));
+    min.classList.add('snpc-bond-gov-min');
+    min.append(new Option(`Global (${globalMin})`, ''), new Option('None', NO_MIN));
+    for (const l of settings.levels) min.append(new Option(nameOf(settings.levels, l.id), l.id));
+    min.value = has('minBond') ? (o.minBond === '' ? NO_MIN : o.minBond) : '';
+    min.title = `A friendship level both sides must also have reached, for ${person.name} alone`;
+    min.addEventListener('change', () => {
+        const v = min.value === NO_MIN ? '' : (min.value || null);
+        editPerson(person.name, (p) => { setGateOverridePart(p, gate, 'minBond', v, settings); });
+        rerender();
+    });
+
+    wrap.append(field('Scope', scope), field('Min. friendship', min));
+    return wrap;
 }
 
 function personBody(person, settings, rerender) {
@@ -683,16 +738,27 @@ function renderGrowth(view, rerender) {
 
 /* ---- levels and gates ---------------------------------------------------------------- */
 
-function levelsTable(key, rerender, { what, unit }) {
+function levelsTable(key, rerender, { what, unit, familial = false }) {
     const s = bondSettings();
-    const table = el('div', 'snpc-bond-table snpc-bond-levels');
+    const table = el('div', `snpc-bond-table snpc-bond-levels${familial ? ' has-familial' : ''}`);
     const header = el('div', 'snpc-bond-tr snpc-bond-th');
-    header.append(el('span', '', 'Level'), el('span', '', unit), el('span', '', 'How they behave'), el('span', '', ''));
+    header.append(el('span', '', 'Level'));
+    if (familial) header.append(el('span', '', 'Familial name'));
+    header.append(el('span', '', unit), el('span', '', 'How they behave'), el('span', '', ''));
     table.append(header);
     const find = (x, id) => x[key].find(y => y.id === id);
     for (const level of s[key]) {
         const tr = el('div', 'snpc-bond-tr');
         const name = input('text', level.name, (v) => updateSettings(x => { const l = find(x, level.id); if (l && v.trim()) l.name = v; }, rerender));
+        tr.append(name);
+        if (familial) {
+            // Shown instead of the name for a person whose bond is set to Family. Empty: the name is used.
+            const fam = input('text', level.familial || '', (v) => updateSettings(x => { const l = find(x, level.id); if (l) l.familial = v; }, rerender), { placeholder: level.name });
+            fam.classList.add('snpc-bond-familial');
+            fam.maxLength = 40;
+            fam.title = 'What this level is called between family (a bond set to Family). Describes the bond, not a role. Empty uses the level name.';
+            tr.append(fam);
+        }
         const min = input('number', level.min, (v) => updateSettings(x => { const l = find(x, level.id); if (l && Number.isFinite(v)) l.min = v; }, rerender));
         min.classList.add('snpc-bond-num');
         const desc = input('text', level.description, (v) => updateSettings(x => { const l = find(x, level.id); if (l) l.description = v; }), { placeholder: 'How they act at this level' });
@@ -700,7 +766,7 @@ function levelsTable(key, rerender, { what, unit }) {
             if (s[key].length <= 1) { toastr.info('There has to be at least one level.', 'SillyNPC'); return; }
             updateSettings(x => { x[key] = x[key].filter(y => y.id !== level.id); }, rerender);
         }, 'snpc-bond-danger');
-        tr.append(name, min, desc, del);
+        tr.append(min, desc, del);
         table.append(tr);
     }
     return table;
@@ -711,8 +777,9 @@ function renderLevels(view, rerender) {
     const wrap = el('div', 'sillynpc-setting');
     wrap.append(el('div', 'snpc-bond-subhead', 'Friendship'));
     wrap.append(el('small', 'notes', 'Read from the lower of affection and trust. A person is at the highest level whose threshold they have reached. '
-        + 'The description is what the story model is told about how they behave at that level.'));
-    wrap.append(levelsTable('levels', rerender, { what: 'friendship', unit: 'From' }));
+        + 'The description is what the story model is told about how they behave at that level. '
+        + 'The familial name is what the level is called for a bond set to Family; left empty, the level name is used.'));
+    wrap.append(levelsTable('levels', rerender, { what: 'friendship', unit: 'From', familial: true }));
     const bar = el('div', 'snpc-bond-toolbar');
     bar.append(button('Add level', 'fa-plus', 'Add a friendship level above the highest one', () => updateSettings(x => {
         const top = x.levels[x.levels.length - 1];
