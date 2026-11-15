@@ -51,10 +51,13 @@ const field = (label, input, hint) => {
 /**
  * @param {object} record A character, or the player's card.
  * @param {HTMLElement} container
- * @param {{ onChange?: () => void }} [options] Called after a change the page must redraw for.
+ * @param {{ onChange?: () => void, parts?: 'sheet'|'gear' }} [options] Called after a change the page must
+ *   redraw for. parts draws one tab of the profile: the sheet (stats, ranks, abilities) or the gear (weapon
+ *   and equipment); the editor draws everything.
  */
 export function renderCombatSection(record, container, options = {}) {
     if (!container) return;
+    const gearOnly = options.parts === 'gear';
     container.className = 'sillynpc-editor-field sillynpc-combat-section';
     // One line: the heading on the left, "Persona" and its checkbox side by side on the right.
     const headRow = el('div', 'sillynpc-combat-headrow');
@@ -69,10 +72,10 @@ export function renderCombatSection(record, container, options = {}) {
         wrap.append(el('span', '', 'Persona'), box);
         headRow.append(wrap);
     }
-    container.replaceChildren(headRow);
+    container.replaceChildren(...(gearOnly ? [] : [headRow]));
 
     const genType = activeCombatType();
-    if (genType) {
+    if (genType && !gearOnly) {
         const gen = el('button', 'menu_button', 'Generate from lore');
         gen.type = 'button';
         gen.title = 'Writes the combat sheet from their lorebook entry, using the Combat stats connection. Does nothing without a linked entry.';
@@ -168,6 +171,16 @@ function typePicker(types, key, rerender) {
 function renderType(record, type, rerender, options) {
     const body = el('div', 'sillynpc-combat-type-body');
     const data = getTypeData(record, type.dataKey);
+    const commitGear = (result) => {
+        if (!result.ok) { toastr.warning(result.reason, PRODUCT_NAME); rerender(); return; }
+        saveSettings();
+        options.onChange?.();
+    };
+    // The Equipment tab: weapons and tools only.
+    if (options.parts === 'gear') {
+        body.append(renderGearBlock(record, type, { commit: commitGear }));
+        return body;
+    }
     const poolLine = el('small', 'notes sillynpc-combat-pools');
     const showPools = () => {
         const c = project(getTypeData(record, type.dataKey), type);
@@ -274,7 +287,7 @@ function renderType(record, type, rerender, options) {
     }
 
     // Weapons and tools: what they attack with, and carry, in the combat window.
-    body.append(renderGearBlock(record, type, { commit }));
+    if (options.parts !== 'sheet') body.append(renderGearBlock(record, type, { commit }));
 
     // Abilities this character has, by category, for this world type only.
     if ((type.abilities || []).length) {

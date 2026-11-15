@@ -42,15 +42,24 @@ function button(icon, text, onClick) {
 /**
  * @param {object} char
  * @param {HTMLElement} container
+ * @param {{ part?: 'all'|'visual'|'voice' }} [options] A tab of the profile draws one half: the picture
+ *   prompts (visual) or the phone skin and voice (voice). The editor draws both under one heading.
  */
-export function renderCharacterExtras(char, container) {
+export function renderCharacterExtras(char, container, options = {}) {
     if (!container) return;
+    const part = options.part || 'all';
+    const wantVisual = part === 'all' || part === 'visual';
+    const wantVoice = part === 'all' || part === 'voice';
     container.replaceChildren();
 
-    const header = document.createElement('div');
-    header.className = 'sillynpc-aliases-header';
-    header.append(label('Image & Voice'));
-    container.append(header);
+    if (part === 'all') {
+        const header = document.createElement('div');
+        header.className = 'sillynpc-aliases-header';
+        header.append(label('Image & Voice'));
+        container.append(header);
+    }
+
+    if (wantVisual) {
 
     // --- Image generation prompt ---------------------------------------------------
     const promptBox = document.createElement('textarea');
@@ -97,6 +106,9 @@ export function renderCharacterExtras(char, container) {
             + 'scene, so a prompt it writes describes the same person each time.'),
     );
 
+    }
+
+    if (!wantVoice) return;
     // --- Phone theme -----------------------------------------------------------------
     const skinRow = document.createElement('div');
     skinRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';

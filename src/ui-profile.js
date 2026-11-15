@@ -4,6 +4,7 @@ import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
 import { buildStatusCard } from './ui-vitals.js';
+import { buildProfileTabs, buildLoreLinkBar } from './ui-profile-tabs.js';
 import { levelFor, levelName, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
 
 /**
@@ -164,6 +165,17 @@ export async function renderProfileView(char, container) {
         empty.textContent = 'Who they are lives in their lorebook entry. Link or write one '
             + 'under Edit, in the Lorebook section.';
         right.append(empty);
+    }
+
+    // The lorebook link, then the row of tabs: Combat, Equipment, Voice and Visual Prompt. They edit in
+    // place, so the Edit tab is only needed for the rest. A change here redraws the page so the lore text
+    // and chips below stay true.
+    const redrawProfile = () => { renderProfileView(char, container).catch(err => console.error('[Worldkit] profile redraw failed', err)); };
+    try {
+        right.append(buildLoreLinkBar(char, { onChange: redrawProfile }));
+        right.append(buildProfileTabs(char, { onChange: undefined }));
+    } catch (err) {
+        console.warn('[Worldkit] could not draw the profile tabs', err);
     }
 
     // Tracker values: whatever is true now. A character on stage has live numbers and the

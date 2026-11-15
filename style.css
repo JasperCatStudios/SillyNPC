@@ -4855,3 +4855,12 @@ textarea.sillynpc-profile-input {
 .snpc-vit-person { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .snpc-vit-preview { white-space: pre-wrap; margin-top: 8px; }
 .sillynpc-cv-status { margin: 10px 0; }
+
+/* Profile page: lore link and the Combat / Equipment / Voice / Visual Prompt tab row. */
+.sillynpc-cv-lorelink { margin: 10px 0; }
+.sillynpc-cv-lorelink-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sillynpc-cv-lorelink-where { color: var(--sillynpc-fg-secondary, inherit); }
+.sillynpc-cv-tabs { margin: 12px 0; }
+.sillynpc-cv-tabrow { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); margin-bottom: 10px; }
+.sillynpc-cv-tab { display: inline-flex; align-items: center; gap: 6px; }
+.sillynpc-cv-tabpane { min-width: 0; }
