@@ -26,6 +26,12 @@ import { LOG_PREFIX, debugLog } from './constants.js';
  *
  * Only display regexes run on it (the ones flagged Markdown only). The preset's stripping
  * regexes would delete the block they are meant to dress.
+ *
+ * Bonds are no longer part of it. They live in the Bond Tracker (bonds-core.js, bonds.js),
+ * which clamps how fast a bond may grow instead of trusting the writer to. Blocks written
+ * before the move may still carry a BONDS section: the tracker reads it once per chat to bring
+ * the numbers over (latestInternalStatesHtml). New blocks have none, so the first new one
+ * replaces an old one in what the writer and the story model are shown.
  */
 
 const EXTRA_KEY = 'sillynpc_internal_states';
@@ -42,11 +48,10 @@ export const INTERNAL_STATES_SYSTEM = [
     '- Turn: [ct] is the number given as TURN.',
     '- Agendas: assign each named NPC an agenda on first introduction (1-3 mundane steps). OFF-screen NPCs advance Step by 1 each turn; on completion apply its effect and assign a new agenda. ON-screen NPCs do not advance.',
     '- Locations: every named NPC has a current location and activity.',
-    '- Bonds (BOND -5..20, Sparks, Grudge toward {{user}}): BOND is never raised directly. Sparks +1 per positive interaction (max +2/turn). When ct % 5 == 0: Sparks >= 7 -> BOND +1 and Sparks 0; otherwise with no positive interaction Sparks -1 (min 0). Grudge +1 per slight (max 1/turn); while Grudge >= 3 halve positive BOND gains; sincere apology resets Grudge to 0. When ct % 3 == 0: Grudge >= 5 -> BOND -1 and Grudge 0; otherwise Grudge > 0 -> Grudge -1. Drops: -1 insult, dismissal, ignoring; -2 betrayal, cruelty.',
     "- Chekhov's Gun: format [BULLET: desc] (weight: 1-3, age: n/12) [depends: prereq] [secret]. Age unlocked bullets +1 per turn. A bullet may not fire before age 4 unless a time lock is reached. Weight 3 fires at age >= 4, weight 2 at >= 6, weight 1 at >= 8, when characters, location and scene fit. Never fire a disruptive bullet in a LOCKED scene unless it concerns that moment. Prune unlocked bullets at age >= 12. Max 15 active; resolved ones move to Fired. Load a new bullet only for a meaningful promise, secret or setup.",
     '- Body scale (S1-S5): keep the four lines for {{user}} and each on-screen NPC. Frame & Stature, Tactile & Contact Scale, Proportions & Kinetics (bust/chest and hips tiers), Attire Fit & Posture. Format units as cm, kg, ft, in; never use double quotes or pipe symbols inside values.',
     '- Internal thoughts (up to 3 NPCs, prefer on-screen): (In Sync / Mild Rub / Friction / Clash), Body/Mood (somatic load and VAD), a raw first-person Thought of 10-40 words that does not orbit {{user}}, and a Stance Lock. An annoyed or hurt NPC stays so until {{user}} resolves it; never lock already-spoken jokes, teases or plans into Stance Lock.',
-    "- GM's Notebook: max 20 entries, [R] reminder, [T] thread, [D] debug, one or two sentences each; prune the oldest. Never log BOND/Sparks/Grudge or Chekhov bullets here.",
+    "- GM's Notebook: max 20 entries, [R] reminder, [T] thread, [D] debug, one or two sentences each; prune the oldest. Never log Chekhov bullets here.",
     '- World Sim: Scene Mode is LOCKED (intimate, private, deep, vulnerable, NSFW), ACTIVE (casual, domestic, public, group) or TRANSITION (travel, time skip), plus one brief Event.',
     '',
     'TEMPLATE',
@@ -64,8 +69,6 @@ export const INTERNAL_STATES_SYSTEM = [
     '    <summary>👤 NPC LOCATIONS</summary>',
     '    - <b>[NPC Name]</b> | Location: [coords/scene, current activity]',
     '  </details>',
-    '',
-    '<details><summary>💚 BONDS</summary><br>- <b>[NPC]</b> ↔ <b>{{user}}</b> | BOND: [Value] | Sparks: [Value] | Grudge: [Value]<br></details>',
     '',
     "<details><summary>🔫 CHEKHOV'S GUN</summary>- <b>Active:</b> [active bullets or None]<br>- <b>Locked:</b> [locked bullets or None]<br>- <b>Fired:</b> [fired bullets or None]</details>",
     '',
@@ -119,6 +122,15 @@ function previousState(chat, beforeId) {
         if (record) return record;
     }
     return null;
+}
+
+/**
+ * The newest Internal States block in a chat, as stored, or ''. For the Bond Tracker's one-off
+ * migration of the BONDS section older blocks carried.
+ */
+export function latestInternalStatesHtml(chat) {
+    const record = previousState(Array.isArray(chat) ? chat : [], Array.isArray(chat) ? chat.length : 0);
+    return record ? String(record.html ?? '') : '';
 }
 
 function htmlToText(html) {
@@ -341,7 +353,7 @@ export function applyInternalStatesPrompt() {
         if (last) {
             text = '### INTERNAL STATES (last known, tracked separately)\n'
                 + `${htmlToText(last.html)}\n`
-                + 'Use this as ground truth for agendas, locations, relationships and secrets. '
+                + 'Use this as ground truth for agendas, locations and secrets. '
                 + 'Do NOT write an internal states block in your reply.';
         }
     }

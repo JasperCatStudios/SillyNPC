@@ -36,9 +36,12 @@ import { describeChatConnection } from './src/utils.js';
 import { applyDialogueFormatPrompt } from './src/dialogue-format.js';
 import { applyNarratorRulesPrompt } from './src/narrator-rules.js';
 import { applyBanList } from './src/banlist.js';
+import { applyHistoryInjection } from './src/history-inject.js';
 import { initTts } from './src/tts.js';
 import { primeLore } from './src/profile-text.js';
 import { initInternalStates } from './src/internal-states.js';
+import { initBonds } from './src/bonds.js';
+import { initVectors } from './src/vectors.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
 
 function onMessageRendered(messageId) {
@@ -369,6 +372,19 @@ jQuery(async () => {
             initTts();
             initImagePromptInjection();
             initInternalStates();
+            // Its own guard: a bonds fault must not stop the modules registered after it.
+            try {
+                initBonds();
+            } catch (bondsErr) {
+                console.error(LOG_PREFIX, 'initBonds failed', bondsErr);
+            }
+            // After the bonds and before the modules: its GENERATION_STARTED search is put first,
+            // so it finishes before any module reads its picks. Off by default; off changes nothing.
+            try {
+                initVectors();
+            } catch (vectorsErr) {
+                console.error(LOG_PREFIX, 'initVectors failed', vectorsErr);
+            }
             primeLore().catch(err => debugLog('Could not read linked lorebook entries', err));
             eventSource.on(event_types.CHAT_CHANGED, () => primeLore().catch(() => { }));
             // Modules adapted from the RPG suite (AGPL-3.0). Each loads on its own, so one
@@ -433,6 +449,7 @@ jQuery(async () => {
                 applyDialogueFormatPrompt();
                 applyNarratorRulesPrompt();
                 applyBanList();
+                applyHistoryInjection();
             } catch (err) {
                 debugLog('Could not set what is injected into the story prompt', err);
             }

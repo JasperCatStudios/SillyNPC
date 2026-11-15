@@ -15,7 +15,6 @@ import { buildLoreExcerpt, resolvePortraitShape, getLastLoreConnection, resolveI
 import { getSecretLabelById } from '../../../../secrets.js';
 import { getRequestHeaders } from '../../../../../script.js';
 import { getContext } from '../../../../extensions.js';
-import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 import { clearRuns } from './default-portraits.js';
 import { triggerReprocess } from './chat.js';
 import { renderForkSettings, buildStrangerVoices } from './ui-character-extras.js';
@@ -705,16 +704,6 @@ export function renderGenerationSettingsView(view) {
             + 'by name. SillyTavern skips vectors for background requests like this one, '
             + 'so without this the writer never sees your Data Bank at all.',
     }));
-    view.append(buildConnectionProfilePicker(null, {
-        key: 'loreProfileId',
-        scope: 'root',
-        labelText: 'Lore Connection',
-        fallbackLabel: 'Main API (same as chat)',
-        noteText: 'Which connection writes lore entries. Separate from the tracker\'s: a '
-            + 'small model chosen for returning JSON is not the one you want writing prose.',
-        unavailableText: 'Connection Manager is not available, so lore is written by your '
-            + 'main API. Enable the Connection Manager extension to choose another model.',
-    }));
     view.append(buildLastLoreConnectionNote());
     view.append(buildPromptBudget(promptById('lore')));
     view.append(buildPromptEditor(promptById('lore')));
@@ -751,20 +740,6 @@ export function renderGenerationSettingsView(view) {
             label: 'Gemini Image Model',
             options: GEMINI_IMAGE_MODELS.map(m => ({ value: m, label: m })),
             help: 'Only these models can return an image. Anything else replies with text.',
-        }));
-        view.append(buildConnectionProfilePicker(rerender, {
-            key: 'imageProfileId',
-            scope: 'root',
-            labelText: 'Image Connection',
-            fallbackLabel: 'Whichever Google key is active',
-            noteText: 'Whose API key pays for portraits. Only the key and the account are '
-                + 'taken from the profile - the model stays the one chosen above, because a '
-                + 'connection profile can only name a text model. Left unset, portraits are '
-                + 'billed to whichever Google key SillyTavern currently has active, which '
-                + 'is the same key your chat is using.',
-            unavailableText: 'Connection Manager is not available, so portraits are billed '
-                + 'to whichever Google key is active. Enable the Connection Manager '
-                + 'extension to choose one.',
         }));
     }
 

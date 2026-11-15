@@ -1,0 +1,302 @@
+/* Vectors panels (fork). Same tokens as bonds.css, which follow SillyTavern's theme variables,
+   so the panel matches the tab it sits in under every theme. Loaded by ui-vectors.js. */
+
+.snpc-vec {
+    --snpc-vec-gap: var(--sillynpc-space-sm, 8px);
+    --snpc-vec-line: var(--sillynpc-border, var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35)));
+    --snpc-vec-accent: var(--sillynpc-accent, var(--SmartThemeQuoteColor, #c9a96e));
+    --snpc-vec-muted: var(--sillynpc-fg-secondary, var(--SmartThemeEmColor, #9a9a9a));
+    --snpc-vec-radius: var(--sillynpc-radius-md, 8px);
+    --snpc-vec-ok: var(--sillynpc-success, #00c851);
+    --snpc-vec-bad: var(--sillynpc-danger, #ff4444);
+    --snpc-vec-warnc: var(--sillynpc-warning, #ffb020);
+    min-width: 0;
+}
+
+/* ---- the collapsible box a module panel lives in ---- */
+
+.snpc-vec-box {
+    border: 1px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+    background: var(--sillynpc-bg-secondary, transparent);
+    margin: var(--sillynpc-space-md, 12px) 0;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.snpc-vec-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--snpc-vec-gap);
+    padding: 8px 10px;
+    cursor: pointer;
+    list-style: none;
+    min-width: 0;
+}
+
+.snpc-vec-summary::-webkit-details-marker { display: none; }
+
+.snpc-vec-title { font-weight: 600; }
+
+.snpc-vec-badge {
+    margin-left: auto;
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-vec-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.snpc-vec-body {
+    padding: 0 10px 10px;
+    min-width: 0;
+}
+
+.snpc-vec-warn,
+.snpc-vec-error {
+    padding: 8px 12px;
+    border-left: 3px solid var(--snpc-vec-warnc);
+    background: color-mix(in srgb, var(--snpc-vec-warnc) 10%, transparent);
+    border-radius: 0 var(--snpc-vec-radius) var(--snpc-vec-radius) 0;
+    overflow-wrap: anywhere;
+}
+
+.snpc-vec-error {
+    border-left-color: var(--snpc-vec-bad);
+    background: color-mix(in srgb, var(--snpc-vec-bad) 10%, transparent);
+}
+
+.snpc-vec-muted {
+    color: var(--snpc-vec-muted);
+    font-size: var(--sillynpc-text-sm, 0.85em);
+}
+
+/* ---- toolbars ---- */
+
+.snpc-vec-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--snpc-vec-gap);
+    margin: var(--snpc-vec-gap) 0;
+}
+
+.snpc-vec-toolbar .text_pole {
+    flex: 1 1 160px;
+    max-width: 280px;
+    min-width: 0;
+    margin: 0;
+}
+
+.snpc-vec-label { white-space: nowrap; }
+
+.snpc-vec-check { margin: 0; gap: 6px; }
+
+.snpc-vec-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.snpc-vec-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.snpc-vec-progress { min-width: 0; }
+
+.snpc-vec-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px var(--sillynpc-space-md, 12px);
+    align-items: baseline;
+    margin: var(--snpc-vec-gap) 0;
+}
+
+/* Square icon buttons, fixed size so every row's actions line up. */
+.snpc-vec-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.snpc-vec-icon.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.snpc-vec-icon.is-on { color: var(--snpc-vec-accent); }
+
+.snpc-vec-danger:hover {
+    color: var(--snpc-vec-bad);
+    border-color: var(--snpc-vec-bad);
+}
+
+/* ---- entry list ---- */
+
+.snpc-vec-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: var(--snpc-vec-gap) 0;
+}
+
+.snpc-vec-row {
+    border: 1px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+    padding: 4px 8px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.snpc-vec-row.is-off,
+.snpc-vec-row.is-deleted,
+.snpc-vec-row.is-skip { opacity: 0.7; }
+
+/* State, what it is, actions: one aligned grid per row. */
+.snpc-vec-line {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--snpc-vec-gap);
+}
+
+.snpc-vec-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    white-space: nowrap;
+}
+
+.snpc-vec-state.is-done i { color: var(--snpc-vec-ok); }
+.snpc-vec-state.is-stale i,
+.snpc-vec-state.is-pending i { color: var(--snpc-vec-warnc); }
+.snpc-vec-state.is-error i { color: var(--snpc-vec-bad); }
+.snpc-vec-state.is-off i,
+.snpc-vec-state.is-skip i,
+.snpc-vec-state.is-deleted i { color: var(--snpc-vec-muted); }
+
+.snpc-vec-who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+}
+
+.snpc-vec-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.snpc-vec-sub {
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-vec-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.snpc-vec-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+.snpc-vec-text {
+    margin: 6px 0 2px;
+    padding: 6px 8px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: var(--sillynpc-text-sm, 0.85em);
+    border-radius: var(--snpc-vec-radius);
+    background: color-mix(in srgb, var(--snpc-vec-line) 25%, transparent);
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.snpc-vec-pager { justify-content: center; }
+
+.snpc-vec-collection {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+/* ---- core tab ---- */
+
+.snpc-vec-test {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: var(--sillynpc-space-md, 12px);
+}
+
+.snpc-vec-step {
+    display: grid;
+    grid-template-columns: 20px minmax(120px, auto) minmax(0, 1fr);
+    gap: var(--snpc-vec-gap);
+    align-items: baseline;
+    overflow-wrap: anywhere;
+}
+
+.snpc-vec-step.is-ok i { color: var(--snpc-vec-ok); }
+.snpc-vec-step.is-bad i { color: var(--snpc-vec-bad); }
+.snpc-vec-step.is-unknown i { color: var(--snpc-vec-muted); }
+.snpc-vec-step-label { font-weight: 500; }
+
+.snpc-vec-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: var(--snpc-vec-gap) 0;
+}
+
+.snpc-vec-ov-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.4fr) minmax(80px, 0.8fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--snpc-vec-gap);
+    padding: 4px 8px;
+    border: 1px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+}
+
+.snpc-vec-ov-name { margin: 0; gap: 6px; }
+
+/* Phone width: state above the text, actions stay on the right. */
+@media (max-width: 700px) {
+    .snpc-vec-line {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "state actions"
+            "who who";
+    }
+
+    .snpc-vec-state { grid-area: state; }
+    .snpc-vec-who { grid-area: who; }
+    .snpc-vec-actions { grid-area: actions; }
+
+    .snpc-vec-ov-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .snpc-vec-step {
+        grid-template-columns: 20px minmax(0, 1fr);
+    }
+
+    .snpc-vec-step .snpc-vec-muted { grid-column: 2; }
+}

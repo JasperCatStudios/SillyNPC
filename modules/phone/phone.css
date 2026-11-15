@@ -1190,3 +1190,18 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 .rph-editrow label { font-size: .85em; opacity: .8; margin-top: 4px; }
 .rph-editrow textarea, .rph-editrow select { width: 100%; }
 .rph-ed-note { opacity: .7; }
+
+/* the microphone button asks for a voice message */
+#rph-voice { cursor: pointer; color: #8ec5ff; font-size: 0.85rem; opacity: 0.8; }
+#rph-voice:hover { opacity: 1; transform: scale(1.12); color: #7bd88f; }
+.rph-phone #rph-voice { color: var(--ph-accent); opacity: .85; }
+.rph-phone #rph-voice:hover { color: var(--ph-accent); opacity: 1; }
+
+/* chats with one character */
+.rph-chatmgr { margin: 2px 0 6px 38px; display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; }
+.rph-chatrow { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 6px; opacity: 0.85; }
+.rph-chatrow.on { background: rgba(142, 197, 255, 0.18); opacity: 1; }
+.rph-chat-name { flex: 1; cursor: pointer; }
+.rph-chatrow i { cursor: pointer; opacity: 0.7; }
+.rph-chatrow i:hover { opacity: 1; }
+.rph-chat-new { cursor: pointer; color: #8ec5ff; }

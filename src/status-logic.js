@@ -3701,9 +3701,9 @@ const SYSTEM_EXCLUDED_ROOT = new Set([
     'statusTracker', 'activeSystem', 'version', 'enabled',
     // Which provider makes images and where the files land: accounts and disk.
     'imageBackend', 'geminiImageModel', 'imageSaveRoute',
-    'loreProfileId', 'imageProfileId',
+    'loreProfileId', 'imageProfileId', 'combatProfileId', 'internalStatesProfileId', 'bondProfileId',
     // Custom combat world types are a library, like the systems themselves: shared by all of them.
-    'combatTypes',
+    'combatTypes', 'combatAbilities',
     // Your window, not your world.
     'popupWidth', 'popupHeight',
 ]);

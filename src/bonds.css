@@ -1,0 +1,439 @@
+/* Bonds tab (fork). Uses SillyNPC's tokens, which in turn follow SillyTavern's theme variables,
+   so it matches the other tabs under every theme. Loaded by bonds.js (initBonds). */
+
+.snpc-bonds {
+    --snpc-bond-gap: var(--sillynpc-space-sm, 8px);
+    --snpc-bond-line: var(--sillynpc-border, var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35)));
+    --snpc-bond-accent: var(--sillynpc-accent, var(--SmartThemeQuoteColor, #c9a96e));
+    --snpc-bond-muted: var(--sillynpc-fg-secondary, var(--SmartThemeEmColor, #9a9a9a));
+    --snpc-bond-radius: var(--sillynpc-radius-md, 8px);
+}
+
+.snpc-bonds .snpc-bond-off {
+    padding: 8px 12px;
+    margin: 0 0 var(--sillynpc-space-md, 12px);
+    border-left: 3px solid var(--sillynpc-warning, #ffb020);
+    background: color-mix(in srgb, var(--sillynpc-warning, #ffb020) 10%, transparent);
+    border-radius: 0 var(--snpc-bond-radius) var(--snpc-bond-radius) 0;
+}
+
+/* ---- toolbars ---- */
+
+.snpc-bond-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--snpc-bond-gap);
+    margin: var(--snpc-bond-gap) 0;
+}
+
+.snpc-bond-spacer {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.snpc-bond-toolbar .text_pole {
+    flex: 1 1 180px;
+    max-width: 280px;
+    min-width: 0;
+    margin: 0;
+}
+
+.snpc-bond-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.snpc-bond-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* Small square icon buttons: caret, update, trash. Fixed size so rows line up. */
+.snpc-bond-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.snpc-bond-icon.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.snpc-bond-danger:hover {
+    color: var(--sillynpc-danger, #ff4444);
+    border-color: var(--sillynpc-danger, #ff4444);
+}
+
+/* ---- people ---- */
+
+.snpc-bond-people {
+    display: flex;
+    flex-direction: column;
+    gap: var(--snpc-bond-gap);
+    margin-bottom: var(--sillynpc-space-md, 12px);
+}
+
+.snpc-bond-person {
+    border: 1px solid var(--snpc-bond-line);
+    border-radius: var(--snpc-bond-radius);
+    background: var(--sillynpc-bg-secondary, transparent);
+    padding: 8px 10px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.snpc-bond-person.is-off {
+    opacity: 0.7;
+}
+
+.snpc-bond-person.is-new {
+    border-style: dashed;
+}
+
+/* One row on a wide panel, two on a narrow one (name and meter above, controls below). */
+.snpc-bond-head {
+    display: grid;
+    grid-template-columns: 30px minmax(110px, 1fr) minmax(90px, 1.4fr) 76px auto auto;
+    grid-template-areas: "caret who meter value chips actions";
+    align-items: center;
+    gap: var(--snpc-bond-gap);
+}
+
+.snpc-bond-caret   { grid-area: caret; }
+.snpc-bond-who     { grid-area: who; }
+.snpc-bond-meter   { grid-area: meter; }
+.snpc-bond-value   { grid-area: value; }
+.snpc-bond-chips   { grid-area: chips; }
+.snpc-bond-actions { grid-area: actions; }
+
+.snpc-bond-who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+}
+
+.snpc-bond-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.snpc-bond-level {
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-meter {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 12%, transparent);
+    border: 1px solid var(--snpc-bond-line);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.snpc-bond-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--snpc-bond-accent);
+    border-radius: 5px 0 0 5px;
+    transition: width 0.25s ease;
+}
+
+.snpc-bond-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 45%, transparent);
+}
+
+.snpc-bonds .snpc-bond-person .snpc-bond-value {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    text-align: right;
+}
+
+.snpc-bond-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.snpc-bond-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* Toggle chips: pressed state reads from the check and the accent border, not colour alone. */
+.snpc-bond-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    font: inherit;
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+    background: transparent;
+    border: 1px solid var(--snpc-bond-line);
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.snpc-bond-chip:hover {
+    border-color: var(--snpc-bond-accent);
+}
+
+.snpc-bond-chip.is-on {
+    color: var(--SmartThemeBodyColor, inherit);
+    border-color: var(--snpc-bond-accent);
+    background: color-mix(in srgb, var(--snpc-bond-accent) 16%, transparent);
+}
+
+.snpc-bond-chip i {
+    font-size: 0.85em;
+}
+
+/* A chip with no label, used as a checkbox in a table column. */
+.snpc-bond-chip-solo {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+    border-radius: var(--sillynpc-radius-sm, 4px);
+}
+
+/* ---- the open card ---- */
+
+.snpc-bond-body {
+    margin-top: var(--snpc-bond-gap);
+    padding-top: var(--snpc-bond-gap);
+    border-top: 1px solid var(--snpc-bond-line);
+    display: flex;
+    flex-direction: column;
+    gap: var(--snpc-bond-gap);
+}
+
+.snpc-bond-reason,
+.snpc-bond-gates {
+    margin: 0;
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-subhead {
+    font-weight: 600;
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--snpc-bond-muted);
+    margin-top: 4px;
+}
+
+.snpc-bond-checklist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ---- tables (CSS grid, so columns line up between rows) ---- */
+
+.snpc-bond-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin: 4px 0 var(--snpc-bond-gap);
+}
+
+.snpc-bond-tr {
+    display: grid;
+    align-items: center;
+    gap: var(--snpc-bond-gap);
+    min-width: 0;
+}
+
+.snpc-bond-history      .snpc-bond-tr { grid-template-columns: minmax(190px, 1.6fr) minmax(0, 1.2fr) minmax(0, 1.3fr) 30px; }
+.snpc-bond-levels       .snpc-bond-tr { grid-template-columns: minmax(0, 1.2fr) 80px minmax(0, 3fr) 30px; }
+.snpc-bond-gates-table  .snpc-bond-tr { grid-template-columns: minmax(0, 3fr) minmax(0, 1.4fr) minmax(0, 2fr) 30px; }
+.snpc-bond-presets      .snpc-bond-tr { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.5fr) 30px 30px 30px; }
+
+.snpc-bond-th {
+    font-size: var(--sillynpc-text-xs, 0.72em);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--snpc-bond-muted);
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--snpc-bond-line);
+}
+
+.snpc-bond-center {
+    text-align: center;
+}
+
+.snpc-bond-empty {
+    display: block;
+    padding: 4px 0;
+}
+
+.snpc-bond-empty .notes {
+    margin: 0;
+}
+
+/* The shared setting rule gives every text box a fixed 200px; inside a grid cell it must fill it. */
+.sillynpc-setting .snpc-bond-table .text_pole,
+.sillynpc-setting .snpc-bond-table select,
+.sillynpc-setting .snpc-bond-grid .text_pole,
+.snpc-bonds .snpc-bond-table .text_pole,
+.snpc-bonds .snpc-bond-table select {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.snpc-bond-num {
+    text-align: right;
+}
+
+/* A text box with an icon beside it (the auto-recorded marker). */
+.snpc-bond-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.snpc-bond-cell .text_pole {
+    flex: 1 1 120px;
+}
+
+.snpc-bond-auto {
+    color: var(--snpc-bond-accent);
+    font-size: 0.85em;
+}
+
+.snpc-bond-add {
+    padding-top: var(--snpc-bond-gap);
+    margin-top: 4px;
+    border-top: 1px dashed var(--snpc-bond-line);
+}
+
+/* ---- number grid (growth rules) ---- */
+
+.snpc-bond-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: var(--sillynpc-space-md, 12px) var(--sillynpc-space-lg, 16px);
+    margin: 4px 0 var(--snpc-bond-gap);
+}
+
+.snpc-bond-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    margin: 0;
+}
+
+.snpc-bond-field-label {
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-field-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.snpc-bond-suffix {
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+    white-space: nowrap;
+}
+
+/* ---- preview ---- */
+
+.snpc-bond-preview {
+    margin: var(--snpc-bond-gap) 0 0;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 40vh;
+    overflow: auto;
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    font-family: var(--sillynpc-font-mono, monospace);
+    background: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 6%, transparent);
+    border: 1px solid var(--snpc-bond-line);
+    border-radius: var(--snpc-bond-radius);
+    user-select: text;
+}
+
+.snpc-bond-preview:empty {
+    display: none;
+}
+
+/* ---- phone width ---- */
+
+@media (max-width: 700px) {
+    .snpc-bond-head {
+        grid-template-columns: 30px minmax(0, 1fr) 76px auto;
+        grid-template-areas:
+            "caret who value actions"
+            "meter meter meter meter"
+            "chips chips chips chips";
+    }
+
+    .snpc-bond-th {
+        display: none;
+    }
+
+    /* Rows stack their cells; the delete button keeps its own small column. */
+    .snpc-bond-history     .snpc-bond-tr,
+    .snpc-bond-levels      .snpc-bond-tr,
+    .snpc-bond-gates-table .snpc-bond-tr {
+        grid-template-columns: minmax(0, 1fr) 30px;
+        padding-bottom: var(--snpc-bond-gap);
+        border-bottom: 1px solid var(--snpc-bond-line);
+    }
+
+    .snpc-bond-presets .snpc-bond-tr {
+        grid-template-columns: minmax(0, 1fr) 30px 30px 30px;
+        padding-bottom: var(--snpc-bond-gap);
+        border-bottom: 1px solid var(--snpc-bond-line);
+    }
+
+    /* The hint spans the row under the name. */
+    .snpc-bond-presets .snpc-bond-tr > :nth-child(2) {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+}
+
+/* the labelled way into a person's history */
+.snpc-bond-histbtn { white-space: nowrap; padding: 2px 10px; font-size: 0.85em; }
+.snpc-bond-histbtn.is-open { outline: 1px solid var(--SmartThemeQuoteColor, currentColor); }

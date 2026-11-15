@@ -6,6 +6,8 @@ import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
+import { recallPhone } from '../../src/vectors.js';
+import { mountVectorPanel } from '../../src/ui-vectors.js';
 
 const MODULE_NAME = 'sillynpc_phone';
 
@@ -159,6 +161,8 @@ const defaults = {
     promptPreset: '',       // which template the prompt came from; 'custom' = your own text
     promptCustom: '',       // your own prompt, kept while a template is in use
 
+    chats: {},              // extra chats with a character: chatId -> { name, label, n }
+    mainLabels: {},         // label of a character's first chat: name -> text
     threads: {},            // contactId -> [{who:'user'|'char', name, text, ts}]
     active: {},             // contactId -> true (who is on the phone)
     state: {},              // contactId -> {lastInitiative, todayCount, dayStamp, ignored}
@@ -226,7 +230,7 @@ function loadSettings() {
             }
         }
     } catch (e) { /* damaged settings are handled below */ }
-    for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
+    for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
     for (const k of ['temperature', 'contextTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
         if (!Number.isFinite(settings[k])) settings[k] = defaults[k];
     }
@@ -355,9 +359,9 @@ const L = {
         e_404: 'The provider does not know this model — check the name.', e_429: 'The provider is rate-limiting. Wait a minute.',
         e_5xx: 'The provider answers with error {n} — retried, no luck. Try later or switch models.', e_other: 'Could not draw: {m}',
         e_empty: 'no picture in the answer',
-        set_voice: 'Voice notes', tts_on: 'Speak them with Tavern TTS', tts_auto: 'Speak new ones right away',
-        tts_none: 'Tavern TTS is not set up — enable it in the TTS extension.',
-        tts_novoice: '{name} has no voice — map one in TTS (Voice Map) or set a [Default Voice].',
+        set_voice: 'Voice notes', tts_on: 'Speak them in the contact\'s voice (AllTalk)', tts_auto: 'Speak new ones right away',
+        tts_none: 'AllTalk is not answering — check its address in the SillyNPC voice settings.',
+        tts_novoice: '{name} has no voice — pick one on their SillyNPC page.',
         set_wall: 'Wallpaper', wall_pick: 'Choose image', wall_clear: 'Remove', wall_dim: 'Veil', wall_nostore: 'Browser storage is unavailable — the wallpaper cannot be saved.',
         set_lite: 'No blur behind the bubbles (faster)',
         look_title: 'Looks for photos', look_upload: 'Own picture', look_clear: 'Remove', look_ava: 'Use the avatar',
@@ -609,6 +613,17 @@ function voiceMeta(caption) {
    SOUND + NOTIFICATION (self-contained: the main-chat push
    extension never fires for phone messages)
    ============================================================ */
+/* The words of a voice note. The model writes them two ways: after the tag, `[voice message: soft] "I missed you."`,
+   or inside it, `[voice message: "I missed you."]`. Inside, they land in the caption, which used to leave
+   nothing to read aloud. A caption that is only a tone ("a quiet laugh") is not speech and is not read. */
+function voiceWords(kind, speaker) {
+    const quoted = (x) => /^["“«]/.test(String(x || '').trim());
+    const raw = String(kind.text || '').trim() || (quoted(kind.caption) ? String(kind.caption).trim() : '');
+    const clean = raw.replace(/^["“«]+|["”»]+$/g, '').trim();
+    return clean ? stripNamePrefix(clean, speaker) : '';
+}
+
+let speakNextVoice = false;   // set while a voice message that was asked for arrives
 let audioCtx = null;
 function actx() {
     if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
@@ -663,10 +678,12 @@ function pushRaw(id, msg) {
     th.push(msg);
     if (th.length > 200) forgetMessages(th.splice(0, th.length - 200));   // keep the store bounded
     saveSettings();
+    // Fork: lets SillyNPC's vectors follow the thread. Not awaited; it only schedules work.
+    eventSource.emit('sillynpc-phone-changed', id);
     if (msg.who === 'char') {
         const kind = classify(msg.text);
         if (kind.type === 'image' && imgCfg().enabled && imgCfg().auto) setTimeout(() => queuePhoto(id, msg, false), 0);
-        if (kind.type === 'voice' && settings.tts && settings.ttsAuto && kind.text) setTimeout(() => speakVoice(msg.name, stripNamePrefix(kind.text, msg.name), id), 0);
+        if (kind.type === 'voice' && settings.tts && (settings.ttsAuto || speakNextVoice)) { const w = voiceWords(kind, msg.name); if (w) setTimeout(() => speakVoice(msg.name, w, id), 0); }
     }
 }
 function pushMsg(name, who, text, from) {
@@ -887,8 +904,69 @@ function groupMemberNames(id) {
         return out.slice(0, 6);
     } catch (e) { return []; }
 }
-function contactLabel(id) { return isGroup(id) ? String(id).slice(GROUP_PREFIX.length) : id; }
-function contactMembers(id) { return isGroup(id) ? groupMemberNames(id) : [id]; }
+/* Fork: more than one chat with the same character. The first chat is the character's own name;
+   every further one is "#chat:<name>:<n>" with its own thread, labels and unread count. */
+const CHAT_PREFIX = '#chat:';
+function chatInfo(id) { return (settings.chats && settings.chats[id]) || null; }
+function baseName(id) { const c = chatInfo(id); return c ? c.name : id; }
+function labelOf(id) {
+    const c = chatInfo(id);
+    return String((c ? c.label : (settings.mainLabels || {})[id]) || '').trim();
+}
+function chatsOf(name) {
+    const extra = Object.keys(settings.chats || {}).filter(id => settings.chats[id].name === name)
+        .sort((a, b) => settings.chats[a].n - settings.chats[b].n);
+    return [name, ...extra];
+}
+function contactLabel(id) {
+    if (isGroup(id)) return String(id).slice(GROUP_PREFIX.length);
+    const c = chatInfo(id);
+    const label = labelOf(id);
+    if (c) return `${c.name} · ${label || `chat ${c.n}`}`;
+    return label ? `${id} · ${label}` : id;
+}
+function contactMembers(id) { return isGroup(id) ? groupMemberNames(id) : [baseName(id)]; }
+function newChatWith(name) {
+    const used = chatsOf(name).map(id => (chatInfo(id) ? chatInfo(id).n : 1));
+    const n = Math.max(1, ...used) + 1;
+    const id = `${CHAT_PREFIX}${name}:${n}`;
+    settings.chats[id] = { name, label: '', n };
+    settings.active[id] = true;
+    settings.threads[id] = [];
+    saveSettings();
+    return id;
+}
+function renameChat(id, label) {
+    const clean = String(label || '').trim().slice(0, 40);
+    if (chatInfo(id)) settings.chats[id].label = clean;
+    else if (clean) settings.mainLabels[id] = clean;
+    else delete settings.mainLabels[id];
+    saveSettings();
+}
+function deleteChat(id) {
+    if (!chatInfo(id)) return;
+    const name = baseName(id);
+    forgetMessages(settings.threads[id]);
+    delete settings.threads[id]; delete settings.state[id]; delete settings.unread[id]; delete settings.diaries[id];
+    delete settings.active[id]; delete settings.chats[id];
+    if (settings.current === id) settings.current = name;
+    saveSettings();
+}
+/** Swaps what is in an extra chat with the character's first chat: the messages, the labels, all of it. */
+function swapWithMain(id) {
+    const c = chatInfo(id);
+    if (!c) return;
+    const main = c.name;
+    for (const k of ['threads', 'state', 'unread', 'diaries']) {
+        const a = settings[k][main]; const b = settings[k][id];
+        if (b === undefined) delete settings[k][main]; else settings[k][main] = b;
+        if (a === undefined) delete settings[k][id]; else settings[k][id] = a;
+    }
+    const mainLabel = settings.mainLabels[main];
+    if (c.label) settings.mainLabels[main] = c.label; else delete settings.mainLabels[main];
+    c.label = mainLabel || '';
+    saveSettings();
+}
 /* WHO IS ONLINE (fork): anyone who is not in the current scene, and never the player.
    Returns a test, built once per call so the scene is read once. */
 function awayFromScene() {
@@ -2242,7 +2320,7 @@ function extensionMemoryBlock() { return coreMemory('phone'); }
 let lastSent = null;
 
 /** Builds the request for a reply, without sending it. */
-function buildRequest(names, reasonLine, isInitiative, contactId) {
+function buildRequest(names, reasonLine, isInitiative, contactId, recalled = '') {
     const primary = contactId || names[0];
     const th = threadOf(primary);
     const lastTs = th.length ? th[th.length - 1].ts : 0;
@@ -2257,7 +2335,8 @@ function buildRequest(names, reasonLine, isInitiative, contactId) {
     ];
     const build = (mainN, thN) => {
         const th = threadContext(primary, thN);
-        return head.concat([mainChatContext(names, mainN), th ? `[YOUR TEXT CONVERSATION SO FAR]\n${th}` : ''], tail)
+        // Fork: older texts SillyNPC's vectors found relevant, before the recent ones they lead up to.
+        return head.concat([mainChatContext(names, mainN), recalled, th ?`[YOUR TEXT CONVERSATION SO FAR]\n${th}` : ''], tail)
             .filter(Boolean).join('\n\n');
     };
     // BUG FIX (1.9.0): «Контекст (токенов)» was in the panel but used nowhere. It is now
@@ -2275,7 +2354,12 @@ function buildRequest(names, reasonLine, isInitiative, contactId) {
 }
 
 async function generateReply(names, reasonLine, isInitiative, contactId) {
-    const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId);
+    // Fork: SillyNPC's vectors may add older texts from this thread, only ones older than the
+    // window sent anyway. '' when they are off, slow or failing: the request as it always was.
+    const primaryId = contactId || names[0];
+    const recentTh = threadOf(primaryId).slice(-Math.max(2, settings.threadMemory || 24));
+    const recalled = await recallPhone(primaryId, { recentFromTs: recentTh.length ? recentTh[0].ts : Infinity });
+    const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId, recalled);
     lastSent = { at: Date.now(), contact: primary, kind: isInitiative ? 'initiative' : 'reply', sys, user };
     const raw = await callAIComplete(sys, user);
     const msgs = parseReply(raw, names.concat(['SYSTEM']), castOfContact(primary));
@@ -2477,6 +2561,53 @@ async function sendUserText(text) {
     renderBubbles();
 }
 
+/* Fork: the microphone button. Sends what is typed (if anything) and asks the contact to answer
+   with one voice message, which is then read aloud in their voice. */
+async function askForVoiceMessage() {
+    const cur = currentContact();
+    if (!cur) { toastr.info(t('noactive')); return; }
+    if (!apiKey()) { toastr.warning(t('nokey')); return; }
+    if (busy) { toastr.info(`Still writing a reply${busyFor ? ` (${contactLabel(busyFor)})` : ''}. Press the cross on the typing bubble to cancel it first.`); return; }
+    const names = contactMembers(cur);
+    if (!names.length) { toastr.info(t('noactive')); return; }
+
+    const inp = document.getElementById('rph-input');
+    const typed = String((inp && inp.value) || '').trim().slice(0, 800);
+    if (inp) inp.value = '';
+    if (typed) pushMsg(cur, 'user', typed, name1 || 'You');
+    stateOf(cur).ignored = 0;
+    scrollOffset = 0;
+    renderBubbles();
+
+    const { open, close } = getMarkerPair();
+    const ask = `${name1 || 'The player'} asked for a voice message. Answer with exactly ONE message, and it must be a voice message: `
+        + `${open}${names[0]}${close} [voice message: the tone in a few words] "what they say out loud". The spoken words go in quotes AFTER the tag, and nothing else.`;
+    const rq = beginRequest(cur); renderBubbles();
+    try {
+        const msgs = await generateReply(names, ask, false, cur);
+        if (isCurrent(rq)) {
+            if (!msgs.length) toastr.info(t('err'));
+            speakNextVoice = true;
+            let sent = 0;
+            for (const m of msgs) {
+                if (sent) break;   // one voice message, as asked
+                const isVoice = classify(m.text).type === 'voice';
+                const text = isVoice ? m.text : `[voice message: their voice] "${String(m.text).replace(/"/g, "'")}"`;
+                pushMsg(cur, 'char', text, m.name);
+                sent++;
+            }
+            setTimeout(() => { speakNextVoice = false; }, 1500);
+        }
+    } catch (e) {
+        speakNextVoice = false;
+        requestFailed(e, rq, 'reply');
+    }
+    if (!isCurrent(rq)) return;
+    finishRequest(rq);
+    scrollOffset = 0;
+    renderBubbles();
+}
+
 // re-ask for a reply to one of YOUR messages: everything they said after it is
 // dropped and generated again (also the way out when nothing arrived at all)
 // BUG FIX (1.9.0): the message is found by its timestamp, not by the index the bubble
@@ -2552,7 +2683,7 @@ function markActivity() { lastUserActivity = Date.now(); }
 function initiativeTick() {
     if (!settings.enabled || !settings.initiative || !apiKey() || busy) return;
     const away = awayFromScene();
-    const names = contactList().filter(n => away(n));
+    const names = contactList().filter(n => !chatInfo(n) && away(n));
     if (!names.length) return;
 
     const now = new Date();
@@ -2637,10 +2768,12 @@ function initiativeTick() {
 // cards, and the pictures stayed initials until another contact was opened. The picture each
 // contact has now counts in the "did anything change" checks, so it shows once the cards load.
 function avaKey(name) {
+    name = baseName(name);
     const ch = characters.find(c => c.name === name);
     return ch && ch.avatar ? ch.avatar : '';
 }
 function avatarHtml(name) {
+    name = baseName(name);
     const ch = characters.find(c => c.name === name);
     if (ch && ch.avatar) return `<img class="rph-ava" src="${escapeHtml(ch.avatar)}" draggable="false">`;
     let hue = 0; for (const c of String(name)) hue = (hue * 31 + c.charCodeAt(0)) % 360;
@@ -2673,6 +2806,7 @@ function ensureLayer() {
                     <i class="fa-solid fa-eye" id="rph-view-btn" title="View the prompt"></i>
                     <i class="fa-solid fa-paperclip" id="rph-attach"></i>
                     <input type="file" id="rph-file" multiple style="display:none">
+                    <i class="fa-solid fa-microphone" id="rph-voice" title="Ask for a voice message"></i>
                     <input type="text" id="rph-input" placeholder="" maxlength="800">
                     <i class="fa-solid fa-paper-plane" id="rph-send"></i>
                 </div>
@@ -2702,6 +2836,7 @@ function ensureLayer() {
         // the input is cleared by sendUserText itself, only after every check has passed —
         // clearing it here used to silently destroy the text when sending was not possible
         $('#rph-send').on('click', () => sendFromBar());
+        $('#rph-voice').on('click', () => askForVoiceMessage());
         $('#rph-input').on('keydown', (e) => {
             e.stopPropagation();
             if (e.key === 'Enter') sendFromBar();
@@ -3262,8 +3397,12 @@ function onStackClick(e) {
         if (!vo.classList.contains('playing') || !settings.tts || !cur) return;
         const m = msgByTs(cur, Number(vo.dataset.ts), 'voice');
         const ns = m ? nestedSender(m.text, castOfContact(cur)) : null;   // the same speaker the bubble shows
-        const words = m ? stripNamePrefix(classify(m.text).text, ns ? ns.name : m.name) : '';
-        if (!words) return;
+        const words = m ? voiceWords(classify(m.text), ns ? ns.name : m.name) : '';
+        if (!words) {
+            vo.classList.remove('playing');
+            toastr.info('This voice note has no words to read aloud, only a sound.', 'SillyNPC');
+            return;
+        }
         speakVoice(ns ? ns.name : m.name, words, cur).then(ok => {
             // the wave plays about as long as the words take to say; nothing said → it stops at once
             // (a bubble is reused between redraws, so a stuck "playing" made the next press a stop)
@@ -3376,6 +3515,23 @@ function renderContactEditor(row, name) {
     });
 }
 
+function chatManagerHtml(name) {
+    const rows = chatsOf(name).map((id, i) => {
+        const main = !chatInfo(id);
+        const label = labelOf(id) || (main ? 'First chat' : `Chat ${chatInfo(id).n}`);
+        const unread = unreadOf(id);
+        const on = currentContact() === id;
+        return `<div class="rph-chatrow ${on ? 'on' : ''}" data-id="${escapeHtml(id)}">
+            <span class="rph-chat-name rph-open-chat" data-id="${escapeHtml(id)}" title="Open">${escapeHtml(label)}${unread ? ' <b class="rph-unread">•</b>' : ''}</span>
+            <i class="fa-solid fa-pen rph-chat-rename" data-id="${escapeHtml(id)}" title="Label this chat"></i>
+            ${main ? '' : `<i class="fa-solid fa-right-left rph-chat-swap" data-id="${escapeHtml(id)}" title="Swap with the first chat"></i>
+            <i class="fa-solid fa-trash rph-chat-del" data-id="${escapeHtml(id)}" title="Delete this chat"></i>`}
+        </div>`;
+    }).join('');
+    return `<div class="rph-chatmgr" data-name="${escapeHtml(name)}">${rows}
+        <div class="rph-chatrow rph-chat-new" data-name="${escapeHtml(name)}"><i class="fa-solid fa-plus"></i> New chat with ${escapeHtml(name)}</div></div>`;
+}
+
 function renderRoster() {
     const body = $('#rph-roster-body');
     if (!body.length) return;
@@ -3404,6 +3560,7 @@ function renderRoster() {
             <div class="rph-toggle ${settings.active[n] ? 'on' : ''}" data-name="${escapeHtml(n)}"><div class="rph-knob"></div></div>
         </div>
         <div class="rph-editrow" data-name="${escapeHtml(n)}" style="display:none"></div>
+        ${settings.active[n] ? chatManagerHtml(n) : ''}
         ${settings.active[n] ? `<div class="rph-lookrow" data-name="${escapeHtml(n)}" style="display:none"></div>` : ''}
         ${settings.active[n] ? `<div class="rph-castrow" data-name="${escapeHtml(n)}" style="display:none">
             <input type="text" class="text_pole rph-cast-in" maxlength="400" placeholder="${escapeHtml(t('cast_ph'))}" title="${escapeHtml(t('cast_tip'))}" value="${escapeHtml(castTxt)}">
@@ -3543,6 +3700,34 @@ function renderRoster() {
             saveSettings();
         } catch (e) { toastr.warning(t('look_err', { m: e.message || '' })); }
         if (row.isConnected) renderLookEditor(row, row.dataset.name, row.dataset.who);
+    });
+    body.on('click.rph', '.rph-open-chat', function () { openContact($(this).data('id')); renderRoster(); });
+    body.on('click.rph', '.rph-chat-new', function () {
+        const id = newChatWith($(this).data('name'));
+        openContact(id);
+        renderRoster();
+    });
+    body.on('click.rph', '.rph-chat-rename', function () {
+        const id = $(this).data('id');
+        const next = window.prompt('Label for this chat (empty to clear):', labelOf(id));
+        if (next === null) return;
+        renameChat(id, next);
+        lastTabSig = '';
+        renderRoster(); renderBubbles(true);
+    });
+    body.on('click.rph', '.rph-chat-swap', function () {
+        const id = $(this).data('id');
+        if (!window.confirm('Swap this chat with the first chat? Their messages and labels trade places.')) return;
+        swapWithMain(id);
+        lastTabSig = '';
+        renderRoster(); renderBubbles(true);
+    });
+    body.on('click.rph', '.rph-chat-del', function () {
+        const id = $(this).data('id');
+        if (!window.confirm(`Delete "${contactLabel(id)}" and all of its messages?`)) return;
+        deleteChat(id);
+        lastTabSig = '';
+        renderRoster(); renderBubbles(true);
     });
     body.on('click.rph', '.rph-open', function () {
         const id = $(this).data('open');
@@ -3759,6 +3944,7 @@ function addProfilePicker() {
             .forEach(profile => sel.append(new Option(profile.name, profile.id)));
     } catch (e) { /* Connection Manager is off: only the API settings are on offer */ }
     sel.val(settings.profileId || '').on('change', function () { settings.profileId = this.value; saveSettings(); });
+    wrap.hide(); // chosen on the Connections tab
     $('#rph-drawer').prepend(wrap);
 }
 
@@ -3766,6 +3952,13 @@ function setupUI() {
     $('.rph-settings').remove();
     $('#extensions_settings').append(settingsHtml());
     addProfilePicker();
+    // Fork: SillyNPC's vectors for the phone's threads, per contact. Drawn by the shared panel.
+    try {
+        const vectorHost = document.createElement('div');
+        vectorHost.className = 'rph-vectors';
+        $('#rph-drawer').append(vectorHost);
+        mountVectorPanel(vectorHost, 'phone');
+    } catch (e) { console.warn('[Phone] vector panel unavailable', e); }
     $('.rph-settings .rph-drawer-toggle').on('click', function () {
         $('#rph-drawer').slideToggle();
         $(this).find('.inline-drawer-icon').toggleClass('down up');

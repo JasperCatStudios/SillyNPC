@@ -2,6 +2,8 @@ import { getSettings } from './settings.js';
 import { liveFactsFor } from './api.js';
 import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
+import { bondSettings, getPerson } from './bonds.js';
+import { levelFor } from './bonds-core.js';
 
 /**
  * The character page you land on: what is known about somebody, laid out to be read.
@@ -171,6 +173,28 @@ export async function renderProfileView(char, container) {
         .map(([name, value]) => chip(name, value));
     const statsRow = chipRow('Tracked', statChips);
     if (statsRow) right.append(statsRow);
+
+    // Where they stand with the player, from the Bonds tab. Read only here; it is edited there.
+    try {
+        const bonds = bondSettings();
+        const person = bonds.enabled ? getPerson(char.name) : null;
+        if (person) {
+            const { level, next } = levelFor(person.value, bonds.levels);
+            const chips = [chip('Bond', `${level.name} (${person.value})`)];
+            if (next) chips.push(chip('Next', `${next.name} at ${next.min}`));
+            if (!person.tracked) chips.push(chip('Tracking', 'off'));
+            const bondRow = chipRow('Bond', chips);
+            if (bondRow) right.append(bondRow);
+            const recent = person.history.slice(-4);
+            if (recent.length) {
+                const marks = recent.map(m => chip(m.label || m.type, m.date));
+                const historyRow = chipRow('Milestones', marks);
+                if (historyRow) right.append(historyRow);
+            }
+        }
+    } catch (err) {
+        console.warn('[SillyNPC] could not read the bond for the profile', err);
+    }
 
     // Every collection, including the ones hidden from the tracker. That flag keeps the
     // bar in the chat readable and says nothing about this page, which is where somebody

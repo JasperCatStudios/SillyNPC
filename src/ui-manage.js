@@ -31,6 +31,9 @@ import { renderThreadsView } from './ui-threads.js';
 import { fillCharacter } from './ui-fill.js';
 import { renderAppearanceView, renderWritingRulesView, renderAdvancedView, renderGenerationSettingsView } from './ui-settings-tabs.js';
 import { renderPromptsView } from './ui-prompts.js';
+import { renderConnectionsView } from './connections.js';
+import { renderBondsView } from './ui-bonds.js';
+import { renderVectorsView } from './ui-vectors.js';
 import { renderStatsView } from './ui-stats.js';
 import { renderStatusView } from './ui-tracker-settings.js';
 import { renderModulesView } from './ui-modules.js';
@@ -272,6 +275,12 @@ function settingsTabs() {
           render: v => renderSystemsView(v) },
         { id: 'generation', label: 'Generation', container: 'sillynpc-generation-settings-view',
           render: v => renderGenerationSettingsView(v) },
+        { id: 'connections', label: 'Connections', container: 'sillynpc-connections-view',
+          render: v => renderConnectionsView(v) },
+        { id: 'bonds', label: 'Bonds', container: 'sillynpc-bonds-view',
+          render: v => renderBondsView(v) },
+        { id: 'vectors', label: 'Vectors', container: 'sillynpc-vectors-view',
+          render: v => renderVectorsView(v) },
         { id: 'prompts', label: 'Prompts', container: 'sillynpc-prompts-view',
           render: v => renderPromptsView(v, reprocessAllMessages) },
         { id: 'stats', label: 'Stats', container: 'sillynpc-stats-view',

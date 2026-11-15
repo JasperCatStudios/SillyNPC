@@ -4,7 +4,6 @@ import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './
 import { previewVoice, voiceChoices, ttsStatus, VOICE_KEYS } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 import { buildSettingSelect } from './ui-shared.js';
-import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 
 /**
@@ -273,7 +272,7 @@ export function renderInternalStatesSettings(container, rerender) {
         key: 'internalStatesMode',
         label: 'Internal States',
         help: 'After The Reply: a second request writes the state block (agendas, '
-            + 'bonds, thoughts, body scale, Chekhov, GM notebook, world sim) and it is shown in '
+            + 'thoughts, body scale, Chekhov, GM notebook, world sim; bonds now live in the Bonds tab) and it is shown in '
             + 'its own section under the message. In The Reply: the story model writes it itself, and '
             + 'any regex scripts you have handle it - nothing happens here. '
             + 'If a preset of yours also asks for a block, switch that off.',
@@ -287,13 +286,6 @@ export function renderInternalStatesSettings(container, rerender) {
 
     if (getSettings().internalStatesMode !== 'after') return;
 
-    container.append(buildConnectionProfilePicker(() => {}, {
-        key: 'internalStatesProfileId',
-        scope: 'root',
-        labelText: 'Internal States Connection',
-        noteText: 'Which connection writes the state block. Pick a fast, cheap model, or leave on '
-            + 'the main API.',
-    }));
     container.append(buildSettingNumber({
         key: 'internalStatesMaxTokens',
         label: 'Reply Budget',

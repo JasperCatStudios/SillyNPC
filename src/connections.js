@@ -1,0 +1,133 @@
+import { getContext } from '../../../../st-context.js';
+import { getSettings } from './settings.js';
+import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
+
+/**
+ * Which connection profile each part of SillyNPC runs on (fork).
+ *
+ * One list for the whole extension, drawn as the Connections tab. Most rows are ordinary
+ * settings that already existed (lore, portraits, the tracker...) and are simply gathered here;
+ * Phone and Games keep their own settings objects, so those rows drive the picker each of them
+ * already has rather than writing behind their backs.
+ */
+
+/** @type {{ id: string, label: string, help: string, scope?: 'root'|'tracker', key?: string, dom?: string }[]} */
+export const CONNECTION_USES = [
+    { id: 'lore', label: 'Lore', scope: 'root', key: 'loreProfileId',
+      help: 'Writing and updating lorebook entries.' },
+    { id: 'combat', label: 'Combat', scope: 'root', key: 'combatProfileId',
+      help: 'Generating combat stats from lore, and the table talk during a fight.' },
+    { id: 'internal', label: 'Internal states', scope: 'root', key: 'internalStatesProfileId',
+      help: 'What characters think and feel.' },
+    { id: 'bonds', label: 'Bonds', scope: 'root', key: 'bondProfileId',
+      help: 'Reading each reply to propose bond changes and milestones (Bond Tracker, after-the-reply timing).' },
+    { id: 'extraction', label: 'Tracker extraction', scope: 'tracker', key: 'extractionProfileId',
+      help: 'Reading the chat to update stats, items and relationships.' },
+    { id: 'scan', label: 'History scan', scope: 'tracker', key: 'scanProfileId',
+      help: 'Scanning old messages. Empty means the extraction connection.' },
+    { id: 'image', label: 'Portraits', scope: 'root', key: 'imageProfileId',
+      help: 'Writing the picture prompts for portraits.' },
+    { id: 'phone', label: 'Phone', dom: '#rph-drawer .rph-profile-row select',
+      help: 'The messages your characters text you.' },
+    { id: 'games', label: 'Games', dom: '#rpg-game-profile',
+      help: 'Chess, cards, dice and the table talk.' },
+];
+
+function supportedProfiles() {
+    try {
+        return getContext().ConnectionManagerRequestService.getSupportedProfiles() || null;
+    } catch {
+        return null;
+    }
+}
+
+/** A picker for a module that keeps its own setting: it moves that module's own dropdown. */
+function domPicker(use) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sillynpc-setting';
+    const row = document.createElement('div');
+    row.className = 'sillynpc-setting-row';
+    const label = document.createElement('label');
+    label.className = 'sillynpc-setting-label';
+    label.textContent = use.label;
+    const note = document.createElement('small');
+    note.className = 'notes';
+    note.style.cssText = 'margin-top:4px; display:block;';
+    note.textContent = use.help;
+
+    const theirs = document.querySelector(use.dom);
+    const profiles = supportedProfiles();
+    if (!theirs || !profiles) {
+        note.textContent = `${use.help} ${!profiles ? 'Connection Manager is not available.' : 'Turn this module on first.'}`;
+        row.append(label);
+        wrap.append(row, note);
+        return wrap;
+    }
+    const select = document.createElement('select');
+    select.className = 'text_pole';
+    select.append(new Option('Main API (same as chat)', ''));
+    for (const p of profiles) select.append(new Option(p.name || p.id, p.id));
+    select.value = theirs.value || '';
+    select.addEventListener('change', () => {
+        theirs.value = select.value;
+        theirs.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.jQuery) window.jQuery(theirs).trigger('change');
+    });
+    row.append(label, select);
+    wrap.append(row, note);
+    return wrap;
+}
+
+/** The Connections tab. */
+export function renderConnectionsView(view) {
+    if (!view) return;
+    view.replaceChildren();
+
+    const title = document.createElement('h3');
+    title.className = 'sillynpc-section-title';
+    title.textContent = 'Connections';
+    view.append(title);
+
+    const intro = document.createElement('p');
+    intro.className = 'notes sillynpc-tab-intro';
+    intro.textContent = 'Choose which connection profile each part of SillyNPC uses. Anything left on '
+        + '"Main API" uses the connection you are chatting with. Needs the Connection Manager extension.';
+    view.append(intro);
+
+    for (const use of CONNECTION_USES) {
+        if (use.dom) { view.append(domPicker(use)); continue; }
+        view.append(buildConnectionProfilePicker(null, {
+            key: use.key,
+            scope: use.scope,
+            labelText: use.label,
+            fallbackLabel: 'Main API (same as chat)',
+            noteText: use.help,
+            unavailableText: `${use.help} Connection Manager is not available, so the main API is used.`,
+        }));
+    }
+}
+
+/**
+ * One plain request on the connection chosen for a use, falling back to the main API.
+ * @param {string} settingKey Root setting holding the profile id, e.g. 'combatProfileId'.
+ * @returns {Promise<string>}
+ */
+export async function requestOnConnection(settingKey, system, user, maxTokens = 1200) {
+    const context = getContext();
+    const profileId = getSettings()[settingKey];
+    if (profileId) {
+        try {
+            const result = await context.ConnectionManagerRequestService.sendRequest(
+                profileId,
+                [{ role: 'system', content: system }, { role: 'user', content: user }],
+                maxTokens,
+                { extractData: true, includePreset: false },
+            );
+            return (typeof result === 'string' ? result : (result?.content ?? '')) || '';
+        } catch (err) {
+            console.warn('[SillyNPC] Connection unavailable, using the main API:', err);
+        }
+    }
+    const raw = await context.generateRawData({ prompt: user, systemPrompt: system, responseLength: maxTokens });
+    return (typeof raw === 'string' ? raw : (raw?.content ?? '')) || '';
+}

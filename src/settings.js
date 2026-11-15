@@ -246,6 +246,26 @@ export const defaultSettings = {
      * is not who you want writing prose.
      */
     loreProfileId: '',
+    /** Which connection generates combat stats from a lore entry. Empty means your main API. */
+    combatProfileId: '',
+    /** Your own abilities and edits to built-in ones, per world type. See combat-ability-overlay.js. */
+    combatAbilities: {},
+    /** How the shared history of fights and games goes into the story prompt. See rivalry-inject-core.js. */
+    historyInject: {},
+    /**
+     * The Bond Tracker: growth rules, levels and gates, milestone presets, how it reaches the
+     * story prompt. Repaired on read by normalizeBondSettings in bonds-core.js, so an empty
+     * object is every default. The bonds themselves are per chat, in the chat's metadata.
+     */
+    bonds: {},
+    /**
+     * Vectors for the histories (Ollama through SillyTavern's own vector endpoints). Repaired
+     * on read by normalizeVectorSettings in vector-core.js, so an empty object is every
+     * default - which is off. What is in each chat's collections is in the chat's metadata.
+     */
+    vectors: {},
+    /** Which connection proposes bond changes after a reply. Empty means your main API. */
+    bondProfileId: '',
     /**
      * Which connection's API key draws portraits on the Gemini backend. Empty means
      * whichever Google key SillyTavern currently has active.

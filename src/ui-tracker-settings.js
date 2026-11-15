@@ -10,7 +10,6 @@ import { triggerReprocess } from './chat.js';
 import { updateHUD } from './ui-hud.js';
 import { escapeHtml } from './utils.js';
 import { cleanChatHistory, measureChatOverhead, estimateTokens } from './status-history.js';
-import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 import { renderInternalStatesSettings } from './ui-character-extras.js';
 
 /**
@@ -134,7 +133,6 @@ export function renderStatusView(container) {
     // "AI & Customization" in every mode, quietly collecting text that in extract mode
     // never reached a model at all.
     if (settings.extractionMode === 'extract') {
-        container.appendChild(buildConnectionProfilePicker(onApply));
         container.append(buildPromptEditor(promptById('extraction'), { onChange: onApply }));
     } else {
         container.append(buildPromptEditor(promptById('systemRules'), { onChange: onApply }));
@@ -213,16 +211,6 @@ export function renderStatusView(container) {
             onChange: onApply
         }));
 
-        container.appendChild(buildConnectionProfilePicker(onApply, {
-            key: 'scanProfileId',
-            labelText: 'Scan Connection',
-            fallbackLabel: 'Same as the extraction connection',
-            noteText: 'Reading a whole history is a harder job than a single message. A '
-                + 'small model that handles updates well can still return nonsense here, '
-                + 'and scans are rare enough to afford a better one.',
-            unavailableText: 'Connection Manager is not available, so a scan uses the same '
-                + 'connection as the extraction.',
-        }));
     }
 
     container.append(buildSettingSlider({
