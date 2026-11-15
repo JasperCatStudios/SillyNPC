@@ -32,8 +32,8 @@ const escapeRe = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  *
  * `also` names everyone else who could be mistaken for a speaker (the other people at the table,
  * the player). A line they "speak" is thrown away instead of being glued onto the line before it,
- * which is what happened when a model wrote "Felix: ... Sylvain: ..." for a message meant only for
- * Felix. A speaker's tag in the middle of a line starts a new line too.
+ * which is what happened when a model wrote "Ben: ... Cleo: ..." for a message meant only for
+ * Ben. A speaker's tag in the middle of a line starts a new line too.
  *
  * @param {string} raw
  * @param {string[]} names who may speak

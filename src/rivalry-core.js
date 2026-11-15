@@ -218,12 +218,12 @@ export function tallyText(t) {
 
 const joinNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || 'someone');
 
-/** "Veta and Annette vs Felix" */
+/** "Ana and Cleo vs Ben" */
 export function sidesText(record, playerName = '') {
     return `${joinNames(sideNames(record, 'A', playerName))} vs ${joinNames(sideNames(record, 'B', playerName))}`;
 }
 
-/** "Veta and Annette won", or "a draw". */
+/** "Ana and Cleo won", or "a draw". */
 export function winnerText(record, playerName = '') {
     if (record.winner === 'draw') return 'a draw';
     return `${joinNames(sideNames(record, record.winner, playerName))} won`;
@@ -237,7 +237,7 @@ export function recordLine(record, playerName = '') {
     return `${text}${r.note ? ` (${r.note})` : ''}`;
 }
 
-/** "Felix and Dimitri fought alongside Veta against Hilda" style text for a summary. */
+/** "Ben and Dan fought alongside Ana against Eve" style text for a summary. */
 export function companyText(record, person, playerName = '') {
     const side = sideOf(record, person);
     if (!side) return '';

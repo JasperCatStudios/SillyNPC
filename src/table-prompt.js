@@ -14,8 +14,8 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Who a message is spoken to, by what it says: the people at the table whose name (or first name,
- * when that is unambiguous) appears in it as a whole word. "So Felix, the date? What time?" is
- * for Felix. No name at all means it is for the whole table.
+ * when that is unambiguous) appears in it as a whole word. "So Ben, the date? What time?" is
+ * for Ben. No name at all means it is for the whole table.
  * @param {string} text
  * @param {string[]} names the characters at the table
  * @returns {string[]} the people named, in the order they are named

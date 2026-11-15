@@ -1435,7 +1435,7 @@ export function applyTurn(store, update, settings, ctx) {
 
 /**
  * Reads the BONDS lines the Internal States block used to carry:
- *   - <b>Mira</b> ↔ <b>Veta</b> | BOND: 7 | Sparks: 3 | Grudge: 0
+ *   - <b>Mira</b> ↔ <b>Ana</b> | BOND: 7 | Sparks: 3 | Grudge: 0
  * from the HTML or from its plain-text form. Template placeholders are skipped.
  * @returns {{ name: string, bond: number, sparks: number, grudge: number }[]}
  */
