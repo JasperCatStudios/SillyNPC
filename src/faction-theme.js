@@ -20,6 +20,7 @@ export const BUILTIN_FACTIONS = Object.freeze({
     golden_deer: { label: 'Golden Deer', bg: '#171611', panel: '#29251B', accent: '#D8A92D', accent2: '#D8A92D', text: '#F4E8CB', banner: 'fire-emblem/banners/golden-deer.png' },
     black_eagles: { label: 'Black Eagles', bg: '#170E10', panel: '#35151A', accent: '#A92F3A', accent2: '#C79B55', text: '#F3E2D3', banner: 'fire-emblem/banners/black-eagles.png' },
     blue_lions: { label: 'Blue Lions', bg: '#101827', panel: '#1C3456', accent: '#88B7D8', accent2: '#C3CED6', text: '#EDF3F7', banner: 'fire-emblem/banners/blue-lions.png' },
+    ashen_wolves: { label: 'Ashen Wolves', bg: '#17151C', panel: '#2A2831', accent: '#A98DBA', accent2: '#A8A6AD', text: '#EFEDF0', tab: '#50415D', border: '#A8A6AD', muted: '#B8B4BF', banner: 'fire-emblem/banners/ashen-wolves.png' },
     knights_of_seiros: { label: 'Knights of Seiros', bg: '#1B2025', panel: '#343C42', accent: '#C8D0CF', accent2: '#C3AA72', text: '#F2EEE2', banner: 'fire-emblem/banners/knights-of-seiros.png' },
 });
 
@@ -28,12 +29,20 @@ const ALIASES = Object.freeze({
     church_of_seiros: 'knights_of_seiros',
     knights_of_seiros: 'knights_of_seiros',
     seiros: 'knights_of_seiros',
+    ashen_wolves: 'ashen_wolves',
+    cindered_shadows: 'ashen_wolves',
     golden_deer: 'golden_deer',
     black_eagles: 'black_eagles',
     blue_lions: 'blue_lions',
 });
 
-export const DEFAULT_ARTWORK_BASE = '/user/worldkit-art/';
+/*
+ * SillyTavern serves only /user/images/ and /user/files/ out of a user's data folder, so the artwork folder lives under
+ * images: data/<user>/user/images/worldkit-art/ is /user/images/worldkit-art/. The first version of this setting pointed
+ * at /user/worldkit-art/, which nothing serves, so that value is read as the default.
+ */
+export const DEFAULT_ARTWORK_BASE = '/user/images/worldkit-art/';
+const LEGACY_ARTWORK_BASES = Object.freeze(['/user/worldkit-art/', '/user/worldkit-art']);
 
 /** "Church of Seiros" -> "church_of_seiros". */
 export function foldFaction(name) {
@@ -54,6 +63,10 @@ export function normalizePalette(raw, fallback = BUILTIN_FACTIONS.neutral) {
         accent: hex(p.accent, fallback.accent),
         accent2: hex(p.accent2, hex(p.accent, fallback.accent2)),
         text: hex(p.text, fallback.text),
+        // Optional: the selected-tab colour, the border and icon colour, and the quieter text. Empty means derived.
+        tab: hex(p.tab, ''),
+        border: hex(p.border, ''),
+        muted: hex(p.muted, ''),
         banner: typeof p.banner === 'string' ? p.banner.trim() : (fallback.banner || ''),
         emblem: typeof p.emblem === 'string' ? p.emblem.trim() : (fallback.emblem || ''),
     };
@@ -67,7 +80,8 @@ export function normalizeFactionSettings(raw) {
         const id = foldFaction(key);
         if (id && value && typeof value === 'object') themes[id] = { ...normalizePalette(value), label: String(value.label || key) };
     }
-    const base = typeof r.artworkBase === 'string' && r.artworkBase.trim() ? r.artworkBase.trim() : DEFAULT_ARTWORK_BASE;
+    let base = typeof r.artworkBase === 'string' && r.artworkBase.trim() ? r.artworkBase.trim() : DEFAULT_ARTWORK_BASE;
+    if (LEGACY_ARTWORK_BASES.includes(base)) base = DEFAULT_ARTWORK_BASE;
     return {
         // Presentation only. Off means no pictures are requested at all, only built-in icons.
         useArtwork: r.useArtwork === undefined ? true : Boolean(r.useArtwork),
@@ -103,9 +117,13 @@ export function paletteFor(faction, settings = normalizeFactionSettings(), world
 
 /** CSS custom properties for a palette, as a style string. */
 export function themeStyle(palette) {
+    const tab = palette.tab || `color-mix(in srgb, ${palette.accent} 30%, ${palette.panel})`;
+    const border = palette.border || palette.accent2 || palette.accent;
+    const muted = palette.muted || `color-mix(in srgb, ${palette.text} 70%, ${palette.bg})`;
     return [
         `--fx-bg:${palette.bg}`, `--fx-panel:${palette.panel}`, `--fx-accent:${palette.accent}`,
         `--fx-accent2:${palette.accent2}`, `--fx-text:${palette.text}`,
+        `--fx-tab:${tab}`, `--fx-border:${border}`, `--fx-muted:${muted}`,
     ].join(';');
 }
 

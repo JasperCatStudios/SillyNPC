@@ -304,7 +304,7 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     const artBox = section('8. Factions, colours and artwork (optional)',
         'Everything here is presentation only: it never changes how a fight is rolled. A faction is a group of characters (their category). '
         + 'Give each faction its own colours and banner, and assign a picture to each weapon or skill. Picture paths are relative to the artwork folder set in '
-        + 'Appearance (for example fire-emblem/banners/golden-deer.png). Leave any field empty to use the built-in look, and turn "Use world artwork" off in Appearance to hide every picture.');
+        + 'Appearance (for example fire-emblem/banners/golden-deer.png); that folder lives at data/<your user>/user/images/worldkit-art/. Leave any field empty to use the built-in look, and turn "Use world artwork" off in Appearance to hide every picture.');
     const art = draft.art;
     art.kinds = art.kinds || {};
     art.profs = art.profs || {};
@@ -334,7 +334,7 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
 
     // Factions: a colour theme per group of characters.
     const factionRows = el('div', 'sillynpc-te-rows');
-    const COLOURS = [['bg', 'Background', '#171A19'], ['panel', 'Panels', '#29312D'], ['accent', 'Accent', '#8EAA94'], ['accent2', 'Second accent', '#BFC7BF'], ['text', 'Text', '#EAECE5']];
+    const COLOURS = [['bg', 'Background', '#171A19'], ['panel', 'Panels', '#29312D'], ['accent', 'Highlights', '#8EAA94'], ['accent2', 'Second accent', '#BFC7BF'], ['text', 'Main text', '#EAECE5'], ['tab', 'Selected tabs', '#3B4A40'], ['border', 'Borders and icons', '#BFC7BF'], ['muted', 'Secondary text', '#B9BFB8']];
     const drawFactions = () => {
         factionRows.replaceChildren();
         const names = Object.keys(art.factions);

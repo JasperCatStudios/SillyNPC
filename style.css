@@ -4904,3 +4904,11 @@ textarea.sillynpc-profile-input {
 .sillynpc-editor-detail.sillynpc-fx { padding: 10px; border: 1px solid var(--fx-accent); border-radius: 8px; color: var(--fx-text); }
 .sillynpc-editor-detail.sillynpc-fx .sillynpc-charview { background: transparent; border: 0; padding: 0; }
 .sillynpc-editor-detail.sillynpc-fx .sillynpc-fx-banner { margin-bottom: 10px; }
+
+/* Faction palette extras: selected tab, borders and icons, quieter text. */
+.sillynpc-fx .sillynpc-cv-tab.active { background: var(--fx-tab); border-bottom-color: var(--fx-accent); color: var(--fx-text); }
+.sillynpc-fx .sillynpc-cv-chip, .sillynpc-fx .snpc-vit-card, .sillynpc-fx .sillynpc-cv-card { border-color: var(--fx-border); }
+.sillynpc-fx .notes, .sillynpc-fx small.notes, .sillynpc-fx .snpc-vit-text { color: var(--fx-muted); }
+.sillynpc-fx .sillynpc-art-icon, .sillynpc-fx .sillynpc-art-icon i { color: var(--fx-border); }
+.sillynpc-fx .sillynpc-fx-banner-img { object-position: center 30%; }
+.sillynpc-fx .sillynpc-roster-item.active { background: var(--fx-tab); }

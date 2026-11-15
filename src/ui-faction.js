@@ -121,7 +121,7 @@ export function knownFactions() {
 
 /* ------------------------------------------------------------------ the settings section */
 
-const COLOR_FIELDS = [['bg', 'Background'], ['panel', 'Panels'], ['accent', 'Accent'], ['accent2', 'Second accent'], ['text', 'Text']];
+const COLOR_FIELDS = [['bg', 'Background'], ['panel', 'Panels'], ['accent', 'Highlights'], ['accent2', 'Second accent'], ['text', 'Main text'], ['tab', 'Selected tabs'], ['border', 'Borders and icons'], ['muted', 'Secondary text']];
 
 /**
  * Appearance, Faction colours and artwork: whether pictures are used at all, where they are read
@@ -133,7 +133,7 @@ export function renderFactionSettings(view, rerender) {
     wrap.append(el('h4', 'sillynpc-combat-heading', 'Faction colours and artwork'));
     wrap.append(el('p', 'notes',
         'A character\'s faction (their category) decides the colours of their page. Pictures are optional: banners, weapon icons and crests '
-        + 'come from the Worldkit-Content download, which you place in your SillyTavern user folder. Turn artwork off to use only built-in icons.'));
+        + 'come from the Worldkit-Content download: put its art folder at data/<your user>/user/images/worldkit-art/. Turn artwork off to use only built-in icons.'));
 
     const settings = factionSettings();
 
@@ -150,8 +150,8 @@ export function renderFactionSettings(view, rerender) {
     const base = el('input', 'text_pole');
     base.type = 'text';
     base.value = settings.artworkBase;
-    base.placeholder = '/user/worldkit-art/';
-    base.title = 'The web path of the artwork folder. A folder named worldkit-art inside your SillyTavern user folder is served as /user/worldkit-art/.';
+    base.placeholder = '/user/images/worldkit-art/';
+    base.title = 'The web path of the artwork folder. SillyTavern only serves /user/images/ and /user/files/, so put the folder at data/<your user>/user/images/worldkit-art/ and it is /user/images/worldkit-art/.';
     base.addEventListener('change', () => { settings.artworkBase = base.value; saveFactionSettings(); rerender?.(); });
     baseRow.append(el('span', 'sillynpc-setting-label', 'Artwork folder'), base);
     wrap.append(baseRow);
@@ -185,7 +185,7 @@ export function renderFactionSettings(view, rerender) {
             const row = el('label', 'sillynpc-fx-colour');
             const input = el('input');
             input.type = 'color';
-            input.value = palette[key];
+            input.value = palette[key] || palette.accent;
             input.addEventListener('change', () => edit(key, input.value));
             row.append(el('span', '', label), input);
             grid.append(row);
