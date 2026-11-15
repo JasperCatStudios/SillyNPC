@@ -14,6 +14,7 @@ import { renderAbilityEditor } from '../../src/ui-abilities.js';
 import { renderArmoury } from '../../src/ui-armoury.js';
 import { renderHistoryView } from '../../src/ui-history-inject.js';
 import { renderCombatButton } from './combat-window.js';
+import { renderTypeEditor, startDraft, deleteCustomType, importTypeFile, exportTypeFile } from './type-editor.js';
 
 import { PRODUCT_NAME } from '../../src/constants.js';
 /**
@@ -136,6 +137,7 @@ function renderSettings(host, rerender) {
     if (type) renderMigrationList(host, type, rerender);
 
     host.append(el('h4', 'sillynpc-combat-heading', 'World types'));
+    host.append(renderTypeToolbar(host, types, rerender));
     const list = el('div', 'sillynpc-combat-types');
     for (const { type: t, errors, warnings } of types) {
         const item = el('div', 'sillynpc-combat-type');
@@ -151,9 +153,64 @@ function renderSettings(host, rerender) {
         for (const message of [...errors, ...warnings]) {
             item.append(el('small', errors.includes(message) ? 'sillynpc-combat-problem' : 'notes', message));
         }
+        item.append(renderTypeActions(host, t, rerender));
         list.append(item);
     }
     host.append(list);
+}
+
+/** Opens the world type editor in place of the settings view; Save or Cancel brings the view back. */
+function openEditor(host, rerender, { start, editing }) {
+    host.replaceChildren();
+    renderTypeEditor(host, { start, editing, onDone: () => { host.replaceChildren(); rerender(); } });
+}
+
+/** Make your own world type: from a small starter, or from a copy of any existing one. */
+function renderTypeToolbar(host, types, rerender) {
+    const bar = el('div', 'sillynpc-te-toolbar');
+    bar.append(el('small', 'notes',
+        'Make your own world type with its own stats, roles and rules. Start from a small blank starter, or copy a world that is already here and change it. Each field in the editor explains itself.'));
+    const row = el('div', 'sillynpc-actions');
+    const pick = el('select', 'text_pole');
+    pick.append(new Option('Blank starter', ''));
+    for (const { type } of types) pick.append(new Option(`Copy of ${type.name}`, type.id));
+    const make = el('button', 'menu_button', 'Create a world type');
+    make.type = 'button';
+    make.addEventListener('click', () => openEditor(host, rerender, { start: startDraft(pick.value), editing: false }));
+    const load = el('button', 'menu_button', 'Import a world type file');
+    load.type = 'button';
+    load.title = 'Add a world type someone shared with you (a .json file)';
+    load.addEventListener('click', () => importTypeFile(rerender));
+    row.append(pick, make, load);
+    bar.append(row);
+    return bar;
+}
+
+/** Copy, and for custom types edit and delete. */
+function renderTypeActions(host, type, rerender) {
+    const row = el('div', 'sillynpc-actions');
+    const button = (label, title, onClick) => {
+        const b = el('button', 'menu_button', label);
+        b.type = 'button';
+        b.title = title;
+        b.addEventListener('click', onClick);
+        row.append(b);
+    };
+    if (!type.builtin) {
+        button('Edit', 'Change this world type', () => openEditor(host, rerender, { start: startDraft(type.id), editing: true }));
+    }
+    if (!type.builtin) button('Export', 'Save this world type as a file to share', () => exportTypeFile(type));
+    button('Copy', 'Make an editable copy', () => openEditor(host, rerender, { start: startDraft(type.id), editing: false }));
+    if (!type.builtin) {
+        button('Delete', 'Remove this world type. Characters keep their numbers for it.', () => {
+            if (!window.confirm(`Delete ${type.name}? Characters keep their saved numbers for it.`)) return;
+            deleteCustomType(type.id);
+            if (combatPrefs().activeType === type.id) setActiveCombatType('');
+            renderCombatButton();
+            rerender();
+        });
+    }
+    return row;
 }
 
 /** Which stat or formula fills each role, in the world's own words. */

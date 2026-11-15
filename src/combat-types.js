@@ -216,6 +216,52 @@ export function getType(library, id) {
     return custom || null;
 }
 
+/** A custom type as a file others can import: the type itself, never marked built-in. */
+export function typeToFile(type) {
+    const t = normalizeType(type);
+    t.builtin = false;
+    return t;
+}
+
+/**
+ * Reads a world type file: one type, or { format: 'sillynpc-combat-types', types: [...] }.
+ * Each type is repaired and checked; a type that cannot be used is reported, not imported.
+ * A type whose id is a built-in's is refused rather than renamed, so an import never changes
+ * which world a saved character belongs to.
+ *
+ * @param {string} source
+ * @returns {{ types: object[], errors: string[], warnings: string[] }}
+ */
+export function parseTypeFile(source) {
+    const out = { types: [], errors: [], warnings: [] };
+    let data;
+    try {
+        data = JSON.parse(source);
+    } catch {
+        out.errors.push('That file is not JSON.');
+        return out;
+    }
+    const raws = data?.format === 'sillynpc-combat-types' ? list(data.types) : [data];
+    for (const raw of raws) {
+        if (!raw || typeof raw !== 'object' || raw.format !== 'sillynpc-combat-type') {
+            out.errors.push('That is not a Worldkit world type file.');
+            continue;
+        }
+        const t = normalizeType(raw);
+        t.builtin = false;
+        if (BUILTIN_IDS.includes(t.id)) {
+            out.errors.push(`${t.name || t.id}: the id ${t.id} belongs to a built-in world. Change the id in the file and try again.`);
+            continue;
+        }
+        const found = validateType(t);
+        if (found.errors.length) { out.errors.push(`${t.name || t.id}: ${found.errors.join(' ')}`); continue; }
+        out.warnings.push(...found.warnings.map(w => `${t.name}: ${w}`));
+        out.types.push(t);
+    }
+    if (!out.types.length && !out.errors.length) out.errors.push('That file has no world type in it.');
+    return out;
+}
+
 /** Per-System module preferences. Only repairs the shape. */
 export function normalizeCombatPrefs(raw) {
     const p = obj(raw);

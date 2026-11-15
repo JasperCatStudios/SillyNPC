@@ -64,6 +64,8 @@ export function updateRecord(id, patch) {
     if (patch && 'result' in patch && !('winner' in patch)) delete merged.winner;
     const next = normalizeRecord(merged);
     if (!othersIn(next).length) return false;
+    // Optional lists left out of the new version are gone, not kept from the old one.
+    for (const key of ['fled', 'spectators']) if (!(key in next)) delete rec[key];
     Object.assign(rec, next);
     save();
     return true;

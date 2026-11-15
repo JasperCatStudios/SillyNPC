@@ -37,6 +37,13 @@ export function talkEntry({ state, chat, id, at = Date.now(), date = '', spectat
     const watchers = names(spectators).filter(n => !mine.includes(n) && !foes.includes(n));
     const lost = state.over.loser === 'player';
     const winner = lost ? (andList(foes) || 'they') : andList(mine.length ? mine : [me]);
+    const rounds = `${state.round} round${state.round === 1 ? '' : 's'}`;
+    // Fork: who ran. When the last of a side got away, it is told as fleeing, not as a win.
+    const ran = fledNames(state);
+    const held = lost ? foes : mine;
+    const result = state.over.fled
+        ? `${andList(ran.filter(n => !held.includes(n)))} fled from ${andList(held)} after ${rounds}`
+        : `${winner} won after ${rounds}${ran.length ? `; ${andList(ran)} fled` : ''}`;
     return {
         id,
         at,
@@ -48,15 +55,21 @@ export function talkEntry({ state, chat, id, at = Date.now(), date = '', spectat
         ...(watchers.length ? { spectators: watchers } : {}),
         date,
         lines: (chat || []).map(m => ({ who: m.who, text: m.text })),
-        result: `${winner} won after ${state.round} round${state.round === 1 ? '' : 's'}`,
+        result,
     };
+}
+
+/** The names of everyone who ran from the fight (fork), in turn order. */
+export function fledNames(state) {
+    return (state?.order || Object.keys(state?.fighters || {})).map(id => state.fighters[id]).filter(f => f?.fled).map(f => f.name);
 }
 
 /**
  * The rivalry record for a finished fight: everyone on both sides, allies and every foe.
- * Null when one side is empty.
+ * Null when one side is empty or the fight is not over.
  */
 export function fightRecord({ state, id, percentOf, spectators = [] }) {
+    if (!state?.over) return null;
     const { me, mine, foes } = sidesOfFight(state);
     if (!mine.length || !foes.length) return null;
     const lost = state.over.loser === 'player';
@@ -67,14 +80,19 @@ export function fightRecord({ state, id, percentOf, spectators = [] }) {
     const company = allies.length ? `, fighting alongside ${andList(allies)},` : '';
     const foeNames = foes.map(f => f.name);
     const watchers = names(spectators).filter(n => !mine.some(f => f.name === n) && !foeNames.includes(n));
+    // Fork: who ran. The side that held the field still wins; each who ran counts it as fled.
+    const ran = fledNames(state);
+    const verb = state.over.fled ? (lost ? 'fled from' : 'drove off') : (lost ? 'lost to' : 'beat');
     return {
         event: id,
         kind: 'combat', game: kind === 'spar' ? 'Spar' : 'Fight',
         sideA: mine.map(f => f.name), sideB: foeNames,
         ...(watchers.length ? { spectators: watchers } : {}),
+        ...(ran.length ? { fled: ran } : {}),
         winner: lost ? 'B' : 'A',
         userSide: me ? 'A' : '', player: me?.name || '',
-        summary: `${lead}${company} ${lost ? 'lost to' : 'beat'} ${andList(foeNames)} in a ${kind}, ${state.round} round${state.round === 1 ? '' : 's'}. `
+        summary: `${lead}${company} ${verb} ${andList(foeNames)} in a ${kind}, ${state.round} round${state.round === 1 ? '' : 's'}. `
+            + (ran.length && !state.over.fled ? `${andList(ran)} fled. ` : '')
             + `Left standing: ${[...mine, ...foes].map(f => `${f.name} ${hp(f)}`).join(', ')} health.`
             + (watchers.length ? ` Watched by ${andList(watchers)}.` : ''),
     };

@@ -7,7 +7,9 @@
  * A record has two sides, each a list of names, and a winner side:
  *   { id, at, kind, game, sideA: [name], sideB: [name], winner: 'A'|'B'|'draw',
  *     userSide: 'A'|'B'|'', player, opponent, result, summary, note,
-*     spectators?: [name] }  (spectators only when someone watched; they are not on a side)
+*     spectators?: [name], fled?: [name] }  (spectators only when someone watched; they are not on a side)
+ * fled (fork) names those who ran from the fight. The winner is still the side that held the field;
+ * each one who ran counts the fight as fled, not won or lost (tally, tallyText).
  * userSide says which side the player (the user's persona) was on, '' when only other people
  * took part. player is the player's name as it was recorded. opponent and result are the old
  * single-opponent fields; they are kept, derived from the sides, so older readers still work:
@@ -84,9 +86,13 @@ export function normalizeRecord(raw) {
     const event = str(r.event, 60).replace(/[^A-Za-z0-9_-]/g, '');
     // People who watched but did not fight: named in the history, never counted in a result.
     const spectators = sideList(r.spectators).filter(n => !sideA.some(x => same(x, n)) && !sideB.some(x => same(x, n)) && !same(n, player));
+    // Those who ran: only people who were in it.
+    const fled = sideList(r.fled).filter(n => sideA.some(x => same(x, n)) || sideB.some(x => same(x, n)) || (userSide && same(n, player)));
+    const playerRan = Boolean(userSide && player && fled.some(n => same(n, player)));
     return {
         ...(event ? { event } : {}),
         ...(spectators.length ? { spectators } : {}),
+        ...(fled.length ? { fled } : {}),
         id: str(r.id, 40) || newId(),
         at: Number.isFinite(Number(r.at)) ? Number(r.at) : Date.now(),
         kind: KINDS.includes(r.kind) ? r.kind : 'combat',
@@ -97,7 +103,7 @@ export function normalizeRecord(raw) {
         userSide,
         player,
         opponent: facing.find(n => !same(n, player)) || '',
-        result: resultOf(winner, userSide || 'A'),
+        result: playerRan ? 'fled' : resultOf(winner, userSide || 'A'),
         summary: str(r.summary, 600),
         note: str(r.note, 600),
     };
@@ -139,6 +145,9 @@ export function sideOf(record, person) {
     return '';
 }
 
+/** Whether a person ran from this fight (fork). */
+export const ranFrom = (record, person) => Boolean(person) && (record.fled || []).some(n => same(n, person));
+
 /** Whether a person took part, on either side. */
 export const tookPart = (record, person) => Boolean(sideOf(record, person));
 
@@ -165,6 +174,8 @@ export function peopleIn(records, playerName = '') {
 }
 
 const emptyTally = () => ({ won: 0, lost: 0, draw: 0, others: 0, total: 0 });
+/** Counts one result. `fled` (fork) is only there once someone has run, so older tallies look the same. */
+const count = (out, key) => { out[key] = (out[key] || 0) + 1; };
 
 /**
  * Wins, losses and draws, by kind.
@@ -180,9 +191,9 @@ export function tally(records, person, kind) {
         if (person) {
             const side = sideOf(r, person);
             if (!side) continue;
-            out[resultOf(r.winner, side)]++;
+            count(out, ranFrom(r, person) ? 'fled' : resultOf(r.winner, side));
         } else if (r.userSide) {
-            out[resultOf(r.winner, r.userSide)]++;
+            count(out, ranFrom(r, r.player) ? 'fled' : resultOf(r.winner, r.userSide));
         } else {
             out.others++;
         }
@@ -199,7 +210,7 @@ export function tallyVsPlayer(records, opponent, kind) {
         if (!r.userSide) continue;
         const side = sideOf(r, opponent);
         if (!side || side === r.userSide) continue;
-        out[resultOf(r.winner, r.userSide)]++;
+        count(out, ranFrom(r, r.player) ? 'fled' : resultOf(r.winner, r.userSide));
         out.total++;
     }
     return out;
@@ -212,6 +223,7 @@ export function tallyText(t) {
     if (t.won) bits.push(`${t.won} won`);
     if (t.lost) bits.push(`${t.lost} lost`);
     if (t.draw) bits.push(`${t.draw} drawn`);
+    if (t.fled) bits.push(`${t.fled} fled`);
     if (t.others) bits.push(`${t.others} between others`);
     return bits.join(', ');
 }
@@ -223,10 +235,10 @@ export function sidesText(record, playerName = '') {
     return `${joinNames(sideNames(record, 'A', playerName))} vs ${joinNames(sideNames(record, 'B', playerName))}`;
 }
 
-/** "Ana and Cleo won", or "a draw". */
+/** "Ana and Cleo won", or "a draw"; with who ran, when someone did: "Ana won, Ben fled". */
 export function winnerText(record, playerName = '') {
-    if (record.winner === 'draw') return 'a draw';
-    return `${joinNames(sideNames(record, record.winner, playerName))} won`;
+    const base = record.winner === 'draw' ? 'a draw' : `${joinNames(sideNames(record, record.winner, playerName))} won`;
+    return record.fled?.length ? `${base}, ${joinNames(record.fled)} fled` : base;
 }
 
 /** One record as a line: its summary, or who faced whom and who won. Plus the note. */

@@ -151,7 +151,7 @@ export function talkEmbedText(entry, kind = 'games') {
     return out.join('\n');
 }
 
-const DECISIVE = /\b(won|wins|beat|beats|lost|loses|fell|falls|yield(?:s|ed)?|defeated|surrender(?:s|ed)?|checkmate)\b/i;
+const DECISIVE = /\b(won|wins|beat|beats|lost|loses|fell|falls|fled|flees|yield(?:s|ed)?|defeated|surrender(?:s|ed)?|checkmate)\b/i;
 
 /** Decisive endings count a little more when two results are equally related. */
 export function talkImportance(entry) {

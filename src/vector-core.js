@@ -585,7 +585,7 @@ export function stripHtml(html) {
         .trim();
 }
 
-const RESULT_WORDS = { won: (p) => `${p} won`, lost: (p) => `${p} lost`, draw: () => 'it was a draw' };
+const RESULT_WORDS = { won: (p) => `${p} won`, lost: (p) => `${p} lost`, draw: () => 'it was a draw', fled: (p) => `${p} fled` };
 
 /**
  * The embeddable text of one entry, per module. Plain sentences: that is what embedders match
@@ -602,7 +602,9 @@ export const TEMPLATES = Object.freeze({
         if (r.userSide && a.length <= 1 && b.length <= 1) {
             // The player against one person: worded as it always was, so these do not re-embed.
             const result = (RESULT_WORDS[r.result] || RESULT_WORDS.draw)(player);
-            head = `${kind} between ${player} and ${r.opponent}${game}: ${result}.`;
+            // Fork: when the other one ran, say so (records without anyone fleeing read as before).
+            const ran = r.result !== 'fled' && r.fled?.length ? `, ${r.fled.join(' and ')} fled` : '';
+            head = `${kind} between ${player} and ${r.opponent}${game}: ${result}${ran}.`;
         } else {
             head = `${kind}${game}: ${sidesText(r, player)}, ${winnerText(r, player)}.`;
         }

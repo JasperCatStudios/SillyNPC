@@ -66,16 +66,23 @@ export function labelForTurns(turns) {
 
 /**
  * How the foe measures up to the player, and so how long the fight should be.
+ *
+ * Teams (fork): each side's power is the sum of its fighters', and with more than two fighters the
+ * fight is aimed longer in proportion (four fighters, about twice the actions of two), since every
+ * fighter's action counts as one. The label still reads the matchup, not the length. With one a
+ * side this is the same as it always was.
  * @param {object[]} people As for startFight: [{ id, side, data }, ...].
  * @returns {{ ratio: number, turns: number, label: string }}
  */
 export function rate(type, people) {
-    const mine = people.find(p => p.side === 'player');
-    const theirs = people.find(p => p.side === 'foe');
-    if (!mine || !theirs) return { ratio: 1, turns: 10, label: 'Medium' };
-    const ratio = powerOf(type, project(theirs.data, type)) / powerOf(type, project(mine.data, type));
-    const turns = turnsForRatio(ratio);
-    return { ratio, turns, label: labelForTurns(turns) };
+    const mine = people.filter(p => p.side === 'player');
+    const theirs = people.filter(p => p.side === 'foe');
+    if (!mine.length || !theirs.length) return { ratio: 1, turns: 10, label: 'Medium' };
+    const sum = (list) => list.reduce((s, p) => s + powerOf(type, project(p.data, type)), 0);
+    const ratio = sum(theirs) / sum(mine);
+    const base = turnsForRatio(ratio);
+    const turns = people.length > 2 ? base * (people.length / 2) : base;
+    return { ratio, turns, label: labelForTurns(base) };
 }
 
 /** Median actions in `runs` seeded fights, both sides playing the computer's choice. */

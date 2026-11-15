@@ -3,8 +3,8 @@ import { GENERIC_TIERS } from './combat-gear-defaults.js';
 /**
  * Bleach gear (fork): data only, like combat-abilities-bleach.js. A zanpakuto's tier is its
  * release (Asauchi, Sealed, Shikai, Bankai); a fight starts at the tier the weapon is set to.
- * Release forms and the moves that come with them are abilities, not tiers (a later phase adds
- * state abilities for that). Kidō is an art, not a held thing, so it has its own ladder of
+ * Release forms and the moves that come with them are abilities, not tiers (forms: see
+ * formAbilities in combat-abilities.js). Kidō is an art, not a held thing, so it has its own ladder of
  * levels and sits in the focus slot.
  */
 

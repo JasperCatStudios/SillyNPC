@@ -4,6 +4,7 @@ import { adoptImageForCharacter, createLoreEntry, saveLoreContent } from './api.
 import { tryAutoSyncLorebook, getChatLorebookName } from './lorebook.js';
 import { loadWorldInfo } from '../../../../world-info.js';
 import { debugLog } from './constants.js';
+import { portableCombat, normalizeCombatBlock } from './combat-store.js';
 
 /**
  * Sending one character to somebody else, and taking one in.
@@ -81,6 +82,8 @@ export async function serialiseCharacter(char) {
         //
         // So the file is words, and the picture is the recipient's to supply. Anything
         // exported before this still imports with its portraits: see restoreImages.
+        // The combat sheets under every world type, so a shared cast can fight at once.
+        combat: portableCombat(char.combat),
         lore: await readLoreEntry(char),
     };
 }
@@ -168,6 +171,9 @@ function applyRecord(char, record, name) {
     // import runs at the end. It already adopts any category a card names but the register
     // does not list, so creating it here would be the same work done twice.
     char.category = String(record.category || '');
+
+    // Combat sheets, when the file has them. A file without them leaves the card as it was.
+    if (record.combat && typeof record.combat === 'object') char.combat = normalizeCombatBlock(record.combat);
 }
 
 /** Writes the inlined portraits back to disk and points the card at the right one. */

@@ -1,7 +1,7 @@
 import { mulberry32 } from './combat-formula.js';
 import { project } from './combat-roles.js';
-import { resolveAttack, rollInitiative, grantsFollowUp, previewOdds } from './combat-math.js';
-import { resolveAbilities, abilityList, abilityActions, passivesFor, fires, heals, blowMult } from './combat-abilities.js';
+import { resolveAttack, rollInitiative, grantsFollowUp, previewOdds, abilityChance } from './combat-math.js';
+import { resolveAbilities, abilityList, abilityActions, passivesFor, fires, heals, blowMult, formAbilities } from './combat-abilities.js';
 import { resolveLoadout, weaponName, gearRules, gatedAbilities } from './combat-gear.js';
 import { buildGearActions } from './combat-weapons.js';
 
@@ -15,8 +15,22 @@ import { buildGearActions } from './combat-weapons.js';
  * The battle is not written onto the character here. The window does that, and only for a
  * character who already has combat data.
  *
- * Pure: no DOM, no SillyTavern imports. Abilities are not in this piece.
+ * Later phases (fork), each new and switched on only by what a fight is given, so a fight without
+ * them replays exactly as before:
+ *   crowding     opts.crowding: several on one target get in each other's way (teams.crowding)
+ *   tools        the belt: `tool:<itemId>` actions, uses counted per fight (never written back)
+ *   fleeing      attemptFlee: a roll against the pursuers' speed and luck (gear flee numbers);
+ *                opts.aiFlee lets the computer's fighters run when a fight is lost
+ *   effects      blind, cover (smoke), slow and stun, from tools, lasting a number of own turns
+ *   forms        an ability with `form` changes which abilities its user has (combat-abilities.js)
+ *
+ * Pure: no DOM, no SillyTavern imports.
  */
+
+/** The abilities a fighter can use right now: all of them, or what their current form allows. */
+export function activeAbilities(fighter) {
+    return formAbilities(fighter?.abilities, fighter?.form || null);
+}
 
 /** Proficiencies this combatant may actually use: the faction card, plus anything they hold. */
 function visibleProfIds(type, view) {
@@ -100,8 +114,8 @@ function costFactor(view, action) {
 }
 
 /** The best expected damage an attacker could do to a defender right now. */
-function bestExpected(type, attacker, defender, diff, mode) {
-    const acts = offeredActions(type, attacker.view, attacker.weapon, attacker.abilities, mode, attacker.loadout)
+function bestExpected(type, attacker, defender, diff, mode, abilities = activeAbilities(attacker)) {
+    const acts = offeredActions(type, attacker.view, attacker.weapon, abilities, mode, attacker.loadout)
         .filter(a => !a.self && canPay(attacker.view, a));
     return acts.reduce((m, a) => Math.max(m, expectedDamage(type, attacker, defender, a, diff)), 0);
 }
@@ -120,7 +134,7 @@ function bestExpected(type, attacker, defender, diff, mode) {
  */
 export function chooseAction(type, view, weapon, extra = {}) {
     const { me, foe, mode = 'fight', diff = 0 } = extra;
-    const acts = offeredActions(type, view, weapon, me?.abilities, mode, me?.loadout).filter(a => canPay(view, a));
+    const acts = offeredActions(type, view, weapon, me ? activeAbilities(me) : undefined, mode, me?.loadout).filter(a => canPay(view, a));
     if (!acts.length) return null;
     const attacks = acts.filter(a => !a.self);
     const selfActs = acts.filter(a => a.self);
@@ -151,6 +165,12 @@ export function chooseAction(type, view, weapon, extra = {}) {
             const h = me.view.pools.health;
             if (h) v += Math.min(h.max - h.cur, Math.round(h.max * heal)) / Math.max(1, h.max);
         }
+        if (act.form) {
+            // Entering a form is worth what it adds to the best blow, over the next couple of turns.
+            const inForm = formAbilities(me.abilities, act.form);
+            const gain = bestExpected(type, me, foe, diff, mode, inForm) - bestExpected(type, me, foe, diff, mode);
+            v += Math.max(0, gain) * 2 / theirMax;
+        }
         return v * 0.95 * worth;
     };
 
@@ -176,6 +196,103 @@ export function teamEdge(type, state, actor) {
     const wall = gearRules(type).teams.backToWall;
     const extra = Math.min(Math.max(0, wall.max || 0), Math.max(0, living(state, otherSide(actor.side)).length - living(state, actor.side).length));
     return { hit: extra * (wall.hitPerFoe || 0), mult: 1 + extra * (wall.multPerFoe || 0) };
+}
+
+/**
+ * Crowding (fork, a fight started with crowding on): bodies on one side get in each other's way.
+ * Each friend who has already gone for the same target this round costs the next attacker
+ * teams.crowding.hitPerAttacker on the roll, down to teams.crowding.max. The first attacker on a
+ * target is never crowded, so 1 against 1 and spread-out teams are untouched.
+ * @returns {number} a roll modifier, 0 or below
+ */
+export function crowdPenalty(type, state, actor, target) {
+    if (!state?.crowding || !actor || !target) return 0;
+    const rule = gearRules(type).teams.crowding;
+    const engaged = state.engaged?.round === state.round ? state.engaged.by[target.id] || [] : [];
+    const friends = engaged.filter(id => id !== actor.id && state.fighters[id]?.side === actor.side).length;
+    const per = Number(rule.hitPerAttacker) || 0;
+    const floor = Math.min(0, Number(rule.max) || 0);
+    return Math.max(floor, friends * per) || 0;
+}
+
+/** Notes that this fighter went for that target this round, for crowding. */
+function engage(state, actor, target) {
+    if (!state.crowding) return;
+    if (state.engaged?.round !== state.round) state.engaged = { round: state.round, by: {} };
+    const list = state.engaged.by[target.id] || (state.engaged.by[target.id] = []);
+    if (!list.includes(actor.id)) list.push(actor.id);
+}
+
+/**
+ * What lasting effects do to one blow's roll: the attacker's blindness, and the cover (smoke) the
+ * defender stands in. 0 when neither has any, which is every fight without tools.
+ */
+export function effectHit(attacker, defender) {
+    let hit = 0;
+    for (const e of attacker?.effects || []) if (e.type === 'blind') hit += Number(e.hit) || 0;
+    for (const e of defender?.effects || []) if (e.type === 'cover') hit += Number(e.hit) || 0;
+    return hit;
+}
+
+/** A lasting effect on a fighter. It wears off after `turns` of that fighter's own turns. */
+function addEffect(state, fighter, effect) {
+    if (!fighter.effects) fighter.effects = [];
+    fighter.effects.push({ ...effect, left: Math.max(1, Math.round(Number(effect.left) || 1)), at: state.turnNo || 0 });
+}
+
+/** One of their own turns has ended: effects count down. One put on during this very turn does not. */
+function tickEffects(state, fighter) {
+    if (!fighter?.effects?.length) return;
+    for (const e of fighter.effects) if (e.at !== (state.turnNo || 0)) e.left--;
+    fighter.effects = fighter.effects.filter(e => e.left > 0);
+}
+
+/** The share of their health a fighter has left (1 when the world has no health pool). */
+function healthShare(fighter) {
+    const h = fighter.view.pools.health;
+    return h && h.max > 0 ? h.cur / h.max : 1;
+}
+
+/** A side's standing health, as a share of what it started with in all. */
+function sideShare(state, side) {
+    let cur = 0;
+    let max = 0;
+    for (const f of state.order.map(id => state.fighters[id]).filter(x => x.side === side)) {
+        const h = f.view.pools.health;
+        if (!h) continue;
+        max += h.max;
+        if (!f.down) cur += h.cur;
+    }
+    return max > 0 ? cur / max : 1;
+}
+
+/** When a computer-run fighter runs: below this share of their health ... */
+const RUN_BELOW = 0.2;
+/** ... with their side's standing health under this share of the other side's (outnumbered, or not). */
+const RUN_GAP_OUTNUMBERED = 0.6;
+const RUN_GAP_EVEN = 0.3;
+
+/**
+ * Whether a computer-run fighter turns to run (a fight started with aiFlee only): real fights
+ * only, badly hurt, their side clearly losing, and a fair chance of getting away. One who is not
+ * outnumbered needs to be losing by much more before they give up the field (balance sims: an
+ * even duel should seldom end in running).
+ */
+export function wantsToFlee(type, state, actor) {
+    if (!state?.aiFlee || state.mode !== 'fight' || !actor) return false;
+    if (healthShare(actor) >= RUN_BELOW) return false;
+    const mine = sideShare(state, actor.side);
+    const theirs = sideShare(state, otherSide(actor.side));
+    const outnumbered = livingOf(state, otherSide(actor.side)).length > livingOf(state, actor.side).length;
+    if (mine >= theirs * (outnumbered ? RUN_GAP_OUTNUMBERED : RUN_GAP_EVEN)) return false;
+    const odds = fleeChance(type, state, actor);
+    return Boolean(odds) && odds.chance >= 30;
+}
+
+/** A healing tool a computer-run fighter would reach for now: in a real fight, below a third of their health. */
+function healTool(state, actor) {
+    if (state.mode !== 'fight' || healthShare(actor) >= 0.35) return null;
+    return toolActions(state, actor).find(t => t.usable && t.effect.type === 'heal') || null;
 }
 
 /**
@@ -206,6 +323,16 @@ export function autoTurn(type, state) {
     if (!state || state.over) return null;
     const actor = currentActor(state);
     if (!actor) return null;
+    // New choices, each switched on by what the fight was given: running away, and the belt.
+    if (wantsToFlee(type, state, actor)) {
+        const out = attemptFlee(type, state);
+        return { actor, events: out.events || [] };
+    }
+    const salve = healTool(state, actor);
+    if (salve) {
+        const out = takeTurn(type, state, salve.key, actor.id);
+        if (out.ok) return { actor, events: out.events || [] };
+    }
     const target = pickTarget(type, state, actor);
     const action = target ? chooseAction(type, actor.view, actor.weapon, {
         me: actor, foe: target, mode: state.mode, diff: playerDiff(state, actor),
@@ -272,25 +399,48 @@ function checkOver(state) {
     const sides = [...new Set(state.order.map(id => state.fighters[id].side))];
     for (const side of sides) {
         if (!livingOf(state, side).length) {
-            state.over = { loser: side };
+            // The last of a side to leave got away rather than fell: the side fled the field.
+            const ranOff = state.justFled && state.fighters[state.justFled]?.side === side;
+            state.over = ranOff ? { loser: side, fled: true } : { loser: side };
             return true;
         }
     }
     return false;
 }
 
-/** Moves the turn to the next combatant still standing. A full lap starts the next round. */
+/**
+ * Moves the turn to the next combatant still standing. A full lap starts the next round. A stunned
+ * fighter's turn passes at once (written in the log), and the turn moves on again.
+ */
 function advance(state) {
-    if (checkOver(state)) return;
     const n = state.order.length;
-    for (let step = 1; step <= n; step++) {
-        const idx = (state.turn + step) % n;
-        if (!state.fighters[state.order[idx]].down) {
-            if (idx <= state.turn) state.round++;
-            state.turn = idx;
-            return;
+    for (let hop = 0; hop <= n * 4; hop++) {
+        if (checkOver(state)) return;
+        let moved = false;
+        for (let step = 1; step <= n; step++) {
+            const idx = (state.turn + step) % n;
+            if (!state.fighters[state.order[idx]].down) {
+                if (idx <= state.turn) state.round++;
+                state.turn = idx;
+                moved = true;
+                break;
+            }
         }
+        const next = state.fighters[state.order[state.turn]];
+        if (!moved || !(next?.stun > 0)) return;
+        next.stun--;
+        state.turnNo = (state.turnNo || 0) + 1;
+        state.log.push({ actor: next.id, skip: true, stunned: true, reason: `${next.name} is stunned and loses the turn.` });
+        tickEffects(state, next);
     }
+}
+
+/** The current fighter's turn is over: their effects count down and the next one is up. */
+function endTurn(state, actor) {
+    if (actor) tickEffects(state, actor);
+    state.turnNo = (state.turnNo || 0) + 1;
+    advance(state);
+    state.justFled = null;
 }
 
 /**
@@ -298,8 +448,11 @@ function advance(state) {
  *
  * @param {object} type World type.
  * @param {{ id: string, name: string, side: 'player'|'foe', data: object, weapon?: object }[]} people
- * @param {{ seed?: number, rng?: () => number, mode?: 'spar'|'fight', diff?: number, poolScale?: number }} [opts]
+ * @param {{ seed?: number, rng?: () => number, mode?: 'spar'|'fight', diff?: number, poolScale?: number,
+ *   crowding?: boolean, aiFlee?: boolean }} [opts]
  *   diff is the player's edge. It is added to their rolls and taken off their opponent's.
+ *   crowding turns on the crowding rule (crowdPenalty); aiFlee lets computer-run fighters run away
+ *   (wantsToFlee). Both are off unless given.
  */
 export function startFight(type, people, opts = {}) {
     const seed = (Number(opts.seed) || 0) >>> 0;
@@ -332,6 +485,13 @@ export function startFight(type, people, opts = {}) {
             abilities: gatedAbilities(gearRules(type), abilityList(type), resolveAbilities(type, p.data?.abilities), loadout).filter(ab => !Array.isArray(ab.modes) || ab.modes.includes(mode)),
             shield: 0,
             sig: JSON.stringify([p.data?.stats, p.data?.meta, p.data?.profs, p.data?.abilities, p.weapon, loadout.main, loadout.off, loadout.focus]),
+            // Fork: lasting effects, a stun, running away, a form, and the belt's uses for this fight.
+            effects: [],
+            stun: 0,
+            fled: false,
+            fleeTries: 0,
+            form: null,
+            toolUses: Object.fromEntries((loadout.tools || []).map(t => [t.itemId, Math.max(0, Number(t.uses) || 0)])),
         };
         if (mode === 'spar' && view.pools.guard) fighter.down = view.pools.guard.cur <= 0;
         else fighter.down = (view.pools.health?.cur ?? 1) <= 0;
@@ -353,6 +513,12 @@ export function startFight(type, people, opts = {}) {
         fighters,
         log: [],
         over: null,
+        // Fork: rules a fight is started with. Both off unless asked for, so older fights replay the same.
+        crowding: Boolean(opts.crowding),
+        aiFlee: Boolean(opts.aiFlee),
+        engaged: null,
+        turnNo: 0,
+        justFled: null,
     };
     const first = rolled.findIndex(r => !fighters[r.id].down);
     state.turn = first < 0 ? 0 : first;
@@ -394,8 +560,9 @@ export function takeTurn(type, state, actionKey, targetId) {
     if (!state || state.over) return { ok: false, reason: 'The fight is over.' };
     const actor = currentActor(state);
     if (!actor) return { ok: false, reason: 'Nobody is left to act.' };
+    if (String(actionKey).startsWith('tool:')) return useTool(type, state, actor, String(actionKey).slice(5), targetId);
     const action = actor.gearActions?.byKey.get(actionKey)
-        || [...(type.actions || []), ...abilityActions(actor.abilities, state.mode)].find(a => a.key === actionKey);
+        || [...(type.actions || []), ...abilityActions(activeAbilities(actor), state.mode)].find(a => a.key === actionKey);
     if (!action) {
         const held = String(actionKey).startsWith('ability:') && actor.abilities.find(x => `ability:${x.id}` === actionKey);
         if (held && state.mode === 'spar' && heals(held)) return { ok: false, reason: 'There is no healing in a spar.' };
@@ -415,7 +582,7 @@ export function takeTurn(type, state, actionKey, targetId) {
 
     // The turn opens: passives that heal.
     if (state.mode !== 'spar') {
-        for (const ab of passivesFor(actor.abilities, 'turnStart', state.mode, actor.view)) {
+        for (const ab of passivesFor(activeAbilities(actor), 'turnStart', state.mode, actor.view)) {
             if (!fires(ab, actor.view, foeView, state.rng)) continue;
             const gain = healFighter(actor, Number(ab.effect?.heal));
             if (gain > 0) events.push({ actor: actor.id, target: actor.id, passive: true, label: ab.label, healed: gain, pool: 'health', band: '', taken: 0, down: false });
@@ -429,12 +596,15 @@ export function takeTurn(type, state, actionKey, targetId) {
         let healed = 0;
         if (block > 0) actor.shield = Math.max(actor.shield, Math.min(1, block));
         if (Number(action.effect?.heal) > 0) healed = healFighter(actor, Number(action.effect.heal));
+        // A form: from now on their abilities are the form's (see formAbilities).
+        if (action.form) actor.form = { ...action.form };
         events.push({
             actor: actor.id, target: actor.id, action: action.key, label: action.label, ability: true,
             healed, braced: block > 0 ? block : 0, pool: 'health', band: '', taken: 0, down: false,
+            ...(action.form ? { form: action.form.label } : {}),
         });
         state.log.push(...events);
-        advance(state);
+        endTurn(state, actor);
         return { ok: true, events };
     }
 
@@ -443,10 +613,12 @@ export function takeTurn(type, state, actionKey, targetId) {
     const strike = (follow, hand = 'main') => {
         const off = hand === 'off' ? actor.gearActions?.off : null;
         const edge = teamEdge(type, state, actor);
+        // Crowding and lasting effects: both 0 in a fight that has neither, so the roll is as it was.
+        const press = crowdPenalty(type, state, actor, target) + effectHit(actor, target);
         const result = resolveAttack(type, actor.view, target.view, {
             prof: action.prof, power: off ? off.power : actionPower(action, actor), channel: action.channel,
             ...(action.element && !off ? { element: action.element } : {}),
-        }, { rng: state.rng, diff: playerDiff(state, actor) + edge.hit, gear: off ? off.gear : action.gear });
+        }, { rng: state.rng, diff: playerDiff(state, actor) + edge.hit + press, gear: off ? off.gear : action.gear });
         let damage = result.damage;
         const notes = [];
         let blocked = 0;
@@ -454,7 +626,7 @@ export function takeTurn(type, state, actionKey, targetId) {
         let firedDefend = [];
         if (damage > 0) {
             let mult = blowMult(action.effect, actor.view) * (follow ? followMult : 1) * edge.mult;
-            for (const ab of passivesFor(actor.abilities, 'attack', state.mode, actor.view)) {
+            for (const ab of passivesFor(activeAbilities(actor), 'attack', state.mode, actor.view)) {
                 if (!fires(ab, actor.view, target.view, state.rng)) continue;
                 mult *= blowMult(ab.effect, actor.view);
                 drain += Number(ab.effect?.drain) || 0;
@@ -463,7 +635,7 @@ export function takeTurn(type, state, actionKey, targetId) {
             damage = Math.max(1, Math.round(damage * mult));
             if (target.shield > 0) { blocked = target.shield; target.shield = 0; notes.push('braced'); }
             // Each defending passive is rolled once; what it does (block, heal, counter) all follows from that roll.
-            firedDefend = passivesFor(target.abilities, 'defend', state.mode, target.view)
+            firedDefend = passivesFor(activeAbilities(target), 'defend', state.mode, target.view)
                 .filter(ab => fires(ab, target.view, actor.view, state.rng));
             for (const ab of firedDefend) {
                 const share = Number(ab.effect?.block) || 0;
@@ -504,7 +676,7 @@ export function takeTurn(type, state, actionKey, targetId) {
                 if (!back) continue;
                 const r = resolveAttack(type, target.view, actor.view, {
                     prof: back.prof, power: actionPower(back, target), channel: back.channel,
-                }, { rng: state.rng, diff: playerDiff(state, target), gear: back.gear });
+                }, { rng: state.rng, diff: playerDiff(state, target) + effectHit(target, actor), gear: back.gear });
                 const dealt = r.damage > 0 ? Math.max(1, Math.round(r.damage * strength)) : 0;
                 const hitBack = applyDamage(actor, dealt, state.mode);
                 events.push({
@@ -520,8 +692,9 @@ export function takeTurn(type, state, actionKey, targetId) {
     strike(false);
     if (action.weapon && actor.gearActions?.off && !target.down && !actor.down) strike(false, 'off');
     if (!target.down && !actor.down && grantsFollowUp(type, actor.view, target.view, state.rng)) strike(true);
+    engage(state, actor, target);
     state.log.push(...events);
-    advance(state);
+    endTurn(state, actor);
     return { ok: true, events };
 }
 
@@ -530,6 +703,191 @@ export function skipTurn(state, reason) {
     if (!state || state.over) return { ok: false, reason: 'The fight is over.' };
     const actor = currentActor(state);
     state.log.push({ actor: actor?.id, skip: true, reason: reason || 'Cannot act.' });
-    advance(state);
+    endTurn(state, actor);
     return { ok: true };
+}
+
+/* ---- tools on the belt (fork) ------------------------------------------------------- */
+
+const OFFENSIVE = new Set(['damage', 'blind', 'stun']);
+
+/**
+ * The belt as turn choices for one fighter: a `tool:<itemId>` action per tool, with how many uses
+ * are left in this fight and whether it can be used now. Uses are counted per fight: the belt is
+ * full again for the next one, and nothing is written back to the sheet. No tool works in a spar.
+ * @returns {{ key: string, itemId: string, label: string, name: string, verb: string, effect: object,
+ *   uses: number, usable: boolean, reason: string, needsTarget: boolean }[]}
+ */
+export function toolActions(state, fighter) {
+    const out = [];
+    for (const t of fighter?.loadout?.tools || []) {
+        const uses = Number(fighter.toolUses?.[t.itemId]) || 0;
+        const e = t.effect || {};
+        let reason = '';
+        if (state?.mode === 'spar') reason = 'Tools stay on the belt in a spar.';
+        else if (uses <= 0) reason = 'Used up for this fight.';
+        else if (e.type === 'heal' && !needsHealing(state, fighter, e)) reason = 'Nobody it would help is hurt.';
+        out.push({
+            key: `tool:${t.itemId}`, itemId: t.itemId, label: t.name, name: t.name, verb: t.verb || 'uses', effect: e,
+            uses, usable: !reason, reason, needsTarget: OFFENSIVE.has(e.type) && (e.area || 'one') === 'one', tool: true,
+        });
+    }
+    return out;
+}
+
+function needsHealing(state, fighter, e) {
+    const who = e.area === 'self' || !e.area ? [fighter] : livingOf(state, fighter.side);
+    return who.some(f => { const h = f.view.pools.health; return h && h.cur < h.max; });
+}
+
+/** A tool's chance (0 to 100): a number, a formula over a (the user) and d (the target), or sure. */
+function toolChance(e, user, target) {
+    if (e.chance === undefined || e.chance === null || e.chance === '') return 100;
+    const pct = typeof e.chance === 'string' ? abilityChance(e.chance, user.view, target.view) : Number(e.chance);
+    return Math.max(0, Math.min(100, Number(pct) || 0));
+}
+
+/** The channel a thrown tool hits through: the world's first (its physical one). */
+const toolChannel = (type) => (type.channels || [])[0]?.id;
+
+/**
+ * Uses a tool from the belt in place of an attack. Damage tools roll like a blow with the tool's
+ * power and no weapon; blind and stun roll their chance; smoke covers the user's side (harder to
+ * hit, easier to get away); a salve heals. Then the turn passes.
+ */
+function useTool(type, state, actor, itemId, targetId) {
+    const tool = toolActions(state, actor).find(t => t.itemId === itemId);
+    if (!tool) return { ok: false, reason: 'That is not on the belt.' };
+    if (!tool.usable) return { ok: false, reason: tool.reason };
+    const e = tool.effect;
+    const area = e.area || 'one';
+    let targets;
+    if (OFFENSIVE.has(e.type)) {
+        if (area === 'one') {
+            const t = state.fighters[targetId];
+            if (!t || t.side === actor.side || t.down) return { ok: false, reason: 'Pick someone still standing on the other side.' };
+            targets = [t];
+        } else targets = livingOf(state, otherSide(actor.side));
+    } else targets = area === 'self' ? [actor] : livingOf(state, actor.side);
+
+    actor.toolUses[itemId] = Math.max(0, (Number(actor.toolUses[itemId]) || 0) - 1);
+    const events = [];
+    const base = { actor: actor.id, tool: true, toolType: e.type, label: tool.name, verb: tool.verb, usesLeft: actor.toolUses[itemId] };
+    for (const t of targets) {
+        const ev = { ...base, target: t.id, band: '', taken: 0, damage: 0, pool: 'health', down: false, landed: true };
+        if (e.type === 'damage') {
+            const r = resolveAttack(type, actor.view, t.view, { prof: '', power: Number(e.power) || 0, channel: toolChannel(type) },
+                { rng: state.rng, diff: playerDiff(state, actor) + effectHit(actor, t) });
+            const applied = applyDamage(t, r.damage, state.mode);
+            Object.assign(ev, { band: r.band, total: r.total, natural: r.natural, damage: r.damage, pool: applied.pool, taken: applied.taken, down: applied.down });
+            if (Number(e.slow) > 0 && !t.down) { addEffect(state, t, { type: 'slow', slow: Number(e.slow), left: e.turns || 1 }); ev.slowed = Number(e.slow); }
+        } else if (e.type === 'blind' || e.type === 'stun') {
+            const pct = toolChance(e, actor, t);
+            ev.chance = Math.round(pct);
+            ev.landed = state.rng() * 100 < pct;
+            if (ev.landed && e.type === 'blind') addEffect(state, t, { type: 'blind', hit: Number(e.hit ?? -3), left: e.turns || 1 });
+            if (ev.landed && e.type === 'stun') t.stun = Math.max(t.stun || 0, Math.max(1, Math.round(Number(e.turns) || 1)));
+        } else if (e.type === 'smoke') {
+            addEffect(state, t, { type: 'cover', hit: Number(e.hit ?? -3), flee: Number(e.flee) || 0, left: e.turns || 1 });
+        } else if (e.type === 'heal') {
+            ev.healed = healFighter(t, Number(e.share) || 0.25);
+        }
+        events.push(ev);
+    }
+    state.log.push(...events);
+    endTurn(state, actor);
+    return { ok: true, events };
+}
+
+/* ---- running away (fork) ------------------------------------------------------------ */
+
+/** How quick and lucky a fighter is, for a chase: speed, plus half their luck where the world has one. */
+function agility(view) {
+    const read = (id) => { try { return Number(view.role(id)) || 0; } catch { return 0; } };
+    return read('speed') + 0.5 * read('luck');
+}
+
+/**
+ * The odds of getting away, before the roll. The gear's flee numbers:
+ *   base + perSpeed x (my agility - the quickest pursuer's) + perCover x friends who stay (two at most)
+ *   + the cover smoke gives + perTry x earlier tries - perExtraFoe x each pursuer after the first,
+ * kept between min and max. A pursuer who is stunned does not chase; one slowed is slower.
+ * Null in a spar (there you yield) or when the fight is over.
+ * @returns {{ chance: number, pursuers: object[], quickest: object|null } | null}
+ */
+export function fleeChance(type, state, actor) {
+    if (!state || state.over || state.mode === 'spar' || !actor || actor.down) return null;
+    const r = gearRules(type).flee;
+    const pursuers = livingOf(state, otherSide(actor.side)).filter(f => !(f.stun > 0));
+    let quickest = null;
+    let best = -Infinity;
+    for (const p of pursuers) {
+        const slow = (p.effects || []).filter(e => e.type === 'slow').reduce((s, e) => s + (Number(e.slow) || 0), 0);
+        const a = agility(p.view) - slow;
+        if (a > best) { best = a; quickest = p; }
+    }
+    const mine = agility(actor.view);
+    const friends = Math.min(2, livingOf(state, actor.side).filter(f => f !== actor).length);
+    const smoke = Math.max(0, ...(actor.effects || []).filter(e => e.type === 'cover').map(e => Number(e.flee) || 0));
+    const raw = r.base
+        + (quickest ? r.perSpeed * (mine - best) : 0)
+        + r.perCover * friends
+        + smoke
+        + r.perTry * (actor.fleeTries || 0)
+        - r.perExtraFoe * Math.max(0, pursuers.length - 1);
+    const chance = pursuers.length ? Math.round(Math.max(r.min, Math.min(r.max, raw))) : 100;
+    return { chance, pursuers, quickest };
+}
+
+/**
+ * The current fighter tries to run. One roll against fleeChance:
+ *   missed        they are caught: the turn is lost, and the next try is easier (perTry)
+ *   made it       they get away; unless it was clean (cleanMargin under the chance), the quickest
+ *                 pursuer lands a parting blow at partingMult first, and one that drops them ends it
+ * A fighter who gets away is out of the fight (fled), not fallen. When the last of a side runs,
+ * the fight is over and that side fled (state.over.fled).
+ * @returns {{ ok: boolean, reason?: string, events?: object[], escaped?: boolean }}
+ */
+export function attemptFlee(type, state) {
+    if (!state || state.over) return { ok: false, reason: 'The fight is over.' };
+    const actor = currentActor(state);
+    if (!actor) return { ok: false, reason: 'Nobody is left to act.' };
+    const odds = fleeChance(type, state, actor);
+    if (!odds) return { ok: false, reason: 'There is no running from a spar: yield instead.' };
+    const r = gearRules(type).flee;
+    const roll = state.rng() * 100;
+    const events = [];
+    const ev = { actor: actor.id, target: actor.id, flee: true, chance: odds.chance, band: '', taken: 0, pool: 'health', down: false };
+    if (roll >= odds.chance) {
+        actor.fleeTries = (actor.fleeTries || 0) + 1;
+        events.push({ ...ev, escaped: false });
+    } else {
+        const clean = odds.chance - roll >= r.cleanMargin;
+        const chaser = odds.quickest;
+        if (!clean && chaser) {
+            const back = offeredActions(type, chaser.view, chaser.weapon, [], state.mode, chaser.loadout).find(x => !x.self && !(x.cost?.amount));
+            if (back) {
+                const hit = resolveAttack(type, chaser.view, actor.view, { prof: back.prof, power: actionPower(back, chaser), channel: back.channel },
+                    { rng: state.rng, diff: playerDiff(state, chaser) + effectHit(chaser, actor), gear: back.gear });
+                const dealt = hit.damage > 0 ? Math.max(1, Math.round(hit.damage * r.partingMult)) : 0;
+                const applied = applyDamage(actor, dealt, state.mode);
+                events.push({
+                    actor: chaser.id, target: actor.id, action: back.key, label: back.label, parting: true,
+                    weapon: back.weapon ? '' : (chaser.weaponName || ''), follow: false, band: hit.band, total: hit.total, natural: hit.natural,
+                    damage: dealt, advantage: [], pool: applied.pool, taken: applied.taken, down: applied.down,
+                    passives: [], blocked: 0, healed: 0, drained: 0,
+                });
+            }
+        }
+        if (actor.down) events.push({ ...ev, escaped: false, cutDown: true });
+        else {
+            actor.fled = true;
+            actor.down = true;
+            state.justFled = actor.id;
+            events.push({ ...ev, escaped: true, clean });
+        }
+    }
+    state.log.push(...events);
+    endTurn(state, actor);
+    return { ok: true, events, escaped: Boolean(actor.fled) };
 }

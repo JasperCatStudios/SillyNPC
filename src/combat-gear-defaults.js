@@ -63,12 +63,12 @@ export const GENERIC_TOOLS = Object.freeze([
 /** Dual wielding: the second blade strikes for less and misses more. */
 export const GENERIC_DUAL = Object.freeze({ offMult: 0.5, offHit: -3 });
 
-/** Fleeing (used by a later phase; kept here so the numbers live with the rest of the gear data). */
+/** Fleeing (fleeChance and attemptFlee in combat-fight.js; kept here so the numbers live with the rest of the gear data). */
 export const GENERIC_FLEE = Object.freeze({
     base: 45, perSpeed: 1, perCover: 15, perTry: 10, perExtraFoe: 8, min: 5, max: 95, cleanMargin: 30, partingMult: 0.5,
 });
 
-/** Team fights (used by a later phase). */
+/** Team fights: back to the wall (teamEdge) and crowding (crowdPenalty, only in a fight started with it). */
 export const GENERIC_TEAMS = Object.freeze({
     maxPerSide: 4,
     backToWall: Object.freeze({ hitPerFoe: 1, multPerFoe: 0.1, max: 3 }),

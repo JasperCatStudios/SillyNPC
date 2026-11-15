@@ -418,6 +418,7 @@
 .snpc-hist-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: rgba(255, 252, 244, 0.7); border: 1px solid #d3c49f; border-left: 4px solid #b9a679; border-radius: 8px; }
 .snpc-hist-row.is-won { border-left-color: #3a7d44; }
 .snpc-hist-row.is-lost { border-left-color: #8a2c2c; }
+.snpc-hist-row.is-fled { border-left-color: #8a6a2c; }
 .snpc-hist-top { display: flex; align-items: center; gap: 8px; }
 .snpc-hist-top b { flex: 1; }
 .snpc-hist-addtitle { font-family: var(--rpg-type, monospace); color: #6b1f1f; margin-top: 6px; }
@@ -533,3 +534,25 @@
 }
 .snpc-fight-teams .snpc-fight-person { padding: 6px; gap: 6px; }
 .snpc-fight-teams .snpc-fight-face { width: 36px; height: 36px; flex: none; }
+
+/* Fighting with a team, tools and running (fork). */
+.snpc-fight-playteams > .snpc-fight-pace { grid-column: 1 / -1; }
+.snpc-fight-rules { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 8px; }
+.snpc-fight-rule { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.snpc-fight-target select { width: auto; max-width: 100%; }
+.snpc-fight .menu_button.is-tool { border-color: #2f6b3a; }
+.snpc-fight .menu_button.is-flee { border-color: #8a6a2c; }
+
+/* World type editor: a form, so fields stack and rows of inputs wrap on a narrow window. */
+.sillynpc-te-section { margin: 14px 0; padding-top: 4px; border-top: 1px solid var(--sillynpc-border, rgba(128, 128, 128, 0.35)); }
+.sillynpc-te-field { display: flex; flex-direction: column; gap: 3px; margin: 8px 0; }
+.sillynpc-te-title { font-weight: 600; }
+.sillynpc-te-help { display: block; opacity: 1; color: var(--sillynpc-fg-secondary, inherit); }
+.sillynpc-te-rows { display: flex; flex-direction: column; gap: 6px; }
+.sillynpc-te-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; align-items: center; }
+.sillynpc-te-row-head { font-size: 0.85em; }
+.sillynpc-te-pool { margin: 10px 0; padding: 8px; border: 1px solid var(--sillynpc-border, rgba(128, 128, 128, 0.35)); border-radius: 6px; }
+.sillynpc-te-area { font-family: monospace; width: 100%; box-sizing: border-box; }
+.sillynpc-te-status { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+.sillynpc-te-toolbar { margin: 6px 0 12px; }
+.sillynpc-te-toolbar .sillynpc-actions, .sillynpc-combat-type .sillynpc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }

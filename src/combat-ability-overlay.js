@@ -66,7 +66,12 @@ export function normalizeAbility(raw) {
         if (names(nd.kind).length) needs.kind = names(nd.kind);
         if (str(nd.tier, 40)) needs.tier = str(nd.tier, 40);
         if (str(nd.ladder, 40)) needs.ladder = str(nd.ladder, 40);
+        if (str(nd.form, 40)) needs.form = str(nd.form, 40);
         if (Object.keys(needs).length) out.needs = needs;
+    }
+    // A form this ability puts its user in (combat-abilities.js formAbilities). Only a defensive one can.
+    if (kind === 'defensive' && a.form && typeof a.form === 'object' && str(a.form.id, 40)) {
+        out.form = { id: str(a.form.id, 40), label: str(a.form.label, 60) || out.label, swap: Boolean(a.form.swap) };
     }
     return out;
 }

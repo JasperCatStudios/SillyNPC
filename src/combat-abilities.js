@@ -71,6 +71,33 @@ export function passivesFor(abilities, trigger, mode, view) {
         && (!num(a.whenBelow) || !view || (1 - missingShare(view)) < num(a.whenBelow)));
 }
 
+/**
+ * Forms (fork): states a fighter enters during a fight that change which abilities they have.
+ * `needs` covers what a held weapon allows, which is fixed when the fight starts; a form is entered
+ * by an action mid-fight (a Resurrección, a mask, a union), so it needs its own rule.
+ *
+ *   form: { id, label, swap }   on a defensive ability: using it puts its user in that form
+ *   needs: { form: id }         an ability only usable while in that form
+ *   swap: true                  while in the form, every ability that does not need it is put away
+ *                               (passives too); without swap the form only adds its own
+ *
+ * A fighter in no form has every ability that needs no form, which with no form data anywhere is
+ * all of them, so worlds without forms are untouched.
+ *
+ * @param {object[]} abilities the fighter's abilities, as gated at the start of the fight
+ * @param {{ id: string, swap?: boolean }|null} form the form they are in, or null
+ */
+export function formAbilities(abilities, form) {
+    const list = Array.isArray(abilities) ? abilities : [];
+    if (!list.some(a => a?.needs?.form || a?.form)) return list;
+    if (!form?.id) return list.filter(a => !a?.needs?.form);
+    return list.filter((a) => {
+        if (a?.form?.id === form.id) return false; // already in it
+        if (a?.needs?.form) return a.needs.form === form.id;
+        return !form.swap;
+    });
+}
+
 /** The abilities offered as turn choices, shaped like actions. No healing in a spar. */
 export function abilityActions(abilities, mode) {
     const out = [];
@@ -78,7 +105,10 @@ export function abilityActions(abilities, mode) {
         if (a.kind === 'passive') continue;
         if (a.kind === 'defensive') {
             if (mode === 'spar' && heals(a)) continue;
-            out.push({ key: `ability:${a.id}`, label: a.label, ability: true, self: true, cost: a.cost, effect: a.effect || {}, desc: a.desc });
+            out.push({
+                key: `ability:${a.id}`, label: a.label, ability: true, self: true, cost: a.cost, effect: a.effect || {}, desc: a.desc,
+                ...(a.form?.id ? { form: { id: String(a.form.id), label: String(a.form.label || a.label), swap: Boolean(a.form.swap) } } : {}),
+            });
         } else {
             out.push({
                 key: `ability:${a.id}`, label: a.label, ability: true, prof: a.prof, power: num(a.power),
@@ -137,9 +167,14 @@ export function validateAbilities(type, validateExpr) {
             if (!n || typeof n !== 'object' || Array.isArray(n)) errors.push(`${name} needs must be an object.`);
             else {
                 for (const k of ['weapon', 'kind', 'together']) if (n[k] !== undefined && !(Array.isArray(n[k]) && n[k].every(x => typeof x === 'string' && x))) errors.push(`${name} needs.${k} must be a list of names.`);
-                for (const k of ['tier', 'ladder']) if (n[k] !== undefined && typeof n[k] !== 'string') errors.push(`${name} needs.${k} must be a name.`);
-                if (!n.weapon?.length && !n.together?.length && !n.kind?.length && !n.tier && !n.ladder) warnings.push(`${name} has an empty needs, so it is never held back.`);
+                for (const k of ['tier', 'ladder', 'form']) if (n[k] !== undefined && typeof n[k] !== 'string') errors.push(`${name} needs.${k} must be a name.`);
+                if (!n.weapon?.length && !n.together?.length && !n.kind?.length && !n.tier && !n.ladder && !n.form) warnings.push(`${name} has an empty needs, so it is never held back.`);
+                if (typeof n.form === 'string' && n.form && !abilityList(type).some(x => x?.form?.id === n.form)) warnings.push(`${name} needs the form "${n.form}", which no ability enters.`);
             }
+        }
+        if (a.form !== undefined) {
+            if (!a.form || typeof a.form !== 'object' || typeof a.form.id !== 'string' || !a.form.id) errors.push(`${name} form needs an id.`);
+            else if (a.kind !== 'defensive') errors.push(`${name} enters a form, so it must be defensive (used on its owner).`);
         }
         if (num(e.drain) > 0 && a.kind === 'defensive') errors.push(`${name} drain needs a blow to take from.`);
     }

@@ -79,6 +79,24 @@ export function normalizeCombatBlock(raw) {
     };
 }
 
+/**
+ * A character's combat block as it travels in a character file: the sheet and the gear, without
+ * the edit history (timestamps of this machine) or the leftovers the type could not place.
+ * Null when there is nothing to send.
+ */
+export function portableCombat(raw) {
+    const block = normalizeCombatBlock(raw);
+    const types = {};
+    for (const [key, data] of Object.entries(block.types)) {
+        const copy = structuredClone(data);
+        copy.history = [];
+        copy.unknown = {};
+        delete copy.source;
+        types[key] = copy;
+    }
+    return Object.keys(types).length ? { ...block, types, conditions: [], dead: false } : null;
+}
+
 /** The data for one type, read-only: an empty shape when the record has none. Never mutates. */
 export function getTypeData(record, dataKey) {
     const held = record?.combat?.types?.[dataKey];

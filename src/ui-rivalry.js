@@ -1,7 +1,7 @@
 import { name1 } from '../../../../../script.js';
 import { listRecords, addRecord, updateRecord, removeRecord } from './rivalry.js';
 import {
-    tally, tallyVsPlayer, tallyText, sideList, sideNames, sideOf, tookPart, knowsOf, peopleIn, sidesText,
+    tally, tallyVsPlayer, tallyText, sideList, sideNames, sideOf, tookPart, knowsOf, peopleIn, sidesText, ranFrom,
 } from './rivalry-core.js';
 
 import { PRODUCT_NAME } from './constants.js';
@@ -67,10 +67,11 @@ function sidesPatch(aInput, bInput, userSide, player) {
     return { sideA: a, sideB: b, userSide, player: userSide ? me : '' };
 }
 
-/** won / lost / draw for the row's colour: from the chosen person's side, else the player's. */
+/** won / lost / draw / fled for the row's colour: from the chosen person's side, else the player's. */
 function rowResult(r, person) {
     const side = person ? sideOf(r, person) : r.userSide;
     if (!side) return 'others';
+    if (ranFrom(r, person || r.player)) return 'fled';
     if (r.winner === 'draw') return 'draw';
     return r.winner === side ? 'won' : 'lost';
 }
@@ -150,6 +151,13 @@ function recordRow(r, filter) {
     mine.addEventListener('change', saveSides);
     sides.append(sideA, el('span', 'notes', 'vs'), sideB, mine);
 
+    // Who ran from it (fork): names, comma separated. Each counts it as fled, not won or lost.
+    const fled = el('input', 'text_pole snpc-hist-fled');
+    fled.value = (r.fled || []).join(', ');
+    fled.placeholder = 'Who fled (optional)';
+    fled.title = 'People who ran from the fight. The winner is still the side that held the field.';
+    fled.addEventListener('change', () => { updateRecord(r.id, { fled: sideList(fled.value) }); redraw(); });
+
     const summary = el('input', 'text_pole');
     summary.value = r.summary;
     summary.placeholder = 'What happened';
@@ -158,7 +166,7 @@ function recordRow(r, filter) {
     note.value = r.note;
     note.placeholder = 'Your note (they are told it)';
     note.addEventListener('change', () => updateRecord(r.id, { note: note.value }));
-    row.append(top, sides, summary, note);
+    row.append(top, sides, ...(r.kind === 'combat' ? [fled] : []), summary, note);
     return row;
 }
 
