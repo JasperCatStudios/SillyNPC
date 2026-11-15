@@ -260,7 +260,11 @@ function fighterCard(fighter) {
     card.append(face);
     const info = el('div', 'snpc-fight-info');
     info.append(el('div', 'snpc-fight-name', fighter.name));
-    if (fighter.weapon?.name) info.append(el('div', 'snpc-fight-weapon', fighter.weapon.name));
+    if (fighter.weaponName) {
+        // The real weapon, with its tier when it is a tiered one (a default fist has none).
+        const tier = fighter.loadout && !fighter.loadout.main.default ? fighter.loadout.main.tierLabel : '';
+        info.append(el('div', 'snpc-fight-weapon', tier ? `${fighter.weaponName} · ${tier}` : fighter.weaponName));
+    }
     for (const [role, pool] of Object.entries(fighter.view.pools)) {
         const row = el('div', 'snpc-fight-pool');
         row.append(el('span', 'snpc-fight-pool-label', pool.abbr || pool.label));
@@ -291,12 +295,13 @@ function describe(event) {
     }
     const band = BANDS[event.band] || event.band;
     const how = event.weapon ? `${event.label}, ${event.weapon}` : event.label;
-    const lead = event.counter ? `${actor.name} strikes back (${event.label})` : event.follow ? `${actor.name} follows up` : `${actor.name} — ${how}`;
+    const lead = event.counter ? `${actor.name} strikes back (${event.label})` : event.offhand ? `${actor.name} strikes again with the second blade (${event.label})` : event.follow ? `${actor.name} follows up` : `${actor.name} — ${how}`;
     const edge = event.advantage?.length ? ` (${event.advantage.join(', ')})` : '';
     const pool = target.view.pools[event.pool];
     const amount = pool && asPercent(event.pool) ? `${Math.max(1, Math.round((event.taken / pool.max) * 100))}%` : event.taken;
     const extras = [];
     if (event.passives?.length) extras.push(event.passives.join(', '));
+    if (event.gearCrit) extras.push('finds a weak point');
     if (event.blocked > 0) extras.push(`${event.blocked}% blocked`);
     if (event.healed > 0) extras.push(`recovers ${Math.max(1, Math.round((event.healed / target.view.pools.health.max) * 100))}% health`);
     if (event.drained > 0) extras.push(`${actor.name} drains ${Math.max(1, Math.round((event.drained / actor.view.pools.health.max) * 100))}% health`);
@@ -329,7 +334,7 @@ function reportText() {
         for (const [role, pool] of Object.entries(f.view.pools)) {
             parts.push(`${pool.label} ${asPercent(role) ? `${percentOf(pool.cur, pool.max)}%` : `${Math.round(pool.cur)}/${pool.max}`}`);
         }
-        lines.push(`${f.name}${f.weapon?.name ? ` (${f.weapon.name})` : ''}: ${parts.join(', ')}.`);
+        lines.push(`${f.name}${f.weaponName ? ` (${f.weaponName})` : ''}: ${parts.join(', ')}.`);
     }
     for (const line of xpLines()) lines.push(line);
     lines.push('Blow by blow:');
@@ -422,7 +427,7 @@ function drawBattle(body) {
     if (!target) return;
     body.append(el('p', 'snpc-fight-turn', `${state.log.length ? 'Your turn' : 'You go first'}, against ${target.name}.`));
     const row = el('div', 'snpc-fight-actions');
-    const mine = offeredActions(type, actor.view, actor.weapon, actor.abilities, state.mode);
+    const mine = offeredActions(type, actor.view, actor.weapon, actor.abilities, state.mode, actor.loadout);
     if (!mine.length) row.append(el('p', 'notes', 'This world type has no actions.'));
     for (const action of mine) {
         const affordable = canPay(actor.view, action);

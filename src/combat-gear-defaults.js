@@ -29,15 +29,17 @@ export const GENERIC_TIERS = Object.freeze([
 export const GENERIC_LADDER = Object.freeze({ label: 'Tier', defaultTier: 'common', tiers: GENERIC_TIERS });
 
 /**
- * Kinds: what a weapon or focus is.
+ * Kinds: what a weapon or focus is. A kind's power and hit are RELATIVE to the world's basic attack
+ * for its proficiency (so a plain sword of a world whose basic sword attack is already balanced is 0 and 0);
+ * when the world has no basic attack for the proficiency (archery, brawling), they stand on their own.
  *   slot   hand (held, one or two hands), focus (a book or staff: takes no hand), natural (fists, claws)
  *   hands  how many hands a hand weapon needs
  *   prof   the proficiency it is used with (set by a world; empty here)
  */
 export const GENERIC_KINDS = Object.freeze([
-    { id: 'weapon', label: 'Weapon', slot: 'hand', hands: 1, dualable: true, range: 'melee', power: 5, hit: 0, weight: 5, verb: 'strikes' },
-    { id: 'fists', label: 'Fists', slot: 'natural', hands: 0, dualable: false, range: 'melee', power: 2, hit: 2, weight: 0, verb: 'strikes' },
-    { id: 'focus', label: 'Focus', slot: 'focus', hands: 0, dualable: false, range: 'ranged', power: 3, hit: 0, weight: 1, verb: 'channels' },
+    { id: 'weapon', label: 'Weapon', slot: 'hand', hands: 1, dualable: true, range: 'melee', power: 0, hit: 0, weight: 5, verb: 'strikes' },
+    { id: 'fists', label: 'Fists', slot: 'natural', hands: 0, dualable: false, range: 'melee', power: 0, hit: 0, weight: 0, verb: 'strikes' },
+    { id: 'focus', label: 'Focus', slot: 'focus', hands: 0, dualable: false, range: 'ranged', power: 0, hit: 0, weight: 1, verb: 'channels' },
 ]);
 
 /** Tools: consumables used instead of an attack. Effect types are listed in TOOL_EFFECTS. */

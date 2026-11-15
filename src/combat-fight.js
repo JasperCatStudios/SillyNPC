@@ -2,6 +2,8 @@ import { mulberry32 } from './combat-formula.js';
 import { project } from './combat-roles.js';
 import { resolveAttack, rollInitiative, grantsFollowUp, previewOdds } from './combat-math.js';
 import { resolveAbilities, abilityActions, passivesFor, fires, heals, blowMult } from './combat-abilities.js';
+import { resolveLoadout, weaponName } from './combat-gear.js';
+import { buildGearActions } from './combat-weapons.js';
 
 /**
  * One fight (fork): who goes when, what they may do, and where the damage lands.
@@ -32,7 +34,7 @@ function visibleProfIds(type, view) {
  * Actions this combatant can choose. Trained weapons and spells come first. With none, every
  * action on their card is offered untrained, so a fight can still start.
  */
-export function offeredActions(type, view, weapon, abilities = [], mode = 'fight') {
+export function offeredActions(type, view, weapon, abilities = [], mode = 'fight', loadout = null) {
     const visible = visibleProfIds(type, view);
     const actions = (type.actions || []).filter(a => !a.prof || visible.has(a.prof));
     const held = new Set(view.profs
@@ -42,7 +44,12 @@ export function offeredActions(type, view, weapon, abilities = [], mode = 'fight
     const pool = trained.length ? trained : actions;
     // A weapon names the proficiency it is used with: only that kind of action is offered.
     const withWeapon = weapon?.prof ? pool.filter(a => a.prof === weapon.prof) : [];
-    return [...(withWeapon.length ? withWeapon : pool), ...abilityActions(abilities, mode)];
+    const base = [...(withWeapon.length ? withWeapon : pool), ...abilityActions(abilities, mode)];
+    // Holding a weapon: its own attack, named after it, stands in for the world's basic one.
+    const gear = loadout ? buildGearActions(type, loadout) : null;
+    if (!gear || (!gear.weapon && !gear.focus.length)) return base;
+    const rest = base.filter(a => !gear.replaces.has(a.key) && !gear.byKey.has(a.key));
+    return [...(gear.weapon ? [gear.weapon] : []), ...rest, ...gear.focus];
 }
 
 /** Whether the combatant can pay the action's cost from a pool they have. */
@@ -54,14 +61,27 @@ export function canPay(view, action) {
     return Boolean(pool) && pool.cur >= amount;
 }
 
+/**
+ * An action's power for this fighter. A weapon action already carries the weapon's own power; any
+ * other action adds the old weapon bonus, as it always has.
+ */
+function actionPower(action, fighter) {
+    return (Number(action.power) || 0) + (action.weapon ? 0 : (Number(fighter.weapon?.power) || 0));
+}
+
+/** The weapon's numbers for expected damage: its hit and multiplier, but not the crit die. */
+function gearForPreview(action) {
+    return action.gear ? { hit: action.gear.hit, crit: 0, mult: action.gear.mult } : null;
+}
+
 const oddsCache = new Map();
 
 /** Expected damage of one action, cached: it depends on the two sheets, not on how hurt anyone is. */
 function expectedDamage(type, me, foe, action, diff) {
     const key = `${type.id}|${me.sig}|${foe.sig}|${action.key}|${diff}`;
     if (!oddsCache.has(key)) {
-        const power = (Number(action.power) || 0) + (Number(me.weapon?.power) || 0);
-        const out = previewOdds(type, me.view, foe.view, { prof: action.prof, power, channel: action.channel }, { diff });
+        const power = actionPower(action, me);
+        const out = previewOdds(type, me.view, foe.view, { prof: action.prof, power, channel: action.channel }, { diff, gear: gearForPreview(action) });
         if (oddsCache.size > 4000) oddsCache.clear();
         oddsCache.set(key, out.expected);
     }
@@ -79,7 +99,7 @@ function costFactor(view, action) {
 
 /** The best expected damage an attacker could do to a defender right now. */
 function bestExpected(type, attacker, defender, diff, mode) {
-    const acts = offeredActions(type, attacker.view, attacker.weapon, attacker.abilities, mode)
+    const acts = offeredActions(type, attacker.view, attacker.weapon, attacker.abilities, mode, attacker.loadout)
         .filter(a => !a.self && canPay(attacker.view, a));
     return acts.reduce((m, a) => Math.max(m, expectedDamage(type, attacker, defender, a, diff)), 0);
 }
@@ -98,7 +118,7 @@ function bestExpected(type, attacker, defender, diff, mode) {
  */
 export function chooseAction(type, view, weapon, extra = {}) {
     const { me, foe, mode = 'fight', diff = 0 } = extra;
-    const acts = offeredActions(type, view, weapon, me?.abilities, mode).filter(a => canPay(view, a));
+    const acts = offeredActions(type, view, weapon, me?.abilities, mode, me?.loadout).filter(a => canPay(view, a));
     if (!acts.length) return null;
     const attacks = acts.filter(a => !a.self);
     const selfActs = acts.filter(a => a.self);
@@ -241,11 +261,19 @@ export function startFight(type, people, opts = {}) {
                 pool.cur = pool.cur > 0 ? Math.min(pool.max, Math.max(1, Math.round(pool.cur * poolScale))) : 0;
             }
         }
+        const loadout = resolveLoadout(type, p.data, { weapon: p.weapon });
+        const gearActions = buildGearActions(type, loadout);
         const fighter = {
-            id: p.id, name: p.name, side: p.side === 'player' ? 'player' : 'foe', view, down: false, weapon: p.weapon || null,
+            id: p.id, name: p.name, side: p.side === 'player' ? 'player' : 'foe', view, down: false,
+            // A fighter who holds gear but was given no old-style weapon still names a proficiency, so the
+            // weapon is the attack and the world's other basic attacks are not offered beside it.
+            weapon: p.weapon || (loadout.main.default ? null : { name: loadout.main.name, prof: loadout.main.prof, power: 0 }),
+            loadout, gearActions,
+            // What they hold, in words, for the screen and the report: only when they really hold something.
+            weaponName: loadout.main.default ? (p.weapon?.name || '') : weaponName(loadout),
             abilities: resolveAbilities(type, p.data?.abilities).filter(ab => !Array.isArray(ab.modes) || ab.modes.includes(mode)),
             shield: 0,
-            sig: JSON.stringify([p.data?.stats, p.data?.meta, p.data?.profs, p.data?.abilities, p.weapon]),
+            sig: JSON.stringify([p.data?.stats, p.data?.meta, p.data?.profs, p.data?.abilities, p.weapon, loadout.main, loadout.off, loadout.focus]),
         };
         if (mode === 'spar' && view.pools.guard) fighter.down = view.pools.guard.cur <= 0;
         else fighter.down = (view.pools.health?.cur ?? 1) <= 0;
@@ -308,7 +336,8 @@ export function takeTurn(type, state, actionKey, targetId) {
     if (!state || state.over) return { ok: false, reason: 'The fight is over.' };
     const actor = currentActor(state);
     if (!actor) return { ok: false, reason: 'Nobody is left to act.' };
-    const action = [...(type.actions || []), ...abilityActions(actor.abilities, state.mode)].find(a => a.key === actionKey);
+    const action = actor.gearActions?.byKey.get(actionKey)
+        || [...(type.actions || []), ...abilityActions(actor.abilities, state.mode)].find(a => a.key === actionKey);
     if (!action) {
         const held = String(actionKey).startsWith('ability:') && actor.abilities.find(x => `ability:${x.id}` === actionKey);
         if (held && state.mode === 'spar' && heals(held)) return { ok: false, reason: 'There is no healing in a spar.' };
@@ -352,10 +381,12 @@ export function takeTurn(type, state, actionKey, targetId) {
     }
 
     const followMult = Number(type.resolution?.followUpMult) || 1;
-    const strike = (follow) => {
+    // hand: 'off' is the second blade of a pair (or a separate off-hand weapon): a lesser strike.
+    const strike = (follow, hand = 'main') => {
+        const off = hand === 'off' ? actor.gearActions?.off : null;
         const result = resolveAttack(type, actor.view, target.view, {
-            prof: action.prof, power: (Number(action.power) || 0) + (Number(actor.weapon?.power) || 0), channel: action.channel,
-        }, { rng: state.rng, diff: playerDiff(state, actor) });
+            prof: action.prof, power: off ? off.power : actionPower(action, actor), channel: action.channel,
+        }, { rng: state.rng, diff: playerDiff(state, actor), gear: off ? off.gear : action.gear });
         let damage = result.damage;
         const notes = [];
         let blocked = 0;
@@ -394,8 +425,12 @@ export function takeTurn(type, state, actionKey, targetId) {
             }
         }
         events.push({
-            actor: actor.id, target: target.id, action: action.key, label: action.label,
-            weapon: actor.weapon?.name || '', follow, band: result.band, total: result.total, natural: result.natural,
+            actor: actor.id, target: target.id, action: action.key, label: off ? off.name : action.label,
+            // A weapon attack is already named after the weapon; other actions keep the weapon beside them.
+            weapon: action.weapon ? '' : (actor.weaponName || ''), follow, band: result.band,
+            ...(action.weapon ? { tier: actor.loadout.main.tierLabel } : {}),
+            ...(off ? { offhand: true } : {}),
+            ...(result.gearCrit ? { gearCrit: true } : {}), total: result.total, natural: result.natural,
             damage, margin: result.margin, advantage: result.advantage.labels,
             pool: applied.pool, taken: applied.taken, down: applied.down,
             passives: notes, blocked: Math.round(blocked * 100), healed, drained,
@@ -405,16 +440,16 @@ export function takeTurn(type, state, actionKey, targetId) {
             for (const ab of firedDefend) {
                 const strength = Number(ab.effect?.counter) || 0;
                 if (!(strength > 0)) continue;
-                const back = offeredActions(type, target.view, target.weapon, [], state.mode).find(x => !x.self && !(x.cost?.amount));
+                const back = offeredActions(type, target.view, target.weapon, [], state.mode, target.loadout).find(x => !x.self && !(x.cost?.amount));
                 if (!back) continue;
                 const r = resolveAttack(type, target.view, actor.view, {
-                    prof: back.prof, power: (Number(back.power) || 0) + (Number(target.weapon?.power) || 0), channel: back.channel,
-                }, { rng: state.rng, diff: playerDiff(state, target) });
+                    prof: back.prof, power: actionPower(back, target), channel: back.channel,
+                }, { rng: state.rng, diff: playerDiff(state, target), gear: back.gear });
                 const dealt = r.damage > 0 ? Math.max(1, Math.round(r.damage * strength)) : 0;
                 const hitBack = applyDamage(actor, dealt, state.mode);
                 events.push({
                     actor: target.id, target: actor.id, action: back.key, label: ab.label, counter: true,
-                    weapon: target.weapon?.name || '', follow: false, band: r.band, total: r.total, natural: r.natural,
+                    weapon: back.weapon ? '' : (target.weaponName || ''), follow: false, band: r.band, total: r.total, natural: r.natural,
                     damage: dealt, advantage: [], pool: hitBack.pool, taken: hitBack.taken, down: hitBack.down,
                     passives: [], blocked: 0, healed: 0, drained: 0,
                 });
@@ -423,6 +458,7 @@ export function takeTurn(type, state, actionKey, targetId) {
         }
     };
     strike(false);
+    if (action.weapon && actor.gearActions?.off && !target.down && !actor.down) strike(false, 'off');
     if (!target.down && !actor.down && grantsFollowUp(type, actor.view, target.view, state.rng)) strike(true);
     state.log.push(...events);
     advance(state);

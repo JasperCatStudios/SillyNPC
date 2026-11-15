@@ -34,11 +34,11 @@ export const BLEACH_GEAR = {
         },
     },
     kinds: [
-        { id: 'zanpakuto', label: 'Zanpakutō', slot: 'hand', hands: 1, dualable: true, range: 'melee', ladder: 'release', prof: 'zanjutsu', channel: 'physical', power: 6, hit: 1, weight: 4, verb: 'cuts' },
-        { id: 'hakuda', label: 'Fists', slot: 'natural', hands: 0, dualable: false, range: 'melee', ladder: 'default', prof: 'hakuda', channel: 'physical', power: 3, hit: 2, weight: 0, verb: 'strikes' },
-        { id: 'spirit_bow', label: 'Spirit Bow', slot: 'hand', hands: 2, dualable: false, range: 'ranged', ladder: 'default', prof: 'archery', channel: 'spiritual', power: 5, hit: 2, weight: 2, verb: 'looses a spirit arrow at' },
-        { id: 'fullbring', label: 'Fullbring Object', slot: 'hand', hands: 1, dualable: false, range: 'melee', ladder: 'default', prof: 'fullbring_control', channel: 'spiritual', power: 5, hit: 1, weight: 3, verb: 'strikes' },
-        { id: 'kido_art', label: 'Kidō', slot: 'focus', hands: 0, dualable: false, range: 'ranged', ladder: 'kido', prof: 'kido', channel: 'spiritual', power: 3, hit: 0, weight: 0, verb: 'casts at' },
+        { id: 'zanpakuto', label: 'Zanpakutō', slot: 'hand', hands: 1, dualable: true, range: 'melee', ladder: 'release', prof: 'zanjutsu', channel: 'physical', power: 0, hit: 0, weight: 4, verb: 'cuts' },
+        { id: 'hakuda', label: 'Fists', slot: 'natural', hands: 0, dualable: false, range: 'melee', ladder: 'default', prof: 'hakuda', channel: 'physical', power: 0, hit: 0, weight: 0, verb: 'strikes' },
+        { id: 'spirit_bow', label: 'Spirit Bow', slot: 'hand', hands: 2, dualable: false, range: 'ranged', ladder: 'default', prof: 'archery', channel: 'spiritual', power: 4, hit: 0, weight: 2, verb: 'looses a spirit arrow at' },
+        { id: 'fullbring', label: 'Fullbring Object', slot: 'hand', hands: 1, dualable: false, range: 'melee', ladder: 'default', prof: 'fullbring_control', channel: 'spiritual', power: 4, hit: 0, weight: 3, verb: 'strikes' },
+        { id: 'kido_art', label: 'Kidō', slot: 'focus', hands: 0, dualable: false, range: 'ranged', ladder: 'kido', prof: 'kido', channel: 'spiritual', power: 0, hit: 0, weight: 0, verb: 'casts at' },
     ],
     unarmed: 'hakuda',
 };

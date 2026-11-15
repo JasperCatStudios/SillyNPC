@@ -25,6 +25,23 @@ function bestProf(c) {
         .sort((x, y) => y.rankIndex - x.rankIndex)[0] || null;
 }
 
+/** What a weapon adds to an attack: the numbers the formulas can read as `a.gear`. */
+function gearContext(gear) {
+    return {
+        hit: Number(gear?.hit) || 0,
+        crit: Math.max(0, Math.min(100, Number(gear?.crit) || 0)),
+        mult: Number(gear?.mult) > 0 ? Number(gear.mult) : 1,
+    };
+}
+
+/** The band one step up (hit to strong, strong to crit), or the same band at the top or on a miss. */
+function bandUp(bands, band) {
+    const order = [];
+    for (const b of bands) if (b.result !== 'miss' && b.result !== 'stalemate' && !order.includes(b.result)) order.push(b.result);
+    const i = order.indexOf(band);
+    return i >= 0 && i < order.length - 1 ? order[i + 1] : band;
+}
+
 /** One combatant, as the formulas see them for one action. */
 function sideContext(c, prof, channel) {
     const ch = channel || prof?.channel || null;
@@ -91,10 +108,16 @@ export function resolveAttack(type, attacker, defender, act, opts) {
 
     const a = sideContext(attacker, aProf, channel);
     const d = sideContext(defender, dProf, channel);
+    // What the attacker's weapon adds. Only the attacker has any: it is theirs for this blow.
+    const gear = gearContext(opts?.gear);
+    a.gear = gear;
+    d.gear = gearContext(null);
     const adv = advantage(type, a, d);
 
     const w = watched(opts.rng);
-    const total = Number(run(res.roll, { a, d, diff, adv }, { rng: w.next, fns: FNS })) || 0;
+    let total = Number(run(res.roll, { a, d, diff, adv }, { rng: w.next, fns: FNS })) || 0;
+    // A world whose roll formula never mentions gear still gets the weapon's hit bonus.
+    if (gear.hit && !/\bgear\b/.test(String(res.roll))) total += gear.hit;
     const natural = w.state.first === null ? 0 : 1 + Math.floor(w.state.first * sides);
 
     let band;
@@ -114,6 +137,14 @@ export function resolveAttack(type, attacker, defender, act, opts) {
         band = bandFor(res.bands, total);
     }
 
+    // A weapon's crit chance: a blow that landed may land one band better. The die is only rolled
+    // for a weapon that has a chance, so a fight without such weapons replays exactly as before.
+    let gearCrit = false;
+    if (gear.crit > 0 && band !== 'miss' && band !== 'stalemate' && typeof opts.rng === 'function' && opts.rng() * 100 < gear.crit) {
+        const up = bandUp(res.bands || [], band);
+        if (up !== band) { band = up; gearCrit = true; }
+    }
+
     let damage = 0;
     if (band !== 'miss' && band !== 'stalemate') {
         const mult = Number(res.bandMult?.[band] ?? 0);
@@ -121,8 +152,10 @@ export function resolveAttack(type, attacker, defender, act, opts) {
         damage = Number(run(res.damage, {
             act: { power: Number(act.power) || 0 }, a, d, adv, band: { mult, base },
         }, { rng: opts.rng, fns: FNS })) || 0;
+        // The tier's multiplier on what the world's own formula gave.
+        if (damage > 0 && gear.mult !== 1) damage = Math.max(1, Math.round(damage * gear.mult));
     }
-    return { band, total, natural, damage, advantage: adv, ...(margin === undefined ? {} : { margin }) };
+    return { band, total, natural, damage, advantage: adv, ...(gearCrit ? { gearCrit } : {}), ...(margin === undefined ? {} : { margin }) };
 }
 
 /**
