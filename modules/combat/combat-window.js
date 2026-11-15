@@ -192,6 +192,17 @@ function playOneFoe() {
     return turn;
 }
 
+/** Puts these characters back to full health (status S+), for a fresh test. Sheets they do not have stay unmade. */
+function resetStatus(type, records) {
+    let reset = 0;
+    for (const r of records) {
+        if (!r || !hasTypeData(r, type.dataKey)) continue;
+        if (setStatus(r, type, STATUS_DEFAULT).ok) reset++;
+    }
+    if (reset) saveSettings();
+    return reset;
+}
+
 /** Pools that read as a condition, not a count: Health 97%, not 194/200. Resources stay numbers. */
 const asPercent = (role) => role !== 'resource';
 
@@ -504,7 +515,16 @@ function drawSetup(body) {
             statusBox.append(el('div', 'snpc-fight-status-row', `${who}: ${grade} (about ${pct}% health)`));
         }
     });
-    body.append(check, statusBox);
+    const reset = el('button', 'menu_button', 'Reset status');
+    reset.type = 'button';
+    reset.title = 'Puts you and the opponent back to full health (S+). For when you are testing.';
+    reset.addEventListener('click', () => {
+        const foe = foes.find(f => f.id === select.value) || foes[0];
+        const n = resetStatus(type, [player, foe]);
+        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: neither has a combat sheet yet.', 'SillyNPC');
+        check.click();
+    });
+    body.append(check, reset, statusBox);
 
     const historyRow = el('div', 'snpc-fight-history');
     const historyText = el('small', 'snpc-fight-pace');
@@ -689,6 +709,28 @@ function drawWatchSetup(body, type, player, foes) {
         teams.append(box);
     }
     body.append(teams);
+
+    const byIdAll = new Map(cast.map(r => [r.id, r]));
+    const picked = () => [...watchPick.a, ...watchPick.b].map(id => byIdAll.get(id)).filter(Boolean);
+    const watchStatus = el('div', 'snpc-fight-status');
+    const watchCheck = el('button', 'menu_button', 'Check status');
+    watchCheck.type = 'button';
+    watchCheck.addEventListener('click', () => {
+        watchStatus.replaceChildren();
+        for (const rec of picked()) {
+            const grade = getTypeData(rec, type.dataKey).status || STATUS_DEFAULT;
+            watchStatus.append(el('div', 'snpc-fight-status-row', `${rec.name}: ${grade} (about ${Math.round(fractionFromStatus(grade) * 100)}% health)`));
+        }
+    });
+    const watchReset = el('button', 'menu_button', 'Reset status');
+    watchReset.type = 'button';
+    watchReset.title = 'Puts everyone picked back to full health (S+). For when you are testing.';
+    watchReset.addEventListener('click', () => {
+        const n = resetStatus(type, picked());
+        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: none of them has a combat sheet yet.', 'SillyNPC');
+        watchCheck.click();
+    });
+    body.append(watchCheck, watchReset, watchStatus);
 
     const mode = el('label', 'snpc-fight-field', 'Stakes');
     const modeSelect = el('select', 'text_pole');
@@ -1078,24 +1120,55 @@ async function lineAfterTurn(turn) {
     drawChat();
 }
 
+/** Everyone in the fight who can be spoken to as a group: the fighters (not you) and the spectators. */
+function groupNames() {
+    const me = session.state.fighters.player?.name;
+    const names = Object.values(session.state.fighters).map(f => f.name).filter(n => n !== me);
+    for (const n of session.spectators || []) if (!names.includes(n)) names.push(n);
+    return names;
+}
+
+/** Who answers: one person, everyone ('*'), or one team of a watched fight ('@player' / '@foe'). */
+function talkTargets(to) {
+    if (to === '*') return groupNames();
+    if (to === '@player' || to === '@foe') return Object.values(session.state.fighters).filter(f => f.side === to.slice(1)).map(f => f.name);
+    return [to];
+}
+
+const GROUP_TALK_MAX = 8;
+const isGroupTalk = (to) => to === '*' || to === '@player' || to === '@foe';
+
 async function sendTalk(text) {
     if (!session || session.talking || !text.trim()) return;
     const to = session.talkTo || chatCast()[0];
     if (!to) { toastr.info('Nobody to talk to.', 'SillyNPC'); return; }
+    const targets = talkTargets(to).slice(0, GROUP_TALK_MAX);
+    if (!targets.length) { toastr.info('Nobody to talk to.', 'SillyNPC'); return; }
+    const group = isGroupTalk(to);
     const me = session.state.fighters.player?.name || 'You';
     session.chat.push({ who: me, text: text.trim(), mine: true });
     session.talking = true;
     drawChat();
-    try {
-        const history = session.chat.slice(-8).map(m => `${m.who}: ${m.text}`).join('\n');
-        const reply = String(await requestOnConnection('combatProfileId', chatSystem(to),
-            `${history}\n${to}:`, 300) || '').trim().replace(new RegExp(`^${to}\\s*:\\s*`, 'i'), '');
-        const line = dialogueOnly(reply, to);
-        if (session) session.chat.push({ who: to, text: line || '...' });
-        if (line) speakLine(to, line);
-    } catch (err) {
-        console.error('[SillyNPC] combat talk failed', err);
-        toastr.error('They could not answer.', 'SillyNPC');
+    // One after another, each hearing what the ones before them said.
+    for (const name of targets) {
+        if (!session) break;
+        try {
+            const history = session.chat.slice(-10).map(m => `${m.who}: ${m.text}`).join('\n');
+            const system = chatSystem(name) + (group
+                ? '\n\n[Several people are being spoken to at once. Answer only for yourself, in a line or two, and do not repeat what the others just said.]'
+                : '');
+            const label = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const reply = String(await requestOnConnection('combatProfileId', system,
+                `${history}\n${name}:`, group ? 160 : 300) || '').trim().replace(new RegExp(`^${label}\\s*:\\s*`, 'i'), '');
+            const line = dialogueOnly(reply, name);
+            if (session && line) session.chat.push({ who: name, text: line });
+            else if (session && !group) session.chat.push({ who: name, text: '...' });
+            if (line) speakLine(name, line);
+            if (session) drawChat();
+        } catch (err) {
+            console.error('[SillyNPC] combat talk failed', err);
+            toastr.error(`${name} could not answer.`, 'SillyNPC');
+        }
     }
     if (session) session.talking = false;
     keepTalk();
@@ -1111,8 +1184,14 @@ function drawChat() {
 
     pane.append(el('div', 'snpc-fight-chat-title', 'Table talk'));
     const to = el('select', 'text_pole snpc-fight-chat-to');
+    // Groups first: everyone in the fight, and in a watched fight each team on its own.
+    const groups = [];
+    if (groupNames().length > 1) groups.push(['*', 'Talk to everyone']);
+    if (session.spectator) groups.push(['@player', 'Talk to Team A'], ['@foe', 'Talk to Team B']);
+    for (const [value, label] of groups) to.append(new Option(label, value));
     for (const n of chatCast()) to.append(new Option(`Talk to ${n}`, n));
-    to.value = session.talkTo && chatCast().includes(session.talkTo) ? session.talkTo : (chatCast()[0] || '');
+    const valid = (v) => groups.some(g => g[0] === v) || chatCast().includes(v);
+    to.value = session.talkTo && valid(session.talkTo) ? session.talkTo : (chatCast()[0] || '');
     session.talkTo = to.value;
     to.addEventListener('change', () => { session.talkTo = to.value; });
     pane.append(to);

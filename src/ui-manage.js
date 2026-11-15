@@ -1164,7 +1164,7 @@ function renderEditor() {
     renderLorebookSection(char, loreContainer, { onChange: renderEditor });
     renderOverridesSection(char, overridesContainer);
     renderCollectionsSection(char, collectionsContainer);
-    renderCombatSection(char, combatContainer);
+    renderCombatSection(char, combatContainer, { onChange: renderEditor });
 }
 
 function renderCollectionsSection(char, container) {

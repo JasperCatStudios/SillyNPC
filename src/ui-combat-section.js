@@ -7,6 +7,7 @@ import { setStat, setMeta, setRank, setStatus, setAbilities, setXp, setLevel, re
 import { combatPrefs, allTypes, activeCombatType, isPersonaChar, setPersonaChar } from './combat-access.js';
 import { runMigration } from './combat-run.js';
 import { generateCombatSheet } from './combat-generate.js';
+import { pickLorebookInto } from './ui-lorebook-section.js';
 import { abilityPicker } from './ui-abilities.js';
 import { renderGearBlock } from './ui-gear.js';
 import { STATUS_RUNGS, STATUS_DEFAULT } from './combat-status.js';
@@ -91,6 +92,28 @@ export function renderCombatSection(record, container, options = {}) {
             renderCombatSection(record, container, options);
         });
         container.append(gen);
+        // Generating reads the linked lorebook entry, so linking is offered right here too.
+        const linked = record.lorebook?.world;
+        const link = el('button', 'menu_button', linked ? 'Change lore link' : 'Link lore entry');
+        link.type = 'button';
+        link.title = linked ? `Linked to ${record.lorebook.world}. Pick a different entry.` : 'Pick the lorebook entry that describes this character.';
+        const pickerHost = el('div', 'sillynpc-combat-linkpicker');
+        link.addEventListener('click', async () => {
+            link.disabled = true;
+            try {
+                await pickLorebookInto(pickerHost, record, () => {
+                    // The link is saved on Confirm; the page's own Lorebook section needs to show it.
+                    options.onChange?.();
+                    renderCombatSection(record, container, options);
+                });
+            } catch (err) {
+                console.error('[SillyNPC] could not open the lorebook picker', err);
+                toastr.error('Could not open the lorebook picker.', 'SillyNPC');
+                link.disabled = false;
+            }
+        });
+        container.append(link, pickerHost);
+        if (!linked) container.append(el('small', 'notes', 'No lore entry linked yet: Generate needs one.'));
     }
 
     const valid = allTypes().filter(t => t.errors.length === 0).map(t => t.type);

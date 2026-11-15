@@ -266,7 +266,7 @@ function renderTabExtras(dom) {
     }
 
     const combatEdit = dom.querySelector('.sillynpc-sheet-content .sillynpc-combat-section');
-    if (combatEdit) renderCombatSection(card, combatEdit);
+    if (combatEdit) renderCombatSection(card, combatEdit, { onChange: () => refreshModal(dom) });
 
     const loreEdit = dom.querySelector('.sillynpc-sheet-content .lorebook-section-container');
     if (loreEdit) {

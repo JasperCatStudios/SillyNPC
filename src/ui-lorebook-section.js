@@ -32,6 +32,16 @@ let lorebookDraft = null;
  */
 let onChange = () => {};
 
+/**
+ * Draws the lorebook picker inside `host` (the Combat section's own Link button uses this), so it
+ * opens right where it was asked for. `done` is called after Confirm or Cancel; the picker has
+ * already saved the link by then. The page's own Lorebook section is left as it is.
+ */
+export async function pickLorebookInto(host, char, done = () => {}) {
+    lorebookDraft = { world: char.lorebook?.world || '', uid: char.lorebook?.uid ?? null };
+    host.replaceChildren(await buildLorebookPicker(char, done));
+}
+
 export function resetLorebookState() {
     lorebookMode = 'view'; lorebookDraft = null;
 }
@@ -52,8 +62,8 @@ export async function renderLorebookSection(char, container, options = {}) {
         const actions = document.createElement('div');
         actions.className = 'sillynpc-lorebook-actions';
         actions.innerHTML = `
-            <button type="button" class="menu_button inject-btn"><i class="fa-solid fa-book"></i> Inject</button>
-            <button type="button" class="menu_button sync-btn"><i class="fa-solid fa-rotate"></i> Sync</button>
+            <button type="button" class="menu_button inject-btn" title="Pick an existing lorebook entry and link it to this character."><i class="fa-solid fa-link"></i> Link entry</button>
+            <button type="button" class="menu_button sync-btn" title="Link automatically to an entry with this character's name, if there is one."><i class="fa-solid fa-rotate"></i> Sync</button>
             <button type="button" class="menu_button gen-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>
         `;
         actions.querySelector('.inject-btn').addEventListener('click', () => { lorebookMode = 'picking'; lorebookDraft = { world: '', uid: null }; onChange(); });
@@ -63,7 +73,7 @@ export async function renderLorebookSection(char, container, options = {}) {
     }
 }
 
-async function buildLorebookPicker(char) {
+async function buildLorebookPicker(char, done = () => onChange()) {
     const wrap = document.createElement('div');
     wrap.className = 'sillynpc-lorebook-picker';
     wrap.innerHTML = `
@@ -124,9 +134,9 @@ async function buildLorebookPicker(char) {
         if (lorebookDraft) lorebookDraft.uid = entrySelect.value ? Number(entrySelect.value) : null;
         updatePreview();
     });
-    wrap.querySelector('.cancel-btn').addEventListener('click', () => { resetLorebookState(); onChange(); });
+    wrap.querySelector('.cancel-btn').addEventListener('click', () => { resetLorebookState(); done(); });
     confirmBtn.addEventListener('click', () => {
-        if (lorebookDraft) { char.lorebook = { world: lorebookDraft.world, uid: lorebookDraft.uid }; saveSettings(); resetLorebookState(); onChange(); }
+        if (lorebookDraft) { char.lorebook = { world: lorebookDraft.world, uid: lorebookDraft.uid }; saveSettings(); resetLorebookState(); done(); }
     });
 
     if (lorebookDraft?.world) { populateEntries(lorebookDraft.world).then(updatePreview); }
