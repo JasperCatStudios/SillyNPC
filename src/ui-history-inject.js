@@ -4,6 +4,7 @@ import { tally, tallyText } from './rivalry-core.js';
 import { INJECT_POSITIONS, INJECT_ROLES, INJECT_TRIGGERS, INJECT_ORDERS } from './rivalry-inject-core.js';
 import { openRivalryEditor } from './ui-rivalry.js';
 import { mountVectorPanel } from './ui-vectors.js';
+import { moduleInUse } from './vectors.js';
 
 /**
  * The History view of the Combat tab (fork): how the shared history of fights and games gets
@@ -65,6 +66,14 @@ export function renderHistoryView(host, rerender) {
     const toggle = el('label', 'checkbox_label');
     toggle.append(enabled, el('span', '', 'Put the history in the story prompt'));
     host.append(toggle);
+    // One source for this history: say which one, right where the switch is.
+    let viaVectors = false;
+    try { viaVectors = moduleInUse('rivalry'); } catch { /* vectors not loaded */ }
+    host.append(el('p', 'notes snpc-hi-source', viaVectors
+        ? 'Rivalry history reaches the story through: Vectors. They pick the records that matter to the scene and send them, whole, in this one block, '
+            + 'placed as set below. This switch only decides whether the history is sent at all; off sends nothing.'
+        : 'Rivalry history reaches the story through: this block (the newest records). This switch decides whether it is sent at all. '
+            + 'With Rivalry history on in the Vectors tab, Vectors pick the records instead, still in this one block.'));
     // Vectors pick which records fill the slots; their list is useful even with injection off.
     const vectors = el('div');
     if (!o.enabled) { host.append(vectors); mountVectorPanel(vectors, 'rivalry'); mountFightTalk(host); return; }
@@ -79,7 +88,9 @@ export function renderHistoryView(host, rerender) {
         o.trigger === 'random' ? 'Left at 100 this is treated as 35, so it really is occasional' : 'Rolled on every message, on top of the trigger. Below 100 means they only sometimes remember.'));
     host.append(row('Order', select(INJECT_ORDERS, o.order, v => set({ order: v })), 'Which person comes first, and who is dropped when there are more than the limit'));
     host.append(row('Most people at once', number(o.maxPeople, 1, 10, v => set({ maxPeople: v }))));
-    host.append(row('Entries per person', number(o.recent, 1, 20, v => set({ recent: v })), 'How many of the latest encounters are written out'));
+    host.append(row('Entries per person', number(o.recent, 1, 20, v => set({ recent: v })), viaVectors
+        ? 'At most this many of the records Vectors picked are written out per person'
+        : 'How many of the latest encounters are written out'));
 
     const text = el('textarea', 'text_pole');
     text.rows = 3;

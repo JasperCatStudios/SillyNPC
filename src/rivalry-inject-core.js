@@ -1,4 +1,4 @@
-import { tally, tallyText } from './rivalry-core.js';
+import { tally, tallyText, asRecords, peopleIn, tookPart, recordLine } from './rivalry-core.js';
 import { chooseEntries } from './vector-core.js';
 
 /**
@@ -68,22 +68,23 @@ export function normalizeInject(raw) {
     };
 }
 
-const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-
 /**
- * Who gets into the prompt this time.
+ * Who gets into the prompt this time: anyone (but the player) who took part in a record, on
+ * either side, so allies and people in fights between others count too.
  *
  * @param {object[]} records Every record in the chat.
  * @param {object} opts normalizeInject() output
  * @param {{ applies: (name: string) => boolean, rng: () => number }} ctx
  *   applies says whether the trigger holds for a person (always true for 'always' and 'random').
- * @returns {string[]} Opponent names, in the order they are written.
+ * @param {string} [playerName] Left out of the people, as well as each record's own player.
+ * @returns {string[]} Names, in the order they are written.
  */
-export function selectOpponents(records, opts, ctx) {
-    const names = [];
-    for (const r of records || []) if (r.opponent && !names.some(n => same(n, r.opponent))) names.push(r.opponent);
-    const lastAt = (n) => Math.max(...records.filter(r => same(r.opponent, n)).map(r => r.at));
-    const count = (n) => records.filter(r => same(r.opponent, n)).length;
+export function selectOpponents(records, opts, ctx, playerName = '') {
+    const list = asRecords(records);
+    const names = peopleIn(list, playerName);
+    const theirs = (n) => list.filter(r => tookPart(r, n));
+    const lastAt = (n) => Math.max(...theirs(n).map(r => r.at));
+    const count = (n) => theirs(n).length;
 
     let chosen = names.filter(n => ctx.applies(n));
     // The chance is rolled per person, so the same history is not always the one that comes up.
@@ -96,23 +97,145 @@ export function selectOpponents(records, opts, ctx) {
     return chosen.slice(0, opts.maxPeople);
 }
 
-/** The text for one person: how it has gone, and the last few things that happened. */
-export function historyBlock(records, opponent, playerName, recent, picks = null) {
-    const mine = (records || []).filter(r => same(r.opponent, opponent));
+/**
+ * The text for one person: how it has gone for them, and the last few things that happened.
+ * Only records they took part in (either side); fights between others are left out.
+ *
+ * mode.vectors with picks: the records written are the ones the vectors picked, and only those
+ * (no newest-first filling), so the vectors are the one source of this history; a person with no
+ * picked record is left out. Without picks (vectors off, the search failed or found nothing in
+ * use) it is the newest, as always.
+ * mode.skip: record ids already in the story prompt another way (the same game or fight recalled
+ * with its table talk); they are never written twice. The tallies still count them.
+ */
+export function historyBlock(records, person, playerName, recent, picks = null, { vectors = false, skip = null } = {}) {
+    const mine = asRecords(records).filter(r => tookPart(r, person));
     if (!mine.length) return '';
-    const fights = tally(mine, null, 'combat');
-    const games = tally(mine, null, 'game');
+    const fights = tally(mine, person, 'combat');
+    const games = tally(mine, person, 'game');
     const head = [];
     if (fights.total) head.push(`${fights.total} fight${fights.total === 1 ? '' : 's'} (${tallyText(fights)})`);
     if (games.total) head.push(`${games.total} game${games.total === 1 ? '' : 's'} (${tallyText(games)})`);
-    // Vectors only change which records fill the slots; without picks it is the newest, as always.
-    const lines = chooseEntries(mine, picks, recent).map(r => `- ${r.summary || `${r.kind === 'game' ? r.game || 'A game' : r.game || 'A fight'}: ${r.result}`}${r.note ? ` (${r.note})` : ''}`);
-    return `${opponent} and ${playerName}: ${head.join('; ')}. Results are from ${playerName}'s side.\n${lines.join('\n')}`;
+    const pool = skip?.size ? mine.filter(r => !skip.has(r.id)) : mine;
+    const only = vectors && Array.isArray(picks);
+    const lines = chooseEntries(pool, picks, recent, { fill: !only }).map(r => `- ${recordLine(r, playerName)}`);
+    if (only && !lines.length) return '';
+    return `${person}: ${head.join('; ')}. Results are from ${person}'s side.${lines.length ? `\n${lines.join('\n')}` : ''}`;
 }
 
-/** The whole injected block, or '' when nobody qualifies. */
-export function buildInjection(records, names, opts, playerName = 'the player', picks = null) {
-    const blocks = names.map(n => historyBlock(records, n, playerName, opts.recent, picks)).filter(Boolean);
+/**
+ * The whole injected block, or '' when nobody qualifies. mode: see historyBlock. One block, at
+ * the user's position, role and with the user's instruction, whichever source chose the records.
+ */
+export function buildInjection(records, names, opts, playerName = 'the player', picks = null, mode = {}) {
+    const blocks = names.map(n => historyBlock(records, n, playerName, opts.recent, picks, mode)).filter(Boolean);
     if (!blocks.length) return '';
     return ['[Shared history]', ...blocks, opts.instruction ? opts.instruction : '', '[/Shared history]'].filter(Boolean).join('\n');
+}
+
+/**
+ * buildInjection within a room (approx tokens, chars / 4), for when the vectors chose the records:
+ * the least related picks are left out, whole, until the block fits; the most related is always
+ * kept. Without vector picks, or without a room, it is buildInjection exactly.
+ *
+ * @returns {{ text: string, kept: string[], dropped: string[], tokens: number }}
+ */
+export function buildInjectionWithin(records, names, opts, playerName = 'the player', picks = null, mode = {}, room = null) {
+    const tokens = (t) => Math.ceil(String(t || '').length / 4);
+    const limited = mode?.vectors && Array.isArray(picks) && room !== null && room !== undefined && Number.isFinite(Number(room));
+    if (!limited) {
+        const text = buildInjection(records, names, opts, playerName, picks, mode);
+        return { text, kept: [], dropped: [], tokens: tokens(text) };
+    }
+    // Only the picks that would be written count: their record exists, is not skipped, and is
+    // with someone this block is about.
+    const wanted = new Set(names.map(low));
+    const byId = new Map((records || []).map(r => [r?.id, r]));
+    const usable = [...new Set(picks)].filter((id) => {
+        const r = byId.get(id);
+        if (!r || mode.skip?.has?.(id)) return false;
+        return [...(r.sideA || []), ...(r.sideB || [])].some(n => wanted.has(low(n)) && low(n) !== low(playerName));
+    });
+    let n = usable.length;
+    let text = buildInjection(records, names, opts, playerName, usable.slice(0, n), mode);
+    while (n > 1 && tokens(text) > Number(room)) {
+        n--;
+        text = buildInjection(records, names, opts, playerName, usable.slice(0, n), mode);
+    }
+    return { text, kept: usable.slice(0, n), dropped: usable.slice(n), tokens: tokens(text) };
+}
+
+/* ---- one event, one place in the prompt ---------------------------------------------- */
+
+/** How far apart a record and a talk entry of the same game or fight can be, for old data. */
+export const LINK_WINDOW_MS = 15 * 60 * 1000;
+
+const low = (n) => String(n || '').trim().toLowerCase();
+
+/**
+ * Which rivalry record is the same game or fight as which table-talk entry.
+ *
+ * New records carry `event`, the id their talk is kept under: that is an exact link. Records
+ * written before that have none, so they are matched by what both say: the same kind (a fight
+ * with fight talk, a game with games talk), everyone in the record other than the player was at
+ * that table, and both were written within LINK_WINDOW_MS. Of several such records the one
+ * closest in time wins; a record is linked to one entry at most. Anything else is not linked,
+ * which only means it may be sent the way it always was.
+ *
+ * @param {object[]} records
+ * @param {{ games?: object[], combat?: object[] }} talk entries per kind
+ * @param {string} [playerName]
+ * @returns {Map<string, string>} talk entry id -> record id
+ */
+export function linkRecordsToTalk(records, talk = {}, playerName = '') {
+    const list = asRecords(records);
+    const links = new Map();
+    const claimed = new Set();
+    const byEvent = new Map(list.filter(r => r.event).map(r => [r.event, r]));
+    const pending = [];
+    for (const kind of ['games', 'combat']) {
+        for (const t of talk[kind] || []) {
+            if (!t?.id) continue;
+            const exact = byEvent.get(t.id);
+            if (exact && !claimed.has(exact.id)) {
+                links.set(t.id, exact.id);
+                claimed.add(exact.id);
+            } else {
+                pending.push({ kind, t });
+            }
+        }
+    }
+    const recKind = { games: 'game', combat: 'combat' };
+    for (const { kind, t } of pending) {
+        const at = Number(t.at) || 0;
+        if (!at) continue;
+        const table = new Set([...(t.with || []), ...(t.sideA || []), ...(t.sideB || [])].map(low).filter(Boolean));
+        let best = null;
+        let bestGap = Infinity;
+        for (const r of list) {
+            // A record with its own event id belongs to that event only.
+            if (r.event || claimed.has(r.id) || r.kind !== recKind[kind]) continue;
+            const gap = Math.abs((Number(r.at) || 0) - at);
+            if (gap > LINK_WINDOW_MS || gap >= bestGap) continue;
+            const people = [...r.sideA, ...r.sideB]
+                .filter(n => !(r.player && low(n) === low(r.player)) && !(playerName && low(n) === low(playerName)))
+                .map(low);
+            if (!people.length || !people.every(n => table.has(n))) continue;
+            best = r;
+            bestGap = gap;
+        }
+        if (best) {
+            links.set(t.id, best.id);
+            claimed.add(best.id);
+        }
+    }
+    return links;
+}
+
+/** The record ids that are the same events as these talk entry ids (see linkRecordsToTalk). */
+export function recordsSentAsTalk(records, talk, sentIds, playerName = '') {
+    const links = linkRecordsToTalk(records, talk, playerName);
+    const out = new Set();
+    for (const id of sentIds || []) if (links.has(id)) out.add(links.get(id));
+    return out;
 }

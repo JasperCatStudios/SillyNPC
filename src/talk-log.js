@@ -8,16 +8,21 @@
  *
  * Store shape (chat metadata `sillynpc_talk`):
  *   { games: [entry], combat: [entry] }, oldest first, at most TALK_MAX_ENTRIES per kind.
- *   entry = { id, at, title, with: [name], date, lines: [{ who, text }], result }
+ *   entry = { id, at, title, with: [name], date, lines: [{ who, text }], result, sideA?, sideB? }
+ *   with is everyone at the table but the player. sideA / sideB, when present, say who stood
+ *   where (the player's side first); older entries have none and read exactly as before.
  *
  * Pure: no DOM, no SillyTavern imports, so node can test it.
  */
 
+import { fitWhole, estimateTokens } from './vector-core.js';
+
 export const TALK_KEY = 'sillynpc_talk';
 export const TALK_KINDS = Object.freeze(['games', 'combat']);
 export const TALK_MAX_ENTRIES = 100;
-export const TALK_MAX_LINES = 80;
-export const TALK_LINE_CHARS = 300;
+/* Storage limits, generous on purpose: a line is kept as it was said, so recall never has less. */
+export const TALK_MAX_LINES = 200;
+export const TALK_LINE_CHARS = 2000;
 
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const str = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -53,6 +58,11 @@ export function normalizeTalkEntry(raw) {
     if (!kept.length && !result) return null;
     const at = Number(r.at);
     const withList = [...new Set((Array.isArray(r.with) ? r.with : []).map(n => str(n, 80)).filter(Boolean))].slice(0, 8);
+    const side = (v) => [...new Set((Array.isArray(v) ? v : []).map(n => str(n, 80)).filter(Boolean))].slice(0, 12);
+    const sideA = side(r.sideA);
+    const sideB = side(r.sideB);
+    // Sides only when both are known: one side alone says nothing about who faced whom.
+    const sides = sideA.length && sideB.length ? { sideA, sideB } : {};
     return {
         id,
         at: Number.isFinite(at) && at > 0 ? at : 0,
@@ -61,6 +71,7 @@ export function normalizeTalkEntry(raw) {
         date: str(r.date, 80),
         lines: kept,
         result,
+        ...sides,
     };
 }
 
@@ -115,6 +126,12 @@ export function removeTalkEntry(store, kind, id) {
 
 const withText = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || '');
 
+/** Who was there: "<joiner>A and B against C" with sides, "<joiner>A and B" (the others) without. */
+const company = (e, joiner) => {
+    if (e.sideA && e.sideB) return `${joiner}${withText(e.sideA)} against ${withText(e.sideB)}`;
+    return e.with.length ? `${joiner}${withText(e.with)}` : '';
+};
+
 /**
  * The text an entry is embedded as: what it was, who was there, when, how it ended, then the
  * lines as they were said. vector-core chunks it when it is long.
@@ -123,7 +140,7 @@ export function talkEmbedText(entry, kind = 'games') {
     const e = normalizeTalkEntry(entry);
     if (!e) return '';
     const what = kind === 'combat' ? 'Fight' : 'Game';
-    const head = `${what}: ${e.title}${e.with.length ? `, ${withText(e.with)}` : ''}${e.date ? ` (${e.date})` : ''}.`;
+    const head = `${what}: ${e.title}${company(e, ', ')}${e.date ? ` (${e.date})` : ''}.`;
     const out = [head];
     if (e.result) out.push(`Result: ${e.result}`);
     for (const l of e.lines) out.push(`${l.who}: ${l.text}`);
@@ -142,33 +159,42 @@ export const TALK_HEADINGS = Object.freeze({
     combat: '[EARLIER FIGHTS THAT MAY MATTER]',
 });
 
-const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+/** One recalled game or fight as written: its head line, then every line said, whole. */
+export function talkRecallItem(raw) {
+    const e = normalizeTalkEntry(raw);
+    if (!e) return '';
+    const head = `- ${e.title}${e.sideA ? ` (${company(e, '').trim()})` : company(e, ' with ')}${e.date ? ` (${e.date})` : ''}${e.result ? `: ${e.result}` : ''}`;
+    return [head, ...e.lines.map(l => `  ${l.who}: ${l.text}`)].join('\n');
+}
 
 /**
- * The prompt block for picked entries, or '' when there are none. Each entry: title, date and
- * result on one line, then its first few lines, trimmed.
+ * The prompt block for picked entries, lorebook style: every entry whole (all its lines, none
+ * clipped) or not at all.
+ *
+ * Entries come best first. They are taken in that order while they fit the room; the first that
+ * does not, and every less relevant one after it, is left out. The best one always goes in whole,
+ * even alone larger than the room. What goes in is written oldest first, as a story reads.
  *
  * @param {'games'|'combat'} kind
- * @param {object[]} entries in the order they should appear
- * @param {{ maxLines?: number, lineChars?: number, maxChars?: number }} [opts]
+ * @param {object[]} entries best first
+ * @param {{ budgetTokens?: number }} [opts]
+ * @returns {{ text: string, kept: object[], dropped: object[], tokens: number }}
  */
-export function buildTalkRecallBlock(kind, entries, { maxLines = 6, lineChars = 160, maxChars = 2400 } = {}) {
+export function talkRecall(kind, entries, { budgetTokens = Infinity } = {}) {
     const heading = TALK_HEADINGS[kind];
-    if (!heading) return '';
-    const parts = [];
-    let used = heading.length;
-    for (const raw of entries || []) {
-        const e = normalizeTalkEntry(raw);
-        if (!e) continue;
-        const head = `- ${e.title}${e.with.length ? ` with ${withText(e.with)}` : ''}${e.date ? ` (${e.date})` : ''}${e.result ? `: ${e.result}` : ''}`;
-        const body = e.lines.slice(0, maxLines).map(l => `  ${l.who}: ${clip(l.text, lineChars)}`);
-        const block = [clip(head, 300), ...body].join('\n');
-        if (used + block.length + 1 > maxChars) break;
-        parts.push(block);
-        used += block.length + 1;
-    }
-    if (!parts.length) return '';
-    return [heading, ...parts].join('\n');
+    const none = { text: '', kept: [], dropped: [], tokens: 0 };
+    if (!heading) return none;
+    const items = (entries || []).map(raw => ({ raw, text: talkRecallItem(raw) })).filter(i => i.text);
+    const fit = fitWhole(items, budgetTokens, { cost: (i) => estimateTokens(i.text) + 1, overhead: estimateTokens(heading) + 1 });
+    if (!fit.kept.length) return { ...none, dropped: fit.dropped.map(i => i.raw) };
+    const shown = fit.kept.slice().sort((a, b) => (Number(a.raw.at) || 0) - (Number(b.raw.at) || 0));
+    const text = [heading, ...shown.map(i => i.text)].join('\n');
+    return { text, kept: fit.kept.map(i => i.raw), dropped: fit.dropped.map(i => i.raw), tokens: estimateTokens(text) };
+}
+
+/** The block alone (see talkRecall), or '' when there is nothing. Entries best first. */
+export function buildTalkRecallBlock(kind, entries, { budgetTokens = Infinity } = {}) {
+    return talkRecall(kind, entries, { budgetTokens }).text;
 }
 
 /** How many entries one kind recalls: 1 to 6, 2 when unset. */
@@ -178,25 +204,33 @@ export function clampRecall(v) {
 }
 
 /**
- * The story-prompt text for this generation: one block per kind that has picks, games first.
- * A kind without picks (vectors off, the search failed, nothing related) adds nothing: these
- * entries have no injection of their own without vectors.
+ * The story-prompt text for this generation and what went into it: one block per kind that has
+ * picks, games first. A kind without picks (vectors off, the search failed, nothing related) adds
+ * nothing: these entries have no injection of their own without vectors.
  *
- * @param {{ picks?: object, lists?: object, recall?: object }} args
+ * @param {{ picks?: object, lists?: object, recall?: object, budgetTokens?: number }} args
  *   picks[kind]: entry ids in relevance order, or null; lists[kind]: that kind's entries;
- *   recall[kind]: how many to write.
+ *   recall[kind]: how many at most; budgetTokens: room per kind, whole entries only.
+ * @returns {{ text: string, report: Record<string, { kept: object[], dropped: object[], tokens: number }> }}
+ *   report has a key for every kind that had picks.
  */
-export function buildTalkInjection({ picks = {}, lists = {}, recall = {} } = {}) {
+export function buildTalkInjectionReport({ picks = {}, lists = {}, recall = {}, budgetTokens = Infinity } = {}) {
     const blocks = [];
+    const report = {};
     for (const kind of TALK_KINDS) {
         const ids = picks[kind];
         if (!Array.isArray(ids) || !ids.length) continue;
         const byId = new Map((lists[kind] || []).map(e => [e?.id, e]));
+        // Best first: the room decides from the most relevant down.
         const chosen = [...new Set(ids)].map(id => byId.get(id)).filter(Boolean).slice(0, clampRecall(recall[kind]));
-        // Oldest first: they read as a story that way.
-        chosen.sort((a, b) => (Number(a.at) || 0) - (Number(b.at) || 0));
-        const block = buildTalkRecallBlock(kind, chosen);
-        if (block) blocks.push(block);
+        const r = talkRecall(kind, chosen, { budgetTokens });
+        report[kind] = { kept: r.kept, dropped: r.dropped, tokens: r.tokens };
+        if (r.text) blocks.push(r.text);
     }
-    return blocks.join('\n\n');
+    return { text: blocks.join('\n\n'), report };
+}
+
+/** The story-prompt text alone (see buildTalkInjectionReport). */
+export function buildTalkInjection(args = {}) {
+    return buildTalkInjectionReport(args).text;
 }

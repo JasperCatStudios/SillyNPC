@@ -6,7 +6,7 @@ import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';
 import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
-import { addRecord, tallyFor, rivalryBlock } from '../../src/rivalry.js';
+import { addRecord, tallyAgainst, rivalryBlock } from '../../src/rivalry.js';
 import { tallyText } from '../../src/rivalry-core.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
 
@@ -1538,6 +1538,8 @@ function keepTalk({ result = '', leaving = false, final = false } = {}) {
             at: Date.now(),
             title: gameLabel(),
             with: tableNames(),
+            sideA: [userName()],
+            sideB: tableNames(),
             date: sceneClock()?.dateText || '',
             lines,
             result: talk.result,
@@ -1563,9 +1565,20 @@ function recordGameResult() {
         const key = `g_${type}`;
         const label = (t(key) && t(key) !== key) ? t(key) : (type || 'Game');
         const result = gameState.winner === 'user' ? 'won' : gameState.winner === 'bot' ? 'lost' : 'draw';
+        // One record for the table: the player on one side, everyone they played against on the other.
+        const others = tableNames();
+        if (!others.length) return;
+        const against = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : others[0];
+        // One id for the game, shared by this record and its table talk (keepTalk, which reuses
+        // `talk`), so the story prompt can tell they are the same game and never sends it twice.
+        if (!talk || talk.session !== gameSession) talk = { session: gameSession, id: newTalkId(), result: '' };
         addRecord({
-            kind: 'game', game: label, opponent: gameState.opponentName, player: userName(), result,
-            summary: `${userName()} ${result === 'won' ? 'beat' : result === 'lost' ? 'lost to' : 'drew with'} ${gameState.opponentName} at ${label}.`,
+            event: talk.id,
+            kind: 'game', game: label,
+            sideA: [userName()], sideB: others,
+            winner: result === 'won' ? 'A' : result === 'lost' ? 'B' : 'draw',
+            userSide: 'A', player: userName(),
+            summary: `${userName()} ${result === 'won' ? 'beat' : result === 'lost' ? 'lost to' : 'drew with'} ${against} at ${label}.`,
         });
     } catch (e) { console.warn('[Games] could not record the result', e); }
 }
@@ -1598,7 +1611,7 @@ function renderGameArea() {
         canvas.html(`
             <div class="rpg-menu-container">
                 <div class="rpg-menu-title">${t('menu_title', {name: escapeHtml(gameState.opponentName)})}</div>
-                <div class="rpg-menu-history"><small>Record against ${escapeHtml(gameState.opponentName)}: ${escapeHtml(tallyText(tallyFor(gameState.opponentName)))}</small> <button class="rpg-game-select-btn" id="rpg-history-btn" style="width:auto;padding:2px 10px"><i class="fa-solid fa-scroll"></i> History</button></div>
+                <div class="rpg-menu-history"><small>Record against ${escapeHtml(gameState.opponentName)}: ${escapeHtml(tallyText(tallyAgainst(gameState.opponentName)))}</small> <button class="rpg-game-select-btn" id="rpg-history-btn" style="width:auto;padding:2px 10px"><i class="fa-solid fa-scroll"></i> History</button></div>
                 <button class="rpg-game-select-btn" data-game="chess"><i class="fa-solid fa-chess"></i> ${t('g_chess')}</button>
                 <button class="rpg-game-select-btn" data-game="bj"><i class="fa-solid fa-clone"></i> ${t('g_bj')}</button>
                 <button class="rpg-game-select-btn" data-game="poker"><i class="fa-solid fa-diamond"></i> ${t('g_poker')}</button>

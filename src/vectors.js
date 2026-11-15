@@ -2,20 +2,25 @@ import { eventSource, event_types } from '../../../../events.js';
 import { getContext } from '../../../../st-context.js';
 import { extension_settings } from '../../../../extensions.js';
 import { name1, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../script.js';
-import { saveSettings } from './settings.js';
+import { saveSettings, getSettings } from './settings.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
 import {
     VECTOR_MODULES, MODULE_IDS, moduleActive, vectorBadge, TEMPLATES, chunkThread, buildQueryText,
     ensureManifest, planSync, markInserted, markFailed, setEntryFlags, clearManifest, entryState,
-    manifestStatus, embedText, collectionId, phoneKey, hashString, retrievePicks, formatRecalled,
+    manifestStatus, embedText, collectionId, phoneKey, hashString, retrievePicks, droppedNote,
+    phoneThreadName, phoneRecallTargets, memoryVisibleIn, phoneMemoryText, buildPhoneRecall, shareHistory,
 } from './vector-core.js';
 import {
     vectorSettings, currentSource, insertItems, deleteHashes, purgeCollection, service,
-    publishPicks, currentPicks, clearPicks, warnOnce,
+    publishPicks, currentPicks, clearPicks, warnOnce, publishSentTalk, setRecallStats, getRecallStats, clearRecallStats,
+    historyTotal, publishRivalryRoom,
 } from './vector-service.js';
 import { listRecords, removeRecord, RIVALRY_CHANGED_EVENT } from './rivalry.js';
+import { sidesText, winnerText, sideNames } from './rivalry-core.js';
 import { listTalk, removeTalk, TALK_CHANGED_EVENT } from './talk-store.js';
-import { talkEmbedText, talkImportance, buildTalkInjection, TALK_KINDS } from './talk-log.js';
+import { talkEmbedText, talkImportance, buildTalkInjectionReport, TALK_KINDS } from './talk-log.js';
+import { charactersMentionedIn, mentionsName } from './mentions.js';
+import { loadStateFromMetadata } from './status-logic.js';
 
 /**
  * Vectors for SillyNPC's histories (fork): SillyTavern wiring.
@@ -117,7 +122,11 @@ export function phoneContacts() {
     return Object.keys(threads).filter(k => Array.isArray(threads[k]) && threads[k].length);
 }
 
-/** A phone message as text worth embedding: inline images are dropped, they are only noise. */
+/**
+ * A phone message as text worth searching: inline images are dropped, they are only noise, and
+ * a very long text is shortened for the search alone. What is recalled is always the full text
+ * (phoneMemoryText), rebuilt from the thread.
+ */
 const phoneText = (t) => String(t ?? '').replace(/data:[^\s)\]]+/g, '[image]').slice(0, 1200);
 
 /** Games or combat talk in the adapters' shape: one embeddable item per game or fight. */
@@ -136,14 +145,18 @@ export function talkAdapterEntries(kind, list) {
 const ADAPTERS = {
     rivalry: {
         entries() {
+            const you = player();
             return listRecords().map(r => ({
                 id: r.id,
-                text: TEMPLATES.rivalry(r, player()),
+                // Names everyone on both sides, so a search for any of them finds it.
+                text: TEMPLATES.rivalry(r, you),
                 at: Number(r.at) || 0,
                 importance: 0,
                 eligible: true,
-                label: `${r.opponent}: ${r.game || (r.kind === 'game' ? 'Game' : 'Fight')}`,
-                sub: r.result,
+                label: `${sidesText(r, you)}: ${r.game || (r.kind === 'game' ? 'Game' : 'Fight')}`,
+                sub: winnerText(r, you),
+                // Who took part; the history block only writes a person's own records.
+                people: [...sideNames(r, 'A', you), ...sideNames(r, 'B', you)],
             }));
         },
         remove(entry) {
@@ -167,8 +180,11 @@ const ADAPTERS = {
                 importance: 0,
                 // The chunk still being written is left until it is full, so it is embedded once.
                 eligible: c.complete,
+                // The texts themselves, as they are now: a recalled memory is rebuilt from these,
+                // whole, never from the (shortened) text that was stored for the search.
+                messages: c.messages,
                 label: new Date(c.start).toLocaleString(),
-                sub: `${c.messages.length} message${c.messages.length === 1 ? '' : 's'}${c.complete ? '' : ' · still open'}`,
+                sub: `${c.messages.length} text${c.messages.length === 1 ? '' : 's'}${c.complete ? '' : ' · still open'}`,
             }));
         },
         remove: null,
@@ -226,7 +242,7 @@ export function syncModule(moduleId, { mode = 'manual', scope = '', only = null,
         const result = { inserted: 0, removed: 0, failed: 0, error: '' };
         // The Phone module switched off means nothing of the phone goes to the vector store.
         if (moduleId === 'phone' && !phoneModuleEnabled() && mode !== 'cleanup') {
-            return { ...result, error: 'The Phone module is off, so its texts are not vectorized. Switch it on under Modules > Phone.' };
+            return { ...result, error: 'The Phone module is off, so its texts are not remembered. Switch it on under Modules > Phone.' };
         }
         const manifest0 = loadManifest(moduleId, scope);
         if (!manifest0) return { ...result, error: moduleId === 'phone' ? 'Choose a contact first.' : 'No chat is open.' };
@@ -417,7 +433,7 @@ async function cachedPicks(moduleId, scope, text, extra = {}) {
     const entries = new Map(entriesOf(moduleId, scope).map(e => [e.id, e]));
     const topK = extra.topK ?? s.topK;
     const key = `${collection}|${manifest.lastSync}|${hashString(text)}|${topK}|${s.threshold}|${extra.excludeKey || ''}`;
-    if (cache.has(key)) return cache.get(key);
+    if (cache.has(key)) return { ...cache.get(key), entries, manifest };
     const result = await retrievePicks(service, {
         collection, text, manifest, entries, topK, threshold: s.threshold, timeoutMs: s.timeoutMs, exclude: extra.exclude || null,
     });
@@ -435,15 +451,18 @@ async function cachedPicks(moduleId, scope, text, extra = {}) {
  * which is the old behavior.
  */
 async function onGenerationStarted(type, _options, dryRun) {
+    // Quiet requests (the tracker's own, other extensions') are frequent and never a story reply;
+    // a dry run only counts tokens. Both leave the last story reply's picks and blocks alone, so
+    // what the shared history reads still matches the recalled block that stays in the prompt.
+    if (dryRun || type === 'quiet') return;
     clearPicks();
-    if (dryRun) return;
-    // Quiet requests (the tracker's own, other extensions') are frequent and never a story reply.
-    if (type === 'quiet') return;
+    phoneRecall = null;
     try {
         await searchChatModules(type);
     } catch (err) {
         // Whatever went wrong, the generation goes ahead as if vectors were off.
         clearPicks();
+        phoneRecall = null;
         debugLog('Vector retrieval failed', err);
     }
     // Set or cleared every time: with vectors off or no picks, the block is gone.
@@ -451,54 +470,179 @@ async function onGenerationStarted(type, _options, dryRun) {
 }
 
 async function searchChatModules(type) {
-    {
-        const s = vectorSettings();
-        if (!s.enabled) return;
-        const active = ['rivalry', ...TALK_KINDS].filter(id => moduleActive(s, id, flags()));
-        if (!active.length) return;
-        const text = buildQueryText(getContext()?.chat || [], {
-            count: s.queryMessages,
-            // The reply a regenerate or a swipe replaces must not steer the search for its replacement.
-            skipLastReply: type === 'regenerate' || type === 'swipe',
+    const s = vectorSettings();
+    if (!s.enabled) return;
+    const active = ['rivalry', ...TALK_KINDS].filter(id => moduleActive(s, id, flags()));
+    const phoneOn = moduleActive(s, 'phone', flags());
+    if (!active.length && !phoneOn) return;
+    const chat = getContext()?.chat || [];
+    const text = buildQueryText(chat, {
+        count: s.queryMessages,
+        // The reply a regenerate or a swipe replaces must not steer the search for its replacement.
+        skipLastReply: type === 'regenerate' || type === 'swipe',
+    });
+    if (!text) return;
+    const jobs = active.map(async (id) => {
+        const talk = TALK_KINDS.includes(id);
+        // Games and fights are recalled whole, so only as many as their own recall setting.
+        const r = await cachedPicks(id, '', text, talk ? { topK: s.modules[id].recall } : {});
+        if (r.error) {
+            warnOnce('search', `Could not search the ${VECTOR_MODULES[id].label.toLowerCase()}, ${talk ? 'so none are remembered this time' : 'so the newest records are used instead'}. ${r.error}`);
+            return;
+        }
+        if (!Array.isArray(r.ids)) return;
+        publishPicks(id, r.ids);
+    });
+    if (phoneOn) jobs.push(searchPhone(text, chat, s).then(r => { phoneRecall = r; }));
+    await Promise.all(jobs);
+}
+
+/* ---- phone memories in the main story ------------------------------------------------ */
+
+/*
+ * The phone's texts come back in the MAIN story only, never in the phone's own request (that
+ * request is exactly as it always was). The threads searched are those with someone the scene
+ * is about: in the scene by the tracker, or named in the last few story messages.
+ */
+let phoneRecall = null;
+/** At most this many threads are searched per reply: each is one more call to the embedder. */
+const PHONE_MAX_THREADS = 4;
+
+/** Whether a person matters to the scene now, for the phone recall. */
+function sceneRelevance(chat, scanDepth) {
+    let here = new Set();
+    try { here = new Set((loadStateFromMetadata()?.characters || []).map(c => String(c?.name || '').trim().toLowerCase())); } catch { /* no tracker */ }
+    const text = (chat || []).filter(m => m && !m.is_system).slice(-scanDepth).map(m => String(m?.mes || '')).join('\n');
+    const known = getSettings().characters || [];
+    return (name) => {
+        const n = String(name || '').trim();
+        if (!n) return false;
+        if (here.has(n.toLowerCase())) return true;
+        const rec = known.find(c => String(c.name).toLowerCase() === n.toLowerCase());
+        // A known character's aliases count too, the way the rest of SillyNPC finds names.
+        if (rec) return charactersMentionedIn(text, [rec]).length > 0;
+        return mentionsName(text, n, true);
+    };
+}
+
+/**
+ * Searches the relevant threads with the story's last messages. Never throws. The block itself
+ * is built later, with the room the shared total gives it (currentTalkInjection).
+ * @returns {Promise<null | { key: string, name: string, items: object[] }[]>} best first per contact
+ */
+async function searchPhone(text, chat, s) {
+    try {
+        const threads = phoneSettings().threads || {};
+        const chats = phoneSettings().chats || {};
+        const keys = phoneRecallTargets({
+            settings: s, phoneEnabled: phoneModuleEnabled(), threads, chats,
+            isRelevant: sceneRelevance(chat, Math.max(6, s.queryMessages)), max: PHONE_MAX_THREADS,
         });
-        if (!text) return;
-        await Promise.all(active.map(async (id) => {
-            const talk = TALK_KINDS.includes(id);
-            // Games and fights are recalled whole, so only as many as their own recall setting.
-            const r = await cachedPicks(id, '', text, talk ? { topK: s.modules[id].recall } : {});
+        if (!keys.length) return null;
+        // What the story already shows is not recalled again: only a memory whose every text is
+        // in the visible chat (pasted, or posted there by the phone) is left out.
+        const visible = chat.filter(m => m && !m.is_system).slice(-300).map(m => String(m?.mes || '')).join('\n');
+        const you = player();
+        const groups = await Promise.all(keys.map(async (key) => {
+            const entries = entriesOf('phone', key);
+            const exclude = new Set(entries.filter(e => memoryVisibleIn(e.messages, visible)).map(e => e.id));
+            const r = await cachedPicks('phone', key, text, {
+                topK: s.modules.phone.recall, exclude, excludeKey: hashString([...exclude].sort().join(',')),
+            });
             if (r.error) {
-                warnOnce('search', `Vector search for ${VECTOR_MODULES[id].label} failed, ${talk ? 'so none are recalled this time' : 'using the newest entries instead'}. ${r.error}`);
-                return;
+                warnOnce('search', `Could not search the phone texts with ${phoneThreadName(key, chats)}, so none are remembered this time. ${r.error}`);
+                return null;
             }
-            if (!Array.isArray(r.ids)) return;
-            publishPicks(id, r.ids);
+            if (!Array.isArray(r.ids) || !r.ids.length) return null;
+            const byId = r.entries || new Map(entries.map(e => [e.id, e]));
+            const name = phoneThreadName(key, chats);
+            const items = r.ids.map(id => byId.get(id)).filter(Boolean).map(e => ({
+                id: e.id,
+                start: e.start,
+                label: new Date(e.start).toLocaleDateString(),
+                // Rebuilt from the live thread: every text, at full length.
+                text: phoneMemoryText(e.messages, { player: you, contact: name }),
+            }));
+            return { key, name, items };
         }));
+        const found = groups.filter(Boolean);
+        return found.length ? found : null;
+    } catch (err) {
+        debugLog('Phone memory recall failed', err);
+        return null;
     }
 }
 
-/* ---- recalled games and fights in the story prompt ----------------------------------- */
+/* ---- recalled games, fights and texts in the story prompt ---------------------------- */
 
 const TALK_INJECT_KEY = 'sillynpc_talk_recall';
 
-/** The block this generation's picks make, or ''. Games and fights have no injection without vectors. */
-export function currentTalkInjection() {
-    const s = vectorSettings();
-    const picks = {};
-    const lists = {};
-    const recall = {};
-    for (const kind of TALK_KINDS) {
-        if (!moduleActive(s, kind, flags())) continue;
-        picks[kind] = currentPicks(kind);
-        lists[kind] = Array.isArray(picks[kind]) ? listTalk(kind) : [];
-        recall[kind] = s.modules[kind].recall;
+/** Remembers what the last recall left out, for the panels' plain note; logs any drop. */
+export function noteRecall(moduleId, r, room = null) {
+    const before = droppedNote(getRecallStats(moduleId) || {});
+    const kept = r ? r.kept.length : 0;
+    const dropped = r ? r.dropped.length : 0;
+    setRecallStats(moduleId, r ? { kept, dropped } : null);
+    if (dropped) {
+        debugLog(`Vectors: ${VECTOR_MODULES[moduleId].label}: ${kept} whole kept, ${dropped} left out to fit ${room ?? '?'} tokens of the total ${historyTotal()}`,
+            r.dropped.map(d => d?.id ?? d));
     }
-    return buildTalkInjection({ picks, lists, recall });
+    if (droppedNote(getRecallStats(moduleId) || {}) !== before) changed();
+}
+
+/** The modules whose brought-back history is in the main story now, in the order they share it. */
+const SHARE_ORDER = Object.freeze(['rivalry', 'games', 'combat', 'phone']);
+
+/**
+ * The block this generation's picks make, or ''. Games, fights and phone texts have no injection
+ * of their own without vectors, so with vectors this block is their only way into the story.
+ * Also says which talk entries it carries, so the shared history does not repeat those events,
+ * and what is left of "History brought back, total" for the shared-history block.
+ */
+export function currentTalkInjection({ record = false } = {}) {
+    const s = vectorSettings();
+    // Rivalry takes a share only when its block is sent at all ("Put the history in the story prompt").
+    let historyOn = false;
+    try { historyOn = Boolean(getSettings().enabled && getSettings().historyInject?.enabled); } catch { /* not loaded */ }
+    const active = SHARE_ORDER.filter(id => moduleActive(s, id, flags()) && (id !== 'rivalry' || historyOn));
+    const build = {};
+    for (const kind of TALK_KINDS) {
+        if (!active.includes(kind)) continue;
+        const ids = currentPicks(kind);
+        if (!Array.isArray(ids) || !ids.length) continue;
+        build[kind] = (room) => {
+            const { text, report } = buildTalkInjectionReport({
+                picks: { [kind]: ids }, lists: { [kind]: listTalk(kind) }, recall: { [kind]: s.modules[kind].recall }, budgetTokens: room,
+            });
+            return report[kind] ? { ...report[kind], text } : null;
+        };
+    }
+    const phoneGroups = active.includes('phone') ? phoneRecall : null;
+    if (Array.isArray(phoneGroups) && phoneGroups.length) {
+        build.phone = (room) => buildPhoneRecall(phoneGroups, { budgetTokens: room, recall: s.modules.phone.recall });
+    }
+    const total = historyTotal();
+    const share = shareHistory({ total, active, settings: s, build });
+    if (record) {
+        for (const kind of TALK_KINDS) {
+            const r = share.results[kind];
+            publishSentTalk(kind, (r?.kept || []).map(e => e.id));
+            if (r) noteRecall(kind, r, share.rooms[kind]);
+        }
+        if (share.results.phone) noteRecall('phone', share.results.phone, share.rooms.phone);
+        // The shared-history block, built next, gets its own amount or what the others left.
+        if (active.includes('rivalry')) {
+            const own = Number(s.modules.rivalry.amountTokens) || 0;
+            publishRivalryRoom(own > 0 ? share.rooms.rivalry : share.left);
+        } else publishRivalryRoom(null);
+    }
+    return ['games', 'combat', 'phone'].map(id => share.results[id]?.text || '').filter(Boolean).join('\n\n');
 }
 
 function applyTalkInjection() {
     try {
         const s = vectorSettings();
-        const text = currentTalkInjection();
+        const text = currentTalkInjection({ record: true });
         if (!text) {
             setExtensionPrompt(TALK_INJECT_KEY, '', extension_prompt_types.IN_CHAT, 0, false);
             return;
@@ -510,42 +654,17 @@ function applyTalkInjection() {
         };
         setExtensionPrompt(TALK_INJECT_KEY, text, extension_prompt_types.IN_CHAT, s.injectDepth, false, roles[s.injectRole]);
     } catch (err) {
-        debugLog('Could not set the recalled games and fights', err);
+        // Never half a block: on any failure nothing of it is sent, and no event counts as sent.
+        try { setExtensionPrompt(TALK_INJECT_KEY, '', extension_prompt_types.IN_CHAT, 0, false); } catch { /* ignore */ }
+        for (const kind of TALK_KINDS) publishSentTalk(kind, null);
+        debugLog('Could not set the remembered games, fights and texts', err);
     }
 }
 
-/**
- * Older text chunks from a phone thread that relate to what is being said now, as a block for
- * the phone's request, or ''. Chunks inside the recent window the phone already sends are left
- * out. Never throws; a failure or timeout gives ''.
- *
- * @param {string} contact the thread's key
- * @param {{ recentFromTs?: number }} [opts] the first timestamp the request already carries
- */
-export async function recallPhone(contact, { recentFromTs = Infinity } = {}) {
-    try {
-        const s = vectorSettings();
-        // The phone's own switch too: with the Phone module off, nothing of it is searched.
-        if (!moduleActive(s, 'phone', flags()) || !contact) return '';
-        const thread = (phoneSettings().threads || {})[contact];
-        if (!Array.isArray(thread) || !thread.length) return '';
-        const you = player();
-        const text = thread.slice(-s.queryMessages).map(m => `${m.who === 'user' ? you : m.name}: ${phoneText(m.text)}`).join('\n');
-        const entries = entriesOf('phone', contact);
-        const exclude = new Set(entries.filter(e => e.end >= recentFromTs).map(e => e.id));
-        const r = await cachedPicks('phone', contact, text, { topK: s.modules.phone.recall, exclude, excludeKey: String(recentFromTs) });
-        if (r.error) { warnOnce('search', `Vector search for phone texts failed; sending the recent texts only. ${r.error}`); return ''; }
-        if (!Array.isArray(r.ids) || !r.ids.length) return '';
-        const byId = r.entries || new Map(entries.map(e => [e.id, e]));
-        const items = r.ids.map(id => byId.get(id)).filter(Boolean).sort((a, b) => a.start - b.start).map(e => ({
-            label: new Date(e.start).toLocaleDateString(),
-            text: embedText(e, (r.manifest || loadManifest('phone', contact)).entries[e.id]).replace(/^Text messages between [^\n]*\n/, ''),
-        }));
-        return formatRecalled(items, { heading: '[OLDER TEXTS THAT MAY MATTER]', maxChars: 2400 });
-    } catch (err) {
-        debugLog('Phone vector recall failed', err);
-        return '';
-    }
+/** What the last story reply left out to save space, in plain words, per module, or ''. */
+export function recallNote(moduleId) {
+    const m = VECTOR_MODULES[moduleId];
+    return m ? droppedNote(getRecallStats(moduleId) || {}, m.noun, m.nouns) : '';
 }
 
 /* ---- automatic sync ------------------------------------------------------------------ */
@@ -575,8 +694,10 @@ export function initVectors() {
     eventSource.on(PHONE_CHANGED_EVENT, (contact) => { if (contact) scheduleSync('phone', String(contact)); });
     eventSource.on(event_types.CHAT_CHANGED, () => {
         clearPicks();
+        phoneRecall = null;
         cache.clear();
-        // The last chat's recalled games and fights must not reach the next one.
+        clearRecallStats();
+        // The last chat's remembered games, fights and texts must not reach the next one.
         applyTalkInjection();
         // Catch up on anything written while vectors were off or Ollama was down.
         for (const id of ['rivalry', ...TALK_KINDS]) scheduleSync(id);

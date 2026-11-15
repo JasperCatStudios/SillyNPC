@@ -10,7 +10,18 @@
     --snpc-vec-ok: var(--sillynpc-success, #00c851);
     --snpc-vec-bad: var(--sillynpc-danger, #ff4444);
     --snpc-vec-warnc: var(--sillynpc-warning, #ffb020);
+    /* Text is always the panel's own foreground: the theme's (SillyNPC's in the menu, SillyTavern's
+       in a drawer). Never a decorative colour such as --warning, which some SillyTavern themes set
+       to a pale accent that cannot be read on a light ground. */
+    --snpc-vec-fg: var(--sillynpc-fg-primary, var(--SmartThemeBodyColor, inherit));
+    color: var(--snpc-vec-fg);
     min-width: 0;
+}
+
+/* Small text with a glow or shadow blurs on a light ground; none of it here. */
+.snpc-vec,
+.snpc-vec * {
+    text-shadow: none !important;
 }
 
 /* ---- the collapsible box a module panel lives in ---- */
@@ -52,7 +63,11 @@
 .snpc-vec-badge.is-off {
     white-space: normal;
     text-align: right;
-    color: var(--warning, #e0a040);
+    /* The panel's foreground (readable on every theme); the warning colour only marks the edge. */
+    color: var(--snpc-vec-fg);
+    font-weight: 600;
+    padding: 1px 0 1px 8px;
+    border-left: 3px solid var(--snpc-vec-warnc);
 }
 
 .snpc-vec-body {
@@ -109,8 +124,27 @@
     white-space: nowrap;
 }
 
-.snpc-vec-btn:disabled {
-    opacity: 0.45;
+/* Buttons draw their own text and ground from the panel's tokens, so a theme that paints menu
+   buttons white-on-dark cannot leave white text on a light panel. */
+.snpc-vec .menu_button {
+    color: var(--snpc-vec-fg);
+    background: color-mix(in srgb, var(--snpc-vec-fg) 8%, transparent);
+    border: 1px solid var(--snpc-vec-line);
+}
+
+.snpc-vec .menu_button:hover {
+    background: color-mix(in srgb, var(--snpc-vec-fg) 16%, transparent);
+}
+
+/* Disabled: the same dark text, dimmed (about 5:1 on parchment), with a dashed edge, rather
+   than SillyTavern's grey-and-brightness filter that turns it near-white. */
+.snpc-vec-btn:disabled,
+.snpc-vec .menu_button:disabled,
+.snpc-vec .menu_button.disabled {
+    color: var(--snpc-vec-fg);
+    filter: none;
+    opacity: 0.7;
+    border-style: dashed;
     cursor: not-allowed;
 }
 
@@ -307,3 +341,156 @@
 
     .snpc-vec-step .snpc-vec-muted { grid-column: 2; }
 }
+
+/* ---- the Vectors menu: master switch, overview, vectorize, module tabs ---- */
+
+.snpc-vec-master {
+    border: 2px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+    padding: 8px 10px;
+    margin: var(--sillynpc-space-md, 12px) 0;
+}
+
+.snpc-vec-master.is-on { border-color: var(--snpc-vec-ok); }
+.snpc-vec-master.is-off { border-color: var(--snpc-vec-warnc); }
+.snpc-vec-master .sillynpc-setting-label { font-size: 1.1em; font-weight: 700 !important; }
+
+.snpc-vec-master-state,
+.snpc-vec-waiting,
+.snpc-vec-modstatus {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--snpc-vec-gap);
+    margin-top: 6px;
+}
+
+.snpc-vec-warn { display: block; }
+.snpc-vec-warn .snpc-vec-master-btn { margin-top: 6px; }
+.snpc-vec-summary .snpc-vec-master-btn { padding: 2px 8px; font-size: var(--sillynpc-text-sm, 0.85em); }
+
+/* A module switch ticked but still waiting on another switch: dimmed, and said so. */
+.snpc-vec-modtoggle.is-waiting .sillynpc-setting-label { opacity: 0.75; }
+.snpc-vec-waiting {
+    font-size: var(--sillynpc-text-sm, 0.9em);
+    font-style: italic;
+    padding-left: 8px;
+    border-left: 3px solid var(--snpc-vec-warnc);
+}
+
+.snpc-vec-ov-row { grid-template-columns: minmax(160px, 1.2fr) minmax(110px, 0.9fr) minmax(0, 1.2fr) auto; }
+.snpc-vec-ov-state { font-weight: 600; }
+.snpc-vec-ov-state.is-off { opacity: 0.8; font-weight: 400; }
+.snpc-vec-ov-state.is-on { padding-left: 6px; border-left: 3px solid var(--snpc-vec-ok); }
+.snpc-vec-ov-state.is-waiting,
+.snpc-vec-ov-state.is-phone-off {
+    padding-left: 6px;
+    border-left: 3px solid var(--snpc-vec-warnc);
+}
+
+.snpc-vec-all {
+    border: 1px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+    padding: 8px 10px;
+    margin: var(--sillynpc-space-md, 12px) 0;
+}
+
+.snpc-vec-all-title { font-weight: 700; }
+.snpc-vec-all-progress:empty { display: none; }
+
+.snpc-vec-report {
+    margin: 6px 0 0;
+    padding-left: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.snpc-vec-report li {
+    padding: 3px 8px;
+    border-left: 3px solid var(--snpc-vec-line);
+    overflow-wrap: anywhere;
+}
+
+.snpc-vec-report li.is-ok { border-left-color: var(--snpc-vec-ok); }
+.snpc-vec-report li.is-warn { border-left-color: var(--snpc-vec-warnc); background: color-mix(in srgb, var(--snpc-vec-warnc) 10%, transparent); }
+.snpc-vec-report li.is-error { border-left-color: var(--snpc-vec-bad); background: color-mix(in srgb, var(--snpc-vec-bad) 10%, transparent); }
+.snpc-vec-report li.is-muted { opacity: 0.85; }
+
+.snpc-vec-tabs { flex-wrap: wrap; margin-top: var(--sillynpc-space-md, 12px); }
+.snpc-vec-tabs .sillynpc-charview-tab { display: inline-flex; align-items: center; gap: 6px; }
+
+.snpc-vec-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    border: 1px solid currentColor;
+    background: transparent;
+}
+
+.snpc-vec-dot.is-on { background: var(--snpc-vec-ok); border-color: var(--snpc-vec-ok); }
+.snpc-vec-dot.is-waiting,
+.snpc-vec-dot.is-phone-off { background: var(--snpc-vec-warnc); border-color: var(--snpc-vec-warnc); }
+
+.snpc-vec-modhead {
+    border: 2px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+    padding: 8px 10px;
+    margin-bottom: var(--sillynpc-space-md, 12px);
+}
+
+.snpc-vec-modhead .sillynpc-setting-label { font-size: 1.05em; font-weight: 700 !important; }
+.snpc-vec-modstatus.is-off { padding-left: 8px; border-left: 3px solid var(--snpc-vec-warnc); }
+.snpc-vec-modstatus-label { font-weight: 600; }
+
+@media (max-width: 700px) {
+    .snpc-vec-ov-row { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
+/* The one-line "where this history comes from", the "left out to save space" note, and the
+   collapsed Advanced box (closed by default). */
+.snpc-vec-source {
+    margin: 4px 0;
+    color: var(--snpc-vec-muted);
+}
+
+.snpc-vec-source.is-on {
+    color: inherit;
+}
+
+.snpc-vec-ov-source {
+    margin: 0 0 6px 28px;
+    font-size: 0.9em;
+}
+
+.snpc-vec-dropped {
+    margin: 4px 0;
+    color: var(--snpc-vec-warnc);
+}
+
+.snpc-vec-advanced {
+    margin: var(--snpc-vec-gap) 0;
+    border: 1px solid var(--snpc-vec-line);
+    border-radius: var(--snpc-vec-radius);
+    padding: 4px var(--snpc-vec-gap);
+}
+
+.snpc-vec-advanced-summary {
+    cursor: pointer;
+    color: var(--snpc-vec-muted);
+}
+
+.snpc-vec-advanced-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--snpc-vec-gap);
+    padding: var(--snpc-vec-gap) 0;
+}
+/* "History brought back, total": number, unit and the other unit as a hint. */
+.snpc-vec-amount { margin: 8px 0; }
+.snpc-vec-amount .sillynpc-setting-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.snpc-vec-amount .sillynpc-number-input { width: 7em; }
+.snpc-vec-amount-unit { width: auto; min-width: 9em; }
+.snpc-vec-amount-hint { display: block; margin-top: 2px; font-size: 0.9em; }

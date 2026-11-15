@@ -1,10 +1,14 @@
 import { getContext } from '../../../../st-context.js';
 import { eventSource } from '../../../../events.js';
-import { normalizeStore, normalizeRecord, describeRivalry, tally } from './rivalry-core.js';
+import { normalizeStore, normalizeRecord, describeRivalry, tally, tallyVsPlayer, othersIn } from './rivalry-core.js';
 
 /**
  * The rivalry record, stored in the chat's own metadata (fork), so each chat has its own
  * history and it goes wherever the chat goes.
+ *
+ * Records have two sides of any number of people (see rivalry-core.js). Older records (one
+ * player against one opponent) are moved to that shape the first time the store is read; their
+ * old fields are kept alongside, so nothing is lost.
  */
 
 const KEY = 'sillynpc_rivalry';
@@ -29,26 +33,38 @@ function save() {
     eventSource.emit(RIVALRY_CHANGED_EVENT);
 }
 
-/** Every record in this chat, oldest first. A copy: edit through updateRecord. */
+const copy = (r) => ({ ...r, sideA: [...r.sideA], sideB: [...r.sideB] });
+
+/** Every record in this chat, oldest first. Copies: edit through updateRecord. */
 export function listRecords() {
-    return (store()?.records || []).map(r => ({ ...r }));
+    return (store()?.records || []).map(copy);
 }
 
+/**
+ * Adds one record. Takes sides ({ sideA, sideB, winner, userSide, player }) or, as before, a
+ * single { player, opponent, result } from the player's side. Null when nobody but the
+ * player is in it.
+ */
 export function addRecord(entry) {
     const s = store();
     if (!s) return null;
     const rec = normalizeRecord({ ...entry, id: undefined, at: entry.at ?? Date.now() });
-    if (!rec.opponent) return null;
+    if (!othersIn(rec).length) return null;
     s.records.push(rec);
     save();
-    return { ...rec };
+    return copy(rec);
 }
 
 export function updateRecord(id, patch) {
     const s = store();
     const rec = s?.records.find(r => r.id === id);
     if (!rec) return false;
-    Object.assign(rec, normalizeRecord({ ...rec, ...patch, id: rec.id, at: rec.at }));
+    const merged = { ...rec, ...patch, id: rec.id, at: rec.at };
+    // An old-style patch that only sets the result: let it decide the winner.
+    if (patch && 'result' in patch && !('winner' in patch)) delete merged.winner;
+    const next = normalizeRecord(merged);
+    if (!othersIn(next).length) return false;
+    Object.assign(rec, next);
     save();
     return true;
 }
@@ -63,14 +79,20 @@ export function removeRecord(id) {
     return true;
 }
 
-export function tallyFor(opponent, kind) {
-    return tally(listRecords(), opponent, kind);
+/** One person's results, from their own side, over the records they took part in. */
+export function tallyFor(person, kind) {
+    return tally(listRecords(), person, kind);
 }
 
-/** For prompts. Empty when there is no history with this person. */
-export function rivalryBlock(opponent, playerName) {
+/** The player's results against one person: only where they were on opposite sides. */
+export function tallyAgainst(opponent, kind) {
+    return tallyVsPlayer(listRecords(), opponent, kind);
+}
+
+/** For prompts. Empty when this person took part in nothing. */
+export function rivalryBlock(person, playerName) {
     try {
-        return describeRivalry(listRecords(), opponent, playerName || 'the player');
+        return describeRivalry(listRecords(), person, playerName || 'the player');
     } catch {
         return '';
     }

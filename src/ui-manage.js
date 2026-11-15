@@ -268,7 +268,7 @@ function settingsTabs() {
         { id: 'threads', label: 'Threads', container: 'sillynpc-threads-view',
           render: v => renderThreadsView(v) },
         { id: 'status', label: 'Tracker', container: 'sillynpc-status-view',
-          render: v => renderStatusView(v) },
+          render: v => renderTrackerView(v) },
         { id: 'hud', label: 'HUD', container: 'sillynpc-hud-view',
           render: v => renderHudView(v) },
         { id: 'systems', label: 'Systems', container: 'sillynpc-systems-view',
@@ -277,8 +277,6 @@ function settingsTabs() {
           render: v => renderGenerationSettingsView(v) },
         { id: 'connections', label: 'Connections', container: 'sillynpc-connections-view',
           render: v => renderConnectionsView(v) },
-        { id: 'bonds', label: 'Bonds', container: 'sillynpc-bonds-view',
-          render: v => renderBondsView(v) },
         { id: 'vectors', label: 'Vectors', container: 'sillynpc-vectors-view',
           render: v => renderVectorsView(v) },
         { id: 'prompts', label: 'Prompts', container: 'sillynpc-prompts-view',
@@ -292,6 +290,49 @@ function settingsTabs() {
               onImport: () => importData(),
           }) },
     ];
+}
+
+/** Which view of the Tracker tab is showing. */
+let trackerView = 'tracker';
+
+/**
+ * The Tracker tab: the tracker settings, and Bonds as a second view beside them
+ * (same pattern as Systems).
+ *
+ * @param {HTMLElement} view
+ */
+function renderTrackerView(view) {
+    view.replaceChildren();
+
+    const tabs = document.createElement('div');
+    tabs.className = 'sillynpc-charview-tabs';
+    for (const [id, label, hint] of [
+        ['tracker', 'Tracker', 'Internal states, display and the rest of the tracker settings.'],
+        ['bonds', 'Bonds', 'How the people in the story feel about you.'],
+    ]) {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'sillynpc-charview-tab' + (trackerView === id ? ' active' : '');
+        tab.dataset.view = id;
+        tab.textContent = label;
+        tab.title = hint;
+        tab.addEventListener('click', () => {
+            if (trackerView === id) return;
+            trackerView = id;
+            renderTrackerView(view);
+        });
+        tabs.append(tab);
+    }
+    view.append(tabs);
+
+    const body = document.createElement('div');
+    view.append(body);
+    try {
+        if (trackerView === 'bonds') renderBondsView(body);
+        else renderStatusView(body);
+    } catch (e) {
+        console.error(LOG_PREFIX, `Tracker ${trackerView} view failed`, e);
+    }
 }
 
 /** Which half of the Systems tab is showing. */

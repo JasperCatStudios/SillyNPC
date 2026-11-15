@@ -1,8 +1,9 @@
-import { getRequestHeaders } from '../../../../../script.js';
+import { getRequestHeaders, getMaxContextTokens } from '../../../../../script.js';
 import { extension_settings } from '../../../../extensions.js';
+import { getContext } from '../../../../st-context.js';
 import { textgenerationwebui_settings, textgen_types } from '../../../../textgen-settings.js';
 import { getSettings } from './settings.js';
-import { normalizeVectorSettings, resolveSource } from './vector-core.js';
+import { normalizeVectorSettings, resolveSource, contextSize, historyTotalTokens } from './vector-core.js';
 import { LOG_PREFIX } from './constants.js';
 
 /**
@@ -73,7 +74,7 @@ async function post(path, body, { signal, what = 'Vector request' } = {}) {
  */
 export async function insertItems(collectionId, items, { signal } = {}) {
     if (!items?.length) return;
-    await post('/api/vector/insert', { collectionId, items }, { signal, what: 'Vectorizing' });
+    await post('/api/vector/insert', { collectionId, items }, { signal, what: 'Remembering' });
 }
 
 /** Results in score order, already above the threshold: [{ hash, text, index, score? }]. */
@@ -130,6 +131,73 @@ export function currentPicks(moduleId) {
 
 export function clearPicks() {
     picks.clear();
+    sentTalk.clear();
+    rivalryRoom = null;
+}
+
+/*
+ * The room the shared-history block may use this generation when Rivalry vectors are on: what
+ * the games, fights and phone blocks left of "History brought back, total". null: no limit
+ * (vectors off, or nothing searched), which is the block as it always was.
+ */
+let rivalryRoom = null;
+
+export function publishRivalryRoom(tokens) {
+    rivalryRoom = Number.isFinite(Number(tokens)) && tokens !== null ? Math.max(0, Math.floor(Number(tokens))) : null;
+}
+
+export function currentRivalryRoom() {
+    return rivalryRoom;
+}
+
+/** The context size SillyTavern reports for the current connection: { tokens, known }. */
+export function currentContextSize() {
+    let reported = null;
+    try { reported = getMaxContextTokens(); } catch { /* not loaded */ }
+    if (!(Number(reported) >= 1024)) {
+        try { reported = getContext()?.maxContext; } catch { /* not loaded */ }
+    }
+    return contextSize(reported);
+}
+
+/** "History brought back, total", in tokens, for the current context. */
+export function historyTotal() {
+    return historyTotalTokens(vectorSettings(), currentContextSize());
+}
+
+/*
+ * The games and fights whose table talk this generation's story prompt carries, per kind. The
+ * shared-history block reads it so the rivalry record of the same game or fight is not sent too.
+ */
+const sentTalk = new Map();
+
+export function publishSentTalk(kind, ids) {
+    if (Array.isArray(ids) && ids.length) sentTalk.set(kind, ids.slice());
+    else sentTalk.delete(kind);
+}
+
+/** Talk entry ids already in this generation's prompt: { games: [], combat: [] }. */
+export function currentSentTalk() {
+    return { games: sentTalk.get('games') || [], combat: sentTalk.get('combat') || [] };
+}
+
+/*
+ * What the last recall put in and left out, per module, for the panels' plain note. Kept across
+ * generations (it describes the last one), cleared when the chat changes.
+ */
+const recallStats = new Map();
+
+export function setRecallStats(moduleId, stats) {
+    if (stats) recallStats.set(moduleId, { kept: Number(stats.kept) || 0, dropped: Number(stats.dropped) || 0, at: Date.now() });
+    else recallStats.delete(moduleId);
+}
+
+export function getRecallStats(moduleId) {
+    return recallStats.get(moduleId) || null;
+}
+
+export function clearRecallStats() {
+    recallStats.clear();
 }
 
 /* ---- error toasts -------------------------------------------------------------------- */
@@ -184,9 +252,9 @@ export async function testConnection() {
     try {
         await insertItems(PROBE_COLLECTION, [{ hash: 1, text: PROBE_TEXT, index: 0 }]);
         const hits = await queryCollection(PROBE_COLLECTION, PROBE_TEXT, 1, 0);
-        steps.push({ label: 'Embedding through SillyTavern', ok: hits.length > 0, detail: hits.length ? 'insert and search work' : 'stored, but the search found nothing' });
+        steps.push({ label: 'Remembering through SillyTavern', ok: hits.length > 0, detail: hits.length ? 'insert and search work' : 'stored, but the search found nothing' });
     } catch (err) {
-        steps.push({ label: 'Embedding through SillyTavern', ok: false, detail: String(err?.message || err) });
+        steps.push({ label: 'Remembering through SillyTavern', ok: false, detail: String(err?.message || err) });
     } finally {
         purgeCollection(PROBE_COLLECTION).catch(() => { });
     }
@@ -202,9 +270,9 @@ export async function testConnection() {
         });
         const data = await response.json();
         const dim = data?.embeddings?.[0]?.length;
-        steps.push({ label: 'Embedding dimension', ok: dim ? true : null, detail: dim ? String(dim) : 'not reported' });
+        steps.push({ label: 'Model output size', ok: dim ? true : null, detail: dim ? String(dim) : 'not reported' });
     } catch {
-        steps.push({ label: 'Embedding dimension', ok: null, detail: 'unknown (the browser cannot reach Ollama directly; that is fine)' });
+        steps.push({ label: 'Model output size', ok: null, detail: 'unknown (the browser cannot reach Ollama directly; that is fine)' });
     }
 
     return { ok: steps.every(s => s.ok !== false), steps };

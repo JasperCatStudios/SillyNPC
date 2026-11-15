@@ -6,7 +6,6 @@ import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
-import { recallPhone } from '../../src/vectors.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 
 const MODULE_NAME = 'sillynpc_phone';
@@ -2320,7 +2319,7 @@ function extensionMemoryBlock() { return coreMemory('phone'); }
 let lastSent = null;
 
 /** Builds the request for a reply, without sending it. */
-function buildRequest(names, reasonLine, isInitiative, contactId, recalled = '') {
+function buildRequest(names, reasonLine, isInitiative, contactId) {
     const primary = contactId || names[0];
     const th = threadOf(primary);
     const lastTs = th.length ? th[th.length - 1].ts : 0;
@@ -2335,8 +2334,7 @@ function buildRequest(names, reasonLine, isInitiative, contactId, recalled = '')
     ];
     const build = (mainN, thN) => {
         const th = threadContext(primary, thN);
-        // Fork: older texts SillyNPC's vectors found relevant, before the recent ones they lead up to.
-        return head.concat([mainChatContext(names, mainN), recalled, th ?`[YOUR TEXT CONVERSATION SO FAR]\n${th}` : ''], tail)
+        return head.concat([mainChatContext(names, mainN), th ?`[YOUR TEXT CONVERSATION SO FAR]\n${th}` : ''], tail)
             .filter(Boolean).join('\n\n');
     };
     // BUG FIX (1.9.0): «Контекст (токенов)» was in the panel but used nowhere. It is now
@@ -2354,12 +2352,9 @@ function buildRequest(names, reasonLine, isInitiative, contactId, recalled = '')
 }
 
 async function generateReply(names, reasonLine, isInitiative, contactId) {
-    // Fork: SillyNPC's vectors may add older texts from this thread, only ones older than the
-    // window sent anyway. '' when they are off, slow or failing: the request as it always was.
-    const primaryId = contactId || names[0];
-    const recentTh = threadOf(primaryId).slice(-Math.max(2, settings.threadMemory || 24));
-    const recalled = await recallPhone(primaryId, { recentFromTs: recentTh.length ? recentTh[0].ts : Infinity });
-    const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId, recalled);
+    // Fork: the phone's own request never carries remembered texts. SillyNPC's vectors bring old
+    // texts back to the MAIN story only (src/vectors.js), so a reply here is exactly as it was.
+    const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId);
     lastSent = { at: Date.now(), contact: primary, kind: isInitiative ? 'initiative' : 'reply', sys, user };
     const raw = await callAIComplete(sys, user);
     const msgs = parseReply(raw, names.concat(['SYSTEM']), castOfContact(primary));
