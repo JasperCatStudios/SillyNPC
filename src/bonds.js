@@ -241,6 +241,7 @@ function drawSectionFor(mesEl) {
         store: chatStore(),
         settings: bondSettings(),
         playerName: playerName(),
+        refresh: () => redrawSection(id),
         latest: id === latestReplyId(),
         redo: () => { runBondUpdate(id, { force: true, button: true }).catch(err => console.warn(LOG_PREFIX, err)); },
         onEdit: (entries) => {

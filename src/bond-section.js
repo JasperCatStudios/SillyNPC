@@ -121,7 +121,7 @@ export function drawBondSection(mesEl, ctx) {
     pen.addEventListener('click', (e) => {
         e.stopPropagation();
         editing.add(key);
-        drawBondSection(mesEl, ctx);
+        (ctx.refresh ? ctx.refresh() : drawBondSection(mesEl, ctx));
     });
     bar.append(title, status, pen, again);
     section.append(bar);
@@ -140,13 +140,13 @@ export function drawBondSection(mesEl, ctx) {
         save.addEventListener('click', () => {
             try { onEdit?.(parseTrackerLines(box.value)); } finally {
                 editing.delete(key);
-                drawBondSection(mesEl, ctx);
+                (ctx.refresh ? ctx.refresh() : drawBondSection(mesEl, ctx));
             }
         });
         const cancel = document.createElement('div');
         cancel.className = 'menu_button';
         cancel.textContent = 'Cancel';
-        cancel.addEventListener('click', () => { editing.delete(key); drawBondSection(mesEl, ctx); });
+        cancel.addEventListener('click', () => { editing.delete(key); (ctx.refresh ? ctx.refresh() : drawBondSection(mesEl, ctx)); });
         row.append(save, cancel);
         section.append(box, row);
         const anchorEdit = mesEl.querySelector('.sillynpc-internal-states') || mesEl.querySelector('.sillynpc-status-box') || mesEl.querySelector('.mes_text');
