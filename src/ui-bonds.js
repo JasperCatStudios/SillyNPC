@@ -6,13 +6,14 @@ import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 import { mountVectorPanel } from './ui-vectors.js';
 import {
     bondSettings, saveBondSettings, chatStore, editPerson, removePerson, runBondUpdate,
-    latestReplyId, currentBondInjection, todayForMilestone, BONDS_CHANGED_EVENT,
+    latestReplyId, currentBondInjection, todayForMilestone, playerName, BONDS_CHANGED_EVENT,
 } from './bonds.js';
 import {
     BOND_TIMINGS, GATE_KINDS, NEVER, INJECT_POSITIONS, INJECT_ROLES, INJECT_TRIGGERS, INJECT_ORDERS,
     BOND_DEFAULTS, BOND_SYSTEM, DEFAULT_LEVELS, DEFAULT_GATES, DEFAULT_MILESTONES,
+    METERS, METER_LABELS, BOND_LOCKS,
     levelFor, gateText, normalizePerson, addMilestone, editMilestone, removeMilestone,
-    toggleMilestone, hasMilestone, newId,
+    toggleMilestone, hasMilestone, newId, platonicValue, setMeter,
 } from './bonds-core.js';
 
 /**
@@ -25,6 +26,8 @@ import {
 
 /** People whose history is open, by lowercased name. Survives redraws, not reopening the menu. */
 const expanded = new Set();
+/** People whose "your side" panel is open, the same way. */
+const sideOpen = new Set();
 let currentView = null;
 let listening = false;
 
@@ -267,7 +270,6 @@ function personCard(person, settings, rerender) {
     const key = person.name.toLowerCase();
     const open = expanded.has(key);
     const { level, next } = levelFor(person.value, settings.levels);
-    const g = settings.growth;
     const wrap = el('div', `snpc-bond-person${person.tracked ? '' : ' is-off'}${person.untracked ? ' is-new' : ''}`);
 
     const head = el('div', 'snpc-bond-head');
@@ -279,27 +281,20 @@ function personCard(person, settings, rerender) {
     who.append(el('span', 'snpc-bond-name', person.name));
     who.append(el('span', 'snpc-bond-level', person.untracked ? 'Not tracked yet' : level.name));
 
-    const meter = el('div', 'snpc-bond-meter');
-    const fill = el('div', 'snpc-bond-fill');
-    fill.style.width = `${Math.max(0, Math.min(100, ((person.value - g.min) / (g.max - g.min)) * 100))}%`;
-    meter.append(fill);
-    // Thresholds as ticks, so the distance to the next level reads at a glance.
-    for (const l of settings.levels) {
-        if (l.min <= g.min || l.min >= g.max) continue;
-        const tick = el('span', 'snpc-bond-tick');
-        tick.style.left = `${((l.min - g.min) / (g.max - g.min)) * 100}%`;
-        tick.title = `${l.name} at ${l.min}`;
-        meter.append(tick);
-    }
-    meter.title = next ? `${level.name}. ${next.name} at ${next.min}.` : `${level.name}, the top level.`;
+    // The character's own edge: three meters. The level comes from the lower of affection and trust.
+    const meters = el('div', 'snpc-bond-meters');
+    for (const k of METERS) meters.append(meterRow(person, 'toPlayer', k, settings, rerender));
+    meters.title = next
+        ? `${level.name} (the lower of affection and trust). ${next.name} at ${next.min}.`
+        : `${level.name}, the top level.`;
 
-    const value = input('number', person.value, (v) => {
-        if (!Number.isFinite(v)) return;
-        editPerson(person.name, (p) => { p.value = Math.max(g.min, Math.min(g.max, Math.round(v * 10) / 10)); });
+    // Stored only for now: what this bond may become.
+    const lock = select(BOND_LOCKS, person.lock || 'open', (v) => {
+        editPerson(person.name, (p) => { p.lock = v; });
         rerender();
-    }, { min: g.min, max: g.max, step: 1 });
-    value.classList.add('snpc-bond-value');
-    value.title = `Set the bond by hand (${g.min} to ${g.max})`;
+    });
+    lock.classList.add('snpc-bond-lock');
+    lock.title = 'What this bond may become: open, platonic only, or family';
 
     const chips = el('div', 'snpc-bond-chips');
     chips.append(
@@ -346,10 +341,57 @@ function personCard(person, settings, rerender) {
         }, 'snpc-bond-danger'));
     }
 
-    head.append(toggle, who, meter, value, chips, actions);
+    head.append(toggle, who, meters, lock, chips, actions);
     wrap.append(head);
+    wrap.append(playerSide(person, settings, rerender));
     if (open) wrap.append(personBody(person, settings, rerender));
     return wrap;
+}
+
+/** One meter of one edge: a bar (with level ticks for affection and trust) and a number to set it by hand. */
+function meterRow(person, dir, meter, settings, rerender) {
+    const g = settings.growth;
+    const v = Number(person.edges?.[dir]?.[meter]) || 0;
+    const row = el('div', 'snpc-bond-meterrow');
+    const bar = el('div', `snpc-bond-meter snpc-bond-meter-${meter}`);
+    const fill = el('div', 'snpc-bond-fill');
+    fill.style.width = `${Math.max(0, Math.min(100, ((v - g.min) / (g.max - g.min)) * 100))}%`;
+    bar.append(fill);
+    // Thresholds as ticks on the two meters the level is read from.
+    if (meter !== 'respect') {
+        for (const l of settings.levels) {
+            if (l.min <= g.min || l.min >= g.max) continue;
+            const tick = el('span', 'snpc-bond-tick');
+            tick.style.left = `${((l.min - g.min) / (g.max - g.min)) * 100}%`;
+            tick.title = `${l.name} at ${l.min}`;
+            bar.append(tick);
+        }
+    }
+    const box = input('number', v, (nv) => {
+        if (!Number.isFinite(nv)) return;
+        editPerson(person.name, (p) => { setMeter(p, dir, meter, Math.round(nv * 10) / 10, g); });
+        rerender();
+    }, { min: g.min, max: g.max, step: 1 });
+    box.classList.add('snpc-bond-value');
+    box.title = `Set ${METER_LABELS[meter].toLowerCase()} by hand (${g.min} to ${g.max})`;
+    row.append(el('span', 'snpc-bond-meterlabel', METER_LABELS[meter]), bar, box);
+    return row;
+}
+
+/** The player's side of the bond: collapsed, set by hand only, read by the model as context. */
+function playerSide(person, settings, rerender) {
+    const key = person.name.toLowerCase();
+    const you = playerName();
+    const side = el('details', 'snpc-bond-side');
+    side.open = sideOpen.has(key);
+    side.addEventListener('toggle', () => { if (side.open) sideOpen.add(key); else sideOpen.delete(key); });
+    const level = levelFor(platonicValue(person.edges?.fromPlayer), settings.levels).level;
+    side.append(el('summary', 'snpc-bond-side-summary', `${you}'s side: ${level.name}`));
+    side.append(el('small', 'notes', `How ${you} feels about ${person.name}. Set by hand only: the model is told it, but never changes it.`));
+    const rows = el('div', 'snpc-bond-meters');
+    for (const k of METERS) rows.append(meterRow(person, 'fromPlayer', k, settings, rerender));
+    side.append(rows);
+    return side;
 }
 
 function personBody(person, settings, rerender) {

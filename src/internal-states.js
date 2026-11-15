@@ -146,7 +146,10 @@ function htmlToText(html) {
 
 /** Pulls the block out of a reply that may carry prose or a code fence around it. */
 function extractBlock(raw) {
-    let text = String(raw ?? '').replace(/```(?:html|xml|markdown)?/gi, '').trim();
+    let text = String(raw ?? '')
+        .replace(/<(think|thinking|thought|reasoning)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+        .replace(/```(?:html|xml|markdown)?/gi, '')
+        .trim();
     const start = text.indexOf(GFX_START);
     const end = text.lastIndexOf(GFX_END);
     if (start !== -1 && end > start) return text.slice(start, end + GFX_END.length);
@@ -155,6 +158,15 @@ function extractBlock(raw) {
         const close = text.lastIndexOf('</internal_states>');
         const body = close > inner ? text.slice(inner, close + '</internal_states>'.length) : text.slice(inner);
         return `${GFX_START}\n${body}\n${GFX_END}`;
+    }
+    // The model kept the details but dropped the markers: wrap what is there, as long as it
+    // is plainly the block (its title) and not prose that happens to mention it.
+    const title = text.search(/<details>\s*<summary>[^<]*INTERNAL STATES/i);
+    if (title !== -1) {
+        const close = text.lastIndexOf('</details>');
+        if (close > title) {
+            return `${GFX_START}\n<internal_states>\n${text.slice(title, close + '</details>'.length)}\n</internal_states>\n${GFX_END}`;
+        }
     }
     return '';
 }
@@ -246,8 +258,15 @@ export async function generateInternalStates(messageId, { force = false } = {}) 
             message.mes,
         ].join('\n');
 
-        const block = extractBlock(await request(userPrompt));
-        if (!block) throw new Error('The reply did not contain a state block.');
+        const reply = await request(userPrompt);
+        const block = extractBlock(reply);
+        if (!block) {
+            const seen = String(reply ?? '').trim();
+            console.warn(LOG_PREFIX, 'Internal States reply had no block. Start of it:', seen.slice(0, 600));
+            throw new Error(seen
+                ? `The reply did not contain a state block (it began: "${seen.slice(0, 80).replace(/\s+/g, ' ')}").`
+                : 'The reply was empty (the model returned nothing; a thinking model may have used all its tokens, so try raising the Internal States max tokens).');
+        }
 
         // The turn the model wrote, falling back to the one it was given.
         const written = /Turn:\s*(\d+)/i.exec(block);

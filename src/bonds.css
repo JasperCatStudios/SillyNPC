@@ -107,7 +107,7 @@
 /* One row on a wide panel, two on a narrow one (name and meter above, controls below). */
 .snpc-bond-head {
     display: grid;
-    grid-template-columns: 30px minmax(110px, 1fr) minmax(90px, 1.4fr) 76px auto auto;
+    grid-template-columns: 30px minmax(110px, 1fr) minmax(180px, 2fr) 120px auto auto;
     grid-template-areas: "caret who meter value chips actions";
     align-items: center;
     gap: var(--snpc-bond-gap);
@@ -115,8 +115,8 @@
 
 .snpc-bond-caret   { grid-area: caret; }
 .snpc-bond-who     { grid-area: who; }
-.snpc-bond-meter   { grid-area: meter; }
-.snpc-bond-value   { grid-area: value; }
+.snpc-bond-meters  { grid-area: meter; }
+.snpc-bond-lock    { grid-area: value; }
 .snpc-bond-chips   { grid-area: chips; }
 .snpc-bond-actions { grid-area: actions; }
 
@@ -137,6 +137,54 @@
 .snpc-bond-level {
     font-size: var(--sillynpc-text-sm, 0.8em);
     color: var(--snpc-bond-muted);
+}
+
+/* Three meters for one edge: label, bar, number. */
+.snpc-bond-meters {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.snpc-bond-meterrow {
+    display: grid;
+    grid-template-columns: 64px minmax(50px, 1fr) 64px;
+    align-items: center;
+    gap: 6px;
+}
+
+.snpc-bond-meterlabel {
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-meter-respect .snpc-bond-fill {
+    background: color-mix(in srgb, var(--snpc-bond-accent) 55%, var(--SmartThemeBodyColor, #fff));
+}
+
+.snpc-bonds .snpc-bond-person .snpc-bond-lock {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+}
+
+/* The player's hand-set side: collapsed under the head. */
+.snpc-bond-side {
+    margin-top: 4px;
+    padding-left: calc(30px + var(--snpc-bond-gap));
+}
+
+.snpc-bond-side-summary {
+    cursor: pointer;
+    font-size: var(--sillynpc-text-sm, 0.8em);
+    color: var(--snpc-bond-muted);
+}
+
+.snpc-bond-side[open] .snpc-bond-meters {
+    max-width: 420px;
+    margin-top: 4px;
 }
 
 .snpc-bond-meter {
@@ -401,7 +449,7 @@
 
 @media (max-width: 700px) {
     .snpc-bond-head {
-        grid-template-columns: 30px minmax(0, 1fr) 76px auto;
+        grid-template-columns: 30px minmax(0, 1fr) 120px auto;
         grid-template-areas:
             "caret who value actions"
             "meter meter meter meter"
@@ -410,6 +458,10 @@
 
     .snpc-bond-th {
         display: none;
+    }
+
+    .snpc-bond-side {
+        padding-left: 0;
     }
 
     /* Rows stack their cells; the delete button keeps its own small column. */
@@ -437,3 +489,7 @@
 /* the labelled way into a person's history */
 .snpc-bond-histbtn { white-space: nowrap; padding: 2px 10px; font-size: 0.85em; }
 .snpc-bond-histbtn.is-open { outline: 1px solid var(--SmartThemeQuoteColor, currentColor); }
+.sillynpc-bond-section { margin: 8px 0 0; border-top: 1px solid var(--SmartThemeBorderColor, #444); padding-top: 4px; }
+.sillynpc-bond-section .sillynpc-is-bar { display: flex; align-items: center; gap: 8px; font-size: 0.85em; opacity: 0.85; }
+.sillynpc-bond-section .sillynpc-is-title { font-weight: 600; }
+.sillynpc-bond-section .sillynpc-is-bar .mes_button { margin-left: auto; cursor: pointer; }

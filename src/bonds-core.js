@@ -53,6 +53,24 @@ export const INJECT_ORDERS = Object.freeze({
 /** The block the story model is asked to append in the "with the reply" timing. */
 export const INLINE_TAG = 'bond_update';
 
+/*
+ * Store version 2: a bond is two directed edges, each with its own meters.
+ *
+ *   toPlayer   - how the character feels about the player. The model proposes changes to it.
+ *   fromPlayer - how the player feels about the character. Set by hand; the model never moves it.
+ *
+ * The platonic level of an edge is levelFor(min(affection, trust)): warmth without trust, or
+ * trust without warmth, does not make a friend. Respect is kept and shown, and desire is part
+ * of the data model only (always 0 for now).
+ */
+export const METERS = Object.freeze(['affection', 'trust', 'respect']);
+export const ALL_METERS = Object.freeze(['affection', 'trust', 'respect', 'desire']);
+export const METER_LABELS = Object.freeze({ affection: 'Affection', trust: 'Trust', respect: 'Respect', desire: 'Desire' });
+export const EDGE_DIRS = Object.freeze({ toPlayer: 'Toward you', fromPlayer: 'Your side' });
+/** What a bond may become. Stored only for now. */
+export const BOND_LOCKS = Object.freeze({ open: 'Open', platonic: 'Platonic only', familial: 'Family' });
+export const STORE_VERSION = 2;
+
 /* ---- defaults ------------------------------------------------------------------------ */
 
 /*
@@ -420,24 +438,87 @@ export function normalizeMilestone(raw) {
     };
 }
 
+const isObj = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+
+function normalizeGains(list) {
+    return (Array.isArray(list) ? list : [])
+        .filter(g => g && Number.isFinite(Number(g.turn)) && Number.isFinite(Number(g.amount)))
+        .map(g => ({ turn: Number(g.turn), amount: Number(g.amount) }))
+        .slice(-100);
+}
+
+/**
+ * One directed edge, repaired. Missing meters come from `seed` (the migration's numbers), then
+ * from the starting value.
+ */
+export function normalizeEdge(raw, growth = DEFAULT_GROWTH, seed = {}) {
+    const e = isObj(raw) ? raw : {};
+    const s = isObj(seed) ? seed : {};
+    const meter = (k) => tenth(num(e[k], growth.min, growth.max, num(s[k], growth.min, growth.max, growth.start)));
+    const gains = isObj(e.gains) ? e.gains : null;
+    const seedGains = isObj(s.gains) ? s.gains : {};
+    return {
+        affection: meter('affection'),
+        trust: meter('trust'),
+        respect: meter('respect'),
+        // Data model only for now: nothing proposes or shows it.
+        desire: tenth(num(e.desire, growth.min, growth.max, 0)),
+        romance: Boolean(e.romance),
+        gains: Object.fromEntries(ALL_METERS.map(k => [k, normalizeGains(gains ? gains[k] : seedGains[k])])),
+    };
+}
+
+/** The value an edge's platonic level is read from: the lower of affection and trust. */
+export function platonicValue(edge) {
+    const a = Number(edge?.affection);
+    const t = Number(edge?.trust);
+    return tenth(Math.min(Number.isFinite(a) ? a : 0, Number.isFinite(t) ? t : 0));
+}
+
+/** Keeps the mirrored `person.value` (toPlayer's platonic value) in step with the edges. */
+export function syncValue(person) {
+    if (person?.edges?.toPlayer) person.value = platonicValue(person.edges.toPlayer);
+    return person?.value;
+}
+
+/** Sets one meter by hand, clamped to the scale, and keeps the mirror in step. */
+export function setMeter(person, dir, meter, value, growth = DEFAULT_GROWTH) {
+    const edge = person?.edges?.[dir];
+    const v = Number(value);
+    if (!edge || !ALL_METERS.includes(meter) || !Number.isFinite(v)) return false;
+    edge[meter] = tenth(Math.max(growth.min, Math.min(growth.max, v)));
+    syncValue(person);
+    return true;
+}
+
 export function normalizePerson(raw, growth = DEFAULT_GROWTH) {
     const p = raw && typeof raw === 'object' ? raw : {};
     const inj = p.inject && typeof p.inject === 'object' ? p.inject : {};
+    const edges = isObj(p.edges) ? p.edges : {};
+    // Version 1 had one number: it becomes affection and trust on both sides. Respect starts fresh.
+    const legacy = tenth(num(p.value, growth.min, growth.max, growth.start));
+    const oldGains = Array.isArray(p.gains) ? p.gains : [];
+    const toPlayer = normalizeEdge(edges.toPlayer, growth, {
+        affection: legacy, trust: legacy, respect: growth.start,
+        gains: { affection: oldGains, trust: oldGains },
+    });
+    const fromPlayer = normalizeEdge(edges.fromPlayer, growth, {
+        affection: toPlayer.affection, trust: toPlayer.trust, respect: growth.start,
+    });
     return {
         name: str(p.name, 80),
-        value: tenth(num(p.value, growth.min, growth.max, growth.start)),
+        // Mirror of toPlayer's platonic value, kept for one release for older readers.
+        value: platonicValue(toPlayer),
         // Off: never updated automatically and never injected. The numbers are kept.
         tracked: p.tracked !== false,
+        lock: pick(p.lock, BOND_LOCKS, 'open'),
+        edges: { toPlayer, fromPlayer },
         inject: {
             level: inj.level !== false,
             gates: inj.gates !== false,
             history: inj.history !== false,
         },
         history: (Array.isArray(p.history) ? p.history : []).map(normalizeMilestone).slice(-MAX_HISTORY),
-        gains: (Array.isArray(p.gains) ? p.gains : [])
-            .filter(g => g && Number.isFinite(Number(g.turn)) && Number.isFinite(Number(g.amount)))
-            .map(g => ({ turn: Number(g.turn), amount: Number(g.amount) }))
-            .slice(-100),
         lastSeen: Number.isFinite(Number(p.lastSeen)) ? Number(p.lastSeen) : 0,
         lastReason: str(p.lastReason, 300),
         legacy: p.legacy && typeof p.legacy === 'object' ? { ...p.legacy } : null,
@@ -452,9 +533,11 @@ export function normalizeStore(raw, growth = DEFAULT_GROWTH) {
         if (person.name && !people.some(x => sameName(x.name, person.name))) people.push(person);
     }
     return {
-        version: 1,
+        version: STORE_VERSION,
         turn: int(r.turn, 0, 1e9, 0),
         migrated: Boolean(r.migrated),
+        /** The newest in-story date the tracker could work out, so a milestone with no clock in the reply still gets one. */
+        lastDate: str(r.lastDate, 80),
         people,
         turns: (Array.isArray(r.turns) ? r.turns : []).filter(t => t && typeof t === 'object').slice(-MAX_TURNS),
     };
@@ -481,23 +564,28 @@ export function ensurePerson(store, name, growth = DEFAULT_GROWTH) {
  * In order: the per-turn caps, the slowdown near the top, the rolling window, the scale.
  * Each step can only shrink a change, never grow or flip it.
  *
+ * Each meter has its own caps and its own rolling window. `subject` is an edge (meter is one of
+ * ALL_METERS, gains per meter) or anything with a number under `meter` and a flat gains list.
+ *
  * @returns {{ delta: number, limited: string[] }} limited names the rules that bit.
  */
-export function clampGrowth(person, proposed, growth, turn) {
+export function clampGrowth(subject, proposed, growth, turn, meter = 'value') {
     const g = growth || DEFAULT_GROWTH;
     let delta = Number(proposed);
     const limited = [];
     if (!Number.isFinite(delta) || delta === 0) return { delta: 0, limited };
+    const current = Number(subject?.[meter]) || 0;
+    const gains = Array.isArray(subject?.gains) ? subject.gains : (subject?.gains?.[meter] || []);
 
     if (delta > 0) {
         if (delta > g.maxGain) { delta = g.maxGain; limited.push('turn cap'); }
         if (g.slowdown > 0 && g.max > g.start) {
-            const climbed = Math.max(0, Math.min(1, (person.value - g.start) / (g.max - g.start)));
+            const climbed = Math.max(0, Math.min(1, (current - g.start) / (g.max - g.start)));
             const factor = 1 - (g.slowdown / 100) * climbed;
             if (factor < 1) { delta *= factor; limited.push('slowdown'); }
         }
         if (g.windowTurns > 0) {
-            const recent = (person.gains || [])
+            const recent = gains
                 .filter(x => x.turn > turn - g.windowTurns && x.turn <= turn)
                 .reduce((sum, x) => sum + Math.max(0, x.amount), 0);
             const room = Math.max(0, g.windowGain - recent);
@@ -508,20 +596,24 @@ export function clampGrowth(person, proposed, growth, turn) {
         limited.push('turn cap');
     }
 
-    const target = Math.max(g.min, Math.min(g.max, person.value + delta));
-    if (target !== person.value + delta) limited.push('scale');
-    return { delta: tenth(target - person.value), limited };
+    const target = Math.max(g.min, Math.min(g.max, current + delta));
+    if (target !== current + delta) limited.push('scale');
+    return { delta: tenth(target - current), limited };
 }
 
-/** How much a person unseen this turn fades, or 0. */
-export function decayFor(person, growth, turn) {
+/**
+ * How much a person unseen this turn fades, or 0. With a meter, that meter of their toPlayer
+ * edge; without, the mirrored value.
+ */
+export function decayFor(person, growth, turn, meter = '') {
     const g = growth || DEFAULT_GROWTH;
     if (!g.decay || !(g.decayAmount > 0)) return 0;
-    if (person.value <= g.decayFloor) return 0;
+    const value = Number(meter ? person.edges?.toPlayer?.[meter] : person.value) || 0;
+    if (value <= g.decayFloor) return 0;
     const away = turn - person.lastSeen;
     if (away < g.decayAfter) return 0;
     if ((away - g.decayAfter) % g.decayEvery !== 0) return 0;
-    return -tenth(Math.min(g.decayAmount, person.value - g.decayFloor));
+    return -tenth(Math.min(g.decayAmount, value - g.decayFloor));
 }
 
 /* ---- milestones ---------------------------------------------------------------------- */
@@ -608,11 +700,28 @@ function firstJsonObject(text) {
 }
 
 /**
+ * The per-meter change one bond entry asks for. Accepts the current shape (affection, trust,
+ * respect, flat or under `deltas`) and the version 1 shape, whose single `delta` counts as
+ * affection and trust. Also used on updates remembered on old swipes.
+ * @returns {{ affection: number, trust: number, respect: number }}
+ */
+export function bondDeltas(b) {
+    const src = isObj(b?.deltas) ? b.deltas : (b || {});
+    const given = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
+    const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    if (!METERS.some(k => given(src[k])) && given(b?.delta)) {
+        const d = n(b.delta);
+        return { affection: d, trust: d, respect: 0 };
+    }
+    return { affection: n(src.affection), trust: n(src.trust), respect: n(src.respect) };
+}
+
+/**
  * What a model said, as { bonds, milestones }. Tolerant of code fences, prose around the
  * JSON, the inline tag, and a reply that is nothing at all - that is "no change", not an error.
  */
 export function parseUpdate(text) {
-    const empty = { bonds: [], milestones: [] };
+    const empty = { bonds: [], milestones: [], date: '' };
     let body = String(text ?? '');
     const tagged = new RegExp(`<${INLINE_TAG}>([\\s\\S]*?)(?:</${INLINE_TAG}>|$)`, 'i').exec(body);
     if (tagged) body = tagged[1];
@@ -623,11 +732,11 @@ export function parseUpdate(text) {
     try { data = JSON.parse(json); } catch { return empty; }
     const bonds = (Array.isArray(data?.bonds) ? data.bonds : [])
         .filter(b => b && str(b.name))
-        .map(b => ({ name: str(b.name, 80), delta: Number(b.delta) || 0, reason: str(b.reason, 300) }));
+        .map(b => ({ name: str(b.name, 80), ...bondDeltas(b), reason: str(b.reason, 300) }));
     const milestones = (Array.isArray(data?.milestones) ? data.milestones : [])
         .filter(m => m && str(m.name) && str(m.type))
         .map(m => ({ name: str(m.name, 80), type: slug(m.type), note: str(m.note, 600) }));
-    return { bonds, milestones };
+    return { bonds, milestones, date: str(data?.date, 80) };
 }
 
 /**
@@ -644,16 +753,28 @@ export function stripInlineBlock(text) {
 
 /* ---- applying a turn ----------------------------------------------------------------- */
 
-/** Undoes what one recorded turn changed. Manual edits made since are kept; only the delta is taken back. */
+/**
+ * Undoes what one recorded turn changed. Manual edits made since are kept; only the delta is taken back.
+ * Each change names its edge (dir) and meter; a version 1 record has neither and is affection on toPlayer.
+ */
 export function revertTurn(store, key, growth = DEFAULT_GROWTH) {
     const at = store.turns.findIndex(t => t.key === key);
     if (at === -1) return false;
     const rec = store.turns[at];
     for (const ch of rec.changes || []) {
         const person = findPerson(store, ch.name);
-        if (!person) continue;
-        person.value = tenth(Math.max(growth.min, Math.min(growth.max, person.value - ch.delta)));
-        person.gains = person.gains.filter(g => !(g.turn === rec.turn && g.amount === ch.delta));
+        const delta = Number(ch?.delta);
+        if (!person || !Number.isFinite(delta)) continue;
+        const legacy = !ch.meter;
+        const edge = person.edges?.[ch.dir === 'fromPlayer' ? 'fromPlayer' : 'toPlayer'];
+        const meter = ALL_METERS.includes(ch.meter) ? ch.meter : 'affection';
+        if (!edge) continue;
+        edge[meter] = tenth(Math.max(growth.min, Math.min(growth.max, (Number(edge[meter]) || 0) - delta)));
+        // A version 1 gain was migrated into both affection and trust; it leaves both windows.
+        for (const k of legacy ? ['affection', 'trust'] : [meter]) {
+            edge.gains[k] = (edge.gains[k] || []).filter(g => !(g.turn === rec.turn && g.amount === delta));
+        }
+        syncValue(person);
     }
     for (const ms of rec.milestones || []) {
         const person = findPerson(store, ms.name);
@@ -718,15 +839,30 @@ export function applyTurn(store, update, settings, ctx) {
         if (!person.tracked) continue;
         seen.add(person.name.toLowerCase());
         person.lastSeen = turn;
-        const { delta, limited } = clampGrowth(person, b.delta, growth, turn);
         if (b.reason) person.lastReason = b.reason;
-        if (!delta) continue;
-        person.value = tenth(person.value + delta);
-        if (delta > 0) person.gains.push({ turn, amount: delta });
-        record.changes.push({ name: person.name, delta, proposed: Number(b.delta) || 0, limited, reason: b.reason || '' });
+        // Only the character's own edge. The player's side is theirs to set by hand.
+        const edge = person.edges.toPlayer;
+        const want = bondDeltas(b);
+        for (const meter of METERS) {
+            const { delta, limited } = clampGrowth(edge, want[meter], growth, turn, meter);
+            if (!delta) continue;
+            edge[meter] = tenth(edge[meter] + delta);
+            if (delta > 0) edge.gains[meter].push({ turn, amount: delta });
+            record.changes.push({ name: person.name, dir: 'toPlayer', meter, delta, proposed: want[meter], limited, reason: b.reason || '' });
+        }
+        syncValue(person);
     }
 
     const presets = settings.milestones || [];
+    // Which date a milestone gets: the story's own clock if the reply has one, then the date the
+    // tracker worked out from the text, then the last one it knew, and only then the real date.
+    let when = ctx.date || {};
+    if (when.dateSource !== 'story') {
+        const worked = str(update?.date, 80) || str(store.lastDate, 80);
+        if (worked) when = { date: worked, dateSource: 'story' };
+    }
+    if (when.dateSource === 'story' && when.date) store.lastDate = when.date;
+
     for (const m of update?.milestones || []) {
         if (!accepts(m.name)) continue;
         const preset = presets.find(p => p.id === m.type);
@@ -737,7 +873,7 @@ export function applyTurn(store, update, settings, ctx) {
         person.lastSeen = turn;
         const added = addMilestone(person, {
             type: preset.id, note: m.note, auto: true, messageId: ctx.messageId ?? null,
-            at: ctx.now ?? Date.now(), ...(ctx.date || {}),
+            at: ctx.now ?? Date.now(), ...when,
         }, presets);
         record.milestones.push({ name: person.name, id: added.id, type: preset.id });
     }
@@ -747,10 +883,14 @@ export function applyTurn(store, update, settings, ctx) {
     if (!prior && !ctx.only) {
         for (const person of store.people) {
             if (!person.tracked || seen.has(person.name.toLowerCase())) continue;
-            const delta = decayFor(person, growth, turn);
-            if (!delta) continue;
-            person.value = tenth(person.value + delta);
-            record.changes.push({ name: person.name, delta, proposed: 0, limited: [], reason: 'faded with time apart' });
+            // Warmth and trust fade with time apart; respect does not.
+            for (const meter of ['affection', 'trust']) {
+                const delta = decayFor(person, growth, turn, meter);
+                if (!delta) continue;
+                person.edges.toPlayer[meter] = tenth(person.edges.toPlayer[meter] + delta);
+                record.changes.push({ name: person.name, dir: 'toPlayer', meter, delta, proposed: 0, limited: [], reason: 'faded with time apart' });
+            }
+            syncValue(person);
         }
     }
 
@@ -827,7 +967,21 @@ export function bondEntryId(person, milestone) {
 }
 
 const lines = (text) => String(text || '').split('\n').map(x => x.trim()).filter(Boolean);
-const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+const fmt = (v) => { const n = Number(v) || 0; return Number.isInteger(n) ? String(n) : n.toFixed(1); };
+
+/** A person's platonic value toward the player: from the edge when there is one, else the mirror. */
+const bondValue = (person) => (person?.edges?.toPlayer ? platonicValue(person.edges.toPlayer) : Number(person?.value) || 0);
+
+/** "affection 30, trust 25, respect 10" for one edge. */
+export function meterText(edge) {
+    return METERS.map(k => `${k} ${fmt(edge?.[k])}`).join(', ');
+}
+
+/** The level name of the player's hand-set side, or '' when there is no such edge. */
+function playerSideLevel(person, levels) {
+    const edge = person?.edges?.fromPlayer;
+    return edge ? levelFor(platonicValue(edge), levels).level.name : '';
+}
 
 /** One person's block for the story prompt, honouring their own injection switches. '' if none apply. */
 export function bondBlock(person, settings, playerName = 'the player', picks = null) {
@@ -835,17 +989,21 @@ export function bondBlock(person, settings, playerName = 'the player', picks = n
     const flags = person.inject || {};
     if (!flags.level && !flags.gates && !flags.history) return '';
     const { levels, gates, growth, inject } = settings;
-    const { level, next } = levelFor(person.value, levels);
+    const value = bondValue(person);
+    const { level, next } = levelFor(value, levels);
     const out = [];
     if (flags.level) {
-        out.push(`${person.name} toward ${playerName}: ${level.name} (${fmt(person.value)} of ${growth.max})`
+        const meters = person.edges?.toPlayer ? meterText(person.edges.toPlayer) : fmt(value);
+        const side = playerSideLevel(person, levels);
+        out.push(`${person.name} toward ${playerName}: ${level.name} (${meters}; of ${growth.max})`
             + `${level.description ? ` - ${level.description}` : ''}`
-            + `${next ? ` Next level: ${next.name} at ${next.min}.` : ''}`);
+            + `${next ? ` Next level: ${next.name} at ${next.min}.` : ''}`
+            + `${side ? ` ${playerName} feels about them: ${side}.` : ''}`);
     } else {
         out.push(`${person.name} toward ${playerName}:`);
     }
     if (flags.gates) {
-        const g = gateText(person.value, gates, levels, { showLocked: inject.showLocked });
+        const g = gateText(value, gates, levels, { showLocked: inject.showLocked });
         if (g) out.push(g);
     }
     if (flags.history && inject.historyCount > 0 && person.history.length) {
@@ -883,14 +1041,20 @@ export function buildBondInjection(store, names, settings, playerName = 'the pla
 }
 
 /** The rules and vocabulary the model needs to propose an update, shared by both timings. */
-function rulesText(settings, people, playerName) {
+function rulesText(settings, people, playerName, lastDate = '') {
     const g = settings.growth;
     const out = [];
-    out.push(`Bond scale: ${g.min} to ${g.max}. Propose a delta per person between -${g.maxLoss} and +${g.maxGain}; `
-        + 'most turns change nothing or very little. Ordinary pleasant talk is +0 to +1. Use 0 when nothing in the exchange affected the bond.');
+    out.push('date: the in-story date of the latest message, written exactly as "Weekday, Month DD, Year" (for example "Friday, February 07, 1182"). '
+        + 'Work it out from the text: a stated date or header, or days passing ("the next morning", "three days later") counted forward from the last known date'
+        + `${lastDate ? ` (last known: ${lastDate})` : ''}. Use an empty string when it cannot be worked out. Never invent a date the story does not support.`);
+    out.push(`Each character has three meters toward ${playerName}, each from ${g.min} to ${g.max}: affection (warmth, liking), `
+        + 'trust (feeling safe with them, relying on them), respect (regard for their competence and character). '
+        + `Propose a change per meter between -${g.maxLoss} and +${g.maxGain}; `
+        + 'most turns change nothing or very little. Ordinary pleasant talk is +0 to +1 affection. Use 0 for a meter the exchange did not affect.');
+    out.push(`Judge only how each character feels about ${playerName}. How ${playerName} feels about them is set by the user and is never yours to change.`);
     if (lines(g.raises).length) out.push(`Raises a bond: ${lines(g.raises).join('; ')}.`);
     if (lines(g.lowers).length) out.push(`Lowers a bond: ${lines(g.lowers).join('; ')}.`);
-    out.push(`Levels: ${settings.levels.map(l => `${l.name} (${l.min}+)`).join(', ')}.`);
+    out.push(`Levels (from the lower of affection and trust): ${settings.levels.map(l => `${l.name} (${l.min}+)`).join(', ')}.`);
     const auto = settings.milestones.filter(m => m.auto);
     if (auto.length) {
         out.push('Milestones (type id: when to record it):');
@@ -900,28 +1064,32 @@ function rulesText(settings, people, playerName) {
     if (people.length) {
         out.push(`Current bonds with ${playerName}:`);
         for (const p of people) {
-            const { level } = levelFor(p.value, settings.levels);
+            const { level } = levelFor(bondValue(p), settings.levels);
+            const meters = p.edges?.toPlayer ? meterText(p.edges.toPlayer) : fmt(bondValue(p));
+            const side = playerSideLevel(p, settings.levels);
             const done = settings.milestones.filter(m => m.once && hasMilestone(p, m.id)).map(m => m.id);
-            out.push(`- ${p.name}: ${fmt(p.value)} (${level.name})${done.length ? `; already recorded: ${done.join(', ')}` : ''}`);
+            out.push(`- ${p.name}: ${meters} (${level.name})`
+                + `${side ? `; ${playerName} feels about them: ${side}` : ''}`
+                + `${done.length ? `; already recorded: ${done.join(', ')}` : ''}`);
         }
     }
     return out.join('\n');
 }
 
-const JSON_SHAPE = '{"bonds":[{"name":"Name","delta":1,"reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
+const JSON_SHAPE = '{"date":"Friday, February 07, 1182","bonds":[{"name":"Name","affection":1,"trust":0,"respect":0,"reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
 
 export const BOND_SYSTEM = [
-    'You track how close the characters of a roleplay are to the player, {{user}}. You read the newest exchange and propose small, believable changes.',
+    'You track how the characters of a roleplay feel about the player, {{user}}: affection, trust and respect. You read the newest exchange and propose small, believable changes.',
     'Output ONLY one JSON object, no commentary, no code fences:',
     JSON_SHAPE,
-    'List every named character (never {{user}}) who took part in the latest message, with delta 0 if nothing changed. Empty arrays are fine.',
+    'List every named character (never {{user}}) who took part in the latest message, with 0 for every meter that did not change. Empty arrays are fine.',
 ].join('\n');
 
 /** The system and user text for the separate request. */
-export function buildMonitorPrompt(settings, people, { playerName = 'the player', recent = '', latest = '', speaker = '' } = {}) {
+export function buildMonitorPrompt(settings, people, { playerName = 'the player', recent = '', latest = '', speaker = '', lastDate = '' } = {}) {
     const system = (String(settings.prompt || '').trim() || BOND_SYSTEM).replace(/\{\{user\}\}/gi, playerName);
     const user = [
-        rulesText(settings, people, playerName),
+        rulesText(settings, people, playerName, lastDate),
         '',
         recent ? `RECENT MESSAGES:\n${recent}\n` : '',
         `LATEST MESSAGE${speaker ? ` (${speaker})` : ''}:`,
@@ -931,12 +1099,12 @@ export function buildMonitorPrompt(settings, people, { playerName = 'the player'
 }
 
 /** What the story model is told in the "with the reply" timing. */
-export function buildInlineInstruction(settings, people, playerName = 'the player') {
+export function buildInlineInstruction(settings, people, playerName = 'the player', lastDate = '') {
     return [
         '[Bond tracking]',
         `After your reply, on its own line at the very end, write a hidden block: <${INLINE_TAG}>${JSON_SHAPE}</${INLINE_TAG}>`,
         `It records how the latest exchange changed each character's bond with ${playerName}. It is removed before anyone reads the reply, so never refer to it in the story.`,
-        rulesText(settings, people, playerName),
+        rulesText(settings, people, playerName, lastDate),
         '[/Bond tracking]',
     ].join('\n');
 }

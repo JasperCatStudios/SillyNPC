@@ -12,6 +12,8 @@ import { latestInternalStatesHtml } from './internal-states.js';
 import { sceneClock } from '../modules/shim.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
 import { currentPicks } from './vector-service.js';
+import { MESSAGE_RENDERED_EVENT } from './beats.js';
+import { drawBondSection, markBusy, markFailure, clearFailure, sectionKey } from './bond-section.js';
 import {
     normalizeBondSettings, normalizeStore, findPerson, ensurePerson, timingAction,
     applyTurn, revertTurn, parseUpdate, stripInlineBlock, milestoneDate,
@@ -53,7 +55,8 @@ export function saveBondSettings() {
 
 /* ---- the per-chat store -------------------------------------------------------------- */
 
-function playerName() {
+/** The persona's name, as the bond prompts and the panel use it. */
+export function playerName() {
     return String(name1 || getContext()?.name1 || 'the player');
 }
 
@@ -182,6 +185,9 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
     const flight = `${context.chatId}:${key}:${swipeId}`;
     if (inFlight.has(flight)) return null;
     inFlight.add(flight);
+    const shown = sectionKey(messageId, swipeId);
+    markBusy(shown, true);
+    redrawSection(messageId);
     try {
         if (!button) await waitUntilIdle();
         // A swipe made while this waited belongs to another call.
@@ -200,6 +206,7 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
                 recent,
                 latest: String(message.mes),
                 speaker: message.name,
+                lastDate: chatStore()?.lastDate || '',
             });
             const focus = only ? `\n\nOnly ${only} matters for this update; leave everyone else out.` : '';
             const raw = await requestOnConnection('bondProfileId', system, user + focus, settings.maxTokens);
@@ -207,14 +214,38 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
             if (!only) rememberUpdate(message, update);
         }
         const result = commit(update, { key, swipeId, messageId, force: true, only: only || undefined });
+        clearFailure(shown);
         return result?.record || null;
     } catch (err) {
         console.warn(LOG_PREFIX, 'Bond update failed', err);
+        markFailure(shown, err?.message || err);
         toastr.warning(`Bonds could not be updated: ${err?.message || err}`, 'SillyNPC');
         return null;
     } finally {
         inFlight.delete(flight);
+        markBusy(shown, false);
+        redrawSection(messageId);
     }
+}
+
+/* ---- the section under a reply ------------------------------------------------------- */
+
+function drawSectionFor(mesEl) {
+    if (!mesEl) return;
+    const id = Number(mesEl.getAttribute('mesid'));
+    const message = getContext()?.chat?.[id];
+    drawBondSection(mesEl, {
+        message, id,
+        store: chatStore(),
+        settings: bondSettings(),
+        playerName: playerName(),
+        latest: id === latestReplyId(),
+        redo: () => { runBondUpdate(id, { force: true, button: true }).catch(err => console.warn(LOG_PREFIX, err)); },
+    });
+}
+
+function redrawSection(messageId) {
+    try { drawSectionFor(document.querySelector(`#chat .mes[mesid="${messageId}"]`)); } catch (err) { debugLog('Bond section failed', err); }
 }
 
 /* ---- the inline timing --------------------------------------------------------------- */
@@ -313,7 +344,7 @@ export function applyBondPrompts(type = 'normal') {
     // so asking them for a bond block would only leak it into their output.
     if (on && type !== 'quiet' && type !== 'impersonate' && timingAction(settings, 'generation') === 'instruct') {
         const people = (chatStore()?.people || []).filter(p => p.tracked);
-        instruction = buildInlineInstruction(settings, people, playerName());
+        instruction = buildInlineInstruction(settings, people, playerName(), chatStore()?.lastDate || '');
     }
     // At depth 0, right before the reply, so the instruction is the last thing the model reads.
     setExtensionPrompt(INLINE_KEY, instruction, extension_prompt_types.IN_CHAT, 0, false, extension_prompt_roles.SYSTEM);
@@ -388,6 +419,10 @@ export function initBonds() {
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (messageId) => {
         if (timingAction(bondSettings(), 'rendered') !== 'request') return;
         runBondUpdate(Number(messageId)).catch(err => console.warn(LOG_PREFIX, err));
+    });
+
+    eventSource.on(MESSAGE_RENDERED_EVENT, (mesEl) => {
+        try { drawSectionFor(mesEl); } catch (err) { debugLog('Bond section failed', err); }
     });
 
     eventSource.on(event_types.MESSAGE_SWIPED, (messageId) => {

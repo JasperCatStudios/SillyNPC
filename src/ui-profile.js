@@ -3,7 +3,7 @@ import { liveFactsFor } from './api.js';
 import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
-import { levelFor } from './bonds-core.js';
+import { levelFor, platonicValue, METERS, METER_LABELS } from './bonds-core.js';
 
 /**
  * The character page you land on: what is known about somebody, laid out to be read.
@@ -179,8 +179,13 @@ export async function renderProfileView(char, container) {
         const bonds = bondSettings();
         const person = bonds.enabled ? getPerson(char.name) : null;
         if (person) {
-            const { level, next } = levelFor(person.value, bonds.levels);
-            const chips = [chip('Bond', `${level.name} (${person.value})`)];
+            // The level is read from the character's own edge (the lower of affection and trust);
+            // person.value mirrors it, and stays the fallback for a store not yet migrated.
+            const edge = person.edges?.toPlayer;
+            const value = edge ? platonicValue(edge) : (Number(person.value) || 0);
+            const { level, next } = levelFor(value, bonds.levels);
+            const chips = [chip('Bond', `${level.name} (${value})`)];
+            if (edge) for (const k of METERS) chips.push(chip(METER_LABELS[k], String(edge[k])));
             if (next) chips.push(chip('Next', `${next.name} at ${next.min}`));
             if (!person.tracked) chips.push(chip('Tracking', 'off'));
             const bondRow = chipRow('Bond', chips);
