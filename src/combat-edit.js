@@ -1,6 +1,10 @@
 import { ladderOf, rungIndex } from './combat-roles.js';
 import { emptyTypeData, normalizeCombatBlock, normalizeWeapon } from './combat-store.js';
 import { isStatus } from './combat-status.js';
+import {
+    gearRules, kindOf, toolKindOf, ladderFor, tierOf, normalizeItem, normalizeCharGear, nextItemId,
+    migrateLegacyWeapon, defaultName, MAX_BELT,
+} from './combat-gear.js';
 import { MAX_ABILITIES } from './combat-abilities.js';
 import { applyXp, readLevel, hasLevelMeta, XP_PER_LEVEL } from './combat-level.js';
 
@@ -239,7 +243,204 @@ export function setWeapon(record, type, weapon, at = Date.now()) {
     const from = data.weapon || null;
     data.weapon = next;
     log(data, 'weapon', from, next, at);
+    // A character who already has gear keeps the main-hand item in step with what was typed.
+    const main = data.gear?.items.find(i => i.id === data.gear.equipped.main);
+    if (main) {
+        if (next?.name) main.name = next.name;
+        main.bonus.power = next?.power || 0;
+    }
     return { ok: true, from, to: next };
+}
+
+/* ---- gear: weapons, tools, loadout (see combat-gear.js) ---------------------------------- */
+
+const EQUIP_SLOTS = ['main', 'off', 'focus'];
+const MAX_ITEMS = 60;
+
+/**
+ * The character's gear block, created if they have none. A character with only an old-style
+ * weapon gets it as one item, equipped as the main hand (and a history entry says so); anyone
+ * else starts with an empty block. Idempotent: it only migrates once.
+ */
+export function ensureGear(record, type, at = Date.now()) {
+    const data = ensureTypeData(record, type.dataKey);
+    if (data.gear) return data.gear;
+    const migrated = migrateLegacyWeapon(type, data);
+    data.gear = migrated || { items: [], equipped: { main: null, off: null, focus: null }, belt: [] };
+    if (migrated) {
+        data.history.push({ at, kind: 'migrate-gear', target: 'gear', from: data.weapon || null, to: migrated.items[0].name });
+        if (data.history.length > HISTORY_CAP) data.history.splice(0, data.history.length - HISTORY_CAP);
+    }
+    return data.gear;
+}
+
+/** The old `weapon` field kept as a mirror of the main hand, so older readers still work. */
+function mirrorWeapon(data, rules) {
+    const gear = data.gear;
+    const item = gear?.items.find(i => i.id === gear.equipped.main);
+    const kind = kindOf(rules, item?.kind);
+    data.weapon = item ? { name: item.name, prof: kind?.prof || '', power: item.bonus.power || 0 } : null;
+}
+
+/** An item with its kind and tier made sound for this type, or a reason it cannot be. */
+function fitItem(rules, raw) {
+    const item = normalizeItem(raw);
+    if (item.tool) {
+        const kind = toolKindOf(rules, item.kind);
+        if (!kind) return { ok: false, reason: 'That type has no such tool.' };
+        if (!item.name) item.name = kind.label;
+        if (raw?.maxUses === undefined && raw?.uses === undefined) { item.maxUses = kind.uses; item.uses = kind.uses; }
+        item.tier = '';
+        item.pair = false;
+        return { ok: true, item };
+    }
+    const kind = kindOf(rules, item.kind);
+    if (!kind) return { ok: false, reason: 'That type has no such weapon kind.' };
+    const tier = tierOf(ladderFor(rules, kind), item.tier);
+    item.tier = tier?.id || '';
+    if (!item.name) item.name = defaultName(kind, tier);
+    if (item.pair && !kind.dualable) item.pair = false;
+    return { ok: true, item };
+}
+
+/**
+ * Gives the character a weapon, focus or tool.
+ * @param {object} raw { name, kind, tier, pair, desc, special, bonus, tool, uses }
+ * @param {{ equip?: 'main'|'off'|'focus' }} [opts] put it straight into a slot
+ */
+export function addItem(record, type, raw, opts = {}, at = Date.now()) {
+    const rules = gearRules(type);
+    const fit = fitItem(rules, raw);
+    if (!fit.ok) return fit;
+    const gear = ensureGear(record, type, at);
+    if (gear.items.length >= MAX_ITEMS) return { ok: false, reason: 'That is as many items as one character can carry.' };
+    const item = fit.item;
+    item.id = nextItemId(gear.items);
+    gear.items.push(item);
+    const data = record.combat.types[type.dataKey];
+    log(data, `gear.${item.id}`, null, item.name, at);
+    if (opts.equip) {
+        const out = equip(record, type, opts.equip, item.id, at);
+        if (!out.ok) return { ok: true, item, equipped: false, reason: out.reason };
+    }
+    return { ok: true, item };
+}
+
+/** Changes an item. Kind and tier are re-checked; a tool's uses stay inside 0..maxUses. */
+export function updateItem(record, type, id, patch, at = Date.now()) {
+    const rules = gearRules(type);
+    const gear = ensureGear(record, type, at);
+    const at_ = gear.items.findIndex(i => i.id === id);
+    if (at_ < 0) return { ok: false, reason: 'That item is not carried.' };
+    const from = gear.items[at_];
+    const merged = { ...from, ...patch, bonus: { ...from.bonus, ...(patch?.bonus || {}) }, id };
+    if (from.tool) merged.tool = true;
+    const fit = fitItem(rules, merged);
+    if (!fit.ok) return fit;
+    fit.item.id = id;
+    gear.items[at_] = fit.item;
+    // A weapon that stopped being able to go where it was equipped comes out of that slot.
+    for (const slot of EQUIP_SLOTS) if (gear.equipped[slot] === id && !fits(rules, fit.item, slot).ok) gear.equipped[slot] = null;
+    const data = record.combat.types[type.dataKey];
+    mirrorWeapon(data, rules);
+    log(data, `gear.${id}`, from.name, fit.item.name, at);
+    return { ok: true, item: fit.item };
+}
+
+export function removeItem(record, type, id, at = Date.now()) {
+    const rules = gearRules(type);
+    const gear = ensureGear(record, type, at);
+    const from = gear.items.find(i => i.id === id);
+    if (!from) return { ok: false, reason: 'That item is not carried.' };
+    gear.items = gear.items.filter(i => i.id !== id);
+    for (const slot of EQUIP_SLOTS) if (gear.equipped[slot] === id) gear.equipped[slot] = null;
+    gear.belt = gear.belt.filter(x => x !== id);
+    const data = record.combat.types[type.dataKey];
+    mirrorWeapon(data, rules);
+    log(data, `gear.${id}`, from.name, null, at);
+    return { ok: true };
+}
+
+/** Can this item go in this slot? Hands for main and off, the focus slot for a book or staff. */
+function fits(rules, item, slot) {
+    const kind = kindOf(rules, item?.kind);
+    if (!kind || item.tool) return { ok: false, reason: 'A tool goes on the belt, not in a hand.' };
+    if (slot === 'focus') return kind.slot === 'focus' ? { ok: true } : { ok: false, reason: 'Only a focus (a book or staff) goes there.' };
+    if (kind.slot === 'focus') return { ok: false, reason: 'A focus takes no hand: it goes in the focus slot.' };
+    if (slot === 'off' && (kind.slot === 'natural' || kind.hands !== 1)) return { ok: false, reason: 'The off hand takes a one-handed weapon.' };
+    return { ok: true };
+}
+
+/** Puts an item in the main hand, off hand or focus slot, or empties the slot when id is blank. */
+export function equip(record, type, slot, id, at = Date.now()) {
+    if (!EQUIP_SLOTS.includes(slot)) return { ok: false, reason: 'That is not a slot.' };
+    const rules = gearRules(type);
+    const gear = ensureGear(record, type, at);
+    const data = record.combat.types[type.dataKey];
+    const from = gear.equipped[slot];
+    if (id === null || id === undefined || id === '') {
+        gear.equipped[slot] = null;
+    } else {
+        const item = gear.items.find(i => i.id === id);
+        if (!item) return { ok: false, reason: 'That item is not carried.' };
+        const ok = fits(rules, item, slot);
+        if (!ok.ok) return ok;
+        const kind = kindOf(rules, item.kind);
+        if (slot === 'off' && gear.equipped.main && kindOf(rules, gear.items.find(i => i.id === gear.equipped.main)?.kind)?.hands === 2) {
+            return { ok: false, reason: 'A two-handed weapon needs both hands.' };
+        }
+        // One item cannot fill two slots.
+        for (const s of EQUIP_SLOTS) if (s !== slot && gear.equipped[s] === id) gear.equipped[s] = null;
+        gear.equipped[slot] = id;
+        if (slot === 'main' && kind.hands === 2) gear.equipped.off = null;
+    }
+    mirrorWeapon(data, rules);
+    log(data, `equip.${slot}`, from, gear.equipped[slot], at);
+    return { ok: true, from, to: gear.equipped[slot] };
+}
+
+/** Sets which tools go into the fight (at most MAX_BELT, tools only, no repeats). */
+export function setBelt(record, type, ids, at = Date.now()) {
+    const gear = ensureGear(record, type, at);
+    const wanted = [...new Set((Array.isArray(ids) ? ids : []).map(String))];
+    if (wanted.length > MAX_BELT) return { ok: false, reason: `A belt holds ${MAX_BELT} tools.` };
+    const tools = new Set(gear.items.filter(i => i.tool).map(i => i.id));
+    if (wanted.some(id => !tools.has(id))) return { ok: false, reason: 'Only tools go on the belt.' };
+    const from = gear.belt;
+    gear.belt = wanted;
+    log(record.combat.types[type.dataKey], 'belt', from, wanted, at);
+    return { ok: true, from, to: wanted };
+}
+
+/** One use of a tool is spent. Uses never go below zero. */
+export function spendUses(record, type, itemId, n = 1, at = Date.now()) {
+    const gear = ensureGear(record, type, at);
+    const item = gear.items.find(i => i.id === itemId && i.tool);
+    if (!item) return { ok: false, reason: 'That tool is not carried.' };
+    const from = item.uses;
+    item.uses = Math.max(0, item.uses - Math.max(1, Math.floor(Number(n)) || 1));
+    log(record.combat.types[type.dataKey], `uses.${itemId}`, from, item.uses, at);
+    return { ok: true, left: item.uses };
+}
+
+/** Refill: every tool back to its full uses. Returns how many tools had been used. */
+export function refillTools(record, type, at = Date.now()) {
+    const gear = record.combat?.types?.[type.dataKey]?.gear;
+    if (!gear) return { ok: true, count: 0 };
+    let count = 0;
+    for (const item of gear.items) {
+        if (item.tool && item.uses < item.maxUses) { item.uses = item.maxUses; count++; }
+    }
+    if (count) log(record.combat.types[type.dataKey], 'refill', count, 0, at);
+    return { ok: true, count };
+}
+
+/** Repairs a gear block in place (ids, equipped and belt pointers); for imports and hand edits. */
+export function repairGear(record, type) {
+    const data = record?.combat?.types?.[type.dataKey];
+    if (!data?.gear) return false;
+    data.gear = normalizeCharGear(data.gear);
+    return true;
 }
 
 /** The proficiencies worth showing for a character under a type: its skill card, plus any it holds. */

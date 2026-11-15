@@ -1,6 +1,8 @@
 import { ROLE_SCHEMA_VERSION } from './combat-roles.js';
 import { FE_ABILITIES } from './combat-abilities-fe.js';
 import { BLEACH_ABILITIES } from './combat-abilities-bleach.js';
+import { FE_GEAR } from './combat-gear-fe.js';
+import { BLEACH_GEAR } from './combat-gear-bleach.js';
 
 /**
  * The combat world types that ship with the extension (fork).
@@ -104,6 +106,7 @@ const FE = {
         { key: 'fire', label: 'Fire', prof: 'reason', power: 5, cost: { pool: 'guard', amount: 0 } },
     ],
     abilities: FE_ABILITIES,
+    gear: FE_GEAR,
     resolution: {
         mode: 'threshold',
         roll: 'd20 + diff + (a.prof.bonus - d.prof.bonus) + (a.speed >= d.speed + 15 ? 2 : (a.speed <= d.speed - 15 ? -2 : 0)) + a.mod.accuracy - d.mod.evasion + adv.hit',
@@ -252,6 +255,7 @@ const BLEACH = {
         { key: 'bala', label: 'Bala', prof: 'bala', cost: { pool: 'resource', amount: 5 } },
     ],
     abilities: BLEACH_ABILITIES,
+    gear: BLEACH_GEAR,
     resolution: {
         mode: 'opposed',
         roll: 'd20 + diff + a.mod.roll + a.prof.bonus',

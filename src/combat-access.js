@@ -1,6 +1,11 @@
 import { getSettings, saveSettings } from './settings.js';
 import { getType, listTypes, normalizeCombatPrefs, validateType } from './combat-types.js';
 import { normalizeOverlay, mergeAbilities, saveInOverlay, removeFromOverlay, resetInOverlay } from './combat-ability-overlay.js';
+import {
+    normalizeGearOverlay, isGearOverlayEmpty, mergeGear, setLadder, resetLadder, saveKind, removeKind, resetKind,
+    saveTool, removeTool, resetTool, saveCatalogueItem, removeCatalogueItem,
+} from './combat-gear-overlay.js';
+import { normalizeGear } from './combat-gear.js';
 
 /**
  * The combat module's view of the shared settings (fork).
@@ -61,10 +66,64 @@ export function resetUserAbility(typeId, id) {
     saveSettings();
 }
 
+/**
+ * Your changes to a world's weapon and tool rules, and your Armoury of named weapons, per type id.
+ * A root setting of its own, so it travels with each System.
+ */
+function gearStore() {
+    const settings = getSettings();
+    if (!settings.combatGear || typeof settings.combatGear !== 'object') settings.combatGear = {};
+    return settings.combatGear;
+}
+
+export function userGearOverlay(typeId) {
+    return normalizeGearOverlay(gearStore()[typeId]);
+}
+
+/** The gear rules the type itself came with, before any of your changes. */
+export function baseGear(typeId) {
+    return getType(combatLibrary(), typeId)?.gear;
+}
+
+/** A type with your gear changes applied. The same object when you have made none. */
+export function withUserGear(type) {
+    if (!type) return type;
+    const ov = userGearOverlay(type.id);
+    if (isGearOverlayEmpty(ov)) return type;
+    return { ...type, gear: mergeGear(type.gear, ov) };
+}
+
+function saveGearOverlay(typeId, overlay) {
+    const store = gearStore();
+    if (isGearOverlayEmpty(overlay)) delete store[typeId]; else store[typeId] = overlay;
+    saveSettings();
+}
+
+export function saveUserLadder(typeId, ladderId, ladder) { saveGearOverlay(typeId, setLadder(userGearOverlay(typeId), ladderId, ladder)); }
+export function resetUserLadder(typeId, ladderId) { saveGearOverlay(typeId, resetLadder(userGearOverlay(typeId), ladderId)); }
+export function saveUserKind(typeId, kind) { saveGearOverlay(typeId, saveKind(baseGear(typeId), userGearOverlay(typeId), kind)); }
+export function deleteUserKind(typeId, id) { saveGearOverlay(typeId, removeKind(baseGear(typeId), userGearOverlay(typeId), id)); }
+export function resetUserKind(typeId, id) { saveGearOverlay(typeId, resetKind(userGearOverlay(typeId), id)); }
+export function saveUserTool(typeId, tool) { saveGearOverlay(typeId, saveTool(baseGear(typeId), userGearOverlay(typeId), tool)); }
+export function deleteUserTool(typeId, id) { saveGearOverlay(typeId, removeTool(baseGear(typeId), userGearOverlay(typeId), id)); }
+export function resetUserTool(typeId, id) { saveGearOverlay(typeId, resetTool(userGearOverlay(typeId), id)); }
+
+/** The world's Armoury: named weapons anyone can be given. */
+export function armoury(typeId) {
+    return userGearOverlay(typeId).catalogue;
+}
+export function saveArmouryItem(typeId, item) { saveGearOverlay(typeId, saveCatalogueItem(userGearOverlay(typeId), item)); }
+export function deleteArmouryItem(typeId, id) { saveGearOverlay(typeId, removeCatalogueItem(userGearOverlay(typeId), id)); }
+
+/** The gear rules a type is actually fought with (overlay applied, complete). */
+export function gearFor(type) {
+    return normalizeGear(withUserGear(type)?.gear);
+}
+
 /** Every type, with its validation result: [{ type, errors, warnings }]. */
 export function allTypes() {
     return listTypes(combatLibrary()).map(raw => {
-        const type = withUserAbilities(raw);
+        const type = withUserGear(withUserAbilities(raw));
         return { type, ...validateType(type) };
     });
 }
@@ -73,7 +132,7 @@ export function allTypes() {
 export function activeCombatType() {
     const id = combatPrefs().activeType;
     if (!id) return null;
-    const type = withUserAbilities(getType(combatLibrary(), id));
+    const type = withUserGear(withUserAbilities(getType(combatLibrary(), id)));
     if (!type || validateType(type).errors.length) return null;
     return type;
 }

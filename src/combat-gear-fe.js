@@ -1,0 +1,28 @@
+import { GENERIC_TIERS } from './combat-gear-defaults.js';
+
+/**
+ * Fire Emblem gear (fork): data only, like combat-abilities-fe.js. The tier ladder is the one the
+ * generic rules use (Training, Iron, Bronze, Silver, Hero Relic); the series itself puts Bronze
+ * below Iron, so swap two entries here if you want canon order. Weapon kinds name the
+ * proficiency they are trained with, and the old fixed attacks (Iron Sword, Iron Lance...) keep
+ * their keys for old saves.
+ */
+
+export const FE_GEAR = {
+    version: 1,
+    ladders: {
+        default: { label: 'Tier', defaultTier: 'common', tiers: GENERIC_TIERS },
+    },
+    kinds: [
+        { id: 'sword', label: 'Sword', slot: 'hand', hands: 1, dualable: true, range: 'melee', prof: 'sword', channel: 'physical', power: 5, hit: 2, weight: 5, verb: 'slashes' },
+        { id: 'dagger', label: 'Dagger', slot: 'hand', hands: 1, dualable: true, range: 'melee', prof: 'sword', channel: 'physical', power: 3, hit: 3, weight: 2, verb: 'stabs' },
+        { id: 'lance', label: 'Lance', slot: 'hand', hands: 1, dualable: false, range: 'melee', prof: 'lance', channel: 'physical', power: 6, hit: 0, weight: 7, verb: 'thrusts' },
+        { id: 'axe', label: 'Axe', slot: 'hand', hands: 1, dualable: false, range: 'melee', prof: 'axe', channel: 'physical', power: 7, hit: -2, weight: 9, verb: 'cleaves' },
+        { id: 'bow', label: 'Bow', slot: 'hand', hands: 2, dualable: false, range: 'ranged', prof: 'bow', channel: 'physical', power: 5, hit: 1, weight: 5, verb: 'looses an arrow at' },
+        { id: 'gauntlets', label: 'Gauntlets', slot: 'hand', hands: 1, dualable: true, range: 'melee', prof: 'brawling', channel: 'physical', power: 3, hit: 1, weight: 3, verb: 'punches' },
+        { id: 'fists', label: 'Fists', slot: 'natural', hands: 0, dualable: false, range: 'melee', prof: 'brawling', channel: 'physical', power: 2, hit: 2, weight: 0, verb: 'strikes' },
+        { id: 'tome', label: 'Tome', slot: 'focus', hands: 0, dualable: false, range: 'ranged', prof: 'reason', channel: 'magic', power: 4, hit: 1, weight: 2, verb: 'casts at' },
+        { id: 'staff', label: 'Staff', slot: 'focus', hands: 0, dualable: false, range: 'ranged', prof: 'faith', channel: 'magic', power: 0, hit: 0, weight: 2, verb: 'channels' },
+    ],
+    unarmed: 'fists',
+};

@@ -1,5 +1,6 @@
 import { ladderOf, rungIndex } from './combat-roles.js';
 import { isStatus } from './combat-status.js';
+import { normalizeCharGear } from './combat-gear.js';
 
 /**
  * A character's combat data (fork): char.combat, on character records and the player card.
@@ -54,6 +55,10 @@ function normalizeTypeData(raw) {
     out.history = Array.isArray(d.history) ? d.history.slice(-HISTORY_CAP) : [];
     if (d.source && typeof d.source === 'object') out.source = { ...d.source };
     out.weapon = normalizeWeapon(d.weapon);
+    // Gear is absent until something writes it (see combat-edit.js); reading never adds it, so a
+    // save is unchanged. The old weapon above is read as one item when there is no gear.
+    const gear = normalizeCharGear(d.gear);
+    if (gear) out.gear = gear;
     out.status = isStatus(d.status) ? d.status : null;
     out.xp = Math.max(0, Math.min(199, Math.floor(Number(d.xp)) || 0));
     out.level = Number(d.level) >= 1 ? Math.floor(Number(d.level)) : null;

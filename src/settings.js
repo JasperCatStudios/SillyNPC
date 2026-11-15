@@ -250,6 +250,8 @@ export const defaultSettings = {
     combatProfileId: '',
     /** Your own abilities and edits to built-in ones, per world type. See combat-ability-overlay.js. */
     combatAbilities: {},
+    /** Your changes to a world's weapon tiers, kinds and tools, and its Armoury, per world type. See combat-gear-overlay.js. */
+    combatGear: {},
     /** How the shared history of fights and games goes into the story prompt. See rivalry-inject-core.js. */
     historyInject: {},
     /**

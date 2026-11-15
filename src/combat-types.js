@@ -2,6 +2,7 @@ import { validateExpr } from './combat-formula.js';
 import { validateAbilities } from './combat-abilities.js';
 import { resolveBindings, ROLE_SCHEMA_VERSION, PROF_ROLES, STAT_ROLES } from './combat-roles.js';
 import { BUILTIN_TYPES, BUILTIN_IDS } from './combat-builtins.js';
+import { normalizeGear, validateGear } from './combat-gear.js';
 
 /**
  * Combat world types: checking, normalising and finding them (fork).
@@ -130,6 +131,13 @@ export function validateType(type) {
         warnings.push(...found.warnings);
     }
 
+    {
+        // Weapons, tiers and tools. No block is fine; a block that is there must be sound.
+        const found = validateGear(type.gear, type);
+        errors.push(...found.errors);
+        warnings.push(...found.warnings);
+    }
+
     const cards = type.skillCards;
     if (cards && typeof cards === 'object') {
         for (const [card, ids] of Object.entries(cards)) {
@@ -165,6 +173,8 @@ export function normalizeType(raw) {
     t.advantage = list(t.advantage);
     t.actions = list(t.actions);
     t.abilities = list(t.abilities);
+    // Weapons, tiers and tools, complete: a type that says nothing gets the generic rules.
+    t.gear = structuredClone(normalizeGear(t.gear));
     t.modifier = t.modifier && typeof t.modifier === 'object' ? t.modifier : { type: 'linear', center: 50, per: 10 };
     t.stakes = { injuries: false, death: false, ...obj(t.stakes) };
     if (t.skillCards !== null && (typeof t.skillCards !== 'object')) t.skillCards = null;
