@@ -81,7 +81,9 @@ function expectedDamage(type, me, foe, action, diff) {
     const key = `${type.id}|${me.sig}|${foe.sig}|${action.key}|${diff}`;
     if (!oddsCache.has(key)) {
         const power = actionPower(action, me);
-        const out = previewOdds(type, me.view, foe.view, { prof: action.prof, power, channel: action.channel }, { diff, gear: gearForPreview(action) });
+        const out = previewOdds(type, me.view, foe.view, {
+            prof: action.prof, power, channel: action.channel, ...(action.element ? { element: action.element } : {}),
+        }, { diff, gear: gearForPreview(action) });
         if (oddsCache.size > 4000) oddsCache.clear();
         oddsCache.set(key, out.expected);
     }
@@ -443,6 +445,7 @@ export function takeTurn(type, state, actionKey, targetId) {
         const edge = teamEdge(type, state, actor);
         const result = resolveAttack(type, actor.view, target.view, {
             prof: action.prof, power: off ? off.power : actionPower(action, actor), channel: action.channel,
+            ...(action.element && !off ? { element: action.element } : {}),
         }, { rng: state.rng, diff: playerDiff(state, actor) + edge.hit, gear: off ? off.gear : action.gear });
         let damage = result.damage;
         const notes = [];
@@ -488,7 +491,7 @@ export function takeTurn(type, state, actionKey, targetId) {
             ...(action.weapon ? { tier: actor.loadout.main.tierLabel } : {}),
             ...(off ? { offhand: true } : {}),
             ...(result.gearCrit ? { gearCrit: true } : {}), total: result.total, natural: result.natural,
-            damage, margin: result.margin, advantage: result.advantage.labels,
+            damage, margin: result.margin, advantage: result.element ? [...result.advantage.labels, result.element.label] : result.advantage.labels,
             pool: applied.pool, taken: applied.taken, down: applied.down,
             passives: notes, blocked: Math.round(blocked * 100), healed, drained,
         });

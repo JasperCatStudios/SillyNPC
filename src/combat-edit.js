@@ -7,6 +7,7 @@ import {
 } from './combat-gear.js';
 import { MAX_ABILITIES } from './combat-abilities.js';
 import { applyXp, readLevel, hasLevelMeta, XP_PER_LEVEL } from './combat-level.js';
+import { canonicalAffinity } from './combat-elements.js';
 
 /**
  * Editing a character's combat data by hand (fork).
@@ -88,7 +89,11 @@ export function setMeta(record, type, id, value, at = Date.now()) {
         next = Number(value);
         if (!Number.isFinite(next)) return { ok: false, reason: `${meta.label} must be a number.` };
     } else if (meta.type === 'choice') {
-        if (!(meta.options || []).includes(value)) return { ok: false, reason: `${meta.label} must be one of its choices.` };
+        // The field an elemental wheel reads also takes what a sheet writes ("Sand Magic", "Fire & Wind"),
+        // stored as the world's own options. Only a type with an elements block; every other choice is exact.
+        const wheel = type.elements?.meta === id && !(meta.options || []).includes(value) ? canonicalAffinity(type, value) : '';
+        if (wheel) value = wheel;
+        else if (!(meta.options || []).includes(value)) return { ok: false, reason: `${meta.label} must be one of its choices.` };
         next = String(value);
     } else {
         next = String(value);

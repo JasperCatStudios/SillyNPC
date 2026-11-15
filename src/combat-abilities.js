@@ -83,6 +83,8 @@ export function abilityActions(abilities, mode) {
             out.push({
                 key: `ability:${a.id}`, label: a.label, ability: true, prof: a.prof, power: num(a.power),
                 channel: a.channel, cost: a.cost, effect: a.effect || {}, desc: a.desc,
+                // An elemental spell's own element, for a world with an elemental wheel (combat-elements.js).
+                ...(a.element ? { element: a.element } : {}),
             });
         }
     }
@@ -129,6 +131,7 @@ export function validateAbilities(type, validateExpr) {
         if (num(e.drain) < 0 || num(e.drain) > 1) errors.push(`${name} drain must be between 0 and 1.`);
         if (num(e.counter) < 0 || num(e.counter) > 3) errors.push(`${name} counter must be between 0 and 3.`);
         if (num(e.counter) > 0 && !(a.kind === 'passive' && a.trigger === 'defend')) errors.push(`${name} counter only works on a defend passive.`);
+        if (a.element !== undefined && typeof a.element !== 'string') errors.push(`${name} element must be a name.`);
         if (a.needs !== undefined) {
             const n = a.needs;
             if (!n || typeof n !== 'object' || Array.isArray(n)) errors.push(`${name} needs must be an object.`);

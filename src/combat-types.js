@@ -3,6 +3,7 @@ import { validateAbilities } from './combat-abilities.js';
 import { resolveBindings, ROLE_SCHEMA_VERSION, PROF_ROLES, STAT_ROLES } from './combat-roles.js';
 import { BUILTIN_TYPES, BUILTIN_IDS } from './combat-builtins.js';
 import { normalizeGear, validateGear } from './combat-gear.js';
+import { validateElements } from './combat-elements.js';
 
 /**
  * Combat world types: checking, normalising and finding them (fork).
@@ -134,6 +135,13 @@ export function validateType(type) {
     {
         // Weapons, tiers and tools. No block is fine; a block that is there must be sound.
         const found = validateGear(type.gear, type);
+        errors.push(...found.errors);
+        warnings.push(...found.warnings);
+    }
+
+    {
+        // An elemental wheel read from both fighters. Optional, like gear.
+        const found = validateElements(type);
         errors.push(...found.errors);
         warnings.push(...found.warnings);
     }

@@ -1,5 +1,6 @@
 import { run } from './combat-formula.js';
 import { STAT_ROLES } from './combat-roles.js';
+import { elementalEdge } from './combat-elements.js';
 
 /**
  * One attack, resolved by a world type's own rules (fork).
@@ -93,7 +94,7 @@ function watched(rng) {
  * @param {object} type World type.
  * @param {object} attacker Projected combatant (project()).
  * @param {object} defender Projected combatant.
- * @param {{ prof: string, power?: number, channel?: string }} act
+ * @param {{ prof: string, power?: number, channel?: string, element?: string }} act
  * @param {{ rng: () => number, diff?: number, defenderProf?: string }} opts
  * @returns {{ band: string, total: number, natural: number, damage: number, advantage: object, margin?: number }}
  */
@@ -113,11 +114,15 @@ export function resolveAttack(type, attacker, defender, act, opts) {
     a.gear = gear;
     d.gear = gearContext(null);
     const adv = advantage(type, a, d);
+    // The world's elemental wheel (combat-elements.js), if it has one: read from both fighters, apart from adv.
+    const elem = elementalEdge(type, attacker, defender, channel, act.element);
 
     const w = watched(opts.rng);
     let total = Number(run(res.roll, { a, d, diff, adv }, { rng: w.next, fns: FNS })) || 0;
     // A world whose roll formula never mentions gear still gets the weapon's hit bonus.
     if (gear.hit && !/\bgear\b/.test(String(res.roll))) total += gear.hit;
+    // The side holding the beating element rolls better; with no defender roll, the attacker rolls worse.
+    if (elem) total += elem.hit - (res.mode === 'opposed' ? 0 : elem.defHit);
     const natural = w.state.first === null ? 0 : 1 + Math.floor(w.state.first * sides);
 
     let band;
@@ -127,7 +132,7 @@ export function resolveAttack(type, attacker, defender, act, opts) {
         // attacker's alone: it is the player's edge or handicap, not the opponent's.
         const defenderRoll = Number(run(res.roll, { a: d, d: a, diff: 0, adv: { hit: 0, dmgMult: 1 } },
             { rng: opts.rng, fns: FNS })) || 0;
-        margin = total - defenderRoll;
+        margin = total - (defenderRoll + (elem ? elem.defHit : 0));
         if (margin < 0) band = 'miss';
         else if (res.natural?.[natural] && margin > 0) band = res.natural[natural];
         else band = bandFor(res.bands, margin);
@@ -154,8 +159,12 @@ export function resolveAttack(type, attacker, defender, act, opts) {
         }, { rng: opts.rng, fns: FNS })) || 0;
         // The tier's multiplier on what the world's own formula gave.
         if (damage > 0 && gear.mult !== 1) damage = Math.max(1, Math.round(damage * gear.mult));
+        if (damage > 0 && elem && elem.dmgMult !== 1) damage = Math.max(1, Math.round(damage * elem.dmgMult));
     }
-    return { band, total, natural, damage, advantage: adv, ...(gearCrit ? { gearCrit } : {}), ...(margin === undefined ? {} : { margin }) };
+    return {
+        band, total, natural, damage, advantage: adv, ...(gearCrit ? { gearCrit } : {}), ...(margin === undefined ? {} : { margin }),
+        ...(elem?.net ? { element: elem } : {}),
+    };
 }
 
 /**

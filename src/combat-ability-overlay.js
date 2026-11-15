@@ -43,6 +43,7 @@ export function normalizeAbility(raw) {
     if (kind === 'active') {
         if (a.prof) out.prof = str(a.prof, 60);
         out.power = num(a.power);
+        if (str(a.element, 40)) out.element = str(a.element, 40);
     }
     if (kind !== 'passive' && a.cost && a.cost.pool && num(a.cost.amount) > 0) {
         out.cost = { pool: str(a.cost.pool, 40), amount: num(a.cost.amount) };

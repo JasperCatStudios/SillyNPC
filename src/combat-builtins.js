@@ -4,6 +4,9 @@ import { BLEACH_ABILITIES } from './combat-abilities-bleach.js';
 import { FE_GEAR } from './combat-gear-fe.js';
 import { FE_CLASSES } from './combat-classes-fe.js';
 import { BLEACH_GEAR } from './combat-gear-bleach.js';
+import { BC_ABILITIES } from './combat-abilities-bc.js';
+import { BC_GEAR } from './combat-gear-bc.js';
+import { BC_ELEMENTS, BC_AFFINITY_OPTIONS, BC_GRADES } from './combat-elements-bc.js';
 
 /**
  * The combat world types that ship with the extension (fork).
@@ -282,5 +285,112 @@ const BLEACH = {
     stakes: { injuries: false, death: false },
 };
 
-export const BUILTIN_TYPES = deepFreeze({ fe: FE, bleach: BLEACH });
+/* ------------------------------------------------------------------ Black Clover */
+
+/** [id, label, roles, channel, rollRole, aliases]: the six skills, each graded E to S. */
+const BC_PROFS = [
+    ['mana_sensory', 'Mana Sensory', ['support'], 'magic', 'awareness', ['Mana Sensing', 'Mana Sense', 'Sensory']],
+    ['mana_control', 'Mana Control', ['magic'], 'magic', 'attack', ['Magic Control', 'Spellcasting']],
+    ['reinforcement', 'Reinforcement Magic', ['weapon'], 'physical', 'attack', ['Reinforcement', 'Strengthening Magic']],
+    ['creation', 'Creation Magic', ['magic'], 'magic', 'attack', ['Creation']],
+    ['hand_to_hand', 'Hand-to-Hand Combat', ['weapon'], 'physical', 'attack', ['Hand-to-Hand', 'Melee', 'Swordsmanship', 'Martial Arts']],
+    ['teamwork', 'Teamwork/Strategy', ['support'], 'magic', 'presence', ['Teamwork', 'Strategy', 'Teamwork / Strategy']],
+];
+
+const BC = {
+    format: 'sillynpc-combat-type',
+    version: 2,
+    roleSchema: ROLE_SCHEMA_VERSION,
+    id: 'bc',
+    name: 'Black Clover',
+    builtin: true,
+    dataKey: 'bc',
+    description: 'Grimoires, mana and the Elemental Interaction Wheel: opposed d20 rolls, grades E to S, Stage 9 to 0. Stats on 0 to 100.',
+    stats: [
+        { id: 'hp', label: 'Health', abbr: 'HP', scale: { min: 10, max: 100 }, default: 40, aliases: ['HP', 'Hit Points'] },
+        { id: 'str', label: 'Strength', abbr: 'STR', scale: { min: 0, max: 100 }, default: 30 },
+        { id: 'dex', label: 'Dexterity', abbr: 'DEX', scale: { min: 0, max: 100 }, default: 30 },
+        { id: 'mag', label: 'Magic', abbr: 'MAG', scale: { min: 0, max: 100 }, default: 30, aliases: ['Magic Power', 'Mana'] },
+        { id: 'spd', label: 'Speed', abbr: 'SPD', scale: { min: 0, max: 100 }, default: 30 },
+        { id: 'lck', label: 'Luck', abbr: 'LCK', scale: { min: 0, max: 100 }, default: 30 },
+        { id: 'cha', label: 'Charisma', abbr: 'CHA', scale: { min: 0, max: 100 }, default: 30, aliases: ['Charm'] },
+        { id: 'def', label: 'Defense', abbr: 'DEF', scale: { min: 0, max: 100 }, default: 30, aliases: ['Defence'] },
+        { id: 'res', label: 'Resistance', abbr: 'RES', scale: { min: 0, max: 100 }, default: 30, aliases: ['Magic Resistance'] },
+    ],
+    meta: [
+        { id: 'grade', label: 'Grade', type: 'choice', options: [...BC_GRADES], default: 'C', aliases: ['Grade', 'Rank'] },
+        {
+            // No default: a sheet with no affinity is neutral on the wheel, never quietly Fire.
+            id: 'affinity', label: 'Magic Affinity', type: 'choice', options: [...BC_AFFINITY_OPTIONS],
+            aliases: ['Magic_Affinity', 'Magic Affinity', 'Affinity', 'Magic Type', 'Magic Attribute'],
+        },
+        { id: 'level', label: 'Level', type: 'number', min: 1, max: 100, default: 1, aliases: ['Level'] },
+    ],
+    modifier: {
+        type: 'table',
+        table: [[10, -3], [25, -2], [40, -1], [60, 0], [75, 1], [85, 2], [95, 3], [1000000, 4]],
+    },
+    channels: [{ id: 'physical', label: 'Physical' }, { id: 'magic', label: 'Magic' }],
+    roles: {
+        attack: { physical: 'stat.str', magic: 'stat.mag' },
+        defense: { physical: 'stat.def', magic: 'stat.res' },
+        speed: 'stat.spd',
+        initiative: 'stat.spd*0.8 + stat.lck*0.2',
+        accuracy: 'stat.dex',
+        evasion: 'stat.spd*0.7 + stat.lck*0.3',
+        luck: 'stat.lck',
+        presence: 'stat.cha',
+        awareness: 'stat.mag*0.5 + stat.dex*0.5',
+        endurance: 'stat.hp*0.5 + stat.def*0.5',
+        level: 'meta.level',
+        tier: 'meta.grade',
+    },
+    pools: [
+        { role: 'health', label: 'Health', abbr: 'HP', max: 'stat.hp', color: '#c0392b' },
+        { role: 'resource', label: 'Mana', abbr: 'MP', max: '20 + stat.mag*0.8', color: '#8e44ad' },
+        { role: 'guard', label: 'Stamina', abbr: 'STA', max: '20 + stat.hp*0.3 + stat.def*0.3', color: '#58d68d' },
+    ],
+    // One grade is +2 on the roll: the same step as an elemental advantage ("like one grade higher").
+    ladders: {
+        grade: { rungs: [...BC_GRADES], zeroAt: 'E', bonusPerRung: 2 },
+    },
+    proficiencies: BC_PROFS.map(([id, label, roles, channel, rollRole, aliases]) => ({
+        id, label, ladder: 'grade', roles, channel, rollRole, aliases,
+    })),
+    skillCards: null,
+    // No weapon triangle: magic matchups come from the elemental wheel below, read from both fighters.
+    advantage: [],
+    elements: BC_ELEMENTS,
+    actions: [
+        { key: 'strike', label: 'Strike', prof: 'hand_to_hand' },
+        { key: 'body_blow', label: 'Reinforced Blow', prof: 'reinforcement' },
+        { key: 'spell', label: 'Spell', prof: 'mana_control' },
+        { key: 'construct', label: 'Created Weapon', prof: 'creation' },
+    ],
+    abilities: BC_ABILITIES,
+    gear: BC_GEAR,
+    resolution: {
+        mode: 'opposed',
+        roll: 'd20 + diff + a.mod.roll + a.prof.bonus',
+        bands: [
+            { upTo: 0, result: 'stalemate' },
+            { upTo: 4, result: 'hit' },
+            { upTo: 9, result: 'strong' },
+            { upTo: 999, result: 'crit' },
+        ],
+        natural: { 20: 'crit' },
+        damage: 'max(1, round(band.base + act.power + a.attack*0.25 - d.defense*0.15))',
+        bandBase: { stalemate: 0, miss: 0, hit: 6, strong: 10, crit: 16 },
+        initiative: 'a.initiative + d10',
+        followUpChance: 'clamp((a.speed - d.speed) * 0.2, 0, 10)',
+        followUpMult: 0.5,
+        difficulty: [
+            { level: 1, mod: 1 }, { level: 2, mod: 0 }, { level: 3, mod: 0 },
+            { level: 4, mod: -1 }, { level: 5, mod: -2 },
+        ],
+    },
+    stakes: { injuries: false, death: false },
+};
+
+export const BUILTIN_TYPES = deepFreeze({ fe: FE, bleach: BLEACH, bc: BC });
 export const BUILTIN_IDS = Object.freeze(Object.keys(BUILTIN_TYPES));
