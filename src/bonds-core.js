@@ -1617,8 +1617,12 @@ export function buildBondInjection(store, names, settings, playerName = 'the pla
     return ['[Bonds]', ...blocks, instruction, '[/Bonds]'].filter(Boolean).join('\n');
 }
 
-/** The rules and vocabulary the model needs to propose an update, shared by both timings. */
-function rulesText(settings, people, playerName, lastDate = '', turn = undefined) {
+/**
+ * The rules and vocabulary the model needs to propose an update, shared by both timings.
+ * inline: the story model writes new values on the BOND TRACKER lines instead of changes in JSON,
+ * so the meter and desire sentences speak of values; everything else is the same text.
+ */
+function rulesText(settings, people, playerName, lastDate = '', turn = undefined, { inline = false } = {}) {
     const g = settings.growth;
     const out = [];
     out.push('date: the in-story date of the latest message, written exactly as "Weekday, Month DD, Year" (for example "Friday, February 07, 1182"). '
@@ -1626,8 +1630,10 @@ function rulesText(settings, people, playerName, lastDate = '', turn = undefined
         + `${lastDate ? ` (last known: ${lastDate})` : ''}. Use an empty string when it cannot be worked out. Never invent a date the story does not support.`);
     out.push(`Each character has three meters toward ${playerName}, each from ${g.min} to ${g.max}: affection (warmth, liking), `
         + 'trust (feeling safe with them, relying on them), respect (regard for their competence and character). '
-        + `Propose a change per meter between -${g.maxLoss} and +${g.maxGain}; `
-        + 'most turns change nothing or very little. Ordinary pleasant talk is +0 to +1 affection. Use 0 for a meter the exchange did not affect.');
+        + (inline
+            ? 'Most turns change nothing or very little. Ordinary pleasant talk is +0 to +1 affection. Keep the current value of a meter the exchange did not affect.'
+            : `Propose a change per meter between -${g.maxLoss} and +${g.maxGain}; `
+            + 'most turns change nothing or very little. Ordinary pleasant talk is +0 to +1 affection. Use 0 for a meter the exchange did not affect.'));
     out.push(`Judge only how each character feels about ${playerName}. How ${playerName} feels about them is set by the user and is never yours to change.`);
     if (lines(g.raises).length) out.push(`Raises a bond: ${lines(g.raises).join('; ')}.`);
     if (lines(g.lowers).length) out.push(`Lowers a bond: ${lines(g.lowers).join('; ')}.`);
@@ -1642,11 +1648,14 @@ function rulesText(settings, people, playerName, lastDate = '', turn = undefined
         const rl = settings.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS;
         const dg = meterGrowth(g, 'desire');
         out.push(`desire: romantic and physical attraction toward ${playerName}, from 0 to ${g.max}, separate from affection (a close friend can feel no desire at all). `
-            + `Give desire ONLY for: ${romantic.map(p => p.name).join(', ')}, whose romance is switched on; never for anyone else. `
-            + `Between -${fmt(g.maxLoss)} and +${fmt(dg.maxGain)}; it grows slowly, and 0 is the usual answer. `
+            + (inline
+                ? `Write DESIRE ONLY for: ${romantic.map(p => p.name).join(', ')}, whose romance is switched on; never for anyone else. `
+                + 'It grows slowly, and keeping it unchanged is the usual answer. '
+                : `Give desire ONLY for: ${romantic.map(p => p.name).join(', ')}, whose romance is switched on; never for anyone else. `
+                + `Between -${fmt(g.maxLoss)} and +${fmt(dg.maxGain)}; it grows slowly, and 0 is the usual answer. `)
             + `Romance levels (from desire): ${rl.map(l => `${l.name} (${l.min}+)`).join(', ')}.`);
     } else {
-        out.push('Leave out desire: nobody\'s romance is switched on.');
+        out.push(inline ? 'Leave out DESIRE: nobody\'s romance is switched on.' : 'Leave out desire: nobody\'s romance is switched on.');
     }
     // Romance-unlock flags: only outside Manual, and only when somebody qualifies. Otherwise the
     // prompt is exactly what it was before the setting existed.
@@ -1695,6 +1704,9 @@ function catalystRule(eligible, playerName) {
 const JSON_SHAPE = '{"date":"Friday, February 07, 1182","bonds":[{"name":"Name","affection":1,"trust":0,"respect":0,"desire":0,"reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
 /** JSON_SHAPE with the romance-unlock flags, for the inline block when somebody may be flagged. */
 const JSON_SHAPE_CATALYSTS = `${JSON_SHAPE.slice(0, -1)},${CATALYST_SHAPE}}`;
+/** The hidden block of the "with the reply" timing: only what the BOND TRACKER lines cannot carry. */
+const INLINE_JSON_SHAPE = '{"date":"Friday, February 07, 1182","bonds":[{"name":"Name","reason":"short reason"}],"milestones":[{"name":"Name","type":"first_kiss","note":"one line"}]}';
+const INLINE_JSON_SHAPE_CATALYSTS = `${INLINE_JSON_SHAPE.slice(0, -1)},${CATALYST_SHAPE}}`;
 
 export const BOND_SYSTEM = [
     'You track how the characters of a roleplay feel about the player, {{user}}: affection, trust and respect, and desire for those whose romance is switched on. You read the newest exchange and propose small, believable changes.',
@@ -1718,17 +1730,191 @@ export function trackerBlockHtml(store, record, settings, playerName) {
     if (!people.length) return '';
     const changes = record?.changes || [];
     const lines = people.map((person) => {
-        const edge = person.edges?.toPlayer || {};
-        const value = person.edges?.toPlayer ? platonicValue(edge) : Number(person.value) || 0;
-        const romance = romanceState(person, 'toPlayer', settings.romanceLevels);
-        const level = [levelName(levelFor(value, settings.levels)?.level, person), romance.level?.name || ''].filter(Boolean).join(' · ');
         const mine = changes.filter(c => c.name === person.name && c.dir !== 'fromPlayer' && Number(c.delta));
         const note = mine.length ? ` (${mine.map(c => `${Number(c.delta) > 0 ? '+' : ''}${c.delta} ${c.meter || 'affection'}`).join(', ')})` : '';
-        const r = (k) => Math.round(Number(edge[k]) || 0);
-        const desire = romance.active ? ` | DESIRE: ${Math.max(0, r('desire'))}` : '';
-        return `- <b>${person.name}</b> → <b>${playerName}</b> | AFFECTION: ${signed(r('affection'), '+')} | TRUST: ${signed(r('trust'))} | RESPECT: ${signed(r('respect'))}${desire} | LEVEL: ${level}${note}`;
+        return trackerLine(person, settings, playerName, note);
     });
-    return `<details><summary>💞 BOND TRACKER</summary>\n${lines.join('\n')}\n</details>`;
+    return `<details><summary>${TRACKER_SUMMARY}</summary>\n${lines.join('\n')}\n</details>`;
+}
+
+const TRACKER_SUMMARY = '💞 BOND TRACKER';
+
+/** One person's BOND TRACKER line, as the display regexes expect it. note is the bracketed change, or ''. */
+function trackerLine(person, settings, playerName, note = '') {
+    const edge = person.edges?.toPlayer || {};
+    const value = person.edges?.toPlayer ? platonicValue(edge) : Number(person.value) || 0;
+    const romance = romanceState(person, 'toPlayer', settings.romanceLevels);
+    const level = [levelName(levelFor(value, settings.levels)?.level, person), romance.level?.name || ''].filter(Boolean).join(' · ');
+    const r = (k) => Math.round(Number(edge[k]) || 0);
+    const desire = romance.active ? ` | DESIRE: ${Math.max(0, r('desire'))}` : '';
+    return `- <b>${person.name}</b> → <b>${playerName}</b> | AFFECTION: ${signed(r('affection'), '+')} | TRUST: ${signed(r('trust'))} | RESPECT: ${signed(r('respect'))}${desire} | LEVEL: ${level}${note}`;
+}
+
+/* ---- the BOND TRACKER block the story model writes with its reply ----------------------- */
+
+/*
+ * In the "with the reply" timing the story model writes the visible BOND TRACKER block itself,
+ * with the values it believes each character now has. Those are only proposals: they become
+ * changes against the stored values and go through applyTurn's rules like any other update,
+ * and the model's block is then replaced by trackerBlockHtml so the reply shows the clamped truth.
+ */
+
+/** A <details> whose summary says BOND TRACKER, with the code fence a model may wrap it in. */
+const TRACKER_BLOCK_RE = /(```[a-z]*[ \t]*\r?\n?[ \t]*)?<details\b[^>]*>\s*<summary\b[^>]*>((?:(?!<\/summary>)[\s\S]){0,200}?)<\/summary>([\s\S]*?)(?:<\/details>|$)/gi;
+const TRACKER_ARROW_RE = /\s*(?:-->|->|=>|—>|→|⟶|➔|➜|⇒)\s*/;
+const TRACKER_FIELD_RE = /^\s*(AFFECTION|TRUST|RESPECT|DESIRE|LEVEL)\s*[:=]\s*(.*)$/i;
+
+const decodeEntities = (s) => s
+    .replace(/&nbsp;/gi, ' ').replace(/&rarr;/gi, '→').replace(/&gt;/gi, '>').replace(/&lt;/gi, '<')
+    .replace(/&minus;/gi, '-').replace(/&amp;/gi, '&');
+
+/** The number a field starts with, signs in any form (+34, -5, − 5, +3.5), or undefined. */
+function trackerNumber(raw) {
+    const m = /^([+\-−–])?\s*(\d+(?:\.\d+)?)/.exec(String(raw ?? '').trim());
+    if (!m) return undefined;
+    const n = Number(m[2]);
+    return m[1] && m[1] !== '+' ? -n : n;
+}
+
+/**
+ * One line of a BOND TRACKER block as { name, affection?, trust?, respect?, desire? }, or null
+ * when it is not one. Only the character (left of the arrow) is read; LEVEL and the bracketed
+ * note are ignored, since the level follows from the values and the note is ours.
+ */
+export function parseTrackerLine(line) {
+    const plain = decodeEntities(String(line ?? '').replace(/<[^>]*>/g, '')).replace(/\*\*|__/g, '').trim();
+    const bar = plain.indexOf('|');
+    if (bar === -1) return null;
+    const head = plain.slice(0, bar).replace(/^[\s\-•*+]+/, '');
+    const arrow = TRACKER_ARROW_RE.exec(head);
+    const name = str(arrow ? head.slice(0, arrow.index) : head, 80).replace(/[:\s]+$/, '');
+    if (!name) return null;
+    const row = { name };
+    for (const part of plain.slice(bar + 1).split('|')) {
+        const f = TRACKER_FIELD_RE.exec(part);
+        if (!f) continue;
+        const key = f[1].toLowerCase();
+        if (key === 'level' || key in row) continue;
+        const n = trackerNumber(f[2]);
+        if (n !== undefined) row[key] = n;
+    }
+    return METERS.some(k => k in row) ? row : null;
+}
+
+/**
+ * Every BOND TRACKER block in a text, and the rows of the last one (a continued reply may hold
+ * an older block before the new one). Each block is { index, length } over the text, its code
+ * fence included when it had one.
+ * @returns {{ rows: object[], blocks: { index: number, length: number }[] }}
+ */
+export function parseTrackerBlock(text) {
+    const s = String(text ?? '');
+    const blocks = [];
+    let body = '';
+    for (const m of s.matchAll(TRACKER_BLOCK_RE)) {
+        if (!/BOND\s*TRACKER/i.test(m[2].replace(/<[^>]*>/g, ''))) continue;
+        let length = m[0].length;
+        // A fence opened before the block is closed after it; take the closing one too.
+        if (m[1]) {
+            const close = /^[ \t]*\r?\n?[ \t]*```/.exec(s.slice(m.index + length));
+            if (close) length += close[0].length;
+        }
+        blocks.push({ index: m.index, length });
+        body = m[3];
+    }
+    const rows = [];
+    const seen = new Set();
+    for (const line of body.split(/\r?\n|<br\s*\/?>/i)) {
+        const row = parseTrackerLine(line);
+        if (!row || seen.has(row.name.toLowerCase())) continue;
+        seen.add(row.name.toLowerCase());
+        rows.push(row);
+    }
+    return { rows, blocks };
+}
+
+/** The text with every BOND TRACKER block taken out and `html` put where the last one stood. */
+export function replaceTrackerBlock(text, html) {
+    const s = String(text ?? '');
+    const { blocks } = parseTrackerBlock(s);
+    if (!blocks.length) return s;
+    let out = '';
+    let from = 0;
+    blocks.forEach((b, i) => {
+        out += s.slice(from, b.index) + (i === blocks.length - 1 ? html : '');
+        from = b.index + b.length;
+    });
+    return out + s.slice(from);
+}
+
+/**
+ * The model's proposed values as changes, one bond entry per tracked person it wrote a line for.
+ *
+ * A change is measured from the value the person had before this reply's turn: when the same
+ * reply already counted once (a forced re-run, a continue), what that turn did is taken off first,
+ * exactly as applyTurn will take it back. Values are compared as the block shows them (whole
+ * numbers), so copying an unchanged line moves nothing. Only the character's side (toPlayer);
+ * desire only while that side's romance is on.
+ */
+export function trackerRowsToBonds(store, rows, key = '') {
+    const prior = key ? (store?.turns || []).find(t => t.key === String(key)) : null;
+    const out = [];
+    for (const row of rows || []) {
+        const person = findPerson(store, row.name);
+        if (!person || !person.tracked || !person.edges?.toPlayer) continue;
+        const edge = person.edges.toPlayer;
+        const bond = { name: person.name, affection: 0, trust: 0, respect: 0, desire: 0, reason: '' };
+        for (const meter of romanceActive(person, 'toPlayer') ? ALL_METERS : METERS) {
+            const target = Number(row[meter]);
+            if (row[meter] === undefined || !Number.isFinite(target)) continue;
+            const undone = (prior?.changes || [])
+                .filter(c => c.name === person.name && c.dir !== 'fromPlayer' && (c.meter || 'affection') === meter)
+                .reduce((sum, c) => sum + (Number(c.delta) || 0), 0);
+            const before = Math.round((Number(edge[meter]) || 0) - undone);
+            bond[meter] = tenth(target - before);
+        }
+        out.push(bond);
+    }
+    return out;
+}
+
+/**
+ * One update from the BOND TRACKER lines and the hidden block together. The lines carry the
+ * meters; the hidden block carries the date, milestones, catalysts and reasons. An old-style
+ * hidden block that still has meters counts for anyone the lines leave out.
+ */
+export function combineInlineUpdate(store, jsonUpdate, rows, key = '') {
+    const json = jsonUpdate || { bonds: [], milestones: [], date: '' };
+    const fromLines = trackerRowsToBonds(store, rows, key);
+    const reasonOf = (name) => (json.bonds || []).find(b => sameName(b.name, name))?.reason || '';
+    const bonds = [
+        ...fromLines.map(b => ({ ...b, reason: reasonOf(b.name) })),
+        ...(json.bonds || []).filter(b => !fromLines.some(x => sameName(x.name, b.name))),
+    ];
+    const out = { ...json, bonds, milestones: json.milestones || [], date: json.date || '' };
+    return out;
+}
+
+/**
+ * What a freshly rendered reply holds in the "with the reply" timing: its text without the hidden
+ * block, the update to apply, and whether a BOND TRACKER block was read. skip: nothing to do,
+ * either because the reply carries nothing or because this swipe was already read and only our
+ * own block is left (the render event can fire twice).
+ */
+export function readInlineReply(text, store, { key = '', swipeId = 0 } = {}) {
+    const { text: clean, block } = stripInlineBlock(text);
+    const { rows } = parseTrackerBlock(clean);
+    const done = (store?.turns || []).some(t => t.key === String(key) && t.swipeId === swipeId);
+    if (!block && (done || !rows.length)) return { text: clean, block, rows, update: null, skip: true };
+    const update = combineInlineUpdate(store, parseUpdate(block), rows, key);
+    return { text: clean, block, rows, update, skip: false };
+}
+
+/** The reply with the model's BOND TRACKER block replaced by the authoritative one. Unchanged when it had none. */
+export function finishInlineReply(text, store, record, settings, playerName) {
+    if (!parseTrackerBlock(text).rows.length) return String(text ?? '');
+    const html = trackerBlockHtml(store, record, settings, playerName);
+    return html ? replaceTrackerBlock(text, html) : String(text ?? '');
 }
 
 /** The system and user text for the separate request. */
@@ -1746,12 +1932,26 @@ export function buildMonitorPrompt(settings, people, { playerName = 'the player'
 
 /** What the story model is told in the "with the reply" timing. */
 export function buildInlineInstruction(settings, people, playerName = 'the player', lastDate = '', turn = undefined) {
-    const shape = catalystCandidates(settings, people, turn).length ? JSON_SHAPE_CATALYSTS : JSON_SHAPE;
+    const catalysts = catalystCandidates(settings, people, turn).length > 0;
+    const shape = catalysts ? INLINE_JSON_SHAPE_CATALYSTS : INLINE_JSON_SHAPE;
+    const g = settings.growth;
+    const romantic = (people || []).some(p => romanceActive(p, 'toPlayer'));
+    const example = people?.length
+        ? trackerLine(people[0], settings, playerName)
+        : `- <b>Name</b> → <b>${playerName}</b> | AFFECTION: +0 | TRUST: 0 | RESPECT: 0 | LEVEL: ${levelFor(0, settings.levels)?.level?.name || 'Stranger'}`;
     return [
         '[Bond tracking]',
-        `After your reply, on its own line at the very end, write a hidden block: <${INLINE_TAG}>${shape}</${INLINE_TAG}>`,
-        `It records how the latest exchange changed each character's bond with ${playerName}. It is removed before anyone reads the reply, so never refer to it in the story.`,
-        rulesText(settings, people, playerName, lastDate, turn),
+        `After your reply, write this BOND TRACKER block, one line per tracked character who took part in the latest exchange (never ${playerName}):`,
+        `<details><summary>${TRACKER_SUMMARY}</summary>`,
+        example,
+        '</details>',
+        `Each number is that character's NEW value toward ${playerName}: start from the current values below and change each by at most +${fmt(g.maxGain)} or -${fmt(g.maxLoss)}`
+            + `${romantic ? ` (DESIRE at most +${fmt(meterGrowth(g, 'desire').maxGain)} or -${fmt(g.maxLoss)})` : ''}. `
+            + 'AFFECTION always carries its sign (+ or -); TRUST and RESPECT carry only a minus. LEVEL is the level the new values reach.',
+        `Then, on its own last line, write a hidden block: <${INLINE_TAG}>${shape}</${INLINE_TAG}>`,
+        `It holds only what the lines cannot: the date, milestones${catalysts ? ', catalysts' : ''} and an optional short reason per character; never repeat the numbers in it. `
+            + 'It is removed before anyone reads the reply, so never refer to it in the story.',
+        rulesText(settings, people, playerName, lastDate, turn, { inline: true }),
         '[/Bond tracking]',
     ].join('\n');
 }

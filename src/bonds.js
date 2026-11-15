@@ -19,6 +19,7 @@ import {
     applyTurn, revertTurn, setMeter, parseUpdate, stripInlineBlock, milestoneDate,
     parseLegacyBonds, migrateLegacy, selectPeople, buildBondInjection,
     buildMonitorPrompt, buildInlineInstruction, acceptRomanceSuggestion, declineRomanceSuggestion,
+    readInlineReply, finishInlineReply,
 } from './bonds-core.js';
 
 /**
@@ -280,31 +281,51 @@ function redrawSection(messageId) {
 
 /* ---- the inline timing --------------------------------------------------------------- */
 
+/** Sets the reply's text and the copy its current swipe keeps. */
+function setMessageText(message, text) {
+    message.mes = text;
+    if (Array.isArray(message.swipes) && message.swipes[message.swipe_id ?? 0] !== undefined) {
+        message.swipes[message.swipe_id ?? 0] = text;
+    }
+}
+
 /**
  * Takes the bond block out of a freshly rendered reply and applies it.
  *
- * Always strips, whatever the settings say: a block written while the timing was inline must not
- * be left in the story because the switch moved before the reply finished. Synchronous up to the
- * redraw, and registered first, so the rest of SillyNPC reads the clean text.
+ * Always strips the hidden block, whatever the settings say: a block written while the timing was
+ * inline must not be left in the story because the switch moved before the reply finished. The
+ * visible BOND TRACKER lines are only read while the tracker is on and the timing is inline:
+ * their values become changes, go through the growth rules, and the block is rewritten with the
+ * clamped result. Synchronous up to the redraw, and registered first, so the rest of SillyNPC
+ * reads the clean text.
  */
 function takeInlineBlock(messageId) {
     const context = getContext();
     const message = context?.chat?.[messageId];
     if (!message || message.is_user || message.is_system) return;
-    const { text, block } = stripInlineBlock(message.mes);
-    if (!block) return;
+    const swipeId = message.swipe_id ?? 0;
+    const key = String(messageId);
 
-    message.mes = text;
-    if (Array.isArray(message.swipes) && message.swipes[message.swipe_id ?? 0] !== undefined) {
-        message.swipes[message.swipe_id ?? 0] = text;
+    if (timingAction(bondSettings(), 'rendered') !== 'parse') {
+        const { text, block } = stripInlineBlock(message.mes);
+        if (!block) return;
+        setMessageText(message, text);
+        rememberUpdate(message, parseUpdate(block));
+        try { updateMessageBlock(messageId, message); } catch (err) { debugLog('Could not redraw the reply without its bond block', err); }
+        return;
     }
-    const update = parseUpdate(block);
-    rememberUpdate(message, update);
+
+    const store = chatStore();
+    const read = readInlineReply(message.mes, store, { key, swipeId });
+    // No hidden block and either no lines or only our own block from a read already done.
+    if (read.skip) return;
+    setMessageText(message, read.text);
+    rememberUpdate(message, read.update);
+    const result = commit(read.update, { key, swipeId, messageId, force: true });
+    if (result?.record && read.rows.length) {
+        setMessageText(message, finishInlineReply(message.mes, chatStore(), result.record, bondSettings(), playerName()));
+    }
     try { updateMessageBlock(messageId, message); } catch (err) { debugLog('Could not redraw the reply without its bond block', err); }
-
-    if (timingAction(bondSettings(), 'rendered') === 'parse') {
-        commit(update, { key: String(messageId), swipeId: message.swipe_id ?? 0, messageId, force: true });
-    }
 }
 
 /* ---- the story prompt ---------------------------------------------------------------- */

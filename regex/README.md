@@ -19,4 +19,14 @@ and, while that character's romance is switched on, with a desire field before t
   replies, or romance off) render exactly as before. Re-import both files to get the desire bar.
 - Both run as markdown-only display regexes (placement: AI output), so they never touch the prompt.
 
-The block is written under each reply by the Bond Tracker (Bonds tab).
+The block is written under each reply by the Bond Tracker (Bonds tab). With the timing "With the reply" the
+story model writes the same block inside its reply, in the same format; the Bond Tracker checks the numbers
+against the growth rules and rewrites the block with the real values (and the change in brackets), so these
+regexes dress it the same way.
+
+## Context saver (only for "With the reply")
+
+`SillyNPC-Bond-Tracker-Context-Saver.json` removes the BOND TRACKER block from older messages in the prompt that goes
+to the story model (prompt only, depth 2 and older, like your Internal States context saver), so the block does not
+cost tokens every turn. Import it the same way. It is not needed for the other timings: there the block is not in the
+message text.

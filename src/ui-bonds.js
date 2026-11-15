@@ -177,7 +177,7 @@ function renderGeneral(view, rerender) {
         key: 'timing',
         label: 'When Bonds Update',
         help: 'After The Reply: a separate request on the Bonds connection reads each new reply. '
-            + 'With The Reply: the story model is asked to add a hidden block, which is taken out of the text before you see it '
+            + 'With The Reply: the story model writes the BOND TRACKER block at the end of its reply; the growth rules check it and it is rewritten with the real values '
             + '(cheapest, but it spends story tokens and a weak model may forget it). '
             + 'Only When I Press Update: nothing happens on its own; use the Update buttons below.',
         options: Object.entries(BOND_TIMINGS).map(([value, label]) => ({ value, label })),
