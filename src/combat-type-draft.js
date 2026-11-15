@@ -1,5 +1,6 @@
 import { normalizeType, validateType } from './combat-types.js';
 import { STAT_ROLES, POOL_ROLES } from './combat-roles.js';
+import { normalizeWorldArt } from './faction-theme.js';
 
 /**
  * The guided editor's side of a custom world type (fork): turning a form draft into a type and
@@ -17,7 +18,7 @@ const num = (v, d) => (Number.isFinite(Number(v)) && String(v).trim() !== '' ? N
 
 /** Keys the form owns; every other key of a type is carried in `extra`. */
 const FORM_KEYS = ['id', 'name', 'description', 'stats', 'channels', 'roles', 'pools', 'modifier', 'format', 'version',
-    'roleSchema', 'builtin', 'dataKey'];
+    'roleSchema', 'builtin', 'dataKey', 'art'];
 /** Parts of `resolution` the form owns. */
 const RES_FORM_KEYS = ['mode', 'roll', 'damage', 'initiative', 'followUpChance', 'bands'];
 
@@ -90,6 +91,8 @@ export function blankDraft() {
             actions: [{ key: 'strike', label: 'Strike' }],
         },
         baseId: '',
+        // Optional pictures and faction colours (faction-theme.js normalizeWorldArt). Empty means none.
+        art: { banner: '', crestsDir: '', kinds: {}, profs: {}, factions: {} },
     };
 }
 
@@ -145,6 +148,7 @@ export function draftFromType(type) {
     for (const [key, value] of Object.entries(res)) if (!RES_FORM_KEYS.includes(key)) resExtra[key] = clone(value);
     if (Object.keys(resExtra).length) extra.resolution = resExtra;
     draft.extra = extra;
+    draft.art = normalizeWorldArt(t.art);
     return draft;
 }
 
@@ -252,8 +256,11 @@ export function buildType(draft, ctx = {}) {
     if (text(r.initiative).trim()) resolution.initiative = text(r.initiative).trim();
     if (text(r.followUpChance).trim()) resolution.followUpChance = text(r.followUpChance).trim();
 
+    const art = normalizeWorldArt(draft.art);
+    const hasArt = art.banner || art.crestsDir || Object.keys(art.kinds).length || Object.keys(art.profs).length || Object.keys(art.factions).length;
     const raw = {
         ...extra,
+        ...(hasArt ? { art } : {}),
         format: 'sillynpc-combat-type', version: 2, id, name, builtin: false, dataKey: id,
         description: text(draft.description).trim(), stats, channels, roles, pools, modifier, resolution,
     };

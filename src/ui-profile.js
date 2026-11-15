@@ -6,6 +6,7 @@ import { bondSettings, getPerson } from './bonds.js';
 import { buildStatusCard } from './ui-vitals.js';
 import { buildProfileTabs, buildLoreLinkBar } from './ui-profile-tabs.js';
 import { applyFactionTheme, buildFactionBanner } from './ui-faction.js';
+import { activeCombatType } from './combat-access.js';
 import { levelFor, levelName, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
 
 /**
@@ -133,8 +134,10 @@ export async function renderProfileView(char, container) {
     container.className = 'sillynpc-charview';
     // The faction decides the colours; its banner runs across the top. Neither is needed for any control to work.
     try {
-        applyFactionTheme(container, char.category);
-        container.append(buildFactionBanner(char.category));
+        // The world picked in Combat may carry its own factions and banner (set in the world editor).
+        const world = activeCombatType();
+        applyFactionTheme(container, char.category, world);
+        container.append(buildFactionBanner(char.category, world));
     } catch (err) { console.warn('[Worldkit] faction theme failed', err); }
 
     const body = document.createElement('div');

@@ -21,14 +21,14 @@ export function saveFactionSettings() {
 }
 
 /** The palette a character's faction (category) gets. */
-export function factionPalette(category) {
-    return paletteFor(category, factionSettings());
+export function factionPalette(category, world = null) {
+    return paletteFor(category, factionSettings(), world);
 }
 
 /** Gives an element the faction's colours as CSS variables, so everything inside can use them. */
-export function applyFactionTheme(node, category) {
+export function applyFactionTheme(node, category, world = null) {
     if (!node) return null;
-    const palette = factionPalette(category);
+    const palette = factionPalette(category, world);
     node.classList.add('sillynpc-fx');
     node.dataset.faction = palette.id;
     node.style.cssText += `;${themeStyle(palette)}`;
@@ -59,8 +59,8 @@ function pictureOrNothing(src, className, alt = '') {
  * faction's name, and, when artwork is on and the file exists, its picture over the top.
  * @returns {HTMLElement}
  */
-export function buildFactionBanner(category) {
-    const palette = factionPalette(category);
+export function buildFactionBanner(category, world = null) {
+    const palette = factionPalette(category, world);
     const banner = el('div', 'sillynpc-fx-banner');
     banner.style.cssText = `background:linear-gradient(135deg, ${palette.panel}, ${palette.bg});border-color:${palette.accent}`;
     const url = artworkUrl(palette.banner, factionSettings());
@@ -74,7 +74,7 @@ export function buildFactionBanner(category) {
 /**
  * A small picture for a weapon kind or a skill: the world's own icon when there is one and artwork
  * is on, otherwise a built-in icon.
- * @param {string} worldId the combat world's id (its dataKey)
+ * @param {object|string} world the combat world type (or its id)
  * @param {string} id a gear kind id or a proficiency id
  * @param {{ kind?: 'kind'|'prof', title?: string, quiet?: boolean }} [opts] quiet returns null when there is
  *   neither a picture nor a meaningful built-in icon, so a list is not covered in identical dots.

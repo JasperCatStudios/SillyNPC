@@ -83,15 +83,22 @@ export function normalizeFactionSettings(raw) {
  * @param {string} faction a category name
  * @param {object} settings normalizeFactionSettings output
  */
-export function paletteFor(faction, settings = normalizeFactionSettings()) {
+export function paletteFor(faction, settings = normalizeFactionSettings(), world = null) {
     const id = foldFaction(faction);
     if (id && settings.themes[id]) return { id, ...settings.themes[id] };
+    // The world's own factions, as its author set them in the world editor.
+    const worldFaction = id && artOf(world).factions[id];
+    if (worldFaction) return { id, ...worldFaction };
     const builtinId = ALIASES[id] || (BUILTIN_FACTIONS[id] ? id : '');
     if (builtinId) return { id: builtinId, ...normalizePalette(BUILTIN_FACTIONS[builtinId]) };
     const def = settings.defaultFaction;
     if (def && settings.themes[def]) return { id: def, ...settings.themes[def] };
     if (def && BUILTIN_FACTIONS[def]) return { id: def, ...normalizePalette(BUILTIN_FACTIONS[def]) };
-    return { id: 'neutral', ...normalizePalette(BUILTIN_FACTIONS.neutral) };
+    // Neutral, wearing the world's own banner when it set one.
+    const fallback = { id: 'neutral', ...normalizePalette(BUILTIN_FACTIONS.neutral) };
+    const worldBanner = artOf(world).banner;
+    if (worldBanner) fallback.banner = worldBanner;
+    return fallback;
 }
 
 /** CSS custom properties for a palette, as a style string. */
@@ -109,6 +116,59 @@ export function artworkUrl(relative, settings = normalizeFactionSettings()) {
     if (/^[a-z]+:/i.test(path) || path.includes('..')) return '';
     return `${settings.artworkBase}${path}`;
 }
+
+/* ------------------------------------------------------------------ a world's own artwork */
+
+const cleanPath = (v) => {
+    const p = typeof v === 'string' ? v.trim().replace(/^\/+/, '') : '';
+    return p && !p.includes('..') && !/^[a-z]+:/i.test(p) && p.length <= 200 ? p : '';
+};
+
+/**
+ * The artwork a world type carries (type.art), repaired: a default banner, picture paths for gear
+ * kinds and skills, a crest folder, and the world's own factions with their colours. All paths are
+ * relative to the artwork folder, and everything is optional.
+ */
+export function normalizeWorldArt(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const map = (obj) => {
+        const out = {};
+        for (const [k, v] of Object.entries(obj && typeof obj === 'object' ? obj : {})) {
+            const key = String(k).toLowerCase().trim();
+            const path = cleanPath(v);
+            if (key && path) out[key] = path;
+        }
+        return out;
+    };
+    const factions = {};
+    for (const [name, value] of Object.entries(r.factions && typeof r.factions === 'object' ? r.factions : {})) {
+        const id = foldFaction(name);
+        if (id && value && typeof value === 'object') {
+            factions[id] = { ...normalizePalette({ ...value, banner: cleanPath(value.banner), emblem: cleanPath(value.emblem) }), label: String(value.label || name) };
+        }
+    }
+    const crests = cleanPath(r.crestsDir);
+    return {
+        banner: cleanPath(r.banner),
+        crestsDir: crests ? (crests.endsWith('/') ? crests : `${crests}/`) : '',
+        kinds: map(r.kinds),
+        profs: map(r.profs),
+        factions,
+    };
+}
+
+/** A world given as an id (built-in) or as a type object (which may carry its own art). */
+function artOf(world) {
+    if (world && typeof world === 'object') return normalizeWorldArt(world.art);
+    return normalizeWorldArt(null);
+}
+const worldIdOf = (world) => (world && typeof world === 'object' ? String(world.dataKey || world.id || '') : String(world ?? ''));
+
+/** Whether a world carries any art of its own. */
+export const hasWorldArt = (world) => {
+    const a = artOf(world);
+    return Boolean(a.banner || a.crestsDir || Object.keys(a.kinds).length || Object.keys(a.profs).length || Object.keys(a.factions).length);
+};
 
 /* ------------------------------------------------------------------------ icons by world */
 
@@ -158,17 +218,18 @@ const FALLBACK_ICONS = Object.freeze({
 export const NEUTRAL_ICON = 'fa-circle-dot';
 
 /** { src, icon }: a picture path (relative, may be '') and the built-in icon to fall back to. */
-export function iconFor(worldId, id, { kind = 'prof' } = {}) {
+export function iconFor(world, id, { kind = 'prof' } = {}) {
     const key = String(id ?? '').toLowerCase();
-    const art = WORLD_ART[worldId];
-    const table = art ? (kind === 'kind' ? art.kinds : art.profs) : null;
+    const own = artOf(world);
+    const art = WORLD_ART[worldIdOf(world)];
+    const table = { ...(art ? (kind === 'kind' ? art.kinds : art.profs) : {}), ...(kind === 'kind' ? own.kinds : own.profs) };
     const word = Object.keys(FALLBACK_ICONS).find(k => key === k || key.includes(k));
-    return { src: table?.[key] || '', icon: (word && FALLBACK_ICONS[word]) || NEUTRAL_ICON };
+    return { src: table[key] || '', icon: (word && FALLBACK_ICONS[word]) || NEUTRAL_ICON };
 }
 
 /** The picture for a crest by name ("Crest of Macuil" or "macuil"), or '' when the world has none. */
-export function crestPicture(worldId, name) {
-    const dir = WORLD_ART[worldId]?.crestsDir;
+export function crestPicture(world, name) {
+    const dir = artOf(world).crestsDir || WORLD_ART[worldIdOf(world)]?.crestsDir;
     if (!dir) return '';
     const words = String(name ?? '').toLowerCase().replace(/crest of|crest|major|minor|the/g, '').trim().split(/[^a-z]+/).filter(Boolean);
     return words.length ? `${dir}${words[words.length - 1]}.png` : '';

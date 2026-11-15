@@ -300,8 +300,92 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     resBox.append(bandsField);
     host.append(resBox);
 
+    /* ---------------------------------------------- colours and artwork */
+    const artBox = section('8. Factions, colours and artwork (optional)',
+        'Everything here is presentation only: it never changes how a fight is rolled. A faction is a group of characters (their category). '
+        + 'Give each faction its own colours and banner, and assign a picture to each weapon or skill. Picture paths are relative to the artwork folder set in '
+        + 'Appearance (for example fire-emblem/banners/golden-deer.png). Leave any field empty to use the built-in look, and turn "Use world artwork" off in Appearance to hide every picture.');
+    const art = draft.art;
+    art.kinds = art.kinds || {};
+    art.profs = art.profs || {};
+    art.factions = art.factions || {};
+    artBox.append(field('Default banner', 'Used at the top of a character whose faction has no banner of its own.',
+        input(art.banner, 'e.g. my-world/banner.png', (v) => { art.banner = v; touch(); })));
+    artBox.append(field('Crest pictures folder', 'Optional. Crest or emblem pictures named after the crest, lower case (macuil.png).',
+        input(art.crestsDir, 'e.g. my-world/crests/', (v) => { art.crestsDir = v; touch(); })));
+
+    const iconRows = (title, help, items, table) => {
+        const rows = el('div', 'sillynpc-te-rows');
+        if (!items.length) {
+            rows.append(el('small', 'notes', 'None defined yet. Add them in the advanced box below (gear kinds or proficiencies), then reopen this editor.'));
+        }
+        for (const item of items) {
+            const row = el('div', 'sillynpc-te-row');
+            row.append(el('span', '', item.label || item.id),
+                input(table[String(item.id).toLowerCase()] || '', 'weapon-icons/axe.png', (v) => { table[String(item.id).toLowerCase()] = v; touch(); }));
+            rows.append(row);
+        }
+        return field(title, help, rows);
+    };
+    const kinds = Array.isArray(draft.extra?.gear?.kinds) ? draft.extra.gear.kinds : [];
+    const profs = Array.isArray(draft.extra?.proficiencies) ? draft.extra.proficiencies : [];
+    artBox.append(iconRows('Weapon and equipment icons', 'One picture per kind of weapon or tool.', kinds, art.kinds));
+    artBox.append(iconRows('Skill icons', 'One picture per skill or proficiency (shown beside its rank).', profs, art.profs));
+
+    // Factions: a colour theme per group of characters.
+    const factionRows = el('div', 'sillynpc-te-rows');
+    const COLOURS = [['bg', 'Background', '#171A19'], ['panel', 'Panels', '#29312D'], ['accent', 'Accent', '#8EAA94'], ['accent2', 'Second accent', '#BFC7BF'], ['text', 'Text', '#EAECE5']];
+    const drawFactions = () => {
+        factionRows.replaceChildren();
+        const names = Object.keys(art.factions);
+        if (!names.length) factionRows.append(el('small', 'notes', 'No factions yet. Add one for each category of characters that should look different.'));
+        names.forEach((name) => {
+            const f = art.factions[name];
+            const box = el('div', 'sillynpc-te-pool');
+            const head = el('div', 'sillynpc-te-row');
+            const nameBox = input(name, 'Faction name, e.g. Harbour Guild', (v) => {
+                const next = String(v);
+                if (next === name || !next.trim() || next in art.factions) return;
+                const entries = Object.entries(art.factions).map(([k, val]) => [k === name ? next : k, val]);
+                art.factions = Object.fromEntries(entries);
+                name = next;
+                touch();
+            });
+            const remove = el('button', 'menu_button', 'Remove');
+            remove.type = 'button';
+            remove.addEventListener('click', () => { delete art.factions[name]; drawFactions(); touch(); });
+            head.append(nameBox, remove);
+            box.append(head);
+            const grid = el('div', 'sillynpc-te-row');
+            for (const [key, label, fallback] of COLOURS) {
+                const wrap = el('label', 'sillynpc-fx-colour');
+                const pick = el('input');
+                pick.type = 'color';
+                pick.value = /^#[0-9a-f]{6}$/i.test(f[key] || '') ? f[key] : fallback;
+                pick.addEventListener('input', () => { f[key] = pick.value; touch(); });
+                wrap.append(el('span', '', label), pick);
+                grid.append(wrap);
+            }
+            box.append(grid);
+            box.append(input(f.banner || '', 'Banner picture, e.g. my-world/guild.png (optional)', (v) => { f.banner = v; touch(); }));
+            factionRows.append(box);
+        });
+    };
+    drawFactions();
+    const addFaction = el('button', 'menu_button', 'Add a faction');
+    addFaction.type = 'button';
+    addFaction.addEventListener('click', () => {
+        let n = Object.keys(art.factions).length + 1;
+        while (`Faction ${n}` in art.factions) n++;
+        art.factions[`Faction ${n}`] = { bg: '#171A19', panel: '#29312D', accent: '#8EAA94', accent2: '#BFC7BF', text: '#EAECE5', banner: '' };
+        drawFactions();
+        touch();
+    });
+    artBox.append(field('Factions and colour themes', 'The colours of a character\'s page follow their faction. A faction with no entry here uses the shipped look or Neutral.', factionRows), addFaction);
+    host.append(artBox);
+
     /* ------------------------------------------------------------ advanced */
-    const adv = section('8. Advanced (optional)',
+    const adv = section('9. Advanced (optional)',
         'Everything the form does not cover, as JSON. A copy of a built-in world fills this with its skills, ladders, abilities and gear, so you can keep or trim them. Leave it as it is if unsure.');
     const advHelp = [
         'meta: extra sheet fields such as a class or grade ("choice" or "number").',

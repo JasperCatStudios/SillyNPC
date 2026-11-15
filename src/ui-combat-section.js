@@ -341,7 +341,7 @@ function renderType(record, type, rerender, options) {
             const cell = field(p.label, select);
             // The world's own picture for this skill (the axe for Axes), or a built-in icon, or nothing.
             try {
-                const icon = buildArtIcon(type.dataKey, p.id, { title: p.label, quiet: true });
+                const icon = buildArtIcon(type, p.id, { title: p.label, quiet: true });
                 if (icon) cell.querySelector('label')?.prepend(icon);
             } catch { /* presentation only */ }
             row.append(cell);
