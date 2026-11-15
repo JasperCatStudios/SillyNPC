@@ -5,6 +5,7 @@ import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
 import { buildStatusCard } from './ui-vitals.js';
 import { buildProfileTabs, buildLoreLinkBar } from './ui-profile-tabs.js';
+import { applyFactionTheme, buildFactionBanner } from './ui-faction.js';
 import { levelFor, levelName, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
 
 /**
@@ -130,6 +131,11 @@ export async function renderProfileView(char, container) {
     if (!container || !char) return;
     container.replaceChildren();
     container.className = 'sillynpc-charview';
+    // The faction decides the colours; its banner runs across the top. Neither is needed for any control to work.
+    try {
+        applyFactionTheme(container, char.category);
+        container.append(buildFactionBanner(char.category));
+    } catch (err) { console.warn('[Worldkit] faction theme failed', err); }
 
     const body = document.createElement('div');
     body.className = 'sillynpc-cv-body';
@@ -192,7 +198,17 @@ export async function renderProfileView(char, container) {
     statusHost.className = 'sillynpc-cv-status';
     const drawStatus = () => statusHost.replaceChildren(buildStatusCard(char, { onChange: drawStatus }));
     try { drawStatus(); } catch (err) { console.warn('[Worldkit] could not draw the status card', err); }
-    right.append(statusHost);
+    // Status and Relationship sit side by side as two cards.
+    const cards = document.createElement('div');
+    cards.className = 'sillynpc-cv-cards';
+    const relCard = document.createElement('div');
+    relCard.className = 'sillynpc-cv-card sillynpc-cv-relationship';
+    const relTitle = document.createElement('div');
+    relTitle.className = 'snpc-vit-title';
+    relTitle.textContent = 'Relationship';
+    relCard.append(relTitle);
+    cards.append(statusHost, relCard);
+    right.append(cards);
 
     // Where they stand with the player, from the Bonds tab. Read only here; it is edited there.
     try {
@@ -212,16 +228,22 @@ export async function renderProfileView(char, container) {
             if (romance.active) chips.push(chip('Romance', `${romance.level ? romance.level.name : 'none yet'} (desire ${romance.desire})`));
             if (!person.tracked) chips.push(chip('Tracking', 'off'));
             const bondRow = chipRow('Bond', chips);
-            if (bondRow) right.append(bondRow);
+            if (bondRow) relCard.append(bondRow);
             const recent = person.history.slice(-4);
             if (recent.length) {
                 const marks = recent.map(m => chip(m.label || m.type, m.date));
                 const historyRow = chipRow('Milestones', marks);
-                if (historyRow) right.append(historyRow);
+                if (historyRow) relCard.append(historyRow);
             }
         }
     } catch (err) {
         console.warn('[SillyNPC] could not read the bond for the profile', err);
+    }
+    if (relCard.children.length === 1) {
+        const none = document.createElement('small');
+        none.className = 'notes';
+        none.textContent = bondSettings().enabled ? 'No bond with you yet.' : 'The Bond Tracker is off.';
+        relCard.append(none);
     }
 
     // Every collection, including the ones hidden from the tracker. That flag keeps the

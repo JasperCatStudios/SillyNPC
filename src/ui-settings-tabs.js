@@ -18,6 +18,7 @@ import { getContext } from '../../../../extensions.js';
 import { clearRuns } from './default-portraits.js';
 import { triggerReprocess } from './chat.js';
 import { renderForkSettings, buildStrangerVoices } from './ui-character-extras.js';
+import { renderFactionSettings } from './ui-faction.js';
 
 /**
  * Display labels for the shipped themes. Built from SILLYNPC_THEMES so the
@@ -55,6 +56,7 @@ export function renderAppearanceView(view, onReprocessMessages, updateExtensionT
     title.className = 'sillynpc-section-title';
     title.textContent = 'Chat & Menu Styling';
     view.appendChild(title);
+    try { renderFactionSettings(view, rerender); } catch (err) { console.warn('[Worldkit] faction settings failed', err); }
 
     view.append(buildSettingSelect({
         key: 'menuStyle',

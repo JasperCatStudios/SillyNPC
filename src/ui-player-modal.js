@@ -9,6 +9,8 @@ import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section
 import { renderCombatSection } from './ui-combat-section.js';
 import { readLoreEntry } from './character-fill.js';
 import { fillCharacter } from './ui-fill.js';
+import { buildStatusCard } from './ui-vitals.js';
+import { buildProfileTabs } from './ui-profile-tabs.js';
 import { playerHistory, restorePlayerFromMessage } from './status-snapshots.js';
 import { renderCollectionUI, attachCollectionListeners, resolveCollectionTarget, persistCollectionEdit, updateExtensionTheme } from './ui-shared.js';
 import { buildBulkBar, spliceIndexes } from './ui-bulk-select.js';
@@ -273,6 +275,18 @@ function renderTabExtras(dom) {
         renderLorebookSection(card, loreEdit, { onChange: () => refreshModal(dom) })
             .catch(err => console.error('[SillyNPC] player lorebook section failed', err));
     }
+
+    // After the editor sections above are filled, so their lookups never find the tabs drawn here.
+    // Your persona keeps the same Status card and tab row as everyone else.
+    const vitalsHost = dom.querySelector('.sillynpc-sheet-content .sillynpc-sheet-vitals');
+    if (vitalsHost) {
+        try {
+            const statusHost = document.createElement('div');
+            const drawStatus = () => statusHost.replaceChildren(buildStatusCard({ ...card, isPlayer: true }, { onChange: drawStatus }));
+            drawStatus();
+            vitalsHost.replaceChildren(statusHost, buildProfileTabs(card, { onChange: () => refreshModal(dom) }));
+        } catch (err) { console.warn('[Worldkit] player status failed', err); }
+    }
 }
 
 /** The collections a player can hold anything in. */
@@ -388,6 +402,7 @@ function renderTabContent(tabId, state) {
             ${playerCollections().map(col => collectionSection(col, state, settings, {
                 isEditMode: false, showEditToggle: false,
             })).join('')}
+            <div class="sillynpc-sheet-vitals"></div>
             <div class="sillynpc-sheet-lore"></div>
         `;
     }

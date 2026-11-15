@@ -958,6 +958,69 @@ function buildViewTabs(char) {
     return bar;
 }
 
+/** The roster beside the detail: search, and a click switches character without going Back. */
+let railFilter = '';
+function buildRosterRail(current) {
+    const rail = document.createElement('div');
+    rail.className = 'sillynpc-roster-rail';
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'text_pole';
+    search.placeholder = 'Search characters';
+    search.value = railFilter;
+    const list = document.createElement('div');
+    list.className = 'sillynpc-roster-list';
+    const draw = () => {
+        list.replaceChildren();
+        const q = railFilter.trim().toLowerCase();
+        for (const c of getSettings().characters || []) {
+            if (q && !String(c.name || '').toLowerCase().includes(q) && !String(c.category || '').toLowerCase().includes(q)) continue;
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'sillynpc-roster-item' + (c.id === current.id ? ' active' : '');
+            if (c.imageUrl) {
+                const face = document.createElement('img');
+                face.className = 'sillynpc-roster-face';
+                face.src = c.imageUrl;
+                face.alt = '';
+                face.loading = 'lazy';
+                face.addEventListener('error', () => face.remove(), { once: true });
+                item.append(face);
+            } else {
+                const blank = document.createElement('span');
+                blank.className = 'sillynpc-roster-face';
+                blank.style.background = c.color || 'rgba(128,128,128,.3)';
+                item.append(blank);
+            }
+            const name = document.createElement('span');
+            name.textContent = c.name || '(unnamed)';
+            item.append(name);
+            item.title = c.category ? `${c.name} · ${c.category}` : (c.name || '');
+            item.addEventListener('click', () => {
+                if (c.id === current.id) return;
+                editingCharId = c.id;
+                renderEditor();
+            });
+            list.append(item);
+        }
+    };
+    search.addEventListener('input', () => { railFilter = search.value; draw(); });
+    draw();
+    rail.append(search, list);
+    return rail;
+}
+
+/** Lays out the roster rail beside the character's detail (the sticky header and the page). */
+function mountDetail(editView, char, ...nodes) {
+    const layout = document.createElement('div');
+    layout.className = 'sillynpc-editor-layout';
+    const detail = document.createElement('div');
+    detail.className = 'sillynpc-editor-detail';
+    detail.append(...nodes);
+    layout.append(buildRosterRail(char), detail);
+    editView.append(layout);
+}
+
 function renderEditor() {
     const char = findCharacter(editingCharId);
     if (!char) { editingCharId = null; renderManageView(); return; }
@@ -1019,7 +1082,7 @@ function renderEditor() {
     // Edit tab, so nothing hidden is being assembled and wired on every draw.
     if (charView === 'profile') {
         const view = document.createElement('div');
-        editView.append(sticky, view);
+        mountDetail(editView, char, sticky, view);
         renderProfileView(char, view)
             .catch(err => console.error(LOG_PREFIX, 'renderProfileView failed', err));
         return;
@@ -1160,7 +1223,7 @@ function renderEditor() {
         collectionsContainer, combatContainer);
     
     main.append(left, vDivider, right);
-    editView.append(sticky, main);
+    mountDetail(editView, char, sticky, main);
 
     renderCategorySelect(char, catContainer);
     renderCharacterExtras(char, extrasContainer);

@@ -12,6 +12,7 @@ import { abilityPicker } from './ui-abilities.js';
 import { renderGearBlock } from './ui-gear.js';
 import { STATUS_RUNGS, STATUS_DEFAULT } from './combat-status.js';
 import { XP_PER_LEVEL, readLevel, hasLevelMeta } from './combat-level.js';
+import { buildArtIcon } from './ui-faction.js';
 
 import { PRODUCT_NAME } from './constants.js';
 /**
@@ -337,7 +338,13 @@ function renderType(record, type, rerender, options) {
             for (const rung of ladderOf(type, p.ladder).rungs) select.append(new Option(rung, rung));
             select.value = data.profs[p.id]?.rank ?? '';
             select.addEventListener('change', () => commit(setRank(record, type, p.id, select.value), null));
-            row.append(field(p.label, select));
+            const cell = field(p.label, select);
+            // The world's own picture for this skill (the axe for Axes), or a built-in icon, or nothing.
+            try {
+                const icon = buildArtIcon(type.dataKey, p.id, { title: p.label, quiet: true });
+                if (icon) cell.querySelector('label')?.prepend(icon);
+            } catch { /* presentation only */ }
+            row.append(cell);
         }
         body.append(row);
     }

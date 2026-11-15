@@ -265,6 +265,11 @@ export const defaultSettings = {
      * normalizeVitalsSettings in vitals-core.js, so an empty object is every default - which is off.
      */
     vitals: {},
+    /**
+     * Faction colours and artwork (faction-theme.js): palettes you add, the default faction, whether pictures are
+     * used at all (off means built-in icons only) and the folder they are read from. Presentation only.
+     */
+    factions: {},
     /** Which connection reads replies for vitals. Empty means your main API. */
     vitalsProfileId: '',
     /**

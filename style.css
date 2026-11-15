@@ -4864,3 +4864,36 @@ textarea.sillynpc-profile-input {
 .sillynpc-cv-tabrow { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); margin-bottom: 10px; }
 .sillynpc-cv-tab { display: inline-flex; align-items: center; gap: 6px; }
 .sillynpc-cv-tabpane { min-width: 0; }
+
+/* ── Faction theming: the profile takes the colours of the character's faction ─────────── */
+.sillynpc-fx { --fx-bg: #171A19; --fx-panel: #29312D; --fx-accent: #8EAA94; --fx-accent2: #BFC7BF; --fx-text: #EAECE5; }
+.sillynpc-charview.sillynpc-fx { background: var(--fx-bg); color: var(--fx-text); border: 1px solid var(--fx-accent); border-radius: 8px; padding: 10px; }
+.sillynpc-charview.sillynpc-fx .sillynpc-cv-chip,
+.sillynpc-charview.sillynpc-fx .snpc-vit-card,
+.sillynpc-charview.sillynpc-fx .sillynpc-cv-card { background: var(--fx-panel); border-color: color-mix(in srgb, var(--fx-accent) 55%, transparent); color: var(--fx-text); }
+.sillynpc-charview.sillynpc-fx .sillynpc-cv-label,
+.sillynpc-charview.sillynpc-fx .snpc-vit-title,
+.sillynpc-charview.sillynpc-fx .sillynpc-combat-group { color: var(--fx-accent); }
+.sillynpc-charview.sillynpc-fx .snpc-vit-fill { filter: saturate(.9); }
+.sillynpc-charview.sillynpc-fx .sillynpc-cv-tab.active { border-bottom-color: var(--fx-accent); color: var(--fx-accent); }
+.sillynpc-charview.sillynpc-fx .menu_button { border-color: color-mix(in srgb, var(--fx-accent) 60%, transparent); }
+.sillynpc-fx-banner { position: relative; display: flex; align-items: flex-end; min-height: 72px; max-height: 120px; margin-bottom: 10px; border: 1px solid var(--fx-accent, #8EAA94); border-radius: 6px; overflow: hidden; }
+.sillynpc-fx-banner-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .75; }
+.sillynpc-fx-banner-label { position: relative; z-index: 1; padding: 6px 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.sillynpc-cv-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; align-items: start; }
+.sillynpc-cv-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: 6px; background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
+.sillynpc-art-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; }
+.sillynpc-art-icon-img { width: 22px; height: 22px; object-fit: contain; }
+.sillynpc-combat-ranks .sillynpc-combat-field > label { display: inline-flex; align-items: center; gap: 6px; }
+.sillynpc-roster-rail { display: flex; flex-direction: column; gap: 6px; width: 190px; flex: none; max-height: 70vh; overflow-y: auto; }
+.sillynpc-roster-rail input { width: 100%; box-sizing: border-box; }
+.sillynpc-roster-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; text-align: left; background: none; color: inherit; font: inherit; }
+.sillynpc-roster-item:hover { background: rgba(128,128,128,.15); }
+.sillynpc-roster-item.active { border-color: var(--fx-accent, var(--sillynpc-accent, #c9a96e)); background: rgba(128,128,128,.12); }
+.sillynpc-roster-face { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; background: rgba(128,128,128,.3); }
+.sillynpc-editor-layout { display: flex; gap: 14px; align-items: flex-start; }
+.sillynpc-editor-layout > .sillynpc-editor-detail { flex: 1; min-width: 0; }
+@media (max-width: 760px) { .sillynpc-roster-rail { display: none; } }
+.sillynpc-fx-faction { margin: 6px 0; }
+.sillynpc-fx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }
+.sillynpc-fx-colour { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
