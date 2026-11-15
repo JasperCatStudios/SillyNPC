@@ -7,6 +7,8 @@ import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
+import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
+import { createGroup, addMember, removeMember, membersOf, addable, groupLabel, normalizeGroups, MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../../src/phone-groups.js';
 
 const MODULE_NAME = 'sillynpc_phone';
 
@@ -157,11 +159,13 @@ const defaults = {
     images: null,           // photo generation, see IMG_DEF (filled in loadSettings)
     tts: true,              // ▶ on a voice note speaks it through Tavern's TTS, when it is set up
     ttsAuto: false,
+    vision: true,           // the photos you send go to a vision model as pictures, not only as a name
     promptPreset: '',       // which template the prompt came from; 'custom' = your own text
     promptCustom: '',       // your own prompt, kept while a template is in use
 
     chats: {},              // extra chats with a character: chatId -> { name, label, n }
     mainLabels: {},         // label of a character's first chat: name -> text
+    groups: {},             // group chats you made: id (#group:<name>) -> { members: [character names] }
     threads: {},            // contactId -> [{who:'user'|'char', name, text, ts}]
     active: {},             // contactId -> true (who is on the phone)
     state: {},              // contactId -> {lastInitiative, todayCount, dayStamp, ignored}
@@ -229,7 +233,8 @@ function loadSettings() {
             }
         }
     } catch (e) { /* damaged settings are handled below */ }
-    for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
+    for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels', 'groups']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
+    settings.groups = normalizeGroups(settings.groups);
     for (const k of ['temperature', 'contextTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
         if (!Number.isFinite(settings[k])) settings[k] = defaults[k];
     }
@@ -331,6 +336,9 @@ const L = {
         noactive: 'Никто не выбран — открой «Кто на связи» и включи персонажей.',
         err: 'Телефон не отвечает (ошибка ИИ).',
         clear: 'Очистить переписку', cleared: 'Переписка очищена.', clear_confirm: 'Точно стереть: {name}?',
+        ask_photo: 'Попросить прислать фото', ask_photo_off: 'Попросить фото: включи генерацию фото в настройках телефона',
+        set_vision: 'Пусть персонажи видят фото, которые я отправляю',
+        vision_failed: 'Эта модель не смогла посмотреть фото, поэтому они увидели только его название.',
         attach: 'Прикрепить фото или файлы', attach_limit: 'За раз — не больше 8 вложений; лишние пропущены.',
         just_now: 'только что', min_ago: '{n} мин назад', hr_ago: '{n} ч назад', day_ago: '{n} дн назад',
         online: 'на связи', typing: 'печатает…', typing_who: '{name} печатает…', earlier: 'Раньше', minimize: 'Свернуть', contacts: 'Контакты',
@@ -399,6 +407,9 @@ const L = {
         noactive: 'Nobody selected — open "Who is online" and enable characters.',
         err: 'The phone stays silent (AI error).',
         clear: 'Clear thread', cleared: 'Thread cleared.', clear_confirm: 'Really erase: {name}?',
+        ask_photo: 'Ask for a photo', ask_photo_off: 'Ask for a photo: turn on photo generation in the phone settings',
+        set_vision: 'Let characters see the photos I send',
+        vision_failed: 'This model could not look at the photo, so they only saw its name.',
         attach: 'Attach photos or files', attach_limit: 'Up to 8 attachments at once; the rest were skipped.',
         just_now: 'just now', min_ago: '{n} min ago', hr_ago: '{n} h ago', day_ago: '{n} d ago',
         online: 'online', typing: 'typing…', typing_who: '{name} is typing…', earlier: 'Earlier', minimize: 'Minimize', contacts: 'Contacts',
@@ -889,6 +900,9 @@ function groupContactId() {
     } catch (e) { return null; }
 }
 function groupMemberNames(id) {
+    // A group you made: its own members, the ones that still exist.
+    const own = membersOf(settings.groups, id, characters.map(c => c?.name).filter(Boolean));
+    if (own) return own;
     try {
         const ctx = getContext();
         const wanted = String(id).slice(GROUP_PREFIX.length);
@@ -1352,6 +1366,7 @@ function dropImages(keys) {
 function forgetMessages(list) {
     const keys = [];
     for (const m of list || []) { if (m && m.imgKey) keys.push(m.imgKey); if (m && m.gen) keys.push(m.gen); }
+    keys.push(...visionKeysOf(list));   // the larger copy kept for the model
     if (keys.length) dropImages(keys);
 }
 // one-time move of the old base64 thumbnails out of settings.json
@@ -2070,7 +2085,7 @@ async function speakVoice(name, text) {
 }
 
 let lastFinish = '';
-async function callAI(system, user) {
+async function callAI(system, user, imageUrls) {
     // Fork: no URL, key or model of its own. The chosen connection profile writes the texts;
     // with none chosen, SillyTavern's main API does.
     const maxTokens = Math.max(120, settings.maxTokens || 900);
@@ -2094,7 +2109,8 @@ async function callAI(system, user) {
         if (settings.profileId) {
             work = context.ConnectionManagerRequestService.sendRequest(
                 settings.profileId,
-                [{ role: 'system', content: system }, { role: 'user', content: user }],
+                // with photos the user turn is an OpenAI-style content array; without, it is the plain string it always was
+                [{ role: 'system', content: system }, { role: 'user', content: buildVisionContent(user, imageUrls) }],
                 maxTokens,
                 { extractData: true, includePreset: false },
                 {},
@@ -2130,8 +2146,22 @@ async function callAI(system, user) {
 // A reply cut off mid-sentence (finish_reason "length") is asked to continue ONCE,
 // then stitched back together — providers differ wildly in how much they allow, and
 // reasoning models spend part of the same budget invisibly.
-async function callAIComplete(system, user) {
-    let out = await callAI(system, user);
+async function callAIComplete(system, user, imageUrls) {
+    const pics = settings.profileId && Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
+    let out;
+    if (pics.length) {
+        try {
+            out = await callAI(system, user, pics);
+        } catch (e) {
+            if (!shouldRetryWithoutImages(e, pics.length)) throw e;
+            // most likely a model without vision: ask again with the names only, and say so once
+            console.warn('[Phone] the request with photos failed, retrying without them', e);
+            toastr.info(t('vision_failed'));
+            out = await callAI(system, user);
+        }
+    } else {
+        out = await callAI(system, user);
+    }
     if (lastFinish !== 'length' || !out) return out;
     try {
         const tail = out.slice(-400);
@@ -2351,12 +2381,38 @@ function buildRequest(names, reasonLine, isInitiative, contactId) {
     return { sys, user, primary };
 }
 
+/* Vision: the player's photos from the unanswered tail of the thread, as data: URLs for the model.
+   The larger copy (visKey) when it exists, the thumbnail otherwise. Needs a connection profile
+   (the main-API path is left exactly as it was). Empty when the setting is off or nothing was sent. */
+async function storedDataUrl(key) {
+    const store = imgStore();
+    if (!key || !store) return '';
+    try {
+        const v = await store.getItem(key);
+        if (v instanceof Blob) { const d = await blobToDataUrl(v); return /^data:image\//i.test(d) ? d : ''; }
+        if (typeof v === 'string' && /^data:image\//i.test(v)) return v;
+    } catch (e) { /* falls back to the thumbnail */ }
+    return '';
+}
+async function visionUrlsFor(contactId) {
+    if (!settings.vision || !settings.profileId) return [];
+    try {
+        const out = [];
+        for (const p of pickVisionImages(threadOf(contactId), { max: MAX_VISION_IMAGES })) {
+            const url = (await storedDataUrl(p.key)) || (await storedDataUrl(p.fallbackKey)) || p.inline;
+            if (url) out.push(url);
+        }
+        return out;
+    } catch (e) { console.warn('[Phone] could not prepare photos for the model', e); return []; }
+}
+
 async function generateReply(names, reasonLine, isInitiative, contactId) {
     // Fork: the phone's own request never carries remembered texts. SillyNPC's vectors bring old
     // texts back to the MAIN story only (src/vectors.js), so a reply here is exactly as it was.
     const { sys, user, primary } = buildRequest(names, reasonLine, isInitiative, contactId);
     lastSent = { at: Date.now(), contact: primary, kind: isInitiative ? 'initiative' : 'reply', sys, user };
-    const raw = await callAIComplete(sys, user);
+    const pics = await visionUrlsFor(primary);
+    const raw = await callAIComplete(sys, user, pics);
     const msgs = parseReply(raw, names.concat(['SYSTEM']), castOfContact(primary));
     // text came back but nothing in it could be shown: keep it where it can be read
     if (!msgs.length) console.warn('[Phone] the reply had no message that could be shown', { raw });
@@ -2403,6 +2459,28 @@ function thumbOf(file) {
         fr.readAsDataURL(file);
     });
 }
+// a bigger copy (longest side 1024px, JPEG 0.8) for the model; the 320px thumbnail is too small to read
+function visionCopyOf(file) {
+    return new Promise(resolve => {
+        const fr = new FileReader();
+        fr.onerror = () => resolve(null);
+        fr.onload = () => {
+            const im = new Image();
+            im.onerror = () => resolve(null);
+            im.onload = () => {
+                try {
+                    const { w, h } = fitSize(im.width, im.height, VISION_SIDE);
+                    const cv = document.createElement('canvas');
+                    cv.width = w; cv.height = h;
+                    cv.getContext('2d').drawImage(im, 0, 0, w, h);
+                    resolve(cv.toDataURL('image/jpeg', VISION_QUALITY));
+                } catch (e) { resolve(null); }
+            };
+            im.src = fr.result;
+        };
+        fr.readAsDataURL(file);
+    });
+}
 async function sendAttachments(fileList, onAccepted) {
     const cur = currentContact();
     if (!cur) { toastr.info(t('noactive')); return; }
@@ -2431,7 +2509,16 @@ async function sendAttachments(fileList, onAccepted) {
                 const key = newImgKey();
                 let stored = false;
                 try { stored = await putImage(key, img); } catch (e) { stored = false; }
-                pushRaw(cur, stored ? { who: 'user', name: you, text, ts: Date.now(), imgKey: key } : { who: 'user', name: you, text, ts: Date.now(), img });
+                const msg = stored ? { who: 'user', name: you, text, ts: Date.now(), imgKey: key } : { who: 'user', name: you, text, ts: Date.now(), img };
+                // the larger copy for the model lives in the same store under its own key
+                if (stored && settings.vision) {
+                    try {
+                        const big = await visionCopyOf(f);
+                        const vkey = big ? newImgKey() : '';
+                        if (vkey && await putImage(vkey, big)) msg.visKey = vkey;
+                    } catch (e) { /* the thumbnail will do */ }
+                }
+                pushRaw(cur, msg);
             } else {
                 const size = fmtSize(f.size);
                 pushRaw(cur, { who: 'user', name: you, text: (isRu ? '[файл: ' : '[file: ') + f.name + (size ? ' (' + size + ')' : '') + ']', ts: Date.now(), file: { name: f.name, size: f.size } });
@@ -2595,6 +2682,60 @@ async function askForVoiceMessage() {
         }
     } catch (e) {
         speakNextVoice = false;
+        requestFailed(e, rq, 'reply');
+    }
+    if (!isCurrent(rq)) return;
+    finishRequest(rq);
+    scrollOffset = 0;
+    renderBubbles();
+}
+
+/* The camera button: like the microphone, but the answer is ONE photo message in the phone's own
+   photo format, which the photo generation then picks up (pushRaw -> queuePhoto). In a group thread
+   the picture comes from one member only. Hidden while photo generation is off. */
+function refreshPhotoBtn() {
+    const el = document.getElementById('rph-photo');
+    if (!el) return;
+    const on = !!imgCfg().enabled;
+    el.style.display = on ? '' : 'none';
+    el.title = t(on ? 'ask_photo' : 'ask_photo_off');
+}
+async function askForPhoto() {
+    const cur = currentContact();
+    if (!cur) { toastr.info(t('noactive')); return; }
+    if (!imgCfg().enabled) { toastr.info(t('ask_photo_off')); return; }
+    if (!apiKey()) { toastr.warning(t('nokey')); return; }
+    if (busy) { toastr.info(`Still writing a reply${busyFor ? ` (${contactLabel(busyFor)})` : ''}. Press the cross on the typing bubble to cancel it first.`); return; }
+    const names = contactMembers(cur);
+    if (!names.length) { toastr.info(t('noactive')); return; }
+
+    const inp = document.getElementById('rph-input');
+    const typed = String((inp && inp.value) || '').trim().slice(0, 800);
+    if (inp) inp.value = '';
+    if (typed) pushMsg(cur, 'user', typed, name1 || 'You');
+    stateOf(cur).ignored = 0;
+    scrollOffset = 0;
+    renderBubbles();
+
+    const { open, close } = getMarkerPair();
+    // a group thread: one member answers, not everybody at once
+    const asker = isGroup(cur) ? (names.find(n => !isUserName(n)) || names[0]) : names[0];
+    const who = isGroup(cur) ? `Only ${asker} answers, with exactly ONE message from them alone. ` : 'Answer with exactly ONE message. ';
+    const ask = `${name1 || 'The player'} asked for a picture. ${who}It must be a photo message: `
+        + `${open}${asker}${close} [sent a photo: a vivid description of what the picture shows]. The tag, and at most a few words after it.`;
+    const rq = beginRequest(cur); renderBubbles();
+    try {
+        const msgs = await generateReply(names, ask, false, cur);
+        if (isCurrent(rq)) {
+            if (!msgs.length) toastr.info(t('err'));
+            const first = msgs.find(m => classify(m.text).type === 'image') || msgs[0];
+            if (first) {
+                const isPhoto = classify(first.text).type === 'image';
+                const text = isPhoto ? first.text : `[sent a photo: ${String(first.text).replace(/[\[\]]/g, '').slice(0, 300)}]`;
+                pushMsg(cur, 'char', text, isGroup(cur) ? asker : first.name);
+            }
+        }
+    } catch (e) {
         requestFailed(e, rq, 'reply');
     }
     if (!isCurrent(rq)) return;
@@ -2802,6 +2943,7 @@ function ensureLayer() {
                     <i class="fa-solid fa-paperclip" id="rph-attach"></i>
                     <input type="file" id="rph-file" multiple style="display:none">
                     <i class="fa-solid fa-microphone" id="rph-voice" title="Ask for a voice message"></i>
+                    <i class="fa-solid fa-camera" id="rph-photo" title="Ask for a photo"></i>
                     <input type="text" id="rph-input" placeholder="" maxlength="800">
                     <i class="fa-solid fa-paper-plane" id="rph-send"></i>
                 </div>
@@ -2832,6 +2974,8 @@ function ensureLayer() {
         // clearing it here used to silently destroy the text when sending was not possible
         $('#rph-send').on('click', () => sendFromBar());
         $('#rph-voice').on('click', () => askForVoiceMessage());
+        $('#rph-photo').on('click', () => askForPhoto());
+        refreshPhotoBtn();
         $('#rph-input').on('keydown', (e) => {
             e.stopPropagation();
             if (e.key === 'Enter') sendFromBar();
@@ -3527,6 +3671,90 @@ function chatManagerHtml(name) {
         <div class="rph-chatrow rph-chat-new" data-name="${escapeHtml(name)}"><i class="fa-solid fa-plus"></i> New chat with ${escapeHtml(name)}</div></div>`;
 }
 
+/* YOUR OWN GROUP CHATS (fork) -------------------------------------------------------------
+   Groups you make from any characters. The thread id is `#group:<name>`; messages go through the
+   phone's normal group path, so everyone in it can answer in the same conversation. */
+let openGroupEdits = new Set();   // groups whose people list is open in the roster
+
+/** Everyone who can be put in a group: the characters, never the player. */
+function groupCandidates() {
+    return characters.map(c => c?.name).filter(n => n && !isUserName(n));
+}
+
+function ownGroupsHtml() {
+    const ids = Object.keys(settings.groups || {});
+    let html = `<div class="rph-roster-title"><i class="fa-solid fa-users"></i> Group chats</div>`;
+    if (!ids.length) html += `<div class="rph-hint">Make a group, add people to it, and text them all at once.</div>`;
+    for (const id of ids) {
+        const members = membersOf(settings.groups, id, groupCandidates()) || [];
+        const open = openGroupEdits.has(id);
+        const pick = addable(settings.groups, id, groupCandidates());
+        html += `<div class="rph-row group">
+            <span class="rph-ava rph-ava-npc" style="background:#3c5a8a"><i class="fa-solid fa-users"></i></span>
+            <span class="rph-row-name rph-open" data-open="${escapeHtml(id)}" title="${escapeHtml(t('open_chat'))}">${escapeHtml(groupLabel(id))} (${members.length})${settings.active[id] && unreadOf(id) ? ` <b class="rph-unread">•</b>` : ''}</span>
+            <i class="fa-solid fa-user-plus rph-grp-edit" data-gid="${escapeHtml(id)}" title="Add or remove people"></i>
+            <i class="fa-solid fa-trash rph-grp-del" data-gid="${escapeHtml(id)}" title="Delete this group and its messages"></i>
+            <div class="rph-toggle ${settings.active[id] ? 'on' : ''}" data-name="${escapeHtml(id)}"><div class="rph-knob"></div></div>
+        </div>
+        <div class="rph-grp-editrow" data-gid="${escapeHtml(id)}" style="display:${open ? 'block' : 'none'}">
+            <div class="rph-grp-chips">${members.length ? members.map(n => `<span class="rph-grp-chip">${escapeHtml(n)} <i class="fa-solid fa-xmark rph-grp-remove" data-gid="${escapeHtml(id)}" data-who="${escapeHtml(n)}" title="Take them out"></i></span>`).join('') : '<span class="rph-hint">Nobody yet.</span>'}</div>
+            ${members.length < MAX_GROUP_MEMBERS && pick.length ? `<div class="rph-grp-addrow">
+                <select class="text_pole rph-grp-pick" data-gid="${escapeHtml(id)}">${pick.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}</select>
+                <button class="menu_button rph-grp-add" data-gid="${escapeHtml(id)}">Add person</button>
+            </div>` : (members.length >= MAX_GROUP_MEMBERS ? `<div class="rph-hint">A group holds ${MAX_GROUP_MEMBERS} people at most.</div>` : '')}
+        </div>`;
+    }
+    html += `<div class="rph-grp-new"><input type="text" class="text_pole rph-grp-name" maxlength="${MAX_GROUP_NAME}" placeholder="New group chat name"><button class="menu_button rph-grp-create">Create</button></div>`;
+    return html;
+}
+
+/** Wires the group controls inside the roster body (delegated, like the rest of the roster). */
+function bindOwnGroups(body) {
+    body.on('keydown.rph', '.rph-grp-name', e => e.stopPropagation());
+    const create = () => {
+        const input = body.find('.rph-grp-name');
+        const out = createGroup(settings.groups, input.val(), { taken: [groupContactId()].filter(Boolean) });
+        if (!out.ok) { toastr.info(out.reason); return; }
+        settings.active[out.id] = true;
+        threadOf(out.id);
+        openGroupEdits.add(out.id);     // open straight on its people list: a group needs people
+        saveSettings();
+        renderRoster();
+    };
+    body.on('click.rph', '.rph-grp-create', create);
+    body.on('keydown.rph', '.rph-grp-name', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+    body.on('click.rph', '.rph-grp-edit', function (e) {
+        e.stopPropagation();
+        const id = String($(this).attr('data-gid'));
+        if (openGroupEdits.has(id)) openGroupEdits.delete(id); else openGroupEdits.add(id);
+        renderRoster();
+    });
+    body.on('click.rph', '.rph-grp-add', function () {
+        const id = String($(this).attr('data-gid'));
+        const who = body.find('.rph-grp-pick').filter((_, el) => el.dataset.gid === id).val();
+        const out = addMember(settings.groups, id, who, groupCandidates());
+        if (!out.ok) { toastr.info(out.reason); return; }
+        saveSettings(); lastSig = ''; renderRoster(); renderBubbles(true);
+    });
+    body.on('click.rph', '.rph-grp-remove', function (e) {
+        e.stopPropagation();
+        const out = removeMember(settings.groups, String($(this).attr('data-gid')), String($(this).attr('data-who')));
+        if (!out.ok) { toastr.info(out.reason); return; }
+        saveSettings(); lastSig = ''; renderRoster(); renderBubbles(true);
+    });
+    body.on('click.rph', '.rph-grp-del', async function (e) {
+        e.stopPropagation();
+        const id = String($(this).attr('data-gid'));
+        const ok = await Popup.show.confirm('Delete group chat', `"${groupLabel(id)}" and every message in it will be deleted. This cannot be undone.`);
+        if (!ok) return;
+        forgetMessages(settings.threads[id]);
+        for (const k of ['threads', 'state', 'unread', 'diaries', 'active', 'groups']) delete settings[k][id];
+        openGroupEdits.delete(id);
+        if (settings.current === id) settings.current = '';
+        saveSettings(); lastSig = ''; renderRoster(); renderBubbles(true);
+    });
+}
+
 function renderRoster() {
     const body = $('#rph-roster-body');
     if (!body.length) return;
@@ -3570,6 +3798,7 @@ function renderRoster() {
             <div class="rph-toggle ${settings.active[gid] ? 'on' : ''}" data-name="${escapeHtml(gid)}"><div class="rph-knob"></div></div>
         </div>`;
     }
+    html += ownGroupsHtml();
     html += `<div class="rph-roster-actions"><button class="menu_button" id="rph-clear">${t('clear')}</button></div>`;
     // OPTIMIZATION (2.0.0): switching someone on at the bottom of a long list threw the list
     // back to the top — the scroll is kept now. Handlers are delegated: one per action for
@@ -3579,6 +3808,7 @@ function renderRoster() {
     body.html(html);
     if (scroller) scroller.scrollTop = keepTop;
     body.off('.rph');
+    bindOwnGroups(body);
 
     body.on('click.rph', '.rph-toggle', function () {
         const n = $(this).data('name');
@@ -3847,6 +4077,7 @@ function settingsHtml() {
             </div>
             <label class="checkbox_label"><input type="checkbox" id="rph-notify"><span>${t('set_notify')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-sound"><span>${t('set_sound')}</span></label>
+            <label class="checkbox_label"><input type="checkbox" id="rph-vision"><span>${t('set_vision')}</span></label>
             </div>
 
             <div class="rph-box"><div class="rph-boxhead">🔊 ${t('set_voice')}</div>
@@ -4071,6 +4302,8 @@ function setupUI() {
     });
     $('#rph-lite').prop('checked', !!settings.lite).on('change', function () { settings.lite = this.checked; saveSettings(); renderBubbles(true); });
 
+    $('#rph-vision').prop('checked', settings.vision !== false).on('change', function () { settings.vision = this.checked; saveSettings(); });
+
     /* voice notes */
     $('#rph-tts').prop('checked', !!settings.tts).on('change', function () { settings.tts = this.checked; saveSettings(); });
     $('#rph-tts-auto').prop('checked', !!settings.ttsAuto).on('change', function () { settings.ttsAuto = this.checked; saveSettings(); });
@@ -4084,7 +4317,7 @@ function setupImageUI() {
     const bindImg = (sel, key, kind) => {
         const $e = $(sel);
         if (!$e.length) return;
-        if (kind === 'check') $e.prop('checked', !!ic[key]).on('change', function () { imgCfg()[key] = !!this.checked; saveSettings(); lastSig = ''; renderBubbles(); });
+        if (kind === 'check') $e.prop('checked', !!ic[key]).on('change', function () { imgCfg()[key] = !!this.checked; saveSettings(); lastSig = ''; refreshPhotoBtn(); renderBubbles(); });
         else $e.val(ic[key] || '').on('input change', function () { imgCfg()[key] = this.value; saveSettings(); });
     };
     bindImg('#rph-img-on', 'enabled', 'check');

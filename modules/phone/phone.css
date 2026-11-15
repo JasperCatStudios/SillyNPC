@@ -1192,10 +1192,10 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 .rph-ed-note { opacity: .7; }
 
 /* the microphone button asks for a voice message */
-#rph-voice { cursor: pointer; color: #8ec5ff; font-size: 0.85rem; opacity: 0.8; }
-#rph-voice:hover { opacity: 1; transform: scale(1.12); color: #7bd88f; }
-.rph-phone #rph-voice { color: var(--ph-accent); opacity: .85; }
-.rph-phone #rph-voice:hover { color: var(--ph-accent); opacity: 1; }
+#rph-voice, #rph-photo { cursor: pointer; color: #8ec5ff; font-size: 0.85rem; opacity: 0.8; }
+#rph-voice:hover, #rph-photo:hover { opacity: 1; transform: scale(1.12); color: #7bd88f; }
+.rph-phone #rph-voice, .rph-phone #rph-photo { color: var(--ph-accent); opacity: .85; }
+.rph-phone #rph-voice:hover, .rph-phone #rph-photo:hover { color: var(--ph-accent); opacity: 1; }
 
 /* chats with one character */
 .rph-chatmgr { margin: 2px 0 6px 38px; display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; }
@@ -1205,3 +1205,14 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 .rph-chatrow i { cursor: pointer; opacity: 0.7; }
 .rph-chatrow i:hover { opacity: 1; }
 .rph-chat-new { cursor: pointer; color: #8ec5ff; }
+
+/* Your own group chats (fork) */
+.rph-grp-edit, .rph-grp-del { cursor: pointer; opacity: .75; margin-left: 6px; }
+.rph-grp-edit:hover, .rph-grp-del:hover { opacity: 1; }
+.rph-grp-editrow { padding: 4px 8px 8px 44px; }
+.rph-grp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.rph-grp-chip { background: rgba(255, 255, 255, .12); border-radius: 12px; padding: 2px 8px; font-size: .85em; }
+.rph-grp-remove { cursor: pointer; opacity: .7; margin-left: 4px; }
+.rph-grp-remove:hover { opacity: 1; }
+.rph-grp-addrow, .rph-grp-new { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+.rph-grp-addrow select, .rph-grp-new input { flex: 1; min-width: 0; }

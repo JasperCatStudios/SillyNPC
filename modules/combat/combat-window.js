@@ -20,6 +20,7 @@ import { activeCombatType, combatPrefs, personaRecordFor, isCombatDisabled } fro
 import { lastTaggedSpeaker, sceneClock } from '../shim.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { andList, sidesOfFight, talkEntry, fightRecord } from '../../src/combat-talk.js';
+import { groupInstruction, parseGroupReply } from '../../src/group-talk.js';
 import { newTalkId } from '../../src/talk-log.js';
 import {
     startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, autoTurn,
@@ -1138,37 +1139,66 @@ function talkTargets(to) {
 const GROUP_TALK_MAX = 8;
 const isGroupTalk = (to) => to === '*' || to === '@player' || to === '@foe';
 
+/** The system prompt for answering a whole group in one request: everyone's profile, the fight so far, how to reply. */
+function groupChatSystem(names, me) {
+    const { state, type } = session;
+    const profiles = names.map((n) => {
+        const record = (getSettings().characters || []).find(c => c?.name === n);
+        const profile = record ? String(profileText(record) || '').slice(0, 900) : '';
+        return profile ? `[ABOUT ${n}:\n${profile}\n]` : '';
+    });
+    return [
+        ...contextBlocks('combat'),
+        `You are voicing ${andList(names)} in the middle of ${state.mode === 'spar' ? 'a sparring match' : 'a real fight'} (${type.name}). `
+        + (session.spectator ? 'Someone is watching from the side and talking to them; they are not fighting. ' : `${me} is present. `)
+        + 'Do not decide how any blow lands. ' + DIALOGUE_RULE,
+        ...profiles,
+        fightSoFar(),
+        groupInstruction(names, me),
+    ].filter(Boolean).join('\n\n');
+}
+
+/** One request for a whole group: they each answer in the same reply, which is split back out. */
+async function groupReply(names, me) {
+    const history = session.chat.slice(-10).map(m => `${m.who}: ${m.text}`).join('\n');
+    const raw = await requestOnConnection('combatProfileId', groupChatSystem(names, me), history, Math.min(500, 110 * names.length));
+    const lines = parseGroupReply(raw, names);
+    if (!lines.length) { toastr.info('None of them had anything to say.', 'SillyNPC'); return; }
+    for (const { who, text } of lines) {
+        const line = dialogueOnly(text, who);
+        if (!line || !session) continue;
+        session.chat.push({ who, text: line });
+        speakLine(who, line);
+    }
+}
+
 async function sendTalk(text) {
     if (!session || session.talking || !text.trim()) return;
     const to = session.talkTo || chatCast()[0];
     if (!to) { toastr.info('Nobody to talk to.', 'SillyNPC'); return; }
     const targets = talkTargets(to).slice(0, GROUP_TALK_MAX);
     if (!targets.length) { toastr.info('Nobody to talk to.', 'SillyNPC'); return; }
-    const group = isGroupTalk(to);
     const me = session.state.fighters.player?.name || 'You';
     session.chat.push({ who: me, text: text.trim(), mine: true });
     session.talking = true;
     drawChat();
-    // One after another, each hearing what the ones before them said.
-    for (const name of targets) {
-        if (!session) break;
-        try {
-            const history = session.chat.slice(-10).map(m => `${m.who}: ${m.text}`).join('\n');
-            const system = chatSystem(name) + (group
-                ? '\n\n[Several people are being spoken to at once. Answer only for yourself, in a line or two, and do not repeat what the others just said.]'
-                : '');
+    try {
+        if (isGroupTalk(to) && targets.length > 1) {
+            // Everyone at once costs one request, not one each.
+            await groupReply(targets, me);
+        } else {
+            const name = targets[0];
+            const history = session.chat.slice(-8).map(m => `${m.who}: ${m.text}`).join('\n');
             const label = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const reply = String(await requestOnConnection('combatProfileId', system,
-                `${history}\n${name}:`, group ? 160 : 300) || '').trim().replace(new RegExp(`^${label}\\s*:\\s*`, 'i'), '');
+            const reply = String(await requestOnConnection('combatProfileId', chatSystem(name),
+                `${history}\n${name}:`, 300) || '').trim().replace(new RegExp(`^${label}\\s*:\\s*`, 'i'), '');
             const line = dialogueOnly(reply, name);
-            if (session && line) session.chat.push({ who: name, text: line });
-            else if (session && !group) session.chat.push({ who: name, text: '...' });
+            if (session) session.chat.push({ who: name, text: line || '...' });
             if (line) speakLine(name, line);
-            if (session) drawChat();
-        } catch (err) {
-            console.error('[SillyNPC] combat talk failed', err);
-            toastr.error(`${name} could not answer.`, 'SillyNPC');
         }
+    } catch (err) {
+        console.error('[SillyNPC] combat talk failed', err);
+        toastr.error('They could not answer.', 'SillyNPC');
     }
     if (session) session.talking = false;
     keepTalk();

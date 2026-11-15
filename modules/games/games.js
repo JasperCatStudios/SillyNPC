@@ -8,6 +8,14 @@ import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
 import { addRecord, tallyAgainst, rivalryBlock } from '../../src/rivalry.js';
 import { tallyText } from '../../src/rivalry-core.js';
+import { MAX_TABLE_OPPONENTS, clampTable, tableLimit, tableOk, gameRecord, gameTalkEntry } from '../../src/game-seats.js';
+import { groupInstruction, parseGroupReply } from '../../src/group-talk.js';
+import {
+    pigNew, pigRoll as tPigRoll, pigBank as tPigBank, pigBotDie, pigBotShouldBank,
+    bjNew, bjHit as tBjHit, bjStand as tBjStand, bjValue, bjBotWantsHit, bjDealerPlay,
+    pkNew, pkDraw, pkOptions, pkAct, pkNextHand, pkBotDraw, pkBotAct, pkDealerName, pkCost,
+    wNew, wPlay, wClear, wLegal, wBotChoose,
+} from '../../src/table-games.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
 
 const MODULE_NAME = 'sillynpc_games';
@@ -254,7 +262,10 @@ let gameState = {
     // Whist
     whist: null,
     // Spin the Bottle
-    bottle: null
+    bottle: null,
+    // Tables (fork): who sits down, each one's hidden attitude, who won
+    table: null, dispositions: {}, winners: null, tableMsg: '', pkSel: [],
+    pigT: null, bjT: null, pkT: null, whT: null
 };
 
 const CHESS_PIECE_SYMBOLS = {
@@ -427,6 +438,13 @@ async function startGame(type) {
     gameState.winner = null;
     gameState.chatLog = [];
     gameState.disposition = { mode: 'fair', skill: 3, reason: '' };
+    gameState.table = null;
+    gameState.winners = null;
+    gameState.dispositions = {};
+    gameState.pigT = gameState.bjT = gameState.pkT = gameState.whT = null;
+
+    // The group games ask who sits down first (the old one-opponent games start at once).
+    if (isTableType(type)) { renderTablePicker(type); return; }
 
     const canvas = $('#rpg-game-canvas');
     canvas.html('<div class="rpg-game-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ' + t('opp_getting_ready') + '</div>');
@@ -1274,10 +1292,7 @@ function groupAiNames() {
 }
 
 function initBottle() {
-    const ctx = getContext();
-    const cands = groupAiNames();
-    if (ctx.groupId && cands.length > 1) { renderBottlePicker(cands); return; }
-    bottleStart([gameState.opponentName]);
+    renderTablePicker('bottle');
 }
 
 function renderBottlePicker(cands) {
@@ -1290,18 +1305,22 @@ function renderBottlePicker(cands) {
     cands.forEach((n, i) => wrap.append(`<label class="rpg-bt-cand"><input type="checkbox" data-i="${i}" ${n === gameState.opponentName ? 'checked' : ''}> ${escapeHtml(n)}</label>`));
     wrap.append(`<button class="rpg-game-select-btn" id="rpg-bt-start"><i class="fa-solid fa-play"></i> ${t('bt_start')}</button>`);
     canvas.append(wrap);
+    // A table of four at most: the persona and three characters.
+    wrap.on('change', 'input[type=checkbox]', function () {
+        if (wrap.find('input:checked').length > MAX_TABLE_OPPONENTS) { this.checked = false; toastr.info(`At most ${MAX_TABLE_OPPONENTS} characters can join you at the table.`); }
+    });
     $('#rpg-bt-start').on('click', () => {
         const chosen = [];
         wrap.find('input:checked').each(function () { const n = cands[parseInt($(this).data('i'))]; if (n) chosen.push(n); });
         if (!chosen.length) chosen.push(gameState.opponentName);
-        bottleStart(chosen.slice(0, 5));
+        bottleStart(clampTable('bottle', chosen, userName()));
     });
 }
 
 function bottleStart(aiNames) {
     gameSession++;
     const players = [{ name: userName(), isUser: true, token: TABLE_TOKENS[0] }];
-    aiNames.slice(0, 5).forEach((n, i) => players.push({ name: n, isUser: false, token: TABLE_TOKENS[(i + 1) % TABLE_TOKENS.length] }));
+    clampTable('bottle', aiNames, userName()).forEach((n, i) => players.push({ name: n, isUser: false, token: TABLE_TOKENS[(i + 1) % TABLE_TOKENS.length] }));
     gameState.bottle = { players, turn: 0, mode: 'mix', phase: 'idle', target: null, task: '', dare: '', kind: null, angle: 0, round: 0, manual: false, editing: false };
     gameState.winner = null;
     renderGameArea();
@@ -1513,6 +1532,7 @@ function gameLabel() {
     return (t(key) && t(key) !== key) ? t(key) : (type || 'Game');
 }
 function tableNames() {
+    if (engineTable()) return [...gameState.table.names];
     if (gameState.gameType === 'bottle' && gameState.bottle?.players) {
         return gameState.bottle.players.filter(p => !p.isUser).map(p => p.name);
     }
@@ -1533,17 +1553,18 @@ function keepTalk({ result = '', leaving = false, final = false } = {}) {
         if (!known) talk = { session: gameSession, id: newTalkId(), result: '' };
         if (result && !talk.result) talk.result = result;
         if (leaving && !talk.result && gameState.active && gameState.gameType !== 'bottle') talk.result = 'left unfinished';
-        recordTalk('games', {
+        // The bottle has no winner, but everyone who sat at it was there: one record when it is left.
+        if ((leaving || final) && gameState.gameType === 'bottle' && gameState.bottle?.round > 0) recordBottleGame();
+        recordTalk('games', gameTalkEntry({
             id: talk.id,
             at: Date.now(),
-            title: gameLabel(),
-            with: tableNames(),
-            sideA: [userName()],
-            sideB: tableNames(),
+            label: gameLabel(),
+            user: userName(),
+            players: [userName(), ...tableNames()],
             date: sceneClock()?.dateText || '',
             lines,
             result: talk.result,
-        });
+        }));
     } catch (e) {
         console.warn('[Games] could not keep the table talk', e);
     } finally {
@@ -1551,6 +1572,7 @@ function keepTalk({ result = '', leaving = false, final = false } = {}) {
     }
 }
 function talkResult() {
+    if (gameState.winners) return gameState.winners.length ? `${joinNames(gameState.winners)} won` : 'draw';
     if (gameState.winner === 'user') return `${userName()} won`;
     if (gameState.winner === 'bot') return `${gameState.opponentName} won`;
     return 'draw';
@@ -1564,35 +1586,633 @@ function recordGameResult() {
         const type = gameState.gameType;
         const key = `g_${type}`;
         const label = (t(key) && t(key) !== key) ? t(key) : (type || 'Game');
-        const result = gameState.winner === 'user' ? 'won' : gameState.winner === 'bot' ? 'lost' : 'draw';
-        // One record for the table: the player on one side, everyone they played against on the other.
-        const others = tableNames();
+        // One record for the table: everyone who sat down, the winner(s) against the rest (see game-seats.js).
+        let others = tableNames();
         if (!others.length) return;
-        const against = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : others[0];
+        // A poker dealer who does not play is at the table but not in the game: written as looking on.
+        const dealt = gameState.pkT && gameState.pkT.fixedDealer ? [gameState.pkT.fixedDealer] : [];
+        others = others.filter(n => !dealt.includes(n));
+        const winners = gameState.winners ? gameState.winners : (gameState.winner === 'user' ? [userName()] : gameState.winner === 'bot' ? others : []);
         // One id for the game, shared by this record and its table talk (keepTalk, which reuses
         // `talk`), so the story prompt can tell they are the same game and never sends it twice.
         if (!talk || talk.session !== gameSession) talk = { session: gameSession, id: newTalkId(), result: '' };
-        addRecord({
-            event: talk.id,
-            kind: 'game', game: label,
-            sideA: [userName()], sideB: others,
-            winner: result === 'won' ? 'A' : result === 'lost' ? 'B' : 'draw',
-            userSide: 'A', player: userName(),
-            summary: `${userName()} ${result === 'won' ? 'beat' : result === 'lost' ? 'lost to' : 'drew with'} ${against} at ${label}.`,
-        });
+        addRecord(gameRecord({ id: talk.id, label, user: userName(), players: [userName(), ...others], winners, spectators: dealt }));
     } catch (e) { console.warn('[Games] could not record the result', e); }
+}
+
+/** The bottle has no winner: a record that says who sat at it (counted as a draw in the history). */
+function recordBottleGame() {
+    if (recordedFor === gameSession) return;
+    recordedFor = gameSession;
+    try {
+        const others = tableNames();
+        if (!others.length) return;
+        if (!talk || talk.session !== gameSession) talk = { session: gameSession, id: newTalkId(), result: '' };
+        addRecord(gameRecord({
+            id: talk.id, label: gameLabel(), user: userName(), players: [userName(), ...others], winners: [],
+            summary: `${userName()} played ${gameLabel()} with ${joinNames(others)}.`,
+        }));
+    } catch (e) { console.warn('[Games] could not record the bottle game', e); }
 }
 
 function resolveGame() {
     recordGameResult();
     keepTalk({ result: talkResult() });
     let resultText = "";
-    if (gameState.winner === 'user') resultText = t('result_win');
+    if (gameState.winners && gameState.winner !== 'user') resultText = gameState.winners.length ? `${joinNames(gameState.winners)} won.` : t('result_draw');
+    else if (gameState.winner === 'user') resultText = t('result_win');
     else if (gameState.winner === 'bot') resultText = t('result_lose', {name: gameState.opponentName});
     else resultText = t('result_draw');
     addGameChatMessage('system', resultText);
     $('#rpg-game-summary-btn').fadeIn();
     $('#rpg-replay-btn').fadeIn();
+}
+
+/* ============================================================
+   TABLES (fork): pig, blackjack, poker, whist and the bottle for the persona and up to three
+   characters. The rules are in src/table-games.js; this is the seat picker, the bots' timing,
+   one batched call for everyone's attitude, one for what they say, and the screens.
+   With a single opponent the old one-against-one games run exactly as before.
+   ============================================================ */
+const TABLE_TYPES = ['pig', 'bj', 'poker', 'whist', 'bottle'];
+const isTableType = (type) => TABLE_TYPES.includes(type);
+/** True while one of the group engines (not the bottle, not a one-opponent game) is being played. */
+const engineTable = () => Boolean(gameState.table && gameState.table.engine);
+const tableOpponents = () => (gameState.table ? gameState.table.names : []);
+const dispFor = (name) => (gameState.dispositions && gameState.dispositions[name]) || { mode: 'fair', skill: 3 };
+const joinNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || 'someone');
+
+/** Who can be asked to the table: the characters, those in the scene first, never the persona. */
+function tableCandidates() {
+    const here = new Set(activeCharacterNames());
+    const all = [...new Set(characters.map(c => c?.name).filter(n => n && n !== userName()))];
+    return [...all.filter(n => here.has(n)), ...all.filter(n => !here.has(n))];
+}
+
+const TABLE_HINTS = {
+    pig: 'Dice: roll or bank, first to 50.',
+    bj: 'One of them deals; everyone else plays against the dealer.',
+    poker: 'Five-card draw. The dealer deals; the button passes round, or a fixed dealer deals without playing.',
+    whist: 'Four players in two teams (you and your partner against the other two), or one opponent as before.',
+    bottle: 'Spin the bottle.',
+};
+
+/** The screen that asks who sits down (and who deals) before a group game starts. */
+function renderTablePicker(type) {
+    const canvas = $('#rpg-game-canvas');
+    canvas.empty();
+    canvas.append(`<button class="rpg-back-btn" id="rpg-tb-back"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>`);
+    $('#rpg-tb-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
+    const limit = tableLimit(type);
+    const cands = tableCandidates();
+    const wrap = $('<div class="rpg-menu-container"></div>');
+    wrap.append(`<div class="rpg-menu-title">${escapeHtml(t('g_' + type))}</div><div class="rpg-bt-hint">${escapeHtml(TABLE_HINTS[type] || '')} Up to ${limit} can join you.</div>`);
+    if (!cands.length) { wrap.append('<div class="rpg-bt-hint">There is nobody to play with yet: add characters first.</div>'); canvas.append(wrap); return; }
+    cands.forEach((n) => wrap.append(`<label class="rpg-bt-cand"><input type="checkbox" data-name="${escapeHtml(n)}" ${n === gameState.opponentName ? 'checked' : ''}> ${escapeHtml(n)}</label>`));
+    const roleRow = $('<div class="rpg-bt-hint" id="rpg-tb-roles"></div>');
+    wrap.append(roleRow);
+    wrap.append(`<button class="rpg-game-select-btn" id="rpg-tb-start"><i class="fa-solid fa-play"></i> ${t('bt_start')}</button>`);
+    canvas.append(wrap);
+
+    const chosen = () => { const out = []; wrap.find('input:checked').each(function () { out.push(String($(this).attr('data-name'))); }); return out; };
+    const option = (v, label) => `<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`;
+    // the roles depend on who is chosen: the dealer (blackjack, poker) and the partner (whist)
+    const drawRoles = () => {
+        const names = chosen();
+        const keepDealer = $('#rpg-tb-dealer').val();
+        const keepPartner = $('#rpg-tb-partner').val();
+        roleRow.empty();
+        if (type === 'bj' && names.length > 1) {
+            roleRow.append(`Dealer: <select id="rpg-tb-dealer" class="text_pole">${names.map(n => option(n, n)).join('')}</select>`);
+        } else if (type === 'poker' && names.length > 1) {
+            roleRow.append(`Dealer: <select id="rpg-tb-dealer" class="text_pole">${option('', 'The button passes round (the dealer plays)')}${names.map(n => option(n, `${n} deals and does not play`)).join('')}</select>`);
+        } else if (type === 'whist' && names.length === 3) {
+            roleRow.append(`Your partner: <select id="rpg-tb-partner" class="text_pole">${names.map(n => option(n, n)).join('')}</select>`);
+        }
+        if (keepDealer && names.includes(keepDealer)) $('#rpg-tb-dealer').val(keepDealer);
+        if (keepPartner && names.includes(keepPartner)) $('#rpg-tb-partner').val(keepPartner);
+    };
+    wrap.on('change', 'input[type=checkbox]', function () {
+        if (wrap.find('input:checked').length > limit) { this.checked = false; toastr.info(`At most ${limit} characters can join you at the table.`); }
+        drawRoles();
+    });
+    drawRoles();
+    $('#rpg-tb-start').on('click', () => {
+        const names = clampTable(type, chosen(), userName());
+        if (!names.length) { toastr.info('Pick at least one character.'); return; }
+        if (!tableOk(type, names.length)) { toastr.info(type === 'whist' ? 'Whist is one opponent, or three (a partner and two opponents).' : 'That is not a table this game seats.'); return; }
+        launchTable(type, names, { dealer: String($('#rpg-tb-dealer').val() || ''), partner: String($('#rpg-tb-partner').val() || '') });
+    });
+}
+
+/** Sits the table down and starts the game. One opponent plays the old way. */
+async function launchTable(type, names, { dealer = '', partner = '' } = {}) {
+    gameSession++;
+    const sess = gameSession;
+    gameState.winner = null;
+    gameState.winners = null;
+    gameState.opponentName = names[0];
+    gameState.dispositions = {};
+    if (type === 'bottle') { gameState.table = { names, engine: false }; bottleStart(names); return; }
+    if (names.length === 1) {
+        gameState.table = null;
+        $('#rpg-game-canvas').html('<div class="rpg-game-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ' + t('opp_getting_ready') + '</div>');
+        try { await determineDisposition(); } catch (e) { /* played fair */ }
+        if (sess !== gameSession) return;
+        startClassic(type);
+        return;
+    }
+    gameState.table = { names, dealer: dealer || null, partner: partner || null, engine: true };
+    $('#rpg-game-canvas').html('<div class="rpg-game-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ' + t('opp_getting_ready') + '</div>');
+    try { await determineDispositions(names); } catch (e) { /* played fair */ }
+    if (sess !== gameSession) return;
+    initTableGame(type);
+}
+
+/** The one-opponent versions. */
+function startClassic(type) {
+    if (type === 'bj') initBlackjack();
+    else if (type === 'poker') initPoker();
+    else if (type === 'pig') initPig();
+    else if (type === 'whist') initWhist();
+}
+
+/** Everyone's hidden attitude in ONE request (instead of one each). */
+async function determineDispositions(names) {
+    for (const n of names) gameState.dispositions[n] = { mode: 'fair', skill: 3, reason: '' };
+    if (!apiKey()) return;
+    try {
+        const context = getContext();
+        const num = Math.min(settings.contextMessages || 10, context.chat.length);
+        const recent = context.chat.slice(-num).filter(m => !m.is_system).map(m => `${m.name}: ${m.mes}`).join('\n\n');
+        const people = names.map((n) => {
+            const char = characters.find(c => c.name === n);
+            return `### ${n}\n${char ? `${char.description || ''}\n${char.personality || ''}`.substring(0, 600) : ''}`;
+        }).join('\n\n');
+        const sys = `You secretly decide HOW each of these characters plays a casual game against ${userName()} and each other. This is a hidden attitude.
+${people}
+
+Recent scene:
+${recent.substring(0, 1200)}
+
+For EACH character pick a mode (DEFAULT is "fair": they play normally and try to win):
+- "fair": plays normally. Choose this unless there is a strong, specific in-character reason not to.
+- "cheat": bends the rules to win (tricksters, schemers, ruthlessly competitive types).
+- "throw": deliberately loses. RARE: only when the character clearly wants someone else to win right now. Never for a proud, competitive or antagonistic character.
+Also a "skill" from 1 (clumsy) to 5 (sharp). Output ONLY JSON keyed by name: {"Name":{"mode":"fair","skill":3,"reason":"..."}}`;
+        const raw = await callApi([{ role: 'system', content: sys }], { maxTokens: 80 * names.length + 60 });
+        const m = raw.match(/\{[\s\S]*\}/);
+        const res = JSON.parse(m ? m[0] : raw);
+        for (const n of names) {
+            const r = res && (res[n] || Object.entries(res).find(([k]) => k.toLowerCase() === n.toLowerCase())?.[1]);
+            if (r && ['fair', 'throw', 'cheat'].includes(r.mode)) {
+                gameState.dispositions[n] = { mode: r.mode, skill: Math.max(1, Math.min(5, parseInt(r.skill, 10) || 3)), reason: String(r.reason || '') };
+            }
+        }
+    } catch (e) { console.error('[Games] dispositions error:', e); }
+}
+
+/** What several characters say about one event, in ONE request. They answer as "Name: line"; anyone may stay quiet. */
+async function tableComment(event, speakers, force = false) {
+    if (!apiKey() || !speakers.length) return;
+    const now = Date.now();
+    if (!force) {
+        if (now - lastCommentAt < 6000) return;
+        if (Math.random() < 0.5) return;
+    }
+    lastCommentAt = now;
+    const sess = gameSession;
+    const context = getContext();
+    const num = Math.min(settings.contextMessages || 10, context.chat.length);
+    const main = context.chat.slice(-num).filter(m => !m.is_system).map(m => `${m.name}: ${m.mes}`).join('\n\n').slice(-1200);
+    const lines = gameState.chatLog.slice(-6).filter(m => m.sender === 'user' || m.sender === 'bot')
+        .map(m => `${m.sender === 'user' ? userName() : (m.who || '?')}: ${m.text}`).join('\n');
+    const people = speakers.map((n) => {
+        const char = characters.find(c => c.name === n);
+        const d = dispFor(n);
+        const hint = d.mode === 'cheat' ? ' (secretly bending the rules: sly and confident, never admits it)'
+            : d.mode === 'throw' ? ' (secretly letting others win: warm and playful, never admits it)' : '';
+        return `- ${n}${hint}: ${char ? String(char.personality || char.description || '').replace(/\s+/g, ' ').substring(0, 250) : ''}`;
+    }).join('\n');
+    const system = `You voice several characters playing ${gameLabel()} with ${userName()}.
+Story context:
+${main}
+
+Game chat so far:
+${lines}
+
+The people at the table:
+${people}
+
+Event: ${event}
+
+Rules: ${DIALOGUE_RULE} Speak in ${langName()}, in character, very short (1 to 2 sentences each). ${groupInstruction(speakers, userName())}`;
+    addGameChatMessage('typing', t('thinking', { name: joinNames(speakers) }));
+    try {
+        const out = await callApi([{ role: 'system', content: system }], { maxTokens: Math.min(400, 90 * speakers.length) });
+        removeTypingIndicator();
+        if (sess !== gameSession) return;
+        for (const { who, text } of parseGroupReply(out, speakers)) {
+            const line = dialogueOnly(text, who);
+            if (line) { addGameChatMessage('bot', line, who); speakLine(who, line); }
+        }
+    } catch (e) {
+        removeTypingIndicator();
+        console.error('[Games] table commentary error:', e);
+    }
+}
+
+/** The bots at the table (everyone who is not the persona). */
+const tableBots = () => tableOpponents();
+
+/** A table game is decided. winners: the names that won (empty for a draw). */
+function finishTable(winners) {
+    gameState.winners = [...winners];
+    const me = userName();
+    gameState.winner = winners.includes(me) ? 'user' : (winners.length ? 'bot' : 'draw');
+    renderGameArea();
+    resolveGame();
+    tableComment(`${gameLabel()} is over. ${winners.length ? `${joinNames(winners)} won.` : 'It was a draw.'}`, tableBots(), true);
+}
+
+function initTableGame() {
+    const type = gameState.gameType;
+    const { names, dealer, partner } = gameState.table;
+    const me = userName();
+    gameState.winner = null;
+    gameState.winners = null;
+    gameState.tableMsg = '';
+    gameState.pkSel = [];
+    if (type === 'pig') {
+        gameState.pigT = pigNew([me, ...names]);
+        addGameChatMessage('system', `Dice for ${joinNames([me, ...names])}: first to ${gameState.pigT.target}.`);
+        renderGameArea();
+    } else if (type === 'bj') {
+        const dealerName = names.includes(dealer) ? dealer : names[0];
+        gameState.bjT = bjNew([me, ...names.filter(n => n !== dealerName)], dealerName, Math.random);
+        addGameChatMessage('system', `${dealerName} deals twenty-one to ${joinNames(gameState.bjT.players.map(p => p.name))}.`);
+        renderGameArea();
+        bjTableTurn();
+    } else if (type === 'poker') {
+        const fixed = names.length > 1 && names.includes(dealer) ? dealer : null;
+        const seats = [me, ...names.filter(n => n !== fixed)];
+        gameState.pkT = pkNew(seats, { fixedDealer: fixed, user: me });
+        addGameChatMessage('system', `Five-card draw for ${joinNames(seats)}. ${pkDealerName(gameState.pkT)} deals.`);
+        renderGameArea();
+        pkTableTurn();
+    } else if (type === 'whist') {
+        const mate = names.includes(partner) ? partner : names[1];
+        const foes = names.filter(n => n !== mate);
+        gameState.whT = wNew([me, foes[0], mate, foes[1]], Math.random);
+        addGameChatMessage('system', `Whist: ${me} and ${mate} against ${foes[0]} and ${foes[1]}. Trumps are ${gameState.whT.trump}.`);
+        renderGameArea();
+        wTableTurn();
+    }
+}
+
+/* ---- pig for a table ---- */
+function pigTableTurn() {
+    const s = gameState.pigT;
+    if (!s || s.over) return;
+    if (s.players[s.turn].name !== userName()) setTimeout(guarded(pigBotStepT), 800);
+}
+function pigAfter(r, who) {
+    const s = gameState.pigT;
+    if (r.bust) gameState.tableMsg = `${who} rolled a 1 and lost ${r.lost} points.`;
+    else if (r.banked !== undefined) gameState.tableMsg = `${who} banked ${r.banked}.`;
+    else gameState.tableMsg = `${who} rolled a ${r.roll}: ${r.total} this turn.`;
+    if (r.won) { finishTable([who]); return; }
+    renderGameArea();
+    if (r.bust && who !== userName()) tableComment(`${who} rolled a 1 in the dice game and lost the turn's points.`, tableBots());
+    pigTableTurn();
+}
+function pigUserRoll() {
+    const s = gameState.pigT;
+    if (!s || s.over || s.players[s.turn].name !== userName()) return;
+    pigAfter(tPigRoll(s, 1 + Math.floor(Math.random() * 6)), userName());
+}
+function pigUserBank() {
+    const s = gameState.pigT;
+    if (!s || s.over || s.players[s.turn].name !== userName()) return;
+    const r = tPigBank(s);
+    if (r.ok) pigAfter(r, userName());
+}
+function pigBotStepT() {
+    const s = gameState.pigT;
+    if (!s || s.over) return;
+    const me = s.players[s.turn].name;
+    if (me === userName()) return;
+    const d = dispFor(me);
+    if (s.turnTotal > 0 && pigBotShouldBank(s, d)) { pigAfter(tPigBank(s), me); return; }
+    const r = tPigRoll(s, pigBotDie(d));
+    gameState.tableMsg = r.bust ? `${me} rolled a 1 and lost ${r.lost} points.` : `${me} rolled a ${r.roll}: ${r.total} this turn.`;
+    renderGameArea();
+    if (r.bust) { tableComment(`${me} rolled a 1 in the dice game and lost the turn's points.`, tableBots()); pigTableTurn(); }
+    else setTimeout(guarded(pigBotStepT), 850);
+}
+
+/* ---- blackjack for a table ---- */
+function bjTableTurn() {
+    const s = gameState.bjT;
+    if (!s) return;
+    if (s.phase === 'dealer') { setTimeout(guarded(bjDealerT), 900); return; }
+    if (s.phase === 'players' && s.players[s.turn].name !== userName()) setTimeout(guarded(bjBotT), 850);
+}
+function bjUserHit() {
+    const s = gameState.bjT;
+    if (!s || s.phase !== 'players' || s.players[s.turn].name !== userName()) return;
+    const r = tBjHit(s);
+    gameState.tableMsg = r.bust ? `${r.who} busts with ${r.value}.` : `${r.who} hits: ${r.value}.`;
+    renderGameArea();
+    bjTableTurn();
+}
+function bjUserStand() {
+    const s = gameState.bjT;
+    if (!s || s.phase !== 'players' || s.players[s.turn].name !== userName()) return;
+    const r = tBjStand(s);
+    gameState.tableMsg = `${r.who} stands on ${r.value}.`;
+    renderGameArea();
+    bjTableTurn();
+}
+function bjBotT() {
+    const s = gameState.bjT;
+    if (!s || s.phase !== 'players') return;
+    const p = s.players[s.turn];
+    if (p.name === userName()) return;
+    const hit = bjBotWantsHit(p.cards, s.dealer.cards[0].val, dispFor(p.name).skill);
+    const r = hit ? tBjHit(s) : tBjStand(s);
+    gameState.tableMsg = hit ? (r.bust ? `${r.who} busts with ${r.value}.` : `${r.who} hits: ${r.value}.`) : `${r.who} stands on ${r.value}.`;
+    renderGameArea();
+    bjTableTurn();
+}
+function bjDealerT() {
+    const s = gameState.bjT;
+    if (!s || s.phase !== 'dealer') return;
+    bjDealerPlay(s, dispFor(s.dealer.name));
+    gameState.tableMsg = `${s.dealer.name} has ${bjValue(s.dealer.cards)}.`;
+    finishTable(s.winners);
+}
+
+/* ---- poker for a table ---- */
+const pkMe = () => (gameState.pkT ? gameState.pkT.seats.findIndex(x => x.name === userName()) : -1);
+function pkTableTurn() {
+    const s = gameState.pkT;
+    if (!s || s.over || (s.phase !== 'draw' && s.phase !== 'bet')) return;
+    if (s.seats[s.actor].name !== userName()) setTimeout(guarded(pkBotT), 850);
+}
+function pkHandDone() {
+    const s = gameState.pkT;
+    const r = s.lastResult;
+    const how = r.showdown ? ` with ${r.hands[r.winners[0]] || 'the best hand'}` : '';
+    gameState.tableMsg = `${joinNames(r.winners)} ${r.winners.length > 1 ? 'split' : 'takes'} the pot of ${r.pot}${how}.`;
+    addGameChatMessage('system', gameState.tableMsg);
+    if (s.over) { finishTable(s.winners); return; }
+    renderGameArea();
+    tableComment(`Poker hand over. ${gameState.tableMsg}`, tableBots());
+}
+function pkBotT() {
+    const s = gameState.pkT;
+    if (!s || s.over) return;
+    const seat = s.seats[s.actor];
+    if (!seat || seat.name === userName()) return;
+    if (s.phase === 'draw') {
+        const r = pkBotDraw(s, s.actor, dispFor(seat.name));
+        gameState.tableMsg = `${seat.name} swaps ${r.count || 0} card${r.count === 1 ? '' : 's'}.`;
+    } else if (s.phase === 'bet') {
+        const action = pkBotAct(s, s.actor, dispFor(seat.name));
+        const r = pkAct(s, s.actor, action);
+        gameState.tableMsg = `${seat.name} ${action === 'check' ? 'checks' : action === 'fold' ? 'folds' : `${action}s ${r.cost || ''}`.trim()}.`;
+    } else return;
+    if (s.phase === 'result') { pkHandDone(); return; }
+    renderGameArea();
+    pkTableTurn();
+}
+function pkToggleT(i) {
+    const s = gameState.pkT;
+    if (!s || s.phase !== 'draw' || s.seats[s.actor].name !== userName()) return;
+    const sel = gameState.pkSel;
+    const at = sel.indexOf(i);
+    if (at >= 0) sel.splice(at, 1); else sel.push(i);
+    renderGameArea();
+}
+function pkUserDrawT() {
+    const s = gameState.pkT;
+    if (!s || s.phase !== 'draw' || s.seats[s.actor].name !== userName()) return;
+    const r = pkDraw(s, s.actor, gameState.pkSel);
+    gameState.tableMsg = `${userName()} swaps ${r.count || 0} card${r.count === 1 ? '' : 's'}.`;
+    gameState.pkSel = [];
+    if (s.phase === 'result') { pkHandDone(); return; }
+    renderGameArea();
+    pkTableTurn();
+}
+function pkUserActT(action) {
+    const s = gameState.pkT;
+    if (!s || s.phase !== 'bet' || s.seats[s.actor].name !== userName()) return;
+    const r = pkAct(s, s.actor, action);
+    if (!r.ok) return;
+    gameState.tableMsg = `${userName()} ${action === 'check' ? 'checks' : action === 'fold' ? 'folds' : `${action}s ${r.cost || ''}`.trim()}.`;
+    if (s.phase === 'result') { pkHandDone(); return; }
+    renderGameArea();
+    pkTableTurn();
+}
+function pkNextT() {
+    const s = gameState.pkT;
+    if (!s || s.phase !== 'result' || s.over) return;
+    pkNextHand(s);
+    gameState.pkSel = [];
+    gameState.tableMsg = `New hand. ${pkDealerName(s)} deals.`;
+    renderGameArea();
+    pkTableTurn();
+}
+
+/* ---- whist for a table ---- */
+function wTableTurn() {
+    const s = gameState.whT;
+    if (!s || s.over) return;
+    if (s.pending) {
+        setTimeout(guarded(() => {
+            wClear(s);
+            if (s.over) { gameState.tableMsg = `Tricks: ${s.tricks[0] + s.tricks[2]} to ${s.tricks[1] + s.tricks[3]}.`; finishTable(s.winners); return; }
+            renderGameArea();
+            wTableTurn();
+        }), 1100);
+        return;
+    }
+    if (s.turn !== 0) setTimeout(guarded(wBotT), 800);
+}
+function wAfterPlay(r, seatName) {
+    const s = gameState.whT;
+    if (r.trickWinner !== undefined) {
+        gameState.tableMsg = `${s.names[r.trickWinner]} takes the trick.`;
+        tableComment(`Whist: ${s.names[r.trickWinner]} won the trick. Tricks ${s.tricks[0] + s.tricks[2]} to ${s.tricks[1] + s.tricks[3]}.`, tableBots());
+    } else {
+        gameState.tableMsg = `${seatName} plays.`;
+    }
+    renderGameArea();
+    wTableTurn();
+}
+function wBotT() {
+    const s = gameState.whT;
+    if (!s || s.over || s.pending || s.turn === 0) return;
+    const seat = s.turn;
+    const r = wPlay(s, seat, wBotChoose(s, seat, dispFor(s.names[seat])));
+    if (r.ok) wAfterPlay(r, s.names[seat]);
+}
+function wUserPlayT(i) {
+    const s = gameState.whT;
+    if (!s || s.over || s.pending || s.turn !== 0) return;
+    const card = s.hands[0][i];
+    if (!card) return;
+    const r = wPlay(s, 0, card);
+    if (!r.ok) { toastr.info(r.reason); return; }
+    wAfterPlay(r, userName());
+}
+
+/* ---- the table screens ---- */
+const miniBacks = (n) => Array.from({ length: n }, () => '<div class="rpg-card back mini"><span>?</span></div>').join('');
+
+/** Draws a group game into the canvas. Returns false when this is not one (the old screens draw it). */
+function renderTableGame(canvas) {
+    if (!engineTable()) return false;
+    const type = gameState.gameType;
+    if (type === 'pig' && gameState.pigT) { renderPigTable(canvas); return true; }
+    if (type === 'bj' && gameState.bjT) { renderBjTable(canvas); return true; }
+    if (type === 'poker' && gameState.pkT) { renderPokerTable(canvas); return true; }
+    if (type === 'whist' && gameState.whT) { renderWhistTable(canvas); return true; }
+    return false;
+}
+
+function renderPigTable(canvas) {
+    const s = gameState.pigT;
+    const dieFaces = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+    const mine = !s.over && s.players[s.turn].name === userName();
+    const wrap = $('<div class="rpg-pig-wrap"></div>');
+    wrap.append(`
+        <div class="rpg-pig-scores" style="flex-wrap:wrap; gap:8px">
+            ${s.players.map((p, i) => `<span class="${i === s.turn && !s.over ? 'turn' : ''}">${escapeHtml(p.name)} · <b>${p.score}</b></span>`).join('')}
+        </div>
+        <div class="rpg-pig-target">${t('pig_to', { target: s.target })}</div>
+        <div class="rpg-pig-die">${s.lastRoll ? dieFaces[s.lastRoll] : '🎲'}</div>
+        <div class="rpg-pig-turn">${escapeHtml(s.players[s.turn].name)} · ${t('this_turn')}: <b>${s.turnTotal}</b></div>
+    `);
+    if (gameState.tableMsg) wrap.append(`<div class="rpg-pig-msg">${escapeHtml(gameState.tableMsg)}</div>`);
+    if (mine) {
+        wrap.append(`<div class="rpg-bj-controls">
+            <button class="rpg-game-action-btn" id="rpg-tpig-roll"><i class="fa-solid fa-dice"></i> ${t('roll')}</button>
+            <button class="rpg-game-action-btn alt" id="rpg-tpig-bank"><i class="fa-solid fa-vault"></i> ${t('bank')} (${s.turnTotal})</button>
+        </div>`);
+    }
+    canvas.append(wrap);
+    $('#rpg-tpig-roll').on('click', pigUserRoll);
+    $('#rpg-tpig-bank').on('click', pigUserBank);
+}
+
+function renderBjTable(canvas) {
+    const s = gameState.bjT;
+    const hideHole = s.phase !== 'done' && s.phase !== 'dealer';
+    const dv = hideHole ? `${bjValue([s.dealer.cards[0]])} + ?` : bjValue(s.dealer.cards);
+    const wrap = $('<div class="rpg-bj-wrap"></div>');
+    wrap.append(`<div class="rpg-bj-side">
+        <div class="rpg-bj-label">${escapeHtml(s.dealer.name)} (dealer) · <b>${dv}</b></div>
+        <div class="rpg-bj-cards">${s.dealer.cards.map((c, i) => cardHtml(c, hideHole && i > 0)).join('')}</div>
+    </div>`);
+    s.players.forEach((p, i) => {
+        const result = s.results ? s.results.find(r => r.name === p.name) : null;
+        const tag = result ? ` · ${result.outcome === 'win' ? 'wins' : result.outcome === 'push' ? 'pushes' : 'loses'}`
+            : p.status === 'bust' ? ' · bust' : p.status === 'blackjack' ? ' · 21' : p.status === 'stand' ? ' · stands' : (i === s.turn ? ' · to play' : '');
+        wrap.append(`<div class="rpg-bj-side">
+            <div class="rpg-bj-label">${p.name === userName() ? t('you') : escapeHtml(p.name)} · <b>${bjValue(p.cards)}</b>${tag}</div>
+            <div class="rpg-bj-cards">${p.cards.map(c => cardHtml(c, false)).join('')}</div>
+        </div>`);
+    });
+    if (gameState.tableMsg) wrap.append(`<div class="rpg-pig-msg">${escapeHtml(gameState.tableMsg)}</div>`);
+    if (s.phase === 'players' && s.players[s.turn].name === userName()) {
+        wrap.append(`<div class="rpg-bj-controls">
+            <button class="rpg-game-action-btn" id="rpg-tbj-hit"><i class="fa-solid fa-plus"></i> ${t('hit')}</button>
+            <button class="rpg-game-action-btn alt" id="rpg-tbj-stand"><i class="fa-solid fa-hand"></i> ${t('stand')}</button>
+        </div>`);
+    }
+    canvas.append(wrap);
+    $('#rpg-tbj-hit').on('click', bjUserHit);
+    $('#rpg-tbj-stand').on('click', bjUserStand);
+}
+
+function renderPokerTable(canvas) {
+    const s = gameState.pkT;
+    const me = pkMe();
+    const reveal = s.phase === 'result' && s.lastResult && s.lastResult.showdown;
+    const wrap = $('<div class="rpg-poker-wrap"></div>');
+    wrap.append(`<div class="rpg-poker-pot">Dealer: ${escapeHtml(pkDealerName(s))} · Pot: 🪙 ${s.pot}${s.phase === 'bet' ? ` · bet ${s.limit}` : ''}</div>`);
+    s.seats.forEach((seat, i) => {
+        const isMe = i === me;
+        const inHandNow = !seat.out && !seat.folded;
+        const showFace = isMe ? !seat.out : (reveal && inHandNow);
+        const tags = [seat.out ? 'out' : '', seat.folded && !seat.out ? 'folded' : '', (!s.fixedDealer && s.button === i && !seat.out) ? 'dealer' : '',
+            (s.phase === 'draw' || s.phase === 'bet') && s.actor === i ? 'to act' : '',
+            reveal && inHandNow && s.lastResult.hands[seat.name] ? s.lastResult.hands[seat.name] : ''].filter(Boolean);
+        const side = $(`<div class="rpg-poker-side"><div class="rpg-poker-label">${isMe ? t('you') : escapeHtml(seat.name)} · 🪙 ${seat.chips}${tags.length ? ` · ${tags.join(' · ')}` : ''}</div></div>`);
+        const cards = $('<div class="rpg-bj-cards"></div>');
+        if (seat.out || !seat.hand.length) { /* nothing dealt */ } else {
+            seat.hand.forEach((c, k) => {
+                const el = $(cardHtml(c, !showFace));
+                if (isMe && s.phase === 'draw' && s.actor === i) {
+                    el.addClass('selectable');
+                    if (gameState.pkSel.includes(k)) el.addClass('discard');
+                    el.on('click', () => pkToggleT(k));
+                }
+                cards.append(el);
+            });
+        }
+        side.append(cards);
+        wrap.append(side);
+    });
+    if (gameState.tableMsg) wrap.append(`<div class="rpg-poker-result">${escapeHtml(gameState.tableMsg)}</div>`);
+    const ctrl = $('<div class="rpg-bj-controls"></div>');
+    if (s.phase === 'draw' && s.actor === me) ctrl.append(`<button class="rpg-game-action-btn" id="rpg-tpk-draw"><i class="fa-solid fa-right-left"></i> ${t('exchange')} (${gameState.pkSel.length})</button>`);
+    else if (s.phase === 'bet' && s.actor === me) {
+        const labels = { check: t('check'), bet: `${t('bet')} ${s.limit}`, call: `${t('call')} ${pkCost(s, me, 'call')}`, raise: `Raise ${pkCost(s, me, 'raise')}`, fold: t('fold') };
+        for (const a of pkOptions(s, me)) ctrl.append(`<button class="rpg-game-action-btn ${a === 'fold' || a === 'check' ? 'alt' : ''}" data-pk="${a}">${labels[a]}</button>`);
+    } else if (s.phase === 'result' && !s.over) ctrl.append(`<button class="rpg-game-action-btn" id="rpg-tpk-next"><i class="fa-solid fa-forward"></i> ${t('next_hand')}</button>`);
+    wrap.append(ctrl);
+    canvas.append(wrap);
+    $('#rpg-tpk-draw').on('click', pkUserDrawT);
+    $('#rpg-tpk-next').on('click', pkNextT);
+    ctrl.find('[data-pk]').on('click', function () { pkUserActT(String($(this).attr('data-pk'))); });
+}
+
+function renderWhistTable(canvas) {
+    const s = gameState.whT;
+    const redSuit = (x) => (x === '♥' || x === '♦') ? 'red' : '';
+    const ours = s.tricks[0] + s.tricks[2];
+    const theirs = s.tricks[1] + s.tricks[3];
+    const wrap = $('<div class="rpg-whist-wrap"></div>');
+    wrap.append(`<div class="rpg-whist-info">${t('trump')}: <b class="${redSuit(s.trump)}">${s.trump}</b> &nbsp;·&nbsp; ${t('tricks')} — ${escapeHtml(s.names[0])} &amp; ${escapeHtml(s.names[2])} <b>${ours}</b> : <b>${theirs}</b> ${escapeHtml(s.names[1])} &amp; ${escapeHtml(s.names[3])}</div>`);
+    wrap.append(`<div class="rpg-whist-bothand" title="${escapeHtml(s.names[2])} (your partner)">${miniBacks(s.hands[2].length)}</div>`);
+    const row = $('<div style="display:flex; justify-content:space-between; align-items:center; gap:8px"></div>');
+    row.append(`<div class="rpg-whist-bothand" title="${escapeHtml(s.names[1])}" style="flex-direction:column">${miniBacks(s.hands[1].length)}</div>`);
+    const shown = s.pending ? s.pending.trick : s.trick;
+    const at = (seat) => shown.find(x => x.seat === seat);
+    const tbl = $('<div class="rpg-whist-table" style="flex-wrap:wrap; justify-content:center"></div>');
+    for (const seat of [2, 1, 3, 0]) {
+        const p = at(seat);
+        tbl.append(`<div class="rpg-whist-slot" title="${escapeHtml(s.names[seat])}">${p ? cardHtml(p.card, false) : '<div class="rpg-card empty"></div>'}</div>`);
+    }
+    row.append(tbl);
+    row.append(`<div class="rpg-whist-bothand" title="${escapeHtml(s.names[3])}" style="flex-direction:column">${miniBacks(s.hands[3].length)}</div>`);
+    wrap.append(row);
+    const msg = gameState.tableMsg || (s.turn === 0 && !s.pending ? t('your_turn') : `${s.names[s.turn]}'s turn.`);
+    wrap.append(`<div class="rpg-whist-msg">${escapeHtml(msg)}</div>`);
+    const phand = $('<div class="rpg-whist-hand"></div>');
+    const legal = wLegal(s.hands[0], s.led);
+    s.hands[0].forEach((c, i) => {
+        const el = $(cardHtml(c, false));
+        const ok = legal.includes(c);
+        if (s.turn === 0 && !s.pending && !s.over && ok) { el.addClass('selectable'); el.on('click', () => wUserPlayT(i)); }
+        else if (s.turn === 0 && !s.pending && !s.over) el.addClass('disabled');
+        phand.append(el);
+    });
+    wrap.append(phand);
+    canvas.append(wrap);
 }
 
 /* ============================================================
@@ -1650,7 +2270,11 @@ function renderGameArea() {
         renderGameArea();
     });
 
-    if (gameState.gameType === 'chess' && chessInstance) {
+    refreshTalkTo();
+    if (renderTableGame(canvas)) {
+        /* a group game drew itself */
+    }
+    else if (gameState.gameType === 'chess' && chessInstance) {
         const board = $('<div class="rpg-chess-board"></div>');
         const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
         const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -1858,8 +2482,10 @@ function renderGameArea() {
     $('#rpg-game-summary-btn').on('click', injectGameSummaryToChat);
     $('#rpg-replay-btn').on('click', () => {
         gameState.winner = null;
+        gameState.winners = null;
         $('#rpg-game-summary-btn').hide();
         $('#rpg-replay-btn').hide();
+        if (engineTable()) { gameSession++; initTableGame(); return; }
         if (gameState.gameType === 'ttt') initTicTacToe();
         else if (gameState.gameType === 'bs') initBattleship();
         else if (gameState.gameType === 'chess') initChessGame();
@@ -1897,6 +2523,7 @@ function renderGameModal() {
                             </div>
                         </div>
                         <div class="rpg-game-chat" id="rpg-game-chat-log"></div>
+                        <select id="rpg-game-talk-to" class="rpg-game-input" style="display:none; margin: 4px 0"></select>
                         <div class="rpg-game-input-container">
                             <input type="text" class="rpg-game-input" id="rpg-game-input-field" placeholder="${t('say_something')}">
                             <button class="rpg-game-send" id="rpg-game-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
@@ -1920,7 +2547,7 @@ function renderGameModal() {
     if (logEl.length && logEl.children().length === 0 && gameState.chatLog.length) {
         gameState.chatLog.forEach(m => {
             const msgClass = m.sender === 'system' ? 'system' : (m.sender === 'user' ? 'user' : 'bot');
-            const label = (m.sender === 'bot' && m.who && gameState.gameType === 'bottle') ? `<b>${escapeHtml(m.who)}:</b> ` : '';
+            const label = (m.sender === 'bot' && m.who && (gameState.gameType === 'bottle' || engineTable())) ? `<b>${escapeHtml(m.who)}:</b> ` : '';
             logEl.append(`<div class="rpg-gmsg ${msgClass}">${label}${escapeHtml(m.text)}</div>`);
         });
         logEl.scrollTop(logEl[0].scrollHeight);
@@ -1983,7 +2610,7 @@ function addGameChatMessage(sender, text, who) {
     if (log.length > 0) {
         const msgClass = sender === 'system' ? 'system' : (sender === 'user' ? 'user' : (sender === 'typing' ? 'bot rpg-typing' : 'bot'));
         // with several characters at the table, show who is talking
-        const label = (sender === 'bot' && who && gameState.gameType === 'bottle') ? `<b>${escapeHtml(who)}:</b> ` : '';
+        const label = (sender === 'bot' && who && (gameState.gameType === 'bottle' || engineTable())) ? `<b>${escapeHtml(who)}:</b> ` : '';
         log.append(`<div class="rpg-gmsg ${msgClass}">${label}${escapeHtml(text)}</div>`);
         log.scrollTop(log[0].scrollHeight);
     }
@@ -1993,23 +2620,42 @@ function removeTypingIndicator() {
     gameState.chatLog = gameState.chatLog.filter(m => m.sender !== 'typing');
 }
 
+/** Who the table-talk box talks to: everyone (one request for all) or one person. Only at a group table. */
+function refreshTalkTo() {
+    const sel = $('#rpg-game-talk-to');
+    if (!sel.length) return;
+    const names = engineTable() ? tableOpponents() : [];
+    const keep = sel.val();
+    sel.empty();
+    if (names.length < 2) { sel.hide(); return; }
+    sel.append(`<option value="*">Talk to everyone</option>`);
+    for (const n of names) sel.append(`<option value="${escapeHtml(n)}">Talk to ${escapeHtml(n)}</option>`);
+    if (keep && (keep === '*' || names.includes(keep))) sel.val(keep);
+    sel.show();
+}
+
 async function sendGameMessage() {
     const input = $('#rpg-game-input-field');
     const text = input.val().trim();
     if (!text) return;
     input.val('');
     addGameChatMessage('user', text);
+    if (engineTable()) {
+        const to = String($('#rpg-game-talk-to').val() || '*');
+        await tableComment(`${userName()} said in game chat${to === '*' ? '' : ` to ${to}`}: "${text}"`, to === '*' ? tableBots() : [to], true);
+        return;
+    }
     await generateAiCommentary(`${userName()} said in game chat: "${text}"`, true);
 }
 
 function injectGameSummaryToChat() {
     const charName = (gameState.gameType === 'bottle' && gameState.bottle)
         ? gameState.bottle.players.filter(p => !p.isUser).map(p => p.name).join(', ')
-        : gameState.opponentName;
+        : (engineTable() ? joinNames(gameState.table.names) : gameState.opponentName);
     const gameName = t('gn_' + gameState.gameType);
     let resultWord = t('res_draw');
     if (gameState.winner === 'user') resultWord = t('res_user');
-    if (gameState.winner === 'bot') resultWord = t('res_bot', {name: charName});
+    if (gameState.winner === 'bot') resultWord = gameState.winners && gameState.winners.length ? t('res_bot', {name: joinNames(gameState.winners)}) : t('res_bot', {name: charName});
     const dialogue = gameState.chatLog
         .filter(m => m.sender === 'user' || m.sender === 'bot')
         .map(m => m.sender === 'user' ? `${userName()}: ${m.text}` : `${m.who || charName}: ${m.text}`)
