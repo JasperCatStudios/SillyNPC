@@ -9,6 +9,7 @@ import {
 } from './combat-gear-view.js';
 
 import { PRODUCT_NAME } from './constants.js';
+import { buildArtIcon } from './ui-faction.js';
 /**
  * Weapons and tools on a character's combat sheet (fork).
  *
@@ -151,6 +152,11 @@ export function renderGearBlock(record, type, { commit }) {
         const row = el('div', 'snpc-gear-item');
         const badge = tierBadge(rules, item);
         if (badge) row.append(tierBadgeElement(badge));
+        // The world's picture for this kind of weapon, or a built-in icon, or nothing.
+        try {
+            const icon = buildArtIcon(type, item.kind, { kind: 'kind', title: item.kind, quiet: true });
+            if (icon) row.append(icon);
+        } catch { /* presentation only */ }
         const text = el('div', 'snpc-gear-text');
         text.append(el('strong', '', item.name || item.kind));
         const slot = equippedSlot(gear, item.id);

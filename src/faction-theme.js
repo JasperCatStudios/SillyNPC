@@ -228,9 +228,14 @@ export function iconFor(world, id, { kind = 'prof' } = {}) {
 }
 
 /** The picture for a crest by name ("Crest of Macuil" or "macuil"), or '' when the world has none. */
+/** Crest names whose picture is filed under another spelling. */
+const CREST_FILES = Object.freeze({ ernest: 'earnest', beast: 'thebeast', flame: 'flames' });
+
 export function crestPicture(world, name) {
     const dir = artOf(world).crestsDir || WORLD_ART[worldIdOf(world)]?.crestsDir;
     if (!dir) return '';
-    const words = String(name ?? '').toLowerCase().replace(/crest of|crest|major|minor|the/g, '').trim().split(/[^a-z]+/).filter(Boolean);
-    return words.length ? `${dir}${words[words.length - 1]}.png` : '';
+    const words = String(name ?? '').toLowerCase().replace(/\b(?:crest of|crest|major|minor|the|of)\b/g, '').trim().split(/[^a-z]+/).filter(Boolean);
+    if (!words.length) return '';
+    const last = words[words.length - 1];
+    return `${dir}${CREST_FILES[last] || last}.png`;
 }

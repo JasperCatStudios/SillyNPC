@@ -7,6 +7,7 @@ import {
 } from './combat-access.js';
 
 import { PRODUCT_NAME } from './constants.js';
+import { buildCrestIcon } from './ui-faction.js';
 /**
  * Abilities on screen (fork): a picker for the character page, sorted by category, and the
  * editor for making and changing them, which lives in the Combat tab.
@@ -92,6 +93,10 @@ export function abilityPicker(type, held, onChange) {
                 chip.type = 'button';
                 chip.title = tip(type, a);
                 chip.setAttribute('aria-pressed', held.has(a.id) ? 'true' : 'false');
+                // A crest shows its picture when the world has one; a plain icon or nothing otherwise.
+                if (/^(major |minor )?crest of /i.test(a.label)) {
+                    try { chip.append(buildCrestIcon(type, a.label)); } catch { /* presentation only */ }
+                }
                 chip.append(el('span', 'snpc-abil-name', a.label), el('span', 'snpc-abil-facts', abilityFacts(type, a)));
                 const full = held.size >= MAX_ABILITIES && !held.has(a.id);
                 if (full) { chip.classList.add('is-locked'); chip.title = `${tip(type, a)}\n\nAll ${MAX_ABILITIES} slots are used. Take one off first.`; }
