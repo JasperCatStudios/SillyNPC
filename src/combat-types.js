@@ -1,4 +1,5 @@
 import { validateExpr } from './combat-formula.js';
+import { validateAbilities } from './combat-abilities.js';
 import { resolveBindings, ROLE_SCHEMA_VERSION, PROF_ROLES, STAT_ROLES } from './combat-roles.js';
 import { BUILTIN_TYPES, BUILTIN_IDS } from './combat-builtins.js';
 
@@ -106,6 +107,11 @@ export function validateType(type) {
             if (!check.ok) errors.push(`Resolution "${key}": ${check.error}`);
         }
         if (!list(res.bands).length) errors.push('Resolution has no result bands.');
+        for (const key of ['initiative', 'followUpChance']) {
+            if (!res[key]) continue;
+            const check = validateExpr(String(res[key]), { names: () => true, calls: ['has'] });
+            if (!check.ok) errors.push(`Resolution "${key}": ${check.error}`);
+        }
     }
 
     for (const a of list(type.advantage)) {
@@ -116,6 +122,12 @@ export function validateType(type) {
     const profIds = new Set(profs.map(p => p.id));
     for (const act of list(type.actions)) {
         if (act?.prof && !profIds.has(act.prof)) errors.push(`Action "${act.key}" uses an unknown proficiency.`);
+    }
+
+    {
+        const found = validateAbilities(type, validateExpr);
+        errors.push(...found.errors);
+        warnings.push(...found.warnings);
     }
 
     const cards = type.skillCards;
@@ -152,6 +164,7 @@ export function normalizeType(raw) {
     t.proficiencies = list(t.proficiencies);
     t.advantage = list(t.advantage);
     t.actions = list(t.actions);
+    t.abilities = list(t.abilities);
     t.modifier = t.modifier && typeof t.modifier === 'object' ? t.modifier : { type: 'linear', center: 50, per: 10 };
     t.stakes = { injuries: false, death: false, ...obj(t.stakes) };
     if (t.skillCards !== null && (typeof t.skillCards !== 'object')) t.skillCards = null;

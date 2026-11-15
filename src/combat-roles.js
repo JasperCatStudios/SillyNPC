@@ -25,7 +25,8 @@ export const POOL_ROLES = Object.freeze({
 export const STAT_ROLES = Object.freeze({
     attack: { label: 'Attack', channeled: true, help: 'Damage dealt, per channel.' },
     defense: { label: 'Defense', channeled: true, help: 'Damage soaked, per channel.' },
-    speed: { label: 'Speed', help: 'Initiative and follow-ups.' },
+    initiative: { label: 'Initiative', help: 'Who acts first in the turn order.' },
+    speed: { label: 'Speed', help: 'Chance to strike twice, and to evade.' },
     accuracy: { label: 'Accuracy', help: 'Bonus to hit.' },
     evasion: { label: 'Evasion', help: 'Penalty to the attacker\'s hit.' },
     luck: { label: 'Luck', help: 'Critical and avoidance tweaks.' },
@@ -163,7 +164,7 @@ export function capabilities(type) {
     const roles = type?.roles || {};
     const pools = new Set((type?.pools || []).map(p => p.role));
     return {
-        initiative: hasOwn(roles, 'speed'),
+        initiative: hasOwn(roles, 'initiative') || hasOwn(roles, 'speed'),
         followUps: hasOwn(roles, 'speed'),
         accuracy: hasOwn(roles, 'accuracy'),
         evasion: hasOwn(roles, 'evasion'),
@@ -187,11 +188,19 @@ const channelsOf = (type) => (type?.channels || []).map(c => c.id);
 export function project(data, type) {
     const d = data || {};
     const stats = {};
-    for (const s of type.stats || []) {
+    const given = (s) => {
         const raw = d.stats?.[s.id];
         const n = Number(raw);
-        stats[s.id] = raw === undefined || raw === null || raw === '' || !Number.isFinite(n)
-            ? Number(s.default ?? s.scale?.min ?? 0) : n;
+        return raw === undefined || raw === null || raw === '' || !Number.isFinite(n) ? null : n;
+    };
+    for (const s of type.stats || []) {
+        if (s.defaultFrom) continue;
+        stats[s.id] = given(s) ?? Number(s.default ?? s.scale?.min ?? 0);
+    }
+    // A stat that falls back to another one (so sheets written before it existed keep working).
+    for (const s of type.stats || []) {
+        if (!s.defaultFrom) continue;
+        stats[s.id] = given(s) ?? stats[s.defaultFrom] ?? Number(s.default ?? s.scale?.min ?? 0);
     }
     const meta = {};
     for (const m of type.meta || []) {

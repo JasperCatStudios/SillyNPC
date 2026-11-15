@@ -3,9 +3,13 @@ import { project, ladderOf, rolesUsingStat, PROF_ROLES } from './combat-roles.js
 import { getTypeData, hasTypeData } from './combat-store.js';
 import { detectLegacy } from './combat-migrate.js';
 import { planFromLegacy } from './combat-plan.js';
-import { setStat, setMeta, setRank, removeUnknown, visibleProfs } from './combat-edit.js';
-import { combatPrefs, allTypes } from './combat-access.js';
+import { setStat, setMeta, setRank, setWeapon, setStatus, setAbilities, setXp, setLevel, removeUnknown, visibleProfs } from './combat-edit.js';
+import { combatPrefs, allTypes, activeCombatType, isPersonaChar, setPersonaChar } from './combat-access.js';
 import { runMigration } from './combat-run.js';
+import { generateCombatSheet } from './combat-generate.js';
+import { abilityPicker } from './ui-abilities.js';
+import { STATUS_RUNGS, STATUS_DEFAULT } from './combat-status.js';
+import { XP_PER_LEVEL, readLevel, hasLevelMeta } from './combat-level.js';
 
 /**
  * The Combat block on a character's page and on the player's sheet (fork).
@@ -49,7 +53,44 @@ const field = (label, input, hint) => {
 export function renderCombatSection(record, container, options = {}) {
     if (!container) return;
     container.className = 'sillynpc-editor-field sillynpc-combat-section';
-    container.replaceChildren(el('label', '', 'Combat'));
+    // One line: the heading on the left, "Persona" and its checkbox side by side on the right.
+    const headRow = el('div', 'sillynpc-combat-headrow');
+    headRow.append(el('span', 'sillynpc-combat-headtitle', 'Combat'));
+    if (!record.isPlayer) {
+        const wrap = el('label', 'sillynpc-combat-persona');
+        wrap.title = 'A persona is somebody you can play. When your active persona has this name, you fight with the stats on this character. Characters in the OC category are personas automatically.';
+        const box = el('input');
+        box.type = 'checkbox';
+        box.checked = isPersonaChar(record);
+        box.addEventListener('change', () => setPersonaChar(record, box.checked));
+        wrap.append(el('span', '', 'Persona'), box);
+        headRow.append(wrap);
+    }
+    container.replaceChildren(headRow);
+
+    const genType = activeCombatType();
+    if (genType) {
+        const gen = el('button', 'menu_button', 'Generate from lore');
+        gen.type = 'button';
+        gen.title = 'Writes the combat sheet from their lorebook entry, using the Combat stats connection. Does nothing without a linked entry.';
+        gen.addEventListener('click', async () => {
+            if (!record.lorebook?.world) { toastr.info('Link a lorebook entry on this character first.', 'SillyNPC'); return; }
+            if (hasTypeData(record, genType.dataKey) && !confirm(`Replace values on ${record.name}'s ${genType.name} sheet with generated ones?`)) return;
+            gen.disabled = true;
+            gen.textContent = 'Generating...';
+            try {
+                const out = await generateCombatSheet(record, genType);
+                if (out.reason === 'no-lore') toastr.info('Their lorebook entry is empty or missing, so there is nothing to base stats on.', 'SillyNPC');
+                else if (!out.ok) toastr.warning(out.reason, 'SillyNPC');
+                else { saveSettings(); toastr.success(`Filled ${out.applied} values from their lore.`, 'SillyNPC'); options.onChange?.(); }
+            } catch (err) {
+                console.error('[SillyNPC] combat generation failed', err);
+                toastr.error('Could not generate combat stats.', 'SillyNPC');
+            }
+            renderCombatSection(record, container, options);
+        });
+        container.append(gen);
+    }
 
     const valid = allTypes().filter(t => t.errors.length === 0).map(t => t.type);
     if (!valid.length) {
@@ -167,6 +208,65 @@ function renderType(record, type, rerender, options) {
             row.append(field(m.label, input));
         }
         body.append(row);
+    }
+
+    // Level and experience: 200 XP a level, 15 for every enemy fought.
+    {
+        const row = el('div', 'sillynpc-combat-level');
+        const level = readLevel(type, data);
+        // A type with a Level detail already shows it above; this row only adds it when there is none.
+        if (!hasLevelMeta(type)) {
+            const lv = el('input', 'text_pole');
+            lv.type = 'number'; lv.min = '1'; lv.value = level;
+            lv.addEventListener('change', () => commit(setLevel(record, type, lv.value), null));
+            row.append(field('Level', lv));
+        }
+        const bar = el('div', 'sillynpc-xp');
+        const fill = el('div', 'sillynpc-xp-fill');
+        fill.style.width = `${Math.min(100, ((data.xp || 0) / XP_PER_LEVEL) * 100)}%`;
+        bar.append(fill);
+        const label = el('small', 'notes', `Level ${level}: ${data.xp || 0} / ${XP_PER_LEVEL} XP`);
+        const xp = el('input', 'text_pole');
+        xp.type = 'number'; xp.min = '0'; xp.max = String(XP_PER_LEVEL - 1); xp.value = data.xp || 0;
+        xp.addEventListener('change', () => { commit(setXp(record, type, xp.value), null); rerender(); });
+        const track = el('div', 'sillynpc-xp-wrap');
+        track.append(label, bar);
+        row.append(track, field('XP', xp, 'Progress toward the next level, 0 to 199'));
+        body.append(row);
+    }
+
+    // Weapon: what they fight with in the combat window.
+    {
+        const w = data.weapon || { name: '', prof: '', power: 0 };
+        const row = el('div', 'sillynpc-combat-meta');
+        const nameIn = el('input', 'text_pole');
+        nameIn.placeholder = 'e.g. Dual scimitars';
+        nameIn.value = w.name || '';
+        const profSel = el('select', 'text_pole');
+        profSel.append(new Option('any', ''));
+        for (const p of type.proficiencies) {
+            if ((p.roles || []).some(r => r === 'weapon' || r === 'magic')) profSel.append(new Option(p.label, p.id));
+        }
+        profSel.value = w.prof || '';
+        const powIn = el('input', 'text_pole');
+        powIn.type = 'number';
+        powIn.value = w.power || 0;
+        const save = () => commit(setWeapon(record, type, { name: nameIn.value, prof: profSel.value, power: powIn.value }), null);
+        for (const i of [nameIn, profSel, powIn]) i.addEventListener('change', save);
+        const statusSel = el('select', 'text_pole');
+        for (const g of [...STATUS_RUNGS].reverse()) statusSel.append(new Option(g === STATUS_DEFAULT ? `${g} (healthy)` : g === STATUS_RUNGS[0] ? `${g} (near death)` : g, g));
+        statusSel.value = data.status || STATUS_DEFAULT;
+        statusSel.addEventListener('change', () => commit(setStatus(record, type, statusSel.value), null));
+        row.append(field('Status', statusSel, 'How hurt they are. Fights start from this and update it afterwards. Set S+ to fully rest.'), field('Weapon', nameIn), field('Used with', profSel, 'Only actions of this kind are offered'),
+            field('Power bonus', powIn, 'Added to the power of every attack'));
+        body.append(row);
+    }
+
+    // Abilities this character has, by category, for this world type only.
+    if ((type.abilities || []).length) {
+        body.append(el('div', 'sillynpc-combat-group', 'Abilities'));
+        const held = new Set(data.abilities || []);
+        body.append(abilityPicker(type, held, () => commit(setAbilities(record, type, [...held]), null)));
     }
 
     // Stats, each with what it drives.

@@ -1,4 +1,5 @@
 import { ladderOf, rungIndex } from './combat-roles.js';
+import { isStatus } from './combat-status.js';
 
 /**
  * A character's combat data (fork): char.combat, on character records and the player card.
@@ -25,7 +26,16 @@ const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 
 /** An empty block for one type. A fresh object every time, so callers may edit it. */
 export function emptyTypeData() {
-    return { stats: {}, meta: {}, profs: {}, pools: {}, growth: {}, unknown: {}, history: [] };
+    return { stats: {}, meta: {}, profs: {}, pools: {}, growth: {}, unknown: {}, history: [], weapon: null, status: null, abilities: [], xp: 0, level: null };
+}
+
+/** What a character fights with: a name, the proficiency it uses, and a power bonus. Null when unset. */
+export function normalizeWeapon(raw) {
+    const w = obj(raw);
+    const name = String(w.name ?? '').trim();
+    const prof = String(w.prof ?? '').trim();
+    const power = Number(w.power) || 0;
+    return name || prof || power ? { name, prof, power } : null;
 }
 
 function normalizeTypeData(raw) {
@@ -43,6 +53,11 @@ function normalizeTypeData(raw) {
     out.unknown = { ...obj(d.unknown) };
     out.history = Array.isArray(d.history) ? d.history.slice(-HISTORY_CAP) : [];
     if (d.source && typeof d.source === 'object') out.source = { ...d.source };
+    out.weapon = normalizeWeapon(d.weapon);
+    out.status = isStatus(d.status) ? d.status : null;
+    out.xp = Math.max(0, Math.min(199, Math.floor(Number(d.xp)) || 0));
+    out.level = Number(d.level) >= 1 ? Math.floor(Number(d.level)) : null;
+    out.abilities = Array.isArray(d.abilities) ? [...new Set(d.abilities.map(String))] : [];
     return out;
 }
 

@@ -3,6 +3,10 @@ import { eventSource, event_types, saveSettingsDebounced } from '../../../../../
 // Fork: the opponents are SillyNPC's characters, not SillyTavern's cards.
 import { phoneCharacters as characters, activeCharacterNames, lastTaggedSpeaker } from '../shim.js';
 import { contextBlocks } from '../../src/context-blocks.js';
+import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
+import { addRecord, tallyFor, rivalryBlock } from '../../src/rivalry.js';
+import { tallyText } from '../../src/rivalry-core.js';
+import { openRivalryEditor } from '../../src/ui-rivalry.js';
 
 const MODULE_NAME = 'sillynpc_games';
 
@@ -388,6 +392,7 @@ Game chat so far:
 ${gameHistoryText}
 
 Hidden attitude: ${moodHint} (${gameState.disposition.reason})
+${rivalryBlock(charName, userName())}
 
 Task: react to this game event, in character, spoken aloud.
 Event: ${gameEvent}
@@ -395,14 +400,15 @@ Event: ${gameEvent}
 Rules:
 1. Speak as "${charName}", in ${langName()}, stay in character.
 2. Very short (1-2 sentences).
-3. Output ONLY the spoken line — no code, no coordinates, no stage directions.`;
+3. ${DIALOGUE_RULE}`;
 
     addGameChatMessage('typing', t('thinking', {name: charName}));
     try {
         const comment = await callApi([{ role: 'system', content: systemPrompt }], { maxTokens: 100 });
         removeTypingIndicator();
-        if (comment) addGameChatMessage('bot', comment, charName);
-        return comment || null;
+        const line = dialogueOnly(comment, charName);
+        if (line) { addGameChatMessage('bot', line, charName); speakLine(charName, line); }
+        return line || null;
     } catch (e) {
         removeTypingIndicator();
         console.error("Commentary error:", e);
@@ -1491,7 +1497,24 @@ function renderBottleArea(canvas) {
 /* ============================================================
    RESULT
    ============================================================ */
+let recordedFor = -1;
+function recordGameResult() {
+    if (recordedFor === gameSession) return;
+    recordedFor = gameSession;
+    try {
+        const type = gameState.gameType;
+        const key = `g_${type}`;
+        const label = (t(key) && t(key) !== key) ? t(key) : (type || 'Game');
+        const result = gameState.winner === 'user' ? 'won' : gameState.winner === 'bot' ? 'lost' : 'draw';
+        addRecord({
+            kind: 'game', game: label, opponent: gameState.opponentName, player: userName(), result,
+            summary: `${userName()} ${result === 'won' ? 'beat' : result === 'lost' ? 'lost to' : 'drew with'} ${gameState.opponentName} at ${label}.`,
+        });
+    } catch (e) { console.warn('[Games] could not record the result', e); }
+}
+
 function resolveGame() {
+    recordGameResult();
     let resultText = "";
     if (gameState.winner === 'user') resultText = t('result_win');
     else if (gameState.winner === 'bot') resultText = t('result_lose', {name: gameState.opponentName});
@@ -1517,6 +1540,7 @@ function renderGameArea() {
         canvas.html(`
             <div class="rpg-menu-container">
                 <div class="rpg-menu-title">${t('menu_title', {name: escapeHtml(gameState.opponentName)})}</div>
+                <div class="rpg-menu-history"><small>Record against ${escapeHtml(gameState.opponentName)}: ${escapeHtml(tallyText(tallyFor(gameState.opponentName)))}</small> <button class="rpg-game-select-btn" id="rpg-history-btn" style="width:auto;padding:2px 10px"><i class="fa-solid fa-scroll"></i> History</button></div>
                 <button class="rpg-game-select-btn" data-game="chess"><i class="fa-solid fa-chess"></i> ${t('g_chess')}</button>
                 <button class="rpg-game-select-btn" data-game="bj"><i class="fa-solid fa-clone"></i> ${t('g_bj')}</button>
                 <button class="rpg-game-select-btn" data-game="poker"><i class="fa-solid fa-diamond"></i> ${t('g_poker')}</button>
@@ -1529,13 +1553,16 @@ function renderGameArea() {
             </div>
         `);
         $('.rpg-game-select-btn[data-game]').on('click', function () { startGame($(this).data('game')); });
+        $('#rpg-history-btn').on('click', () => openRivalryEditor(gameState.opponentName));
         return;
     }
 
     canvas.append(`
         <button class="rpg-back-btn" id="rpg-back-btn"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>
         <button class="rpg-surrender-btn" id="rpg-surrender-btn"><i class="fa-solid fa-flag"></i> ${t('surrender')}</button>
+        <button class="rpg-hist-btn" id="rpg-hist-btn" title="Past games and fights in this chat"><i class="fa-solid fa-scroll"></i> History</button>
     `);
+    $('#rpg-hist-btn').on('click', () => openRivalryEditor(gameState.opponentName));
     $('#rpg-back-btn').on('click', () => {
         gameSession++;                 // kill pending bot-turn timers
         gameState.active = false;
@@ -2006,6 +2033,7 @@ function renderSettingsUI() {
         $('#rpg-game-modal').remove();
     });
     const profileSelect = $('#rpg-game-profile');
+    profileSelect.hide().prev('h4').hide(); // chosen on the Connections tab
     profileSelect.append(new Option('Main API (same as chat)', ''));
     try {
         getContext().ConnectionManagerRequestService.getSupportedProfiles()

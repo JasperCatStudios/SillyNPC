@@ -1,4 +1,6 @@
 import { ROLE_SCHEMA_VERSION } from './combat-roles.js';
+import { FE_ABILITIES } from './combat-abilities-fe.js';
+import { BLEACH_ABILITIES } from './combat-abilities-bleach.js';
 
 /**
  * The combat world types that ship with the extension (fork).
@@ -37,6 +39,7 @@ const FE = {
         { id: 'mag', label: 'Magic', abbr: 'MAG', scale: { min: 0, max: 100 }, default: 20 },
         { id: 'dex', label: 'Dexterity', abbr: 'DEX', scale: { min: 0, max: 100 }, default: 20 },
         { id: 'spd', label: 'Speed', abbr: 'SPD', scale: { min: 0, max: 100 }, default: 20 },
+        { id: 'ini', label: 'Initiative', abbr: 'INI', scale: { min: 0, max: 100 }, default: 20, defaultFrom: 'spd', aliases: ['Initiative'] },
         { id: 'lck', label: 'Luck', abbr: 'LCK', scale: { min: 0, max: 100 }, default: 20 },
         { id: 'def', label: 'Defence', abbr: 'DEF', scale: { min: 0, max: 100 }, default: 20 },
         { id: 'res', label: 'Resistance', abbr: 'RES', scale: { min: 0, max: 100 }, default: 20 },
@@ -52,6 +55,7 @@ const FE = {
         attack: { physical: 'stat.str', magic: 'stat.mag' },
         defense: { physical: 'stat.def', magic: 'stat.res' },
         speed: 'stat.spd',
+        initiative: 'stat.ini',
         accuracy: 'stat.dex',
         evasion: 'stat.spd + stat.lck/2',
         luck: 'stat.lck',
@@ -99,6 +103,7 @@ const FE = {
         { key: 'iron_bow', label: 'Iron Bow', prof: 'bow', power: 5 },
         { key: 'fire', label: 'Fire', prof: 'reason', power: 5, cost: { pool: 'guard', amount: 0 } },
     ],
+    abilities: FE_ABILITIES,
     resolution: {
         mode: 'threshold',
         roll: 'd20 + diff + (a.prof.bonus - d.prof.bonus) + (a.speed >= d.speed + 15 ? 2 : (a.speed <= d.speed - 15 ? -2 : 0)) + a.mod.accuracy - d.mod.evasion + adv.hit',
@@ -110,9 +115,10 @@ const FE = {
         ],
         natural: { 1: 'miss', 20: 'crit' },
         damage: 'max(1, round((act.power + a.attack/3) * adv.dmgMult * band.mult - d.defense/3))',
-        bandMult: { miss: 0, hit: 1, strong: 1.5, crit: 3 },
-        initiative: 'a.speed + d10',
-        followUp: 'a.speed >= d.speed + 20',
+        bandMult: { miss: 0, hit: 1, strong: 1.5, crit: 2 },
+        initiative: 'a.initiative + d10',
+        // Speed over the opponent's is the chance to strike twice.
+        followUpChance: 'clamp((a.speed - d.speed) * 0.8, 0, 50)',
         difficulty: [
             { level: 1, mod: 1 }, { level: 2, mod: 0 }, { level: 3, mod: 0 },
             { level: 4, mod: -1 }, { level: 5, mod: -2 },
@@ -175,12 +181,14 @@ const BLEACH = {
         { id: 'offense', label: 'Offense', abbr: 'OFF', scale: { min: 0, max: 100 }, default: 40, aliases: ['Attack'] },
         { id: 'defense', label: 'Defense', abbr: 'DEF', scale: { min: 0, max: 100 }, default: 40 },
         { id: 'mobility', label: 'Mobility', abbr: 'MOB', scale: { min: 0, max: 100 }, default: 40 },
+        { id: 'initiative', label: 'Initiative', abbr: 'INI', scale: { min: 0, max: 100 }, default: 40, defaultFrom: 'mobility' },
         { id: 'kido', label: 'Kidō', abbr: 'KID', scale: { min: 0, max: 100 }, default: 40, aliases: ['Kido'] },
         { id: 'intellect', label: 'Intellect', abbr: 'INT', scale: { min: 0, max: 100 }, default: 40 },
         { id: 'endurance', label: 'Endurance', abbr: 'END', scale: { min: 0, max: 100 }, default: 40 },
         { id: 'reiatsu', label: 'Reiatsu', abbr: 'REI', scale: { min: 0, max: 100 }, default: 40 },
     ],
     meta: [
+        { id: 'level', label: 'Level', type: 'number', min: 1, max: 99, default: 1, aliases: ['Level'] },
         { id: 'tier', label: 'Tier', type: 'choice', options: ['S', 'A', 'B', 'C', 'D'], default: 'C' },
         {
             id: 'faction', label: 'Faction', type: 'choice', default: 'Shinigami',
@@ -196,11 +204,13 @@ const BLEACH = {
         attack: { physical: 'stat.offense', spiritual: 'stat.kido*0.7 + stat.reiatsu*0.3' },
         defense: { physical: 'stat.defense', spiritual: 'stat.defense*0.4 + stat.reiatsu*0.6' },
         speed: 'stat.mobility',
+        initiative: 'stat.initiative',
         evasion: 'stat.mobility*0.8 + stat.intellect*0.2',
         accuracy: 'stat.intellect*0.5 + stat.mobility*0.5',
         awareness: 'stat.intellect',
         presence: 'stat.reiatsu',
         endurance: 'stat.endurance',
+        level: 'meta.level',
         tier: 'meta.tier',
         faction: 'meta.faction',
     },
@@ -228,7 +238,7 @@ const BLEACH = {
        the lore has no Kidō or Intellect as such, so Intelligence feeds Kidō and Wisdom Intellect. */
     loreImport: {
         statMap: {
-            CON: ['endurance', 'defense'], STR: ['offense'], DEX: ['mobility'],
+            CON: ['endurance', 'defense'], STR: ['offense'], DEX: ['mobility', 'initiative'],
             WIS: ['intellect'], INT: ['kido'], CHA: ['reiatsu'],
         },
         scale: { from: [1, 15], to: [0, 100] },
@@ -237,10 +247,11 @@ const BLEACH = {
     actions: [
         { key: 'slash', label: 'Slash', prof: 'zanjutsu' },
         { key: 'strike', label: 'Strike', prof: 'hakuda' },
-        { key: 'kido_bolt', label: 'Kidō Bolt', prof: 'kido', cost: { pool: 'resource', amount: 6 } },
-        { key: 'cero', label: 'Cero', prof: 'cero', cost: { pool: 'resource', amount: 12 } },
-        { key: 'bala', label: 'Bala', prof: 'bala', cost: { pool: 'resource', amount: 6 } },
+        { key: 'kido_bolt', label: 'Kidō Bolt', prof: 'kido', power: 2, cost: { pool: 'resource', amount: 10 } },
+        { key: 'cero', label: 'Cero', prof: 'cero', power: 6, cost: { pool: 'resource', amount: 18 } },
+        { key: 'bala', label: 'Bala', prof: 'bala', cost: { pool: 'resource', amount: 5 } },
     ],
+    abilities: BLEACH_ABILITIES,
     resolution: {
         mode: 'opposed',
         roll: 'd20 + diff + a.mod.roll + a.prof.bonus',
@@ -251,10 +262,13 @@ const BLEACH = {
             { upTo: 999, result: 'crit' },
         ],
         natural: { 20: 'crit' },
-        damage: 'max(1, round(band.base + a.attack*0.25 - d.defense*0.15))',
+        // Power counts here too, so Cero and Getsuga Tenshō hit harder than a plain slash.
+        damage: 'max(1, round(band.base + act.power + a.attack*0.25 - d.defense*0.15))',
         bandBase: { stalemate: 0, miss: 0, hit: 6, strong: 10, crit: 16 },
-        initiative: 'a.speed + d10',
-        followUp: 'a.speed >= d.speed + 20',
+        initiative: 'a.initiative + d10',
+        // Speed over the opponent's is the chance to strike twice, for a weaker second blow.
+        followUpChance: 'clamp((a.speed - d.speed) * 0.2, 0, 10)',
+        followUpMult: 0.5,
         difficulty: [
             { level: 1, mod: 1 }, { level: 2, mod: 0 }, { level: 3, mod: 0 },
             { level: 4, mod: -1 }, { level: 5, mod: -2 },

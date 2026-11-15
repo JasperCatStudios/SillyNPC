@@ -1,5 +1,8 @@
 import { ladderOf, rungIndex } from './combat-roles.js';
-import { emptyTypeData, normalizeCombatBlock } from './combat-store.js';
+import { emptyTypeData, normalizeCombatBlock, normalizeWeapon } from './combat-store.js';
+import { isStatus } from './combat-status.js';
+import { MAX_ABILITIES } from './combat-abilities.js';
+import { applyXp, readLevel, hasLevelMeta, XP_PER_LEVEL } from './combat-level.js';
 
 /**
  * Editing a character's combat data by hand (fork).
@@ -138,6 +141,105 @@ export function removeUnknown(record, type, key, at = Date.now()) {
     delete data.unknown[key];
     log(data, `unknown.${key}`, from, null, at);
     return { ok: true, from };
+}
+
+/**
+ * Writes the current value of each pool after a blow. No history entry: a fight logs itself,
+ * and a pool ticking down every exchange would flood the edit history. Unknown roles are ignored.
+ *
+ * @param {object} record
+ * @param {object} type
+ * @param {Record<string, number>} currents role -> current value
+ * @returns {string[]} Roles that changed.
+ */
+export function setPoolCurrents(record, type, currents) {
+    const known = new Set((type?.pools || []).map(p => p.role));
+    const data = ensureTypeData(record, type.dataKey);
+    const changed = [];
+    for (const [role, cur] of Object.entries(currents || {})) {
+        if (!known.has(role)) continue;
+        const next = Math.max(0, Math.round(Number(cur)));
+        if (!Number.isFinite(next) || data.pools[role] === next) continue;
+        data.pools[role] = next;
+        changed.push(role);
+    }
+    return changed;
+}
+
+/** Writes a level where the type keeps it. */
+function writeLevel(data, type, level) {
+    if (hasLevelMeta(type)) data.meta.level = level; else data.level = level;
+}
+
+/**
+ * Gives XP. Filling the bar raises the level by one each time, and the level goes where the
+ * type keeps it. Returns what happened, for showing.
+ */
+export function addXp(record, type, gain, at = Date.now()) {
+    const data = ensureTypeData(record, type.dataKey);
+    const before = { level: readLevel(type, data), xp: data.xp || 0 };
+    const next = applyXp(before.level, before.xp, gain);
+    data.xp = next.xp;
+    writeLevel(data, type, next.level);
+    log(data, 'xp', `${before.xp}`, `${next.xp}`, at);
+    return { ok: true, gained: Math.max(0, Math.floor(Number(gain)) || 0), level: next.level, xp: next.xp, levelsGained: next.levelsGained };
+}
+
+/** Sets the progress toward the next level by hand, 0 to 199. */
+export function setXp(record, type, xp, at = Date.now()) {
+    const data = ensureTypeData(record, type.dataKey);
+    const next = Math.max(0, Math.min(XP_PER_LEVEL - 1, Math.floor(Number(xp)) || 0));
+    if ((data.xp || 0) !== next) { log(data, 'xp', `${data.xp || 0}`, `${next}`, at); data.xp = next; }
+    return { ok: true, xp: next };
+}
+
+/** Sets the level by hand. */
+export function setLevel(record, type, level, at = Date.now()) {
+    const data = ensureTypeData(record, type.dataKey);
+    const next = Math.max(1, Math.floor(Number(level)) || 1);
+    const from = readLevel(type, data);
+    if (from !== next) { log(data, 'level', `${from}`, `${next}`, at); writeLevel(data, type, next); }
+    return { ok: true, level: next };
+}
+
+/** Sets which of the type's abilities the character has. Unknown ids are refused. */
+export function setAbilities(record, type, ids, at = Date.now()) {
+    const known = new Set((type.abilities || []).map(a => a.id));
+    const next = [...new Set((ids || []).map(String))].filter(id => known.has(id));
+    if (next.length > MAX_ABILITIES) return { ok: false, reason: `At most ${MAX_ABILITIES} abilities can be equipped.` };
+    const data = ensureTypeData(record, type.dataKey);
+    const from = [...(data.abilities || [])];
+    if (JSON.stringify(from) !== JSON.stringify(next)) {
+        data.abilities = next;
+        log(data, 'abilities', from.join(', ') || null, next.join(', ') || null, at);
+    }
+    return { ok: true, from, to: next };
+}
+
+/** Sets the condition grade (E- near death ... S+ healthy). Blank clears it, which reads as S+. */
+export function setStatus(record, type, grade, at = Date.now()) {
+    const next = grade === '' || grade === null || grade === undefined ? null : String(grade);
+    if (next !== null && !isStatus(next)) return { ok: false, reason: 'That is not a status grade.' };
+    const data = ensureTypeData(record, type.dataKey);
+    const from = data.status ?? null;
+    if (from !== next) {
+        data.status = next;
+        log(data, 'status', from, next, at);
+    }
+    return { ok: true, from, to: next };
+}
+
+/** Sets what the character fights with. All blank clears it. */
+export function setWeapon(record, type, weapon, at = Date.now()) {
+    const next = normalizeWeapon(weapon);
+    if (next?.prof && !(type.proficiencies || []).some(p => p.id === next.prof)) {
+        return { ok: false, reason: 'That type has no such proficiency.' };
+    }
+    const data = ensureTypeData(record, type.dataKey);
+    const from = data.weapon || null;
+    data.weapon = next;
+    log(data, 'weapon', from, next, at);
+    return { ok: true, from, to: next };
 }
 
 /** The proficiencies worth showing for a character under a type: its skill card, plus any it holds. */

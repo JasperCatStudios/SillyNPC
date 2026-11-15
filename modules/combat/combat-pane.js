@@ -1,13 +1,18 @@
 import { getSettings, saveSettings } from '../../src/settings.js';
 import { getPlayerCard } from '../../src/status-logic.js';
 import { STAT_ROLES, POOL_ROLES, project, roleLabel, capabilities, ladderOf } from '../../src/combat-roles.js';
-import { setStat, setMeta, setRank } from '../../src/combat-edit.js';
-import { getTypeData, hasTypeData } from '../../src/combat-store.js';
+import { setStat, setMeta, setRank, setStatus } from '../../src/combat-edit.js';
+import { STATUS_RUNGS, STATUS_DEFAULT } from '../../src/combat-status.js';
+import { getTypeData, hasTypeData, emptyTypeData } from '../../src/combat-store.js';
 import { detectLegacy, legacyPreviewData } from '../../src/combat-migrate.js';
 import {
     combatPrefs, allTypes, activeCombatType, setActiveCombatType, setCombatEnabled,
+    personaRecordFor, isCombatDisabled, isCombatHidden,
 } from '../../src/combat-access.js';
 import { renderMigrationList, openLegacyMigration } from './migration-ui.js';
+import { renderAbilityEditor } from '../../src/ui-abilities.js';
+import { renderHistoryView } from '../../src/ui-history-inject.js';
+import { renderCombatButton } from './combat-window.js';
 
 /**
  * The Combat tab (fork), base module: pick a world type, see how it maps roles to its own
@@ -41,7 +46,11 @@ function makeEditable(td, { record, type, kind, id, legacy, rerender }) {
 
         const data = getTypeData(record, type.dataKey);
         let input;
-        if (kind === 'rank') {
+        if (kind === 'status') {
+            input = el('select', 'text_pole');
+            for (const g of [...STATUS_RUNGS].reverse()) input.append(new Option(g, g));
+            input.value = data.status || STATUS_DEFAULT;
+        } else if (kind === 'rank') {
             const prof = type.proficiencies.find(p => p.id === id);
             input = el('select', 'text_pole');
             input.append(new Option('-', ''));
@@ -69,7 +78,8 @@ function makeEditable(td, { record, type, kind, id, legacy, rerender }) {
             if (done) return;
             done = true;
             if (save) {
-                const result = kind === 'stat' ? setStat(record, type, id, input.value)
+                const result = kind === 'status' ? setStatus(record, type, input.value)
+                    : kind === 'stat' ? setStat(record, type, id, input.value)
                     : kind === 'meta' ? setMeta(record, type, id, input.value)
                         : setRank(record, type, id, input.value);
                 if (!result.ok) toastr.warning(result.reason, 'SillyNPC');
@@ -108,7 +118,7 @@ function renderSettings(host, rerender) {
         select.append(option);
     }
     select.value = prefs.activeType;
-    select.addEventListener('change', () => { setActiveCombatType(select.value); rerender(); });
+    select.addEventListener('change', () => { setActiveCombatType(select.value); renderCombatButton(); rerender(); });
     row.append(select);
     host.append(row);
 
@@ -199,14 +209,23 @@ function dataFor(record, type) {
     return { data: null, legacy: false };
 }
 
+let showHidden = false;
+
 function rosterRecords() {
     const list = [];
+    let playerRecord = null;
     try {
-        const player = getPlayerCard();
-        if (player?.name) list.push({ record: player, player: true });
+        const card = getPlayerCard();
+        if (card?.name) {
+            // A persona character with the player's name stands in for the card: same stats.
+            playerRecord = personaRecordFor(card.name) || card;
+            list.push({ record: playerRecord, player: true });
+        }
     } catch { /* no persona yet */ }
     for (const record of getSettings().characters || []) {
-        if (record?.name) list.push({ record, player: false });
+        if (!record?.name || record === playerRecord) continue;
+        if (isCombatHidden(record) && !showHidden) continue;
+        list.push({ record, player: false });
     }
     return list;
 }
@@ -245,12 +264,14 @@ function renderRoster(host, rerender) {
 
     const head = el('tr');
     head.append(el('th', '', 'Name'));
+    head.append(el('th', '', 'On'));
     for (const col of pinned) head.append(el('th', 'is-pinned', col.label));
     for (const s of type.stats) {
         const th = el('th', '', s.abbr || s.label);
         th.title = s.label;
         head.append(th);
     }
+    head.append(el('th', '', 'Status'));
     for (const m of type.meta) head.append(el('th', '', m.label));
     for (const p of profs) {
         const th = el('th', 'is-prof', p.abbr || p.label);
@@ -259,20 +280,33 @@ function renderRoster(host, rerender) {
     }
     table.append(head);
 
-    for (const { record, player, data, legacy } of rows) {
+    for (const { record, player, data: rowData, legacy } of rows) {
         const tr = el('tr', legacy ? 'is-legacy' : '');
         const name = el('td', 'sillynpc-combat-name', record.name);
         if (player) name.append(badge('you', 'info'));
         if (legacy) name.append(badge('legacy, not migrated', 'muted'));
         tr.append(name);
+        if (isCombatDisabled(record)) tr.classList.add('is-disabled');
+        if (isCombatHidden(record)) name.append(badge('hidden', 'muted'));
 
-        if (!data) {
-            const empty = el('td', 'notes', 'no combat data');
-            empty.colSpan = pinned.length + type.stats.length + type.meta.length + profs.length;
-            tr.append(empty);
-            table.append(tr);
-            continue;
+        const ctl = el('td', 'sillynpc-combat-ctl');
+        if (!player) {
+            const box = el('input');
+            box.type = 'checkbox';
+            box.checked = !isCombatDisabled(record);
+            box.title = 'Off: not offered as an opponent';
+            box.addEventListener('change', () => { record.combatDisabled = !box.checked; saveSettings(); rerender(); });
+            ctl.append(box);
+            const hide = el('button', 'menu_button', isCombatHidden(record) ? 'Restore' : '✕');
+            hide.type = 'button';
+            hide.title = isCombatHidden(record) ? 'Show in the roster again' : 'Remove from the roster (the character is kept)';
+            hide.addEventListener('click', () => { record.combatHidden = !isCombatHidden(record); saveSettings(); rerender(); });
+            ctl.append(hide);
         }
+        tr.insertBefore(ctl, tr.children[1] || null);
+
+        // No data yet: show blank, editable cells. The first edit creates the block.
+        const data = rowData || emptyTypeData();
 
         const c = project(data, type);
         for (const col of pinned) tr.append(el('td', 'is-pinned', String(col.value(c) ?? '-')));
@@ -280,6 +314,11 @@ function renderRoster(host, rerender) {
             const has = data.stats[s.id] !== undefined;
             const td = el('td', has ? '' : 'is-blank', has ? String(data.stats[s.id]) : '-');
             makeEditable(td, { record, type, kind: 'stat', id: s.id, legacy, rerender });
+            tr.append(td);
+        }
+        {
+            const td = el('td', '', data.status || STATUS_DEFAULT);
+            makeEditable(td, { record, type, kind: 'status', id: 'status', legacy, rerender });
             tr.append(td);
         }
         for (const m of type.meta) {
@@ -299,6 +338,14 @@ function renderRoster(host, rerender) {
     scroller.append(table);
     host.append(scroller);
 
+    const hiddenCount = (getSettings().characters || []).filter(isCombatHidden).length;
+    if (hiddenCount) {
+        const toggle = el('button', 'menu_button', showHidden ? 'Hide removed characters' : `Show ${hiddenCount} removed`);
+        toggle.type = 'button';
+        toggle.addEventListener('click', () => { showHidden = !showHidden; rerender(); });
+        host.append(toggle);
+    }
+
     const legacyCount = rows.filter(r => r.legacy).length;
     if (legacyCount) {
         const note = el('div', 'sillynpc-combat-banner');
@@ -317,6 +364,8 @@ function renderRoster(host, rerender) {
 const VIEWS = [
     { id: 'settings', label: 'Settings', render: renderSettings },
     { id: 'roster', label: 'Roster', render: renderRoster },
+    { id: 'abilities', label: 'Abilities', render: renderAbilityEditor },
+    { id: 'history', label: 'History', render: renderHistoryView },
 ];
 let activeView = 'settings';
 
@@ -327,7 +376,7 @@ let activeView = 'settings';
  */
 export function renderCombatPane(pane, { live, head, makeSwitch }) {
     if (typeof makeSwitch === 'function') {
-        head.append(makeSwitch(combatPrefs().enabled, (on) => setCombatEnabled(on)));
+        head.append(makeSwitch(combatPrefs().enabled, (on) => { setCombatEnabled(on); renderCombatButton(); }));
     }
 
     const bar = el('div', 'sillynpc-combat-views');

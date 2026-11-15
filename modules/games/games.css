@@ -125,6 +125,17 @@
     box-shadow: 0 2px 3px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .rpg-surrender-btn:hover { filter: brightness(1.08); }
+/* History, beside Surrender, during a game */
+.rpg-hist-btn {
+    position: absolute; top: 12px; right: 128px; z-index: 5;
+    padding: 6px 12px; border-radius: 7px; cursor: pointer;
+    font-weight: 600; font-size: 0.8rem; color: #5a5446;
+    border: 1px solid #cabd97;
+    background: linear-gradient(180deg, #f3ead6, #e7d9bb);
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 2px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+.rpg-hist-btn:hover { filter: brightness(1.04); color: #2b2924; }
 .rpg-summary-btn {
     position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(180deg, #5f7e33, #496226); border: 1px solid rgba(0,0,0,0.25);

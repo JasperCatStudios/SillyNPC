@@ -7,8 +7,8 @@ import { STAT_ROLES } from './combat-roles.js';
  * This is the smallest piece of the fight engine: given two projected combatants, an action
  * and a random source, it says what band the attack landed in and how much damage it did. It
  * reads roles only, so Fire Emblem's threshold roll and Bleach's opposed roll go through the
- * same code with different formulas. Turn order, pools, abilities and the battle window build
- * on this later.
+ * same code with different formulas. Turn order and pools are combat-fight.js; the battle
+ * window is modules/combat/combat-window.js. Abilities come later.
  *
  * Pure: no DOM, no SillyTavern imports.
  */
@@ -16,7 +16,7 @@ import { STAT_ROLES } from './combat-roles.js';
 const has = (side, tag) => Boolean(side?.tagSet?.has(String(tag)));
 const FNS = { has };
 
-const ROLL_ROLES = ['speed', 'accuracy', 'evasion', 'luck', 'presence', 'awareness', 'endurance'];
+const ROLL_ROLES = ['initiative', 'speed', 'accuracy', 'evasion', 'luck', 'presence', 'awareness', 'endurance'];
 
 /** The proficiency a defender is assumed to fight with when none is named: their best. */
 function bestProf(c) {
@@ -125,6 +125,48 @@ export function resolveAttack(type, attacker, defender, act, opts) {
     return { band, total, natural, damage, advantage: adv, ...(margin === undefined ? {} : { margin }) };
 }
 
+/**
+ * Initiative for one combatant, by the type's own formula (usually speed plus a die).
+ * Rolls with the supplied rng, so a battle stays replayable from its seed.
+ */
+export function rollInitiative(type, combatant, rng) {
+    const expr = type?.resolution?.initiative || 'a.initiative';
+    const prof = bestProf(combatant);
+    const a = sideContext(combatant, prof, prof?.channel);
+    return Number(run(expr, { a }, { rng, fns: FNS })) || 0;
+}
+
+/** An ability's chance formula (0 to 100), read over the owner's roles. */
+export function abilityChance(expr, owner, other) {
+    return Number(run(expr, {
+        a: sideContext(owner, bestProf(owner), bestProf(owner)?.channel),
+        d: sideContext(other, bestProf(other), bestProf(other)?.channel),
+    }, { fns: FNS })) || 0;
+}
+
+/** Whether this attacker strikes again before the defender acts, by the type's follow-up rule. */
+export function grantsFollowUp(type, attacker, defender, rng) {
+    // A chance (0 to 100) rolled from the fight's own random source, or the older yes/no rule.
+    const chance = type?.resolution?.followUpChance;
+    if (chance && typeof rng === 'function') {
+        const aP = bestProf(attacker);
+        const dP = bestProf(defender);
+        const pct = Math.max(0, Math.min(100, Number(run(chance, {
+            a: sideContext(attacker, aP, aP?.channel),
+            d: sideContext(defender, dP, dP?.channel),
+        }, { fns: FNS })) || 0));
+        return rng() * 100 < pct;
+    }
+    const expr = type?.resolution?.followUp;
+    if (!expr) return false;
+    const aProf = bestProf(attacker);
+    const dProf = bestProf(defender);
+    return Boolean(run(expr, {
+        a: sideContext(attacker, aProf, aProf?.channel),
+        d: sideContext(defender, dProf, dProf?.channel),
+    }, { fns: FNS }));
+}
+
 /** A generator that returns a fixed die face, for enumerating outcomes. */
 function fixedFaces(faces, sides) {
     let i = 0;
@@ -147,9 +189,11 @@ export function previewOdds(type, attacker, defender, act, opts = {}) {
     let min = Infinity;
     let max = 0;
     let n = 0;
+    let sum = 0;
     const record = (r) => {
         odds[r.band] = (odds[r.band] || 0) + 1;
         n++;
+        sum += r.damage;
         if (r.damage > 0) { min = Math.min(min, r.damage); max = Math.max(max, r.damage); }
     };
     for (let face = 1; face <= sides; face++) {
@@ -164,7 +208,7 @@ export function previewOdds(type, attacker, defender, act, opts = {}) {
         }
     }
     for (const k of Object.keys(odds)) odds[k] /= n;
-    return { odds, damage: { min: Number.isFinite(min) ? min : 0, max } };
+    return { odds, expected: n ? sum / n : 0, damage: { min: Number.isFinite(min) ? min : 0, max } };
 }
 
 export { STAT_ROLES };
