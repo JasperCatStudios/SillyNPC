@@ -43,7 +43,6 @@ import { initInternalStates } from './src/internal-states.js';
 import { initBonds } from './src/bonds.js';
 import { initVitals } from './src/vitals.js';
 import { initVitalsSection } from './src/vitals-section.js';
-import { initLocationBackgrounds } from './src/location-backgrounds.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
@@ -438,7 +437,6 @@ jQuery(async () => {
             try {
                 initVitals();
                 initVitalsSection();
-                initLocationBackgrounds();
             } catch (vitalsErr) {
                 console.error(LOG_PREFIX, 'initVitals failed', vitalsErr);
             }
@@ -455,7 +453,7 @@ jQuery(async () => {
             // failing, or one folder missing, takes nothing else with it.
             // A failure is said out loud (console and one toast) and kept, so the Modules tab can
             // show the real error where the module's pane should be.
-            for (const name of ['phone', 'games', 'combat', 'locations']) {
+            for (const name of ['phone', 'games', 'combat']) {
                 recordModuleLoad(name, 'loading');
                 import(`./modules/${name}/${name}.js`)
                     .then(() => {

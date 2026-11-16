@@ -36,14 +36,6 @@ export const MODULES = [
         content: '.inline-drawer-content',
     },
     {
-        id: 'locations',
-        name: 'Location backgrounds',
-        icon: 'fa-image',
-        blurb: 'Switch the chat background when the tracker Location changes, from a table of places and pictures.',
-        render: true,
-        noContext: true,
-    },
-    {
         id: 'combat',
         name: 'Combat',
         icon: 'fa-khanda',
