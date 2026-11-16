@@ -2232,6 +2232,10 @@ async function runGenQueue() {
                     const why = selfieNotUsedBecause(m);
                     if (why) toastr.warning(`A selfie was asked for, but ${why.charAt(0).toLowerCase()}${why.slice(1)}`, '', { preventDuplicates: true });
                 }
+                if (extras.selfie) {
+                    const sw = String(imgConn().comfy?.selfieWorkflow || '');
+                    if (!sw.includes('%image%') && !sw.includes('%sheet%')) toastr.warning("The selfie workflow in use has no image input, so the character's picture is not sent to it. Pick your selfie workflow in the Selfie drop-down.", '', { preventDuplicates: true });
+                }
                 console.info('[Phone] picture drawn by', extras.selfie ? 'the selfie workflow' : (String(imgConn().comfy?.workflow || '').trim() ? 'the general workflow' : 'the built-in graph'), '| request:', m.req ? m.req.mode : 'none');
                 const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, extras);
                 const key = newImgKey();
@@ -5440,6 +5444,8 @@ function setupImageUI() {
             else if (!cur && String(cc[s.key] || '').trim()) html += `<option value="__unsaved" selected>(loaded, not saved yet)</option>`;
             $(s.pick).html(html).val(cur || (String(cc[s.key] || '').trim() ? '__unsaved' : ''));
         }
+        const same = String(cc.workflow || '').trim() && String(cc.workflow || '').trim() === String(cc.selfieWorkflow || '').trim();
+        if (same) $('#rph-comfy-selfie-note').text('The selfie workflow is the same as the general workflow, so selfies do not get their own. Pick your selfie workflow in this drop-down.');
     };
     const loadFiles = async () => {
         try { wfFiles = await wfList(); } catch (e) { wfFiles = []; console.warn('[Phone] workflow files unavailable', e); }
