@@ -1986,6 +1986,11 @@ async function sheetFor(name) {
     return null;
 }
 /** A picture of the contact, with a selfie workflow set up: that workflow draws it, from the character sheet. */
+/** The workflow text that will draw this picture: the selfie workflow, the general one, or '' for the built-in graph. */
+function activeWorkflowText(m) {
+    const c = imgConn().comfy || {};
+    return usesSelfieWorkflow(m) ? String(c.selfieWorkflow || '') : String(c.workflow || '');
+}
 function usesSelfieWorkflow(m) {
     if (detectImageMode() !== 'comfy' || !m) return false;
     const c = imgConn().comfy || {};
@@ -2082,8 +2087,8 @@ function sdLook(name) {
 function requestedPrompt(m) {
     const cfg = imgCfg();
     const mode = detectImageMode();
-    // the selfie workflow takes a sentence, not tags
-    const tags = (mode === 'sd' || mode === 'comfy') && !usesSelfieWorkflow(m);
+    // a workflow with its own %negative% is a tag-style one; any other workflow (an image-edit model, MOSS) takes a sentence
+    const tags = mode === 'sd' || (mode === 'comfy' && String(activeWorkflowText(m)).includes('%negative%')) || (mode === 'comfy' && !String(activeWorkflowText(m)).trim());
     const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? sdLook(m.name) : descFor(m.name));
     const wk = getWorldkitSettings();
     const templates = { character: wk.phonePromptSelfie, creative: wk.phonePromptDrawing, object: wk.phonePromptObject };
@@ -4930,6 +4935,9 @@ function settingsHtml() {
                         <small class="notes" id="rph-comfy-own" style="display:none">Your workflow keeps its own model, LoRA, steps, sampler, size and negative prompt. Only the prompt, the picture and the seed are filled in, so the settings above are not used while a workflow is set (they are for the built-in graph).</small>
                         <label for="rph-comfy-wf">${t('comfy_wf')}</label>
                         <textarea id="rph-comfy-wf" class="text_pole" rows="3" placeholder="Save (API Format) · %prompt% %negative% %seed% %width% %height% %ckpt% %lora% %lora_strength% %image% %sheet%"></textarea>
+                        <div class="rph-comfy-selfiebar"><span class="menu_button" id="rph-comfy-wf-load"><i class="fa-solid fa-file-import"></i> Load a workflow file</span>
+                        <input type="file" id="rph-comfy-wf-file" accept=".json,application/json" style="display:none"></div>
+                        <small class="notes" id="rph-comfy-wf-note"></small>
                         <label for="rph-comfy-selfie">Selfie workflow (character sheet in, selfie out)</label>
                         <textarea id="rph-comfy-selfie" class="text_pole" rows="3" placeholder="Paste a workflow saved with Save (API Format), or load the file. The placeholders are added for you."></textarea>
                         <div class="rph-comfy-selfiebar"><span class="menu_button" id="rph-comfy-selfie-load"><i class="fa-solid fa-file-import"></i> Load a workflow file</span>
@@ -5248,7 +5256,9 @@ function setupImageUI() {
             if (r.found.image.length) bits.push(`character sheet (node ${r.found.image[0]})`);
             if (r.found.prompt.length) bits.push(`prompt (node ${r.found.prompt[0]})`);
             if (r.found.seed.length) bits.push(`seed (node ${r.found.seed[0]})`);
-            note.text(`Placeholders added: ${bits.join(', ')}.${r.notes.length ? ' ' + r.notes.join(' ') : ''}`);
+            // a general workflow (drawings, places) takes no picture, so a missing image loader is not news there
+            const notes = key === 'workflow' ? r.notes.filter(x => !/image loader/i.test(x)) : r.notes;
+            note.text(`Placeholders added: ${bits.join(', ')}.${notes.length ? ' ' + notes.join(' ') : ''}`);
         } else if (txt) note.text('Placeholders found.');
         else note.text('');
         comfyCfg()[key] = txt.slice(0, 120000);
@@ -5258,6 +5268,17 @@ function setupImageUI() {
     $('#rph-comfy-selfie').on('change', function () {
         const out = adoptWorkflow(this.value, 'selfieWorkflow', '#rph-comfy-selfie-note');
         if (out !== null) this.value = out;
+        refresh();
+    });
+    $('#rph-comfy-wf-load').on('click', () => document.getElementById('rph-comfy-wf-file').click());
+    $('#rph-comfy-wf-file').on('change', async function () {
+        const f = this.files && this.files[0];
+        this.value = '';
+        if (!f) return;
+        let txt = '';
+        try { txt = await f.text(); } catch (e) { toastr.warning('Could not read that file.'); return; }
+        const out = adoptWorkflow(txt, 'workflow', '#rph-comfy-wf-note');
+        if (out !== null) $('#rph-comfy-wf').val(out);
         refresh();
     });
     $('#rph-comfy-selfie-load').on('click', () => document.getElementById('rph-comfy-selfie-file').click());
@@ -5280,7 +5301,7 @@ function setupImageUI() {
         const txt = String(this.value || '').trim();
         // checked right away: the error is easier to understand while the field is in front of you
         if (txt) { try { comfyFillCustom(txt, { prompt: '', negative: '', seed: 1, w: 8, h: 8, ckpt: '' }); } catch (e) { toastr.warning(drawErrText(e)); } }
-        comfyCfg().workflow = txt.slice(0, 60000);
+        comfyCfg().workflow = txt.slice(0, 120000);
         saveSettings();
         refresh();
     });

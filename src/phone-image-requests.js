@@ -50,6 +50,19 @@ const DIRECT = [
     /\bany (photos?|pics?|pictures?|selfies?|hentai|cgs?|renders?|illustrations?|artworks?|comics?|sketches?|drawings?) of you\b/i,
     /\b(snap|shot|pic|photo|picture|hentai|cg|render|illustration|artwork|comic|drawing|sketch)\s+of\s+(you|yourself)\b/i,
     /\b(capture|photograph)\s+(yourself|a photo|a pic|a moment)\b/i,
+    // "give me a selfie", "I want a selfie", "I'd love a pic", "how about a photo", "post a selfie"
+    /\b(give me|gimme|get me|i want|i wanna|i'?d love|i would love|i'?d like|i would like|how about|what about|post|upload|snap me)\b.{0,40}\b(selfie|photo|pic|picture|snap|snapshot|image|drawing|sketch|portrait)\b/i,
+];
+
+/* The word "selfie" on its own is a request ("selfie please", "selfie?", "hey, selfie time!") unless it is
+   clearly something else: refused, hated, or the player's own. */
+const SELFIE = /\bselfies?\b/i;
+/* "don't send a selfie", "never take pics": a refusal, not a request */
+const REFUSAL = /\b(don'?t|do not|never|stop|no need to|not to)\b.{0,20}\b(send|show|take|post|give|draw|make)\b/i;
+const NOT_A_REQUEST = [
+    /\b(no|not|don'?t|do not|never|without|stop|hate|hates|dislike|isn'?t|aren'?t|wasn'?t|can'?t)\b.{0,25}\bselfies?\b/i,
+    /\b(my|our|his|her|their) (own )?selfies?\b/i,
+    /\b(here'?s|here is|i (just )?sent|sent you|look at)\b.{0,25}\bselfies?\b/i,
 ];
 
 /**
@@ -69,7 +82,9 @@ export function detectImageRequest(text, history = [], opts = {}) {
         return OFFER_VERB.some(p => p.test(s)) && OFFER_MEDIA.some(p => p.test(s));
     });
     if (offered && AFFIRMATIVE.some(p => p.test(t))) return { triggered: true, type: 'offer_response' };
+    if (REFUSAL.test(t)) return { triggered: false, type: 'none' };   // "don't send a selfie"
     if (DIRECT.some(p => p.test(t))) return { triggered: true, type: 'direct_request' };
+    if (SELFIE.test(t) && !NOT_A_REQUEST.some(p => p.test(t))) return { triggered: true, type: 'direct_request' };
     return { triggered: false, type: 'none' };
 }
 
