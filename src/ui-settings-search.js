@@ -52,11 +52,76 @@ function helpWithin(wrap) {
  * @param {Array<{ id: string, label: string, render: (view: HTMLElement) => void }>} tabs
  * @returns {Array<{ key: string, label: string, tab: string, tabLabel: string, advanced: boolean }>}
  */
-export function buildSettingsIndex(tabs) {
+/** What counts as the name of something: a control's label, a heading, a sub-tab. */
+export const LABEL_SELECTOR = '.sillynpc-setting-label, label, h3, h4, h5, summary, legend, .sillynpc-section-title, .sillynpc-combat-heading, .sillynpc-subtab, .sillynpc-charview-tab';
+const NAV_SELECTOR = '.sillynpc-subtab, .sillynpc-charview-tab';
+
+/** An element's own words: no option lists, no inputs, no notes, no icons. */
+export function ownText(el) {
+    const copy = el.cloneNode(true);
+    copy.querySelectorAll('select, input, textarea, option, small, button, i, svg').forEach(n => n.remove());
+    return String(copy.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+/** The sub-tab a pane's content belongs to ("Phone", "Combat", "Bonds"), from where it sits. */
+function subOf(root, el) {
+    const pane = el.closest?.('.sillynpc-subpane');
+    if (!pane) return '';
+    const panes = [...root.querySelectorAll('.sillynpc-subpane')];
+    const tabs = [...root.querySelectorAll('.sillynpc-subtab')];
+    const at = panes.indexOf(pane);
+    return at >= 0 && tabs[at] ? ownText(tabs[at]) : '';
+}
+
+/**
+ * Every named thing under a root: not only controls that carry a data-setting key but every label,
+ * heading and sub-tab, so a setting built by hand, a section or a module is found as well.
+ *
+ * @param {Element} root
+ * @param {{ tab: string, tabLabel: string, sub?: string }} where
+ * @param {Array<object>} found
+ * @param {Set<string>} seen
+ */
+export function collectNames(root, where, found, seen) {
+    for (const el of root.querySelectorAll(LABEL_SELECTOR)) {
+        const text = ownText(el);
+        if (text.length < 3 || text.length > 90) continue;
+        const sub = where.sub || subOf(root, el);
+        const id = `${where.tab}|${sub}|${text.toLowerCase()}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const nav = el.matches?.(NAV_SELECTOR);
+        const wrap = el.closest?.('.sillynpc-setting, .sillynpc-setting-row') || el.parentElement;
+        const note = wrap?.querySelector?.('small.notes');
+        found.push({
+            key: '',
+            label: text,
+            tab: where.tab,
+            tabLabel: nav ? (where.tab === 'modules' ? 'Module' : 'Section') : where.tabLabel,
+            sub: nav ? text : sub,
+            advanced: Boolean(el.closest?.('[data-advanced="true"]')),
+            help: note ? String(note.textContent || '').trim().slice(0, 400) : '',
+            nav,
+        });
+    }
+}
+
+export function buildSettingsIndex(tabs, extraRoots = () => []) {
     const found = [];
     const seen = new Set();
 
     for (const tab of tabs) {
+        // Some controls are only drawn while another is on (the HUD's size while the HUD is on).
+        // They are still settings someone may be looking for, so the page is drawn once with those
+        // switches on, in memory only, and put back straight afterwards.
+        const gates = [];
+        for (const path of tab.forceOn || []) {
+            const parts = path.split('.');
+            let holder = getSettings();
+            for (const part of parts.slice(0, -1)) holder = holder?.[part];
+            if (holder && typeof holder === 'object') { gates.push([holder, parts[parts.length - 1], holder[parts[parts.length - 1]]]); holder[parts[parts.length - 1]] = true; }
+        }
+        try {
         // The page itself, so "connection" finds the Connections page and not only controls on it.
         found.push({ key: '', label: tab.label, tab: tab.id, tabLabel: 'Page', advanced: false, page: true, help: '' });
         const view = document.createElement('div');
@@ -72,15 +137,38 @@ export function buildSettingsIndex(tabs) {
             const key = el?.dataset?.setting;
             if (!key || seen.has(key)) continue;
             seen.add(key);
+            const label = labelWithin(el) || key;
+            // Own words only: a row's text also carries its option list.
+            const own = (() => { for (const n of walk(el)) if (String(n?.className || '').includes('sillynpc-setting-label')) return ownText(n); return ''; })();
+            const name = own || label;
+            seen.add(`${tab.id}||${name.toLowerCase()}`);
             found.push({
                 key,
-                label: labelWithin(el) || key,
+                label: name.length > 90 ? key : name,
                 tab: tab.id,
                 tabLabel: tab.label,
+                sub: subOf(view, el),
                 advanced: el.dataset?.advanced === 'true',
                 help: helpWithin(el),
             });
         }
+        collectNames(view, { tab: tab.id, tabLabel: tab.label }, found, seen);
+
+        // Other views of the same page (the Tracker page also holds Bonds and Vitals).
+        for (const extra of tab.extras || []) {
+            const sub = document.createElement('div');
+            try { extra.render(sub); } catch { continue; }
+            collectNames(sub, { tab: tab.id, tabLabel: tab.label, sub: extra.sub }, found, seen);
+            found.push({ key: '', label: extra.sub, tab: tab.id, tabLabel: 'Section', sub: extra.sub, advanced: false, help: extra.hint || '', nav: true });
+        }
+        } finally {
+            for (const [holder, name, was] of gates) holder[name] = was;
+        }
+    }
+
+    // Panels that are not drawn with the page: a module's own settings (Phone, Games, Combat).
+    for (const extra of extraRoots()) {
+        collectNames(extra.root, { tab: extra.tab, tabLabel: extra.tabLabel, sub: extra.sub }, found, seen);
     }
 
     return found;
@@ -99,7 +187,7 @@ export function buildSettingsIndex(tabs) {
  * @param {string} query
  * @param {{ limit?: number, devMode?: boolean }} [options]
  */
-export function searchSettings(index, query, { limit = 8, devMode } = {}) {
+export function searchSettings(index, query, { limit = 14, devMode } = {}) {
     const needle = String(query ?? '').trim().toLowerCase();
     if (needle.length < 2) return [];
 
@@ -107,24 +195,32 @@ export function searchSettings(index, query, { limit = 8, devMode } = {}) {
 
     // Every typed word has to appear somewhere in the label, the page name, the key or the note
     // under the control, so "hud scale" and "connection profile" find what they mean.
-    const words = needle.split(/s+/).filter(Boolean);
+    const words = needle.split(/\s+/).filter(Boolean);
     const scored = [];
     for (const entry of index) {
         const label = entry.label.toLowerCase();
         const key = String(entry.key || '').toLowerCase();
-        const page = String(entry.tabLabel || '').toLowerCase();
+        const page = `${entry.tabLabel || ''} ${entry.sub || ''}`.toLowerCase();
         const help = String(entry.help || '').toLowerCase();
         // A label starting with what you typed is what you meant more often than one
         // merely containing it, so it goes first.
-        if (label.startsWith(needle)) scored.push([0, entry]);
+        if (entry.nav && (label === needle || label.startsWith(needle))) scored.push([-1, entry]);
+        else if (label.startsWith(needle)) scored.push([0, entry]);
         else if (label.includes(needle)) scored.push([1, entry]);
         else if (key.includes(needle)) scored.push([2, entry]);
         else if (words.every(w => label.includes(w) || key.includes(w) || page.includes(w))) scored.push([3, entry]);
         else if (words.every(w => label.includes(w) || key.includes(w) || page.includes(w) || help.includes(w))) scored.push([4, entry]);
     }
 
+    const shown = new Set();
     return scored
         .sort((a, b) => a[0] - b[0] || a[1].label.localeCompare(b[1].label))
+        .filter(([, entry]) => {
+            const id = `${entry.tab}|${entry.sub || ''}|${String(entry.label).toLowerCase()}`;
+            if (shown.has(id)) return false;
+            shown.add(id);
+            return true;
+        })
         .slice(0, limit)
         .map(([, entry]) => entry);
 }
@@ -184,7 +280,8 @@ export function buildSettingsSearch({ index, onPick }) {
             // are rather than being taken there blind every time.
             const where = document.createElement('span');
             where.className = 'sillynpc-settings-search-where';
-            where.textContent = entry.advanced && !getSettings().devMode ? `${entry.tabLabel} · advanced` : entry.tabLabel;
+            const place = entry.sub && !entry.nav ? `${entry.tabLabel} › ${entry.sub}` : entry.tabLabel;
+            where.textContent = entry.advanced && !getSettings().devMode ? `${place} · advanced` : place;
 
             hit.append(label, where);
             hit.addEventListener('click', () => { close(); input.value = ''; onPick(entry); });

@@ -49,7 +49,7 @@ import { buildBulkBar, buildBulkCheckbox, spliceIndexes } from './ui-bulk-select
 import { buildChoiceSelect, isChoiceField } from './ui-shared.js';
 import { exportCharacterFile, importCharacterFile } from './ui-transfer.js';
 import { buildGridFilterRow } from './ui-grid-filter.js';
-import { buildSettingsSearch, buildSettingsIndex } from './ui-settings-search.js';
+import { buildSettingsSearch, buildSettingsIndex, ownText, LABEL_SELECTOR } from './ui-settings-search.js';
 import { makeActivatable } from './utils.js';
 
 /** @type {Popup|null} */
@@ -162,7 +162,7 @@ function setupSettingsSearch() {
     if (!slot) return;
     slot.replaceChildren();
     slot.append(buildSettingsSearch({
-        index: () => buildSettingsIndex(settingsTabs()),
+        index: () => buildSettingsIndex(settingsTabs(), moduleRoots),
         onPick: (entry) => {
             // An advanced setting is not drawn until Show Every Setting is on: turn it on rather
             // than take you to a page where the control is missing.
@@ -172,9 +172,36 @@ function setupSettingsSearch() {
                 try { toastr.info('Show Every Setting was turned on so this one is visible. You can turn it off under Advanced.', 'Worldkit'); } catch { /* no toast */ }
             }
             switchTab(entry.tab);
-            if (!entry.page) revealSetting(entry.key);
+            // Into the right module or section first (Phone, Combat, Bonds...), then to the line itself.
+            if (entry.sub) {
+                const nav = [...(manageRoot?.querySelectorAll('.sillynpc-subtab, .sillynpc-charview-tab') || [])].find(b => ownText(b) === entry.sub);
+                nav?.click();
+            }
+            if (entry.key) revealSetting(entry.key);
+            else if (!entry.nav && !entry.page) setTimeout(() => revealByName(entry.label), 150);
         },
     }));
+}
+
+/** The settings panels of the modules that live in SillyTavern's own extensions drawer, as roots to index. */
+function moduleRoots() {
+    const roots = [];
+    for (const [sub, selector] of [['Phone', '.rph-settings'], ['Games', '.rpg-game-settings']]) {
+        const root = document.querySelector(selector);
+        if (root) roots.push({ root, tab: 'modules', tabLabel: 'Modules', sub });
+    }
+    return roots;
+}
+
+/** Scrolls to a line by what it says, for the settings that carry no key. */
+function revealByName(text) {
+    const want = String(text || '').trim().toLowerCase();
+    const hit = [...(manageRoot?.querySelectorAll(LABEL_SELECTOR) || [])].find(el => el.offsetParent !== null && ownText(el).toLowerCase() === want);
+    if (!hit) return;
+    const mark = hit.closest('.sillynpc-setting, .sillynpc-setting-row') || hit;
+    mark.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    mark.classList.add('sillynpc-setting-found');
+    setTimeout(() => mark.classList.remove('sillynpc-setting-found'), 2400);
 }
 
 /**
@@ -278,9 +305,14 @@ function settingsTabs() {
         { id: 'threads', label: 'Threads', container: 'sillynpc-threads-view',
           render: v => renderThreadsView(v) },
         { id: 'status', label: 'Tracker', container: 'sillynpc-status-view',
-          render: v => renderTrackerView(v) },
+          render: v => renderTrackerView(v),
+          // The search reads these too: they are views of this page.
+          extras: [
+              { sub: 'Bonds', hint: 'How the people in the story feel about you.', render: v => renderBondsView(v) },
+              { sub: 'Vitals', hint: 'Health, hunger, energy and mood.', render: v => renderVitalsView(v) },
+          ] },
         { id: 'hud', label: 'HUD', container: 'sillynpc-hud-view',
-          render: v => renderHudView(v) },
+          render: v => renderHudView(v), forceOn: ['statusTracker.hudEnabled'] },
         { id: 'systems', label: 'Systems', container: 'sillynpc-systems-view',
           render: v => renderSystemsView(v) },
         { id: 'generation', label: 'Generation', container: 'sillynpc-generation-settings-view',
