@@ -492,6 +492,9 @@ export function buildImageRequest(userMessage, history = [], opts = {}) {
         const named = matchOutfit(`${userMessage} ${req.directives}`, opts.outfits);
         if (named) { req.slots.outfitName = String(named.name); req.slots.outfit = ''; }
     }
+    // a saved style named in the request ("in watercolor") is worn; its text is read when the picture is drawn
+    const style = matchOutfit(`${userMessage} ${req.directives}`, opts.styles);
+    if (style) req.styleName = String(style.name);
     req.inferred = {
         background: req.slots.background ? '' : inferBackground(history, opts.place),
         period: periodOfHour(opts.hour ?? new Date().getHours()),
@@ -542,7 +545,8 @@ export function promptsForRequest(req, ctx) {
     const scene = String(req?.scene || '').trim();
     // The art style: one the request named ("cartoon"), else your own picture style, else the plain-photo default.
     const reqStyle = String(req?.style || '').trim();
-    const named = reqStyle && reqStyle !== DEFAULT_STYLE_TAG ? reqStyle : '';
+    const savedStyle = req?.styleName ? (ctx?.styles || []).find(s => s.name === req.styleName) : null;
+    const named = savedStyle && savedStyle.desc ? String(savedStyle.desc) : (reqStyle && reqStyle !== DEFAULT_STYLE_TAG ? reqStyle : '');
     const wanted = [named || String(ctx?.defaultStyle || '').trim(), String(extraStyle || '').trim()].filter(Boolean).join(', ');
     const style = wanted || reqStyle;
     // Only a picture of the contact has an outfit, a place behind them and a time of day.
@@ -570,7 +574,7 @@ export function promptsForRequest(req, ctx) {
     // what to show, and a style only if one was asked for.
     if (ctx?.ideaOnly && mode !== 'character') {
         const subject = directives || scene || (mode === 'creative' ? 'an artistic scene' : 'the described subject');
-        const idea = [subject, named, String(extraStyle || '').trim()].filter(Boolean).join(', ');
+        const idea = [subject, named || String(ctx?.defaultStyle || '').trim(), String(extraStyle || '').trim()].filter(Boolean).join(', ');
         return { mode, directives, sdPrompt: idea, contextPrompt: idea };
     }
     let sd;

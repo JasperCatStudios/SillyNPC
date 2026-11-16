@@ -205,9 +205,10 @@ export const PROMPTS = [
         key: 'phonePictureStyle',
         label: 'Phone: Picture Style',
         home: 'Phone',
-        help: 'The art style of pictures asked for in plain words, used as {STYLE} and added to the built-in wording. '
-            + 'A style the request itself names ("a cartoon of", "a watercolor") wins for that picture. Empty means a '
-            + 'plain photo style (natural skin texture).',
+        help: 'The art style of pictures asked for in plain words, used as {STYLE} and added to the built-in wording, when you '
+            + 'have saved no styles in the Phone photo settings (a saved, marked style is used instead). A style the request '
+            + 'itself names ("a cartoon of", "a watercolor") wins for that picture. Empty means a plain photo style '
+            + '(natural skin texture).',
         recommended: () => 'Clean anime art style with sharp linework and warm natural lighting.',
         emptyNote: 'Natural skin texture is sent for plain photos.',
     },

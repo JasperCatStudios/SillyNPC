@@ -1937,6 +1937,17 @@ function defaultOutfitOf(name) {
     const found = list.find(o => o.id === id) || list[0];
     return found ? found.desc : '';
 }
+/* Styles: named looks for every picture ("Clean anime", "Watercolor"), one of them the default. Saying one in a request uses it. */
+function stylesOf() {
+    const list = imgCfg().styles;
+    return Array.isArray(list) ? list.filter(s => s && typeof s === 'object' && String(s.name || '').trim()).map(s => ({ id: String(s.id || ''), name: String(s.name).trim(), desc: String(s.desc || '').trim() })) : [];
+}
+/** The style words every picture gets when none is named: the default saved style, else the Prompts tab's picture style. */
+function defaultStyleText() {
+    const list = stylesOf();
+    const found = list.find(s => s.id === imgCfg().styleDefault) || list[0];
+    return found ? found.desc : String(getWorldkitSettings().phonePictureStyle || '').trim();
+}
 function cardChar(name) { return characters.find(c => c && c.name === name) || null; }
 function lensProfile(name) {
     try {
@@ -2107,14 +2118,14 @@ function requestedPrompt(m) {
     const wk = getWorldkitSettings();
     const templates = { character: wk.phonePromptSelfie, creative: wk.phonePromptDrawing, object: wk.phonePromptObject };
     const timeTexts = { dawn: wk.phoneTimeDawn, morning: wk.phoneTimeMorning, midday: wk.phoneTimeMidday, afternoon: wk.phoneTimeAfternoon, evening: wk.phoneTimeEvening, night: wk.phoneTimeNight };
-    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, ideaOnly: detectImageMode() === 'comfy' && hasPromptHelper(activeWorkflowText(m)), timeTexts, outfits: outfitsOf(m.name), defaultOutfit: defaultOutfitOf(m.name), defaultStyle: String(wk.phonePictureStyle || '').trim(), extraStyle: cfg.style ? String(cfg.style).trim() : '' });
+    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, ideaOnly: detectImageMode() === 'comfy' && hasPromptHelper(activeWorkflowText(m)), timeTexts, outfits: outfitsOf(m.name), defaultOutfit: defaultOutfitOf(m.name), styles: stylesOf(), defaultStyle: defaultStyleText(), extraStyle: cfg.style ? String(cfg.style).trim() : '' });
     return tags ? p.sdPrompt : p.contextPrompt;
 }
 function photoPrompt(m) {
     // a workflow with a prompt helper is given the short idea (what the photo shows), not a finished prompt
     if (!(m && m.req && typeof m.req === 'object') && detectImageMode() === 'comfy' && hasPromptHelper(activeWorkflowText(m))) {
         const k = classify(m.text);
-        return String(k.caption || stripNamePrefix(k.text, m.name) || 'a photo').slice(0, 400);
+        return [String(k.caption || stripNamePrefix(k.text, m.name) || 'a photo').slice(0, 400), defaultStyleText()].filter(Boolean).join(', ');
     }
     if (m && m.req && typeof m.req === 'object') return requestedPrompt(m);
     const cfg = imgCfg();
@@ -2124,7 +2135,7 @@ function photoPrompt(m) {
         CAPTION: kind.caption || stripNamePrefix(kind.text, m.name) || 'a photo',
         NAME: m.name || '',
         LOOK: look ? `If ${m.name} is in the picture, they look like this: ${look}.` : '',
-        STYLE: cfg.style ? `Style: ${String(cfg.style).trim()}.` : ''
+        STYLE: [defaultStyleText(), String(cfg.style || '').trim()].filter(Boolean).length ? `Style: ${[defaultStyleText(), String(cfg.style || '').trim()].filter(Boolean).join(', ')}.` : ''
     };
     return String(cfg.tpl || IMG_DEF.tpl).replace(/\{(\w+)\}/g, (x, k) => map[k] !== undefined ? map[k] : x)
         .replace(/\s+/g, ' ').replace(/\s+([.,])/g, '$1').trim();
@@ -3473,7 +3484,7 @@ async function readPictureRequest(cur, asked, charName) {
     let clock = null;
     try { clock = sceneClock(); } catch (e) { clock = null; }
     return buildImageRequest(asked, hist, {
-        charName, resolved, outfits: outfitsOf(charName),
+        charName, resolved, outfits: outfitsOf(charName), styles: stylesOf(),
         hour: clock ? clock.hour : new Date().getHours(), weather: clock?.weather || '', place: clock?.place || '',
     });
 }
@@ -4967,6 +4978,12 @@ function settingsHtml() {
                         <div class="rph-narrow"><label for="rph-img-size">${t('img_size')}</label><select id="rph-img-size" class="text_pole">${sizeOptions(imgCfg().size)}</select></div>
                         <div><label for="rph-img-style">${t('img_style')}</label><input id="rph-img-style" class="text_pole" placeholder="${escapeHtml(t('img_style_ph'))}"></div>
                     </div>
+                    <div class="rph-styles">
+                        <label>Styles</label>
+                        <small class="notes">Name a look and write its words, for example "Clean anime: clean anime art style, sharp linework, warm lighting". The marked one is used for every picture unless a request names another ("in watercolor").</small>
+                        <div class="rph-styles-list"></div>
+                        <span class="menu_button" id="rph-style-add"><i class="fa-solid fa-plus"></i> Add style</span>
+                    </div>
                     <label for="rph-img-tpl">${escapeHtml(t('img_tpl'))}</label>
                     <textarea id="rph-img-tpl" class="text_pole" rows="3"></textarea>
                 </div>
@@ -5161,6 +5178,31 @@ function setupImageUI() {
     bindImg('#rph-img-size', 'size');
     bindImg('#rph-img-style', 'style');
     bindImg('#rph-img-tpl', 'tpl');
+    const drawStyles = () => {
+        const host = $('.rph-styles-list').empty();
+        if (!Array.isArray(ic.styles)) ic.styles = [];
+        if (ic.styles.length && !ic.styles.some(s => s.id === ic.styleDefault)) ic.styleDefault = ic.styles[0].id;
+        for (const s of ic.styles) {
+            const row = $('<div class="rph-style-row"></div>');
+            const def = $('<input type="radio" name="rph-style-def" title="Used when no style is named">').prop('checked', s.id === ic.styleDefault)
+                .on('change', () => { ic.styleDefault = s.id; saveSettings(); });
+            const nm = $('<input type="text" class="text_pole" maxlength="40" placeholder="Name (anime, watercolor...)">').val(s.name || '')
+                .on('change', function () { s.name = this.value.trim().slice(0, 40); saveSettings(); });
+            const ds = $('<textarea class="text_pole" rows="2" placeholder="The words: art style, linework, lighting, colours"></textarea>').val(s.desc || '')
+                .on('change', function () { s.desc = this.value.trim().slice(0, 400); saveSettings(); });
+            const rm = $('<span class="menu_button" role="button" aria-label="Delete style"><i class="fa-solid fa-trash"></i></span>')
+                .on('click', () => { ic.styles = ic.styles.filter(x => x.id !== s.id); saveSettings(); drawStyles(); });
+            row.append(def, nm, ds, rm);
+            host.append(row);
+        }
+    };
+    $('#rph-style-add').on('click', () => {
+        if (!Array.isArray(ic.styles)) ic.styles = [];
+        if (ic.styles.length >= 16) { toastr.info('That is as many styles as you can keep.'); return; }
+        ic.styles.push({ id: 's' + Date.now().toString(36), name: '', desc: '' });
+        saveSettings(); drawStyles();
+    });
+    drawStyles();
     if (!ic.tpl) $('#rph-img-tpl').val(IMG_DEF.tpl);
 
     const cc = comfyCfg();

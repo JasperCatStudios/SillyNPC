@@ -1319,3 +1319,13 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 .rph-gal-sheetthumb img { width: 100%; height: 100%; object-fit: cover; }
 .rph-gal-sheetrow .rph-gal-btn { min-height: 44px; }
 .rph-comfy-selfiebar { margin: 6px 0; }
+
+/* the saved styles in the photo settings */
+.rph-styles { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.rph-styles-list { display: flex; flex-direction: column; gap: 8px; }
+.rph-style-row { display: grid; grid-template-columns: 28px 1fr 44px; grid-template-areas: "def name del" "desc desc desc"; gap: 6px; align-items: center; padding: 8px; border: 1px solid #5d5547; border-radius: 6px; background: rgba(0, 0, 0, .18); }
+.rph-style-row input[type=radio] { grid-area: def; width: 22px; height: 22px; }
+.rph-style-row input[type=text] { grid-area: name; min-width: 0; }
+.rph-style-row textarea { grid-area: desc; width: 100%; resize: vertical; margin: 0; }
+.rph-style-row .menu_button { grid-area: del; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+#rph-style-add { align-self: flex-start; min-height: 44px; }
