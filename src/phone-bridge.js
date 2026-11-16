@@ -95,7 +95,8 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
         if (!all.length) continue;
         anyTexts = true;
         if (wantScene && !c.inScene) continue;
-        const fresh = b.onlyNew ? all.filter(m => (Number(m.ts) || 0) > (Number(shown[c.id]) || 0)) : all;
+        // always: the latest texts go with every reply, not only the ones never given before
+        const fresh = (b.onlyNew && b.mode !== 'always') ? all.filter(m => (Number(m.ts) || 0) > (Number(shown[c.id]) || 0)) : all;
         if (!fresh.length) continue;
         picks.push({ id: c.id, name: c.name, inScene: Boolean(c.inScene), messages: fresh.slice(-b.messages), last: Math.max(Number(all[all.length - 1].ts) || 0, Number(fresh[fresh.length - 1].ts) || 0) });
     }

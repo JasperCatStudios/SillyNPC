@@ -451,7 +451,7 @@ const L = {
         br_test: 'testing', br_default: 'default', br_chance_where: 'Used in Random mode.', br_chance_set: 'Chance set to {n}%.',
         br_chance: 'Chance, %', br_chance_hint: '5 is rare. 100 = every reply, for testing (ignores the cooldown)',
         br_cooldown: 'Cooldown (replies between two times)', br_msgs: 'Texts given (latest)', br_max: 'Conversations at once (1-4)',
-        br_onlynew: 'Only texts not given before', br_onlyscene: 'Only people who are in the scene (random mode)', br_notify: 'Show a small notice when it happens',
+        br_onlynew: 'Only texts not given before (not used in Always mode)', br_onlyscene: 'Only people who are in the scene (random mode)', br_notify: 'Show a small notice when it happens',
         br_inlist: "Show in SillyTavern's prompt list (Chat Completion)", br_inlist_hint: 'The block becomes a prompt-list entry: depth 0, system, order 500 to start with, and you can move it there afterwards. The role below only applies when the list is switched off.', br_order: 'Injection order',
         br_depth: 'Depth', br_role: 'Role', br_role_system: 'System', br_role_user: 'User', br_role_assistant: 'Assistant',
         br_instr: 'Instruction', br_instr_hint: '<<contact>> and <<user>> are replaced by the names.', br_instr_reset: 'Reset',
