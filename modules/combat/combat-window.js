@@ -10,7 +10,6 @@ import { fractionFromStatus, statusFromFraction, STATUS_DEFAULT } from '../../sr
 import { project } from '../../src/combat-roles.js';
 import { wheelNote } from '../../src/combat-elements.js';
 import { profileText } from '../../src/profile-text.js';
-import { applyGameArt } from '../../src/ui-faction.js';
 import { contextBlocks } from '../../src/context-blocks.js';
 import { requestOnConnection } from '../../src/connections.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
@@ -1621,7 +1620,6 @@ function openPanel() {
         document.body.append(panel);
     }
     panel.classList.add('is-open');
-    applyGameArt(panel, 'combat');
     draw();
 }
 

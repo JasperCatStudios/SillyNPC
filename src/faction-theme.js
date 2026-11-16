@@ -85,8 +85,6 @@ export function normalizeFactionSettings(raw) {
     return {
         // Presentation only. Off means no pictures are requested at all, only built-in icons.
         useArtwork: r.useArtwork === undefined ? true : Boolean(r.useArtwork),
-        // The table and combat backgrounds are a separate, opt-in download: off until you turn them on.
-        gameArt: r.gameArt === true,
         artworkBase: base.endsWith('/') ? base : `${base}/`,
         defaultFaction: typeof r.defaultFaction === 'string' ? foldFaction(r.defaultFaction) : '',
         themes,
@@ -127,20 +125,6 @@ export function themeStyle(palette) {
         `--fx-accent2:${palette.accent2}`, `--fx-text:${palette.text}`,
         `--fx-tab:${tab}`, `--fx-border:${border}`, `--fx-muted:${muted}`,
     ].join(';');
-}
-
-/** Which file under games/ each game (and the combat window) uses. */
-export const GAME_ART_FILES = Object.freeze({
-    chess: 'chess', ttt: 'tic-tac-toe', bs: 'battleship', rps: 'rock-paper-scissors', pig: 'pig',
-    bj: 'felt-table', poker: 'felt-table', whist: 'felt-table', bottle: 'spin-the-bottle', combat: 'combat',
-});
-
-/** The URL of a game or combat background, or '' unless artwork AND game backgrounds are both on. */
-export function gameArtUrl(game, settings = normalizeFactionSettings()) {
-    // A game with no file of its own (a new one added later) gets the felt table; the menu has none.
-    const file = game === 'menu' || !game ? '' : (GAME_ART_FILES[game] || 'felt-table');
-    if (!file || !settings.useArtwork || !settings.gameArt) return '';
-    return artworkUrl(`games/${file}.webp`, settings);
 }
 
 /** The URL of a picture under the artwork folder, or '' when artwork is off or the path is empty. */

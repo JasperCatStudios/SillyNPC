@@ -429,7 +429,7 @@
 .rpg-game-header > span, .rpg-game-header > span i, .rpg-game-close { color: #ede3d2; font-family: Georgia, serif; }
 .rpg-game-area {
     background-color: #e4dac7;
-    background-image: linear-gradient(#f5ecdbdb,#f5ecdbdb), var(--worldkit-game-image, linear-gradient(#e4dac7,#e4dac7));
+    background-image: linear-gradient(#f5ecdbdb,#f5ecdbdb), linear-gradient(#e4dac7,#e4dac7);
     background-position: center; background-size: cover;
     border: 1px solid #b5a58d; border-radius: 6px;
     box-shadow: inset 0 0 0 3px #e8decd88, inset 0 0 0 4px #8b7962;
@@ -441,14 +441,6 @@
 .rpg-game-log-tab.is-active { background: #665340; border-color: #d4b98f; }
 .rpg-game-chat[data-view="chat"] .rpg-gmsg.system, .rpg-game-chat[data-view="log"] .rpg-gmsg:not(.system) { display: none; }
 .rpg-game-log-tab:focus-visible { outline: 2px solid #ead4ae; outline-offset: 2px; }
-.rpg-game-area { background-image: linear-gradient(#f5ecdbc9,#f5ecdbc9), var(--worldkit-game-image, linear-gradient(#e4dac7,#e4dac7)); }
+.rpg-game-area { background-image: linear-gradient(#f5ecdbc9,#f5ecdbc9), linear-gradient(#e4dac7,#e4dac7); }
 .rpg-game-chat .rpg-gmsg.system { color: #f0dfbc; }
 
-/* Optional backgrounds (see "Game and combat backgrounds" in Appearance). The felt table is dark and
-   shown as it is, with light text on top; the other boards are dark plates and show through a lighter veil. */
-.rpg-game-area[style*="--worldkit-game-image"] { background-image: linear-gradient(#f5ecdb99,#f5ecdb99), var(--worldkit-game-image); }
-.rpg-game-area.has-felt { background-image: var(--worldkit-game-image); background-size: cover; }
-#rpg-game-modal .rpg-game-area.has-felt .rpg-bj-controls { background: none; }
-.rpg-game-area.has-felt :is(.rpg-whist-info, .rpg-whist-msg, .rpg-bj-label, .rpg-poker-label, .rpg-pig-msg, .rpg-poker-result, .rpg-menu-title, .rpg-bt-hint, .rpg-game-loading, .rpg-menu-history small) { color: #f0e6d0; text-shadow: 0 1px 2px #000; }
-.rpg-game-area.has-felt .rpg-bj-label b, .rpg-game-area.has-felt .rpg-poker-label b { color: #ffe9b0; }
-.rpg-game-area.has-felt .rpg-poker-pot { background: #0006; color: #f0e6d0; border-color: #c9a85a; }

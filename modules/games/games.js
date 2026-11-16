@@ -18,7 +18,6 @@ import {
     wNew, wPlay, wClear, wLegal, wBotChoose,
 } from '../../src/table-games.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
-import { applyGameArt } from '../../src/ui-faction.js';
 
 const MODULE_NAME = 'sillynpc_games';
 
@@ -1300,7 +1299,6 @@ function initBottle() {
 function renderBottlePicker(cands) {
     const canvas = $('#rpg-game-canvas');
     canvas.attr('data-game', gameState.active ? gameState.gameType : 'menu');
-    applyGameArt(canvas[0], gameState.active ? gameState.gameType : 'menu');
     canvas.empty();
     canvas.append(`<button class="rpg-back-btn" id="rpg-bt-back"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>`);
     $('#rpg-bt-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
@@ -1665,7 +1663,6 @@ const TABLE_HINTS = {
 function renderTablePicker(type) {
     const canvas = $('#rpg-game-canvas');
     canvas.attr('data-game', gameState.active ? gameState.gameType : 'menu');
-    applyGameArt(canvas[0], gameState.active ? gameState.gameType : 'menu');
     canvas.empty();
     canvas.append(`<button class="rpg-back-btn" id="rpg-tb-back"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>`);
     $('#rpg-tb-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
@@ -2282,7 +2279,6 @@ function renderGameArea() {
     refreshOpponentHeader();
     refreshTalkTo();
     canvas.attr('data-game', gameState.active ? gameState.gameType : 'menu');
-    applyGameArt(canvas[0], gameState.active ? gameState.gameType : 'menu');
 
     if (!gameState.active) {
         canvas.html(`
