@@ -397,6 +397,14 @@ export function promptsForRequest(req, ctx) {
     const directives = String(req?.directives || '').trim();
     const scene = String(req?.scene || '').trim();
     const style = [String(req?.style || '').trim(), String(extraStyle || '').trim()].filter(Boolean).join(', ');
+    // Your own wording for this kind (Worldkit's Prompts tab); empty means the built-in wording below.
+    const own = String(ctx?.templates?.[mode] || '').trim();
+    if (own) {
+        const map = { NAME: charName, REQUEST: directives || scene, LOOK: look, SCENE: scene, STYLE: style };
+        const text = own.replace(/\{(\w+)\}/g, (x, k) => (map[k] !== undefined ? map[k] : x))
+            .replace(/(\s*,){2,}/g, ',').replace(/^[\s,]+|[\s,]+$/g, '').replace(/[ \t]+/g, ' ').replace(/ ,/g, ',').trim();
+        return { mode, directives, sdPrompt: text, contextPrompt: text };
+    }
     let sd;
     let prose;
     if (mode === 'creative') {

@@ -135,6 +135,10 @@ export const defaultSettings = {
     ttsVoicePlayer: '',
     ttsVoiceFemale: '',
     ttsVoiceMale: '',
+    /** Your own wording for pictures asked for in plain words, per kind (empty: built-in). {NAME} {REQUEST} {LOOK} {SCENE} {STYLE}. */
+    phonePromptSelfie: '',
+    phonePromptDrawing: '',
+    phonePromptObject: '',
     /** Voices on or off. Off: nothing is read, nothing is tested, and no error toasts about AllTalk. */
     ttsEnabled: false,
     /** Read each new reply aloud, one voice per speaker, when it finishes. */

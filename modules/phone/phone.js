@@ -9,6 +9,7 @@ import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messag
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
+import { getSettings as getWorldkitSettings } from '../../src/settings.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
@@ -2048,7 +2049,9 @@ function requestedPrompt(m) {
     const mode = detectImageMode();
     const tags = mode === 'sd' || mode === 'comfy';
     const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? sdLook(m.name) : descFor(m.name));
-    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, extraStyle: cfg.style ? String(cfg.style).trim() : '' });
+    const wk = getWorldkitSettings();
+    const templates = { character: wk.phonePromptSelfie, creative: wk.phonePromptDrawing, object: wk.phonePromptObject };
+    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, extraStyle: cfg.style ? String(cfg.style).trim() : '' });
     return tags ? p.sdPrompt : p.contextPrompt;
 }
 function photoPrompt(m) {
@@ -3536,12 +3539,15 @@ function ensureLayer() {
                 <div id="rph-stack"></div>
                 <div id="rph-bar">
                     <div id="rph-pend" hidden></div>
-                    <i class="fa-solid fa-eye" id="rph-view-btn" title="View the prompt"></i>
-                    <i class="fa-solid fa-paperclip" id="rph-attach"></i>
+                    <i class="fa-solid fa-wand-magic-sparkles" id="rph-wand" title="More"></i>
+                    <div id="rph-wandmenu" hidden>
+                        <div class="rph-wi" id="rph-view-btn"><i class="fa-solid fa-eye"></i><span>View the prompt</span></div>
+                        <div class="rph-wi" id="rph-attach"><i class="fa-solid fa-paperclip"></i><span>Attach</span></div>
+                        <div class="rph-wi" id="rph-voice"><i class="fa-solid fa-microphone"></i><span>Voice message</span></div>
+                        <div class="rph-wi" id="rph-photo"><i class="fa-solid fa-camera"></i><span>Ask for a photo</span></div>
+                        <div class="rph-wi" id="rph-gallery"><i class="fa-solid fa-images"></i><span>Pictures</span></div>
+                    </div>
                     <input type="file" id="rph-file" multiple style="display:none">
-                    <i class="fa-solid fa-microphone" id="rph-voice" title="Ask for a voice message"></i>
-                    <i class="fa-solid fa-camera" id="rph-photo" title="Ask for a photo"></i>
-                    <i class="fa-solid fa-images" id="rph-gallery" title="Pictures they sent"></i>
                     <input type="text" id="rph-input" placeholder="" maxlength="800">
                     <i class="fa-solid fa-paper-plane" id="rph-send"></i>
                 </div>
@@ -3561,6 +3567,11 @@ function ensureLayer() {
             renderBubbles();
         }, { passive: false });
 
+        // one wand button holds the extras, so the bar keeps its room for typing
+        const wandMenu = document.getElementById('rph-wandmenu');
+        $('#rph-wand').on('click', (e) => { e.stopPropagation(); wandMenu.hidden = !wandMenu.hidden; });
+        wandMenu.addEventListener('click', () => { wandMenu.hidden = true; });
+        d.addEventListener('click', (e) => { if (!wandMenu.hidden && !e.target.closest('#rph-wand')) wandMenu.hidden = true; });
         $('#rph-view-btn').on('click', () => openPromptViewer(currentContact()));
         $('#rph-attach').on('click', () => { const f = document.getElementById('rph-file'); if (f && !busy) f.click(); });
         $('#rph-file').on('change', function () {

@@ -1291,3 +1291,13 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 .rph-gal-prompt { margin: 4px 0 6px; max-height: 24vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: .85rem; color: #eee7da; user-select: text; }
 .rph-gal-acts { display: grid; grid-template-columns: 44px 1fr 1fr 44px; gap: 8px; }
 @media (max-width: 380px) { .rph-gal-btn { padding: 0 8px; } }
+
+/* the wand button: attach, voice, photo, gallery and the prompt viewer live in one small menu above the bar */
+#rph-bar { position: relative; }
+#rph-wand { cursor: pointer; color: #8ec5ff; font-size: 0.9rem; flex: none; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+.rph-phone #rph-wand { color: var(--ph-accent); }
+#rph-wandmenu { position: absolute; left: 6px; bottom: calc(100% + 6px); z-index: 30; min-width: 200px; max-width: calc(100% - 12px); padding: 6px; border-radius: 12px; display: flex; flex-direction: column; gap: 2px; background: rgba(18, 20, 30, 0.97); border: 1px solid rgba(150, 195, 255, 0.3); box-shadow: 0 8px 24px rgba(0, 0, 0, .55); }
+#rph-wandmenu[hidden] { display: none; }
+#rph-wandmenu .rph-wi { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: #eef4ff; font-size: 0.9rem; }
+#rph-wandmenu .rph-wi i { width: 20px; text-align: center; color: #8ec5ff; }
+#rph-wandmenu .rph-wi:hover, #rph-wandmenu .rph-wi:active { background: rgba(142, 197, 255, 0.16); }

@@ -160,6 +160,38 @@ export const PROMPTS = [
         recommended: () => defaultSettings.imgGenNegativePrompt,
         available: () => getSettings().imageBackend !== 'gemini',
     },
+    {
+        id: 'phoneSelfie',
+        key: 'phonePromptSelfie',
+        label: 'Phone: Selfie Prompt',
+        home: 'Phone',
+        help: 'How a picture OF the contact is worded when you ask for one in plain words (a selfie, a photo '
+            + 'of them somewhere, in an outfit). Placeholders: {NAME}, {REQUEST} (what you asked for: pose, outfit, '
+            + 'place), {LOOK} (their look, from their gallery page), {SCENE} (shot type), {STYLE}. '
+            + 'Pictures the contact sends on their own use the Photo prompt in the Phone settings instead.',
+        recommended: () => 'photo of {NAME}, {REQUEST}, {LOOK}, {SCENE}, {STYLE}',
+        emptyNote: 'The built-in wording for your image connection is sent.',
+    },
+    {
+        id: 'phoneDrawing',
+        key: 'phonePromptDrawing',
+        label: 'Phone: Drawing Prompt',
+        home: 'Phone',
+        help: 'How a drawing or painting of something else is worded ("draw me a dragon"). The contact is the '
+            + 'artist, not the subject, so their look is not used. Placeholders: {NAME}, {REQUEST}, {SCENE}, {STYLE}.',
+        recommended: () => '{REQUEST}, {STYLE}',
+        emptyNote: 'The built-in wording for your image connection is sent.',
+    },
+    {
+        id: 'phoneObject',
+        key: 'phonePromptObject',
+        label: 'Phone: Object Photo Prompt',
+        home: 'Phone',
+        help: 'How a photo of a thing or a place is worded ("show me the rug you described"). Their look is not '
+            + 'used. Placeholders: {NAME}, {REQUEST}, {SCENE}, {STYLE}.',
+        recommended: () => '{REQUEST}, {SCENE}, {STYLE}',
+        emptyNote: 'The built-in wording for your image connection is sent.',
+    },
 
 ];
 
