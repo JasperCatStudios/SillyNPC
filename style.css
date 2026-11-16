@@ -5456,3 +5456,18 @@ textarea.sillynpc-profile-input {
     color: var(--fx-accent);
     padding-left: 8px;
 }
+
+/* The Characters grid: each category is a framed section with its faction's banner, like a profile. */
+.sillynpc-cat-section {
+    position: relative;
+    margin: 0 0 16px;
+    padding: clamp(10px, 1.4vw, 18px);
+    border: 1px solid var(--fx-border, var(--fx-accent));
+    border-radius: 10px;
+    background: var(--fx-bg);
+    color: var(--fx-text);
+    box-shadow: inset 0 0 0 3px var(--fx-bg), inset 0 0 0 4px var(--fx-border, var(--fx-accent));
+}
+.sillynpc-cat-section > .sillynpc-fx-banner { min-height: 64px; max-height: 110px; margin: 0 0 10px; }
+.sillynpc-cat-section > .sillynpc-fx-banner .sillynpc-fx-banner-label { display: none; }
+.sillynpc-cat-section .sillynpc-category-heading.sillynpc-fx { margin-top: 0; }

@@ -32,11 +32,16 @@ const expanded = new Set();
 const picked = new Set();
 /** The text in the people search box. */
 let peopleFilter = '';
+/** How many cards the list draws, a page at a time. */
+const PAGE = 25;
+let shownCount = PAGE;
 /** People whose "your side" panel is open, the same way. */
 const sideOpen = new Set();
 /** People whose "Gates for" panel is open, the same way. */
 const gatesOpen = new Set();
 let currentView = null;
+/** When the user last edited inside the people list, so the tab's change event does not redraw everything again. */
+let localEditAt = 0;
 let listening = false;
 
 const el = (tag, className, text) => {
@@ -130,6 +135,7 @@ export function renderBondsView(view) {
     if (!listening) {
         listening = true;
         eventSource.on(BONDS_CHANGED_EVENT, () => {
+            if (Date.now() - localEditAt < 800) return;
             if (currentView?.isConnected && !currentView.contains(document.activeElement)) renderBondsView(currentView);
         });
     }
@@ -303,9 +309,9 @@ function renderPeople(view, rerender) {
         for (const p of chatStore()?.people || []) if (p.tracked) editPerson(p.name, (x) => { x.tracked = false; });
         rerender();
     });
-    const shownCards = () => [...list.children].filter(c => !c.hidden);
-    const pickShown = button('Select shown', 'fa-square-check', 'Tick every character the search is showing', () => {
-        for (const c of shownCards()) picked.add(c.dataset.key);
+    let matchingNames = () => [];
+    const pickShown = button('Select matching', 'fa-square-check', 'Tick every character the search matches, including ones on pages not shown yet', () => {
+        for (const k of matchingNames()) picked.add(k);
         syncPicks();
     });
     const clearPicks = button('Clear', 'fa-square', 'Untick everyone', () => { picked.clear(); syncPicks(); });
@@ -332,33 +338,62 @@ function renderPeople(view, rerender) {
     }
     people.sort((a, b) => Number(Boolean(a.untracked)) - Number(Boolean(b.untracked)) || b.value - a.value || a.name.localeCompare(b.name));
     const list = el('div', 'snpc-bond-people');
-    for (const p of people) list.append(personCard(p, settings, rerender, () => syncPicks()));
-    view.append(list);
-
-    /** Hides the cards the search does not match, and keeps the buttons and the count true. Nothing is redrawn, so typing keeps its focus. */
-    function syncPicks() {
+    const more = el('div', 'snpc-bond-toolbar snpc-bond-more');
+    /** Everyone the search matches, in list order. */
+    const matching = () => {
         const q = peopleFilter.trim().toLowerCase();
-        let shown = 0;
-        for (const card of list.children) {
-            const match = !q || card.dataset.key.includes(q);
-            card.hidden = !match;
-            if (match) shown++;
-            const box = card.querySelector('.snpc-bond-pick');
-            if (box) box.checked = picked.has(card.dataset.key);
+        return q ? people.filter(p => p.name.toLowerCase().includes(q)) : people;
+    };
+    const redrawOne = (who) => {
+        const key = who.toLowerCase();
+        const old = [...list.children].find(c => c.dataset.key === key);
+        const fresh = chatStore()?.people.find(p => p.name.toLowerCase() === key);
+        if (!old || !fresh) { rerender(); return; }
+        old.replaceWith(personCard(fresh, bondSettings(), redrawOne, () => syncPicks()));
+    };
+    // Edits made in the list save the bonds, which would redraw the whole tab through the change event; the card has already redrawn itself.
+    const mute = () => { localEditAt = Date.now(); };
+    list.addEventListener('click', mute, true);
+    list.addEventListener('change', mute, true);
+    view.append(list, more);
+
+    /** Draws the first `shownCount` matching cards, a page at a time. A hundred cards at once is what made this tab slow. */
+    function drawList() {
+        const all = matching();
+        const slice = all.slice(0, shownCount);
+        list.replaceChildren(...slice.map(p => personCard(p, settings, redrawOne, () => syncPicks())));
+        more.replaceChildren();
+        if (all.length > slice.length) {
+            const left = all.length - slice.length;
+            more.append(
+                button(`Show ${Math.min(PAGE, left)} more`, 'fa-chevron-down', `${left} more match`, () => { shownCount += PAGE; drawList(); }),
+                button(`Show all ${all.length}`, 'fa-list', 'Draw every match (slower with many characters)', () => { shownCount = all.length; drawList(); }),
+            );
         }
+        syncPicks();
+    }
+
+    /** Keeps the count, ticks and buttons true. Nothing is redrawn. */
+    function syncPicks() {
+        const all = matching();
+        const q = peopleFilter.trim();
+        for (const box of list.querySelectorAll('.snpc-bond-pick')) box.checked = picked.has(box.closest('[data-key]').dataset.key);
         const n = picked.size;
-        count.textContent = q ? `${shown} of ${people.length} shown` : `${people.length} characters`;
+        count.textContent = q ? `${all.length} of ${people.length} match` : `${people.length} characters`;
         updateSel.replaceChildren(el('i', 'fa-solid fa-arrows-rotate'), el('span', '', n ? `Update selected (${n})` : 'Update selected'));
         updateSel.disabled = !settings.enabled || !n;
         trackSel.disabled = untrackSel.disabled = clearPicks.disabled = !n;
-        pickShown.disabled = !shown;
+        pickShown.disabled = !all.length;
     }
-    search.addEventListener('input', () => { peopleFilter = search.value; syncPicks(); });
-    syncPicks();
+    search.addEventListener('input', () => { peopleFilter = search.value; shownCount = PAGE; drawList(); });
+    matchingNames = () => matching().map(p => p.name.toLowerCase());
+    drawList();
 }
 
-function personCard(person, settings, rerender, onPick = () => {}) {
+function personCard(person, settings, redrawOne, onPick = () => {}) {
     const key = person.name.toLowerCase();
+    // An edit redraws this card only. Redrawing the whole tab for every click was the lag with 100+ people.
+    const rerender = () => redrawOne(person.name);
     const open = expanded.has(key);
     const { level, next } = levelFor(person.value, settings.levels);
     const wrap = el('div', `snpc-bond-person${person.tracked ? '' : ' is-off'}${person.untracked ? ' is-new' : ''}`);
@@ -549,12 +584,15 @@ function playerSide(person, settings, rerender) {
     const romance = romanceState(person, 'fromPlayer', settings.romanceLevels);
     const romanceNote = romance.active ? ` · Romance: ${romance.level ? romance.level.name : 'none yet'}` : '';
     side.append(el('summary', 'snpc-bond-side-summary', `${you}'s side: ${levelName(level, person)}${romanceNote}`));
-    side.append(el('small', 'notes', `How ${you} feels about ${person.name}. Set by hand only: the model is told it, but never changes it. `
-        + 'Romance can be one-sided either way: acts both must feel need both sides switched on and high enough.'));
-    const rows = el('div', 'snpc-bond-meters');
-    for (const k of METERS) rows.append(meterRow(person, 'fromPlayer', k, settings, rerender));
-    rows.append(romanceRow(person, 'fromPlayer', settings, rerender));
-    side.append(rows);
+    // Built when opened: 100 closed panels were 100 sets of meters nobody was looking at.
+    buildWhenOpened(side, () => {
+        side.append(el('small', 'notes', `How ${you} feels about ${person.name}. Set by hand only: the model is told it, but never changes it. `
+            + 'Romance can be one-sided either way: acts both must feel need both sides switched on and high enough.'));
+        const rows = el('div', 'snpc-bond-meters');
+        for (const k of METERS) rows.append(meterRow(person, 'fromPlayer', k, settings, rerender));
+        rows.append(romanceRow(person, 'fromPlayer', settings, rerender));
+        side.append(rows);
+    });
     return side;
 }
 
@@ -570,73 +608,84 @@ function personGates(person, settings, rerender) {
     const gates = settings.gates || [];
     const changed = gates.filter(g => gateOverridden(g, person, settings)).length;
     details.append(el('summary', 'snpc-bond-side-summary', `Gates for ${person.name}${changed ? ` · ${changed} changed` : ''}`));
-    if (!gates.length) {
-        details.append(el('small', 'notes', 'There are no gates yet. Add them under Gates below.'));
-        return details;
-    }
-    details.append(el('small', 'notes', `What ${person.name} allows, where it differs from the gates below. Global follows the gate as set there.`));
-
-    const lockKey = person.lock || 'open';
-    const nameOf = (list, id) => {
-        if (id === NEVER) return 'Never';
-        const l = list.find(x => x.id === id);
-        return l ? (list === settings.levels ? levelName(l, person) : l.name) : id;
-    };
-    const rows = el('div', 'snpc-bond-gov-rows');
-    for (const gate of gates) {
-        const list = gate.track === 'romance' ? settings.romanceLevels : settings.levels;
-        const locked = gate.track === 'romance' && lockKey !== 'open';
-        const differs = gateOverridden(gate, person, settings);
-        const o = person.gateOverrides?.[gate.id];
-        const row = el('div', `snpc-bond-gov-row${differs ? ' is-changed' : ''}${locked ? ' is-locked' : ''}`);
-        row.dataset.gate = gate.id;
-
-        const globalLevel = nameOf(list, gate.level);
-        const extras = [];
-        if (gate.track === 'romance' && gate.level !== NEVER) extras.push(gate.scope === 'mutual' ? 'both' : 'they start');
-        if (gate.minBond) extras.push(`+ ${nameOf(settings.levels, gate.minBond)} both ways`);
-        const label = el('div', 'snpc-bond-gov-label');
-        label.append(el('span', 'snpc-bond-gov-name', gate.label), el('span', `snpc-bond-gov-track is-${gate.track}`, GATE_TRACKS[gate.track] || gate.track));
-        const global = el('span', 'snpc-bond-gov-global', `Global: ${globalLevel}${extras.length ? ` (${extras.join(', ')})` : ''}`);
-        label.append(global);
-        if (locked) {
-            const reason = el('span', 'snpc-bond-gov-reason', `Never: ${BOND_LOCKS[lockKey]}`);
-            label.append(reason);
-            row.title = `Romance gates read Never while this bond is set to ${BOND_LOCKS[lockKey]}.`;
+    // Built when opened, like the player's side: the rows are the heaviest part of a card.
+    buildWhenOpened(details, () => {
+        if (!gates.length) {
+            details.append(el('small', 'notes', 'There are no gates yet. Add them under Gates below.'));
+            return;
         }
+        details.append(el('small', 'notes', `What ${person.name} allows, where it differs from the gates below. Global follows the gate as set there.`));
 
-        const sel = el('select', 'text_pole snpc-bond-gov-select');
-        sel.append(new Option(`Global (${globalLevel})`, ''));
-        for (const l of list) sel.append(new Option(nameOf(list, l.id), l.id));
-        sel.append(new Option('Never', NEVER));
-        sel.value = o?.off ? NEVER : (o?.level || '');
-        sel.title = `The level ${person.name} needs for this, instead of the global one`;
-        sel.disabled = locked;
-        sel.addEventListener('change', () => {
-            editPerson(person.name, (p) => { setGateOverride(p, gate, sel.value, settings); });
+        const lockKey = person.lock || 'open';
+        const nameOf = (list, id) => {
+            if (id === NEVER) return 'Never';
+            const l = list.find(x => x.id === id);
+            return l ? (list === settings.levels ? levelName(l, person) : l.name) : id;
+        };
+        const rows = el('div', 'snpc-bond-gov-rows');
+        for (const gate of gates) {
+            const list = gate.track === 'romance' ? settings.romanceLevels : settings.levels;
+            const locked = gate.track === 'romance' && lockKey !== 'open';
+            const differs = gateOverridden(gate, person, settings);
+            const o = person.gateOverrides?.[gate.id];
+            const row = el('div', `snpc-bond-gov-row${differs ? ' is-changed' : ''}${locked ? ' is-locked' : ''}`);
+            row.dataset.gate = gate.id;
+
+            const globalLevel = nameOf(list, gate.level);
+            const extras = [];
+            if (gate.track === 'romance' && gate.level !== NEVER) extras.push(gate.scope === 'mutual' ? 'both' : 'they start');
+            if (gate.minBond) extras.push(`+ ${nameOf(settings.levels, gate.minBond)} both ways`);
+            const label = el('div', 'snpc-bond-gov-label');
+            label.append(el('span', 'snpc-bond-gov-name', gate.label), el('span', `snpc-bond-gov-track is-${gate.track}`, GATE_TRACKS[gate.track] || gate.track));
+            const global = el('span', 'snpc-bond-gov-global', `Global: ${globalLevel}${extras.length ? ` (${extras.join(', ')})` : ''}`);
+            label.append(global);
+            if (locked) {
+                const reason = el('span', 'snpc-bond-gov-reason', `Never: ${BOND_LOCKS[lockKey]}`);
+                label.append(reason);
+                row.title = `Romance gates read Never while this bond is set to ${BOND_LOCKS[lockKey]}.`;
+            }
+
+            const sel = el('select', 'text_pole snpc-bond-gov-select');
+            sel.append(new Option(`Global (${globalLevel})`, ''));
+            for (const l of list) sel.append(new Option(nameOf(list, l.id), l.id));
+            sel.append(new Option('Never', NEVER));
+            sel.value = o?.off ? NEVER : (o?.level || '');
+            sel.title = `The level ${person.name} needs for this, instead of the global one`;
+            sel.disabled = locked;
+            sel.addEventListener('change', () => {
+                editPerson(person.name, (p) => { setGateOverride(p, gate, sel.value, settings); });
+                rerender();
+            });
+
+            const reset = iconButton('fa-rotate-left', 'Back to the global gate', () => {
+                editPerson(person.name, (p) => { clearGateOverride(p, gate.id); });
+                rerender();
+            }, `snpc-bond-gov-reset${o ? '' : ' disabled'}`);
+            reset.title = 'Back to the global gate (clears every choice on this row)';
+            row.append(label, sel, reset);
+            if (gate.track === 'romance') row.append(personGateExtras(person, gate, o, settings, { locked, nameOf, rerender }));
+            rows.append(row);
+        }
+        details.append(rows);
+
+        const bar = el('div', 'snpc-bond-toolbar');
+        const resetAll = button('Reset all gates for this person', 'fa-rotate-left', `Use the global gates for ${person.name} again`, () => {
+            editPerson(person.name, (p) => { clearGateOverride(p); });
             rerender();
-        });
-
-        const reset = iconButton('fa-rotate-left', 'Back to the global gate', () => {
-            editPerson(person.name, (p) => { clearGateOverride(p, gate.id); });
-            rerender();
-        }, `snpc-bond-gov-reset${o ? '' : ' disabled'}`);
-        reset.title = 'Back to the global gate (clears every choice on this row)';
-        row.append(label, sel, reset);
-        if (gate.track === 'romance') row.append(personGateExtras(person, gate, o, settings, { locked, nameOf, rerender }));
-        rows.append(row);
-    }
-    details.append(rows);
-
-    const bar = el('div', 'snpc-bond-toolbar');
-    const resetAll = button('Reset all gates for this person', 'fa-rotate-left', `Use the global gates for ${person.name} again`, () => {
-        editPerson(person.name, (p) => { clearGateOverride(p); });
-        rerender();
-    }, 'snpc-bond-gov-resetall');
-    resetAll.disabled = !Object.keys(person.gateOverrides || {}).length;
-    bar.append(resetAll);
-    details.append(bar);
+        }, 'snpc-bond-gov-resetall');
+        resetAll.disabled = !Object.keys(person.gateOverrides || {}).length;
+        bar.append(resetAll);
+        details.append(bar);
+    });
     return details;
+}
+
+/** Runs build once, the first time the panel is open (now if it already is). */
+function buildWhenOpened(details, build) {
+    let built = false;
+    const ensure = () => { if (built || !details.open) return; built = true; build(); };
+    details.addEventListener('toggle', ensure);
+    ensure();
 }
 
 /** The value of the "Minimum friendship" select that means "nothing more" (minBond ''). */

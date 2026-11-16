@@ -40,15 +40,16 @@ export function applyGridFilter(root) {
     const needle = gridFilter.trim().toLowerCase();
     const byId = new Map((getSettings().characters || []).map(c => [c.id, c]));
     let shown = 0;
-    let heading = null;
 
-    for (const child of root.children) {
-        const cls = String(child.className || '');
-        if (cls.includes('sillynpc-category-heading')) { heading = child; continue; }
-        if (!cls.includes('sillynpc-card-subgrid')) continue;
+    // Each category is a section holding its banner, heading and cards, so a category that
+    // matches nothing disappears as one piece.
+    for (const section of root.children) {
+        if (!String(section.className || '').includes('sillynpc-cat-section')) continue;
+        const sub = [...section.children].find(c => String(c.className || '').includes('sillynpc-card-subgrid'));
+        if (!sub) continue;
 
         let here = 0;
-        for (const card of child.children) {
+        for (const card of sub.children) {
             // The + card makes a new character; it answers no search.
             if (String(card.className || '').includes('sillynpc-card-add')) {
                 card.style.display = needle ? 'none' : '';
@@ -61,12 +62,9 @@ export function applyGridFilter(root) {
         }
         shown += here;
 
-        // A heading with nothing under it is a category that does not match, and a column
-        // of empty headings is what makes a filter feel broken.
-        const keep = !needle || here > 0;
-        child.style.display = keep ? '' : 'none';
-        if (heading) heading.style.display = keep ? '' : 'none';
-        heading = null;
+        // A section with nothing in it is a category that does not match, and a column of
+        // empty ones is what makes a filter feel broken.
+        section.style.display = (!needle || here > 0) ? '' : 'none';
     }
 
     return shown;

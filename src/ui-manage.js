@@ -629,8 +629,17 @@ function renderCardGrid() {
     for (const cat of categoryOrder) {
         const chars = groups.get(cat) || [];
 
+        // One framed section per category, in its faction's colours and with its banner, the
+        // same look as a character's profile.
+        const section = document.createElement('section');
+        section.className = 'sillynpc-cat-section';
+        const world = safeWorld(activeCombatType);
+        try {
+            applyFactionTheme(section, cat, world);
+            if (cat !== '') section.appendChild(buildFactionBanner(cat, world));
+        } catch (err) { console.warn('[Worldkit] faction section failed', err); }
         if (cat !== '') {
-            root.appendChild(buildCategoryHeading(cat));
+            section.appendChild(buildCategoryHeading(cat));
         }
 
         const subgrid = document.createElement('div');
@@ -657,7 +666,8 @@ function renderCardGrid() {
         if (cat === '') {
             subgrid.appendChild(buildAddCard());
         }
-        root.appendChild(subgrid);
+        section.appendChild(subgrid);
+        root.appendChild(section);
     }
 
     // Last, because there is nothing to filter until the cards are in.
