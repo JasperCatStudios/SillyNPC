@@ -2038,11 +2038,16 @@ async function recognizeLook(dataUrl) {
 /* A picture asked for in plain words carries its request on the message (m.req). Pictures of the contact
    are anchored on their look; a drawing or a photo of a thing never is. Under /sd the contact's saved image
    prompt is added by the call itself, so only their own look override is written here. */
+/* Under /sd the call already adds the Worldkit image prompt, so a copy of it kept as the look is not written twice. */
+function sdLook(name) {
+    const own = String(lookCfg(name).desc || '').trim().slice(0, 600);
+    return own && own === String(cardChar(name)?.imagePrompt || '').trim().slice(0, 600) ? '' : own;
+}
 function requestedPrompt(m) {
     const cfg = imgCfg();
     const mode = detectImageMode();
     const tags = mode === 'sd' || mode === 'comfy';
-    const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? String(lookCfg(m.name).desc || '').trim().slice(0, 600) : descFor(m.name));
+    const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? sdLook(m.name) : descFor(m.name));
     const p = promptsForRequest(m.req, { charName: m.name || 'them', look, extraStyle: cfg.style ? String(cfg.style).trim() : '' });
     return tags ? p.sdPrompt : p.contextPrompt;
 }
@@ -2225,7 +2230,11 @@ function openGallery(id) {
     const desc = q('.rph-gal-desc');
     if (isGroup(id)) q('.rph-gal-look').hidden = true;
     else {
-        desc.value = String(lookCfg(who).desc || '');
+        // Their look is the profile's visual (Worldkit image) prompt, copied here to read and tune; requests only add poses and outfits on top.
+        const own = String(lookCfg(who).desc || '').trim();
+        const saved = String(cardChar(who)?.imagePrompt || '').trim().slice(0, 600);
+        if (!own && saved) { lookEdit(who).desc = saved; saveSettings(); }
+        desc.value = own || saved;
         desc.addEventListener('change', () => { lookEdit(who).desc = desc.value.trim().slice(0, 600); saveSettings(); });
     }
 
