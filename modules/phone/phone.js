@@ -4898,6 +4898,7 @@ function settingsHtml() {
                             <span id="rph-comfy-state" class="rph-comfystate">${t('comfy_state0')}</span>
                             <button class="menu_button" id="rph-comfy-test">${t('comfy_test')}</button>
                         </div>
+                        <small class="notes" id="rph-comfy-selfienote" style="display:none">Selfies are drawn by your selfie workflow below, with its own settings. The settings here are used for every other picture, until you set a workflow of your own for those too.</small>
                         <div id="rph-comfy-builtin">
                         <label for="rph-comfy-ckpt">${t('comfy_ckpt')}</label>
                         <select id="rph-comfy-ckpt" class="text_pole"></select>
@@ -5193,6 +5194,7 @@ function setupImageUI() {
         const own = !!String(comfyCfg().workflow || '').trim();
         $('#rph-comfy-builtin').toggle(!own);
         $('#rph-comfy-own').toggle(own);
+        $('#rph-comfy-selfienote').toggle(!own && !!String(comfyCfg().selfieWorkflow || '').trim());
         $('.rph-settings .rph-cloudonly').toggle(!on);
         $('#rph-img-url').attr('placeholder', on ? (comfyBorrowed() || 'http://127.0.0.1:8188') : 'https://api.navy/v1');
         $('#rph-img-note').text(imgConn().from ? t('img_borrowed') : '');
@@ -5247,6 +5249,7 @@ function setupImageUI() {
     $('#rph-comfy-selfie').on('change', function () {
         const out = adoptWorkflow(this.value, 'selfieWorkflow', '#rph-comfy-selfie-note');
         if (out !== null) this.value = out;
+        refresh();
     });
     $('#rph-comfy-selfie-load').on('click', () => document.getElementById('rph-comfy-selfie-file').click());
     $('#rph-comfy-selfie-file').on('change', async function () {
@@ -5257,6 +5260,7 @@ function setupImageUI() {
         try { txt = await f.text(); } catch (e) { toastr.warning('Could not read that file.'); return; }
         const out = adoptWorkflow(txt, 'selfieWorkflow', '#rph-comfy-selfie-note');
         if (out !== null) $('#rph-comfy-selfie').val(out);
+        refresh();
     });
     $('#rph-comfy-wf').on('change', function () {
         // a workflow pasted without placeholders is given them first
