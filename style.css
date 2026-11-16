@@ -5273,21 +5273,41 @@ textarea.sillynpc-profile-input {
     #rpg-game-modal {
         left: 2vw !important;
         right: 2vw;
-        top: 3vh !important;
+        top: 48px !important;
         width: auto !important;
         max-width: none !important;
-        height: 92vh !important;
-        height: 92dvh !important;
-        overflow-y: auto;
+        height: calc(100vh - 58px) !important;
+        height: calc(100dvh - 58px) !important;
+    }
+    /* The table and the mini chat stack instead of sitting side by side. */
+    #rpg-game-modal .rpg-game-body { flex-direction: column; padding: 8px; gap: 8px; }
+    #rpg-game-modal .rpg-game-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    #rpg-game-modal .rpg-game-sidebar { flex: 0 0 34%; min-height: 150px; }
+    /* The phone's roster, diary and the phone itself are placed from the bottom edge, and on a
+       phone that edge is not where they expect (they ended up above the top of the screen). */
+    #rph-roster, #rph-diary-panel {
+        top: 48px !important;
+        bottom: auto !important;
+        left: 8px !important;
+        right: 8px !important;
+        width: auto !important;
+        max-height: calc(100vh - 60px) !important;
+        max-height: calc(100dvh - 60px) !important;
+    }
+    #rph-layer.rph-phone {
+        top: 48px !important;
+        bottom: auto !important;
+        height: calc(100vh - 58px) !important;
+        height: calc(100dvh - 58px) !important;
     }
     .snpc-fight {
         left: 2vw;
         right: 2vw;
-        top: 3vh;
+        top: 48px;
         transform: none;
         width: auto;
         max-width: none;
-        max-height: 92vh;
-        max-height: 92dvh;
+        max-height: calc(100vh - 58px);
+        max-height: calc(100dvh - 58px);
     }
 }

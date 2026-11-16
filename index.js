@@ -224,7 +224,9 @@ function addWandMenuEntry() {
                     toastr.info(`${label} is switched off, or no chat is open.`, PRODUCT_NAME);
                     return;
                 }
-                button.click();
+                // After this click has finished bubbling: the phone closes its roster on any click
+                // outside it, which would otherwise undo the open straight away.
+                setTimeout(() => button.click(), 0);
             });
             menu.append(entry);
         }
