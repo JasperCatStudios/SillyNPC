@@ -5263,3 +5263,31 @@ textarea.sillynpc-profile-input {
     .sillynpc-editor-header { margin-bottom: 6px; padding: 0 0 6px; }
     .sillynpc-editor-header .sillynpc-editor-title { flex: 1 1 70px; }
 }
+
+/* Games, Combat and the Phone on a small screen. The corner button row is hidden (the wand menu
+   opens each one instead), and each window becomes a sheet that fits the screen. The games window
+   was placed with left: calc(50vw - 480px), which is off the left edge on a phone: only a dark
+   sliver showed and it could not be tapped. */
+@media (max-width: 900px) {
+    #rpg-buttons-container { display: none !important; }
+    #rpg-game-modal {
+        left: 2vw !important;
+        right: 2vw;
+        top: 3vh !important;
+        width: auto !important;
+        max-width: none !important;
+        height: 92vh !important;
+        height: 92dvh !important;
+        overflow-y: auto;
+    }
+    .snpc-fight {
+        left: 2vw;
+        right: 2vw;
+        top: 3vh;
+        transform: none;
+        width: auto;
+        max-width: none;
+        max-height: 92vh;
+        max-height: 92dvh;
+    }
+}

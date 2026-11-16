@@ -201,6 +201,33 @@ function addWandMenuEntry() {
             openManagePopup().catch(err => console.error(LOG_PREFIX, 'openManagePopup failed', err));
         });
         menu.append(item);
+        // Games, Combat and the Phone live on corner buttons that are hard to reach on a phone
+        // (the row is hidden on narrow screens), so each also has a wand entry that presses its button.
+        for (const [id, icon, label, buttonId] of [
+            ['sillynpc_wand_games', 'fa-gamepad', 'Games', 'rpg-game-btn'],
+            ['sillynpc_wand_combat', 'fa-khanda', 'Combat', 'snpc-combat-btn'],
+            ['sillynpc_wand_phone', 'fa-mobile-screen-button', 'Phone', 'rph-btn'],
+        ]) {
+            if (document.getElementById(id)) continue;
+            const entry = document.createElement('div');
+            entry.id = id;
+            entry.classList.add('list-group-item', 'flex-container', 'flexGap5');
+            entry.title = `Open ${label}`;
+            const glyph = document.createElement('div');
+            glyph.classList.add('fa-solid', icon, 'extensionsMenuExtensionButton');
+            const text = document.createElement('span');
+            text.textContent = label;
+            entry.append(glyph, text);
+            entry.addEventListener('click', () => {
+                const button = document.getElementById(buttonId);
+                if (!button || button.style.display === 'none') {
+                    toastr.info(`${label} is switched off, or no chat is open.`, PRODUCT_NAME);
+                    return;
+                }
+                button.click();
+            });
+            menu.append(entry);
+        }
     } catch (err) {
         console.error(LOG_PREFIX, 'failed to add the wand menu entry', err);
     }
