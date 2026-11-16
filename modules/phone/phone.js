@@ -2036,8 +2036,10 @@ function usesSelfieWorkflow(m) {
     const c = imgConn().comfy || {};
     if (!String(c.selfieWorkflow || '').trim()) return false;
     if (m.req && typeof m.req === 'object') return m.req.mode === 'character';
-    // A picture of them the contact sent on their own is drawn the same way when there is no general workflow,
-    // since the built-in graph needs a full checkpoint, which an image-edit setup often does not have.
+    // A photo the contact sent on their own is drawn the same way when it is of themselves (the caption says a selfie, or
+    // "of me"), and also when there is no general workflow, since the built-in graph needs a full checkpoint.
+    const k = classify(m.text);
+    if (/\b(selfie|photo of (me|myself)|pic of (me|myself)|picture of (me|myself))\b/i.test(`${k.caption} ${k.text}`)) return true;
     return !String(c.workflow || '').trim();
 }
 async function ownRef(name) {
@@ -2204,6 +2206,7 @@ async function runGenQueue() {
                     extras.sheet = sheet || ref || null;
                     if (usesSelfieWorkflow(m)) { extras.selfie = true; ref = sheet || ref; }
                 }
+                console.info('[Phone] picture drawn by', extras.selfie ? 'the selfie workflow' : (String(imgConn().comfy?.workflow || '').trim() ? 'the general workflow' : 'the built-in graph'), '| request:', m.req ? m.req.mode : 'none');
                 const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, extras);
                 const key = newImgKey();
                 let stored = false;
@@ -3511,9 +3514,10 @@ async function photoAnswer(cur, names, asked, rq) {
     // a group thread: one member answers, not everybody at once
     const asker = isGroup(cur) ? (names.find(n => !isUserName(n)) || names[0]) : names[0];
     const who = isGroup(cur) ? `Only ${asker} answers, with exactly ONE message from them alone. ` : 'Answer with exactly ONE message. ';
-    const req = asked && plainPictures() ? await readPictureRequest(cur, asked, asker) : null;
+    // the camera button with nothing typed asks the contact for a picture of themselves
+    const req = plainPictures() ? await readPictureRequest(cur, asked || 'a selfie', asker) : null;
     if (!isCurrent(rq)) return;
-    const said = req ? ` They said: "${String(asked).replace(/"/g, "'").slice(0, 200)}".` : '';
+    const said = req && asked ? ` They said: "${String(asked).replace(/"/g, "'").slice(0, 200)}".` : '';
     const ask = `${name1 || 'The player'} asked for a picture.${said} ${who}It must be a photo message: `
         + `${open}${asker}${close} [sent a photo: a vivid description of what the picture shows]. The tag, and at most a few words after it.`;
     const msgs = await generateReply(names, ask, false, cur);

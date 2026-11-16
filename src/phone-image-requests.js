@@ -508,7 +508,9 @@ function buildBaseRequest(userMessage, history = [], opts = {}) {
     const style = detectStyleTags(userMessage);
     const r = opts.resolved;
     if (r) {
-        const mode = r.mode || 'character';
+        // the player said selfie: it is a picture of the contact, whatever the model made of the rest
+        const said = SELFIE.test(userMessage) && !NOT_A_REQUEST.some(p => p.test(userMessage)) && !REFUSAL.test(userMessage);
+        const mode = said ? 'character' : (r.mode || 'character');
         const scene = r.scene || inferSceneHint(userMessage);
         let directives = r.directives || '';
         if (mode === 'creative' && !directives) directives = extractCreativeSubject(userMessage);
