@@ -25,6 +25,7 @@ const el = (tag, className, text) => {
 
 const STORE = { get: () => vitalsSettings(), save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS };
 const TRACK = { get: () => vitalsSettings().track, save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS.track };
+const DRIFT = { get: () => vitalsSettings().drift, save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS.drift };
 const LIMITS = { get: () => vitalsSettings().limits, save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS.limits };
 const namespaced = (node) => { if (node?.dataset?.setting) node.dataset.setting = `vitals.${node.dataset.setting}`; return node; };
 const options = (table) => Object.entries(table).map(([value, label]) => ({ value, label }));
@@ -155,6 +156,13 @@ export function renderVitalsView(view) {
     view.append(el('p', 'notes', 'The most one reply can move each value, in points. A story can hurt someone a lot at once but should not heal or feed them from nothing.'));
     for (const [key, label] of [['health', 'Health per reply'], ['hunger', 'Hunger per reply'], ['energy', 'Energy per reply'], ['mood', 'Mood strength per reply']]) {
         view.append(namespaced(buildSettingNumber({ store: LIMITS, key, label, suffix: 'points' })));
+    }
+
+    view.append(el('h4', 'sillynpc-combat-heading', 'Wearing down with time'));
+    view.append(el('p', 'notes', 'Each reply costs a little hunger and energy for the people it is about, unless the story says something happened (a meal, a rest). '
+        + 'Health never wears down: it changes only for an injury, illness or healing. Mood is entirely up to the scene. 0 turns a drift off.'));
+    for (const [key, label] of [['hunger', 'Hunger lost per reply'], ['energy', 'Energy lost per reply']]) {
+        view.append(namespaced(buildSettingNumber({ store: DRIFT, key, label, suffix: 'points' })));
     }
 
     renderPeople(view, rerender);

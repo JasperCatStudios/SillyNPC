@@ -40,6 +40,10 @@ export const VITALS_SETTINGS_DEFAULTS = Object.freeze({
     // The most one reply may move each value, in points. Health and hunger are physical and
     // change slowly; a mood can swing in a moment.
     limits: Object.freeze({ health: 30, hunger: 15, energy: 25, mood: 40 }),
+    // What time passing alone costs, in points per reply, for each person the reply is about. Only hunger
+    // and energy wear down by themselves; health changes only through injury, illness or healing, and
+    // mood is whatever the scene makes it. 0 turns a drift off.
+    drift: Object.freeze({ hunger: 2, energy: 3 }),
     inject: Object.freeze({ position: 'chat', depth: 1, role: 'system', trigger: 'scene', scanDepth: 6 }),
 });
 
@@ -94,6 +98,10 @@ export function normalizeVitalsSettings(raw) {
             hunger: int(r.limits?.hunger, d.limits.hunger, 1, 100),
             energy: int(r.limits?.energy, d.limits.energy, 1, 100),
             mood: int(r.limits?.mood, d.limits.mood, 1, 100),
+        },
+        drift: {
+            hunger: int(r.drift?.hunger, d.drift.hunger, 0, 10),
+            energy: int(r.drift?.energy, d.drift.energy, 0, 10),
         },
         inject: {
             position: pick(r.inject?.position, VITALS_POSITIONS, d.inject.position),
@@ -208,6 +216,8 @@ export function step(from, to, limit) {
  */
 export function applyTurn(store, update, settings, ctx = {}) {
     const now = ctx.now ?? Date.now();
+    // Reading the same reply again replaces what it did before rather than adding to it.
+    if (ctx.key !== undefined) revertTurn(store, String(ctx.key));
     const known = new Set((ctx.known || []).map(n => String(n).toLowerCase()));
     const changes = [];
     const before = {};
@@ -226,12 +236,18 @@ export function applyTurn(store, update, settings, ctx = {}) {
         let touched = false;
         for (const stat of ['health', 'hunger', 'energy']) {
             if (!settings.track[stat]) continue;
-            const wanted = percent(row[stat]);
+            let wanted = row[stat] == null || row[stat] === '' ? null : percent(row[stat]);
+            // Health is ours to lose: it falls only for a reason the story gives (a wound, an illness), never
+            // from the passage of time. A drop with no reason is the reader guessing, and is ignored.
+            if (stat === 'health' && wanted !== null && wanted < person.health && !text(row.reason).trim()) wanted = null;
+            // Hunger and energy wear down a little with every reply that does not say otherwise.
+            const drift = stat === 'health' ? 0 : (Number(settings.drift?.[stat]) || 0);
+            if (wanted === null && drift > 0) wanted = Math.max(0, person[stat] - drift);
             if (wanted === null) continue;
             const next = Math.round(step(person[stat], wanted, settings.limits[stat]));
             if (next === person[stat]) continue;
             changes.push({ name: person.name, stat, from: person[stat], to: next, proposed: wanted, why: text(row.reason) });
-            note(person, stat, person[stat], next, text(row.reason) || 'story', now);
+            note(person, stat, person[stat], next, text(row.reason) || (wanted !== null && row[stat] == null ? 'time passing' : 'story'), now);
             person[stat] = next;
             touched = true;
         }
@@ -296,6 +312,10 @@ export const VITALS_SYSTEM = [
     'For each person, give: health (0 to 100: 0 is dead, 100 is perfectly healthy), hunger (0 to 100: 0 is starving, 100 is full), energy (0 to 100: 0 is exhausted, 100 is rested),',
     'and mood: a short word or two for how they feel, with a level from 0 to 100 for how strongly (0 is not at all, 100 is overwhelming).',
     'Report only what the story supports. Leave a field out when nothing in the reply changes it.',
+    'Health is how much damage a body has taken and nothing else: it changes only for an injury, illness, poison, exhaustion that hurts, or healing, and is never lowered because time passed. If nobody was hurt or healed, leave health out entirely.',
+    'Hunger and energy wear down a little by themselves, and that is handled for you: leave them out unless something real happens (a meal, going without, hard exertion, rest or sleep).',
+    'Mood belongs entirely to the scene: judge it only from what the people feel in this reply, never from the passage of time.',
+    'Always give a short reason when you change health.',
     'Answer with one JSON object and nothing else:',
     '{"people":[{"name":"Name","health":85,"hunger":60,"energy":70,"mood":{"word":"Anxious","level":55},"reason":"one short sentence"}]}',
 ].join(' ');
