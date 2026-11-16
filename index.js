@@ -43,6 +43,7 @@ import { initInternalStates } from './src/internal-states.js';
 import { initBonds } from './src/bonds.js';
 import { initVitals } from './src/vitals.js';
 import { initVitalsSection } from './src/vitals-section.js';
+import { initLocationBackgrounds } from './src/location-backgrounds.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
@@ -440,6 +441,7 @@ jQuery(async () => {
             try {
                 initVitals();
                 initVitalsSection();
+                initLocationBackgrounds();
             } catch (vitalsErr) {
                 console.error(LOG_PREFIX, 'initVitals failed', vitalsErr);
             }

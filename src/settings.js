@@ -271,6 +271,11 @@ export const defaultSettings = {
      */
     imagegen: {},
     /**
+     * Location backgrounds (location-core.js): which background picture each place uses, and whether the chat's
+     * background follows the tracker's Location. A world's own, so it travels with its System.
+     */
+    locationBackgrounds: {},
+    /**
      * Faction colours and artwork (faction-theme.js): palettes you add, the default faction, whether pictures are
      * used at all (off means built-in icons only) and the folder they are read from. Presentation only.
      */

@@ -52,3 +52,11 @@
 .sillynpc-imagegen-slots { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .sillynpc-imagegen-thumb { max-width: 160px; max-height: 110px; object-fit: cover; border-radius: 6px; align-self: flex-start; margin-top: 4px; }
 @media (max-width: 600px) { .sillynpc-imagegen-bind-row { grid-template-columns: 1fr; } }
+
+.sillynpc-location-rows { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.sillynpc-location-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1.4fr) 56px auto; gap: 6px; align-items: center; }
+.sillynpc-location-thumb { width: 56px; height: 36px; object-fit: cover; border-radius: 4px; }
+@media (max-width: 700px) {
+    .sillynpc-location-row { grid-template-columns: 1fr 1fr; }
+    .sillynpc-location-thumb { width: 100%; height: 48px; }
+}

@@ -14,6 +14,9 @@ import {
 } from '../../src/comfy-engine.js';
 import { apiFormatWarning, workflowPicker } from '../../src/ui-workflow-picker.js';
 import { bindingsEditor } from '../../src/ui-workflow-bindings.js';
+import { renderLocationBackgrounds } from '../../src/ui-location-backgrounds.js';
+import { locationSettings, currentPlace } from '../../src/location-backgrounds.js';
+import { matchLocation } from '../../src/location-core.js';
 import { bindingsFor, vistalyzeScene, currentBackgroundUrl } from '../../src/comfy-engine.js';
 import { DEFAULT_SCENE_TEMPLATE } from '../../src/comfy-bindings.js';
 import { API_FORMAT_HELP, PLACEHOLDERS, SCENE_PLACEHOLDERS, SCENE_SLOTS, inspectWorkflow } from '../../src/comfy-core.js';
@@ -214,6 +217,8 @@ function renderPane(pane, { live } = {}) {
     open.addEventListener('click', () => openScenePicture());
     pane.append(open);
 
+    renderLocationBackgrounds(pane, { live });
+
     if (live && (s.url || comfyBase())) check(true);
 }
 
@@ -264,7 +269,12 @@ export function openScenePicture() {
     body.append(field('Location', location, scene.location ? '' : 'The tracker has no Location yet: type one.'));
 
     // The place's picture is read when the picture is drawn, so a location change while this is open is picked up.
-    const liveBackground = () => vistalyzeScene()?.background || currentBackgroundUrl();
+    // A place in the Location backgrounds table wins, then Vistalyze's background, then whatever the chat is showing.
+    const presetBackground = () => {
+        const hit = matchLocation(locationSettings().entries, location.value || currentPlace());
+        return hit?.file ? `/backgrounds/${encodeURIComponent(hit.file)}` : '';
+    };
+    const liveBackground = () => presetBackground() || vistalyzeScene()?.background || currentBackgroundUrl();
     const slotsHost = el('div', 'sillynpc-imagegen-slots');
     body.append(slotsHost);
 
