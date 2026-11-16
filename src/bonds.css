@@ -27,6 +27,10 @@
     margin: var(--snpc-bond-gap) 0;
 }
 
+.snpc-bond-person[hidden] { display: none; }
+
+.snpc-bond-count { white-space: nowrap; }
+
 .snpc-bond-spacer {
     flex: 1 1 0;
     min-width: 0;
@@ -107,12 +111,13 @@
 /* One row on a wide panel, two on a narrow one (name and meter above, controls below). */
 .snpc-bond-head {
     display: grid;
-    grid-template-columns: 30px minmax(110px, 1fr) minmax(180px, 2fr) 120px auto auto;
-    grid-template-areas: "caret who meter value chips actions";
+    grid-template-columns: 22px 30px minmax(110px, 1fr) minmax(180px, 2fr) 120px auto auto;
+    grid-template-areas: "pick caret who meter value chips actions";
     align-items: center;
     gap: var(--snpc-bond-gap);
 }
 
+.snpc-bond-pick    { grid-area: pick; margin: 0; width: 18px; height: 18px; cursor: pointer; }
 .snpc-bond-caret   { grid-area: caret; }
 .snpc-bond-who     { grid-area: who; }
 .snpc-bond-meters  { grid-area: meter; }
@@ -623,11 +628,11 @@
     }
 
     .snpc-bond-head {
-        grid-template-columns: 30px minmax(0, 1fr) 120px auto;
+        grid-template-columns: 22px 30px minmax(0, 1fr) 120px auto;
         grid-template-areas:
-            "caret who value actions"
-            "meter meter meter meter"
-            "chips chips chips chips";
+            "pick caret who value actions"
+            "meter meter meter meter meter"
+            "chips chips chips chips chips";
     }
 
     .snpc-bond-th {

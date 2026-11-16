@@ -1305,8 +1305,8 @@ export function revertTurn(store, key, growth = DEFAULT_GROWTH) {
  * @param {{ bonds: object[], milestones: object[] }} update parseUpdate() output
  * @param {object} settings normalizeBondSettings() output
  * @param {{ key: string, swipeId?: number, messageId?: number|null, force?: boolean,
- *           only?: string, known?: string[], player?: string, date?: object, now?: number }} ctx
- *   key identifies the reply; only limits the update to one person; known is who may be
+ *           only?: string|string[], known?: string[], player?: string, date?: object, now?: number }} ctx
+ *   key identifies the reply; only limits the update to one person or a chosen few; known is who may be
  *   created (anyone already tracked is always accepted); date is milestoneDate() output.
  * @returns {{ applied: boolean, reason?: string, record?: object }}
  */
@@ -1335,7 +1335,7 @@ export function applyTurn(store, update, settings, ctx) {
     const accepts = (name) => {
         if (!str(name)) return false;
         if (ctx.player && sameName(name, ctx.player)) return false;
-        if (ctx.only && !sameName(name, ctx.only)) return false;
+        if (ctx.only && ![].concat(ctx.only).some(n => sameName(name, n))) return false;
         // Only somebody you already track. A reply never starts tracking a character by itself.
         return Boolean(findPerson(store, name));
     };

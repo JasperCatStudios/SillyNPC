@@ -4639,6 +4639,8 @@ function bindOwnGroups(body) {
     });
 }
 
+/* The roster's search text (fork). Kept across redraws, so switching somebody on does not clear it. */
+let rosterFilter = '';
 function renderRoster() {
     const body = $('#rph-roster-body');
     if (!body.length) return;
@@ -4651,13 +4653,24 @@ function renderRoster() {
     // somebody already switched on stays listed even after stepping into the scene
     Object.keys(settings.active).forEach(n => { if (settings.active[n] && !seen.has(n) && !isUserName(n) && !isGroup(n) && characters.some(c => c.name === n)) { seen.add(n); list.push(n); } });
 
+    // Alphabetical, and narrowed by the search box: with 100+ contacts the order they came in is no way to find anyone.
+    list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+    const q = rosterFilter.trim().toLowerCase();
+    const shown = q ? list.filter(n => n.toLowerCase().includes(q)) : list;
+
     let html = `<div class="rph-roster-title"><button type="button" class="rph-roster-close" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button><span><i class="fa-solid fa-mobile-screen-button"></i> ${t('roster')}</span></div>`;
     const gid = groupContactId();
+    html += `<div class="rph-roster-searchrow"><input type="search" id="rph-roster-search" class="text_pole" placeholder="Search ${list.length} contacts" value="${escapeHtml(rosterFilter)}" autocomplete="off"><span class="rph-roster-count">${q ? `${shown.length} of ${list.length}` : ''}</span></div>`;
     if (!list.length) html += `<div class="rph-hint">${t('no_chars')}</div>`;
-    html += list.slice(0, 60).map(n => {
+    else if (!shown.length) html += `<div class="rph-hint">No contact matches "${escapeHtml(rosterFilter.trim())}".</div>`;
+    let letter = '';
+    html += shown.map(n => {
+        const first = (n.trim()[0] || '#').toUpperCase();
+        const head = !q && first !== letter ? `<div class="rph-roster-letter">${escapeHtml(first)}</div>` : '';
+        letter = first;
         const castTxt = String(settings.cast[n] || '');
         const castN = castTxt.split(/[,;\n]/).filter(x => x.trim()).length;
-        return `
+        return `${head}
         <div class="rph-row">
             ${avatarHtml(n)}
             <span class="rph-row-name rph-open" data-open="${escapeHtml(n)}" title="${escapeHtml(t('open_chat'))}">${escapeHtml(n)}${settings.active[n] && unreadOf(n) ? ` <b class="rph-unread">•</b>` : ''}</span>
@@ -4695,6 +4708,14 @@ function renderRoster() {
     bindOwnGroups(body);
 
     body.on('click.rph', '.rph-roster-close', () => { $('#rph-roster').removeClass('visible'); });
+    body.on('keydown.rph', '#rph-roster-search', e => e.stopPropagation());
+    body.on('input.rph', '#rph-roster-search', function () {
+        rosterFilter = String(this.value);
+        const at = this.selectionStart ?? rosterFilter.length;
+        renderRoster();
+        const box = document.getElementById('rph-roster-search');
+        if (box) { box.focus(); try { box.setSelectionRange(at, at); } catch { /* search inputs may refuse a selection */ } }
+    });
 
     body.on('click.rph', '.rph-toggle', function () {
         const n = $(this).data('name');

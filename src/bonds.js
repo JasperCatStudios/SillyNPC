@@ -176,12 +176,15 @@ export function latestReplyId() {
  * Reads one reply on the bond connection and applies what it proposes.
  *
  * @param {number} messageId
- * @param {{ force?: boolean, only?: string, button?: boolean }} [options]
- *   force re-reads a reply already read; only updates one person; button is the user asking,
+ * @param {{ force?: boolean, only?: string|string[], button?: boolean }} [options]
+ *   force re-reads a reply already read; only updates one person or a chosen few; button is the user asking,
  *   which works in every timing (manual included) as long as the tracker is on.
  * @returns {Promise<object|null>} The applied record, or null.
  */
-export async function runBondUpdate(messageId, { force = false, only = '', button = false } = {}) {
+export async function runBondUpdate(messageId, { force = false, only: onlyRaw = '', button = false } = {}) {
+    const names = [].concat(onlyRaw || []).map(n => String(n).trim()).filter(Boolean);
+    const only = names.length ? names : null;
+    const isChosen = (name) => names.some(n => n.toLowerCase() === String(name).toLowerCase());
     const settings = bondSettings();
     if (timingAction(settings, button ? 'button' : 'rendered') !== 'request') return null;
     const context = getContext();
@@ -191,7 +194,7 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
     if (!hasReadableText(message)) return null;   // nothing written yet (a blank greeting, a chat just opening)
 
     const swipeId = message.swipe_id ?? 0;
-    const key = only ? `manual:${only.toLowerCase()}:${messageId}` : String(messageId);
+    const key = only ? `manual:${names.map(n => n.toLowerCase()).sort().join('|')}:${messageId}` : String(messageId);
     const store = chatStore();
     if (!store) return null;
     if (!force && store.turns.some(t => t.key === key && t.swipeId === swipeId)) return null;
@@ -211,7 +214,7 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
         const remembered = !force && !only ? storedUpdate(message) : null;
         let update = remembered;
         if (!update) {
-            const people = (chatStore()?.people || []).filter(p => p.tracked && (!only || p.name.toLowerCase() === only.toLowerCase()));
+            const people = (chatStore()?.people || []).filter(p => p.tracked && (!only || isChosen(p.name)));
             const depth = settings.contextMessages;
             const recent = chat.slice(Math.max(0, messageId - depth), messageId)
                 .map(m => `${m.name}: ${String(m.mes)}`).join('\n\n');
@@ -224,7 +227,7 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
                 // The turn this read will count as, for the romance-unlock cooldown.
                 turn: (chatStore()?.turn ?? 0) + 1,
             });
-            const focus = only ? `\n\nOnly ${only} matters for this update; leave everyone else out.` : '';
+            const focus = only ? `\n\nOnly ${names.join(', ')} ${names.length > 1 ? 'matter' : 'matters'} for this update; leave everyone else out.` : '';
             const raw = await requestOnConnection('bondProfileId', system, user + focus, settings.maxTokens);
             update = parseUpdate(raw);
             if (!only) rememberUpdate(message, update);

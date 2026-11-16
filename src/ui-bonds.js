@@ -28,6 +28,10 @@ import { PRODUCT_NAME } from './constants.js';
 
 /** People whose history is open, by lowercased name. Survives redraws, not reopening the menu. */
 const expanded = new Set();
+/** People ticked for Update selected / Track / Untrack, by lowercased name. Survives redraws, not reopening the menu. */
+const picked = new Set();
+/** The text in the people search box. */
+let peopleFilter = '';
 /** People whose "your side" panel is open, the same way. */
 const sideOpen = new Set();
 /** People whose "Gates for" panel is open, the same way. */
@@ -257,17 +261,56 @@ function renderPeople(view, rerender) {
     }
     const settings = bondSettings();
 
+    // Everyone tracked, then this chat's characters who have no bond yet, shown untracked.
+    const people = [...store.people];
+    for (const c of getActiveCharacters()) {
+        if (c?.name && !people.some(p => p.name.toLowerCase() === c.name.toLowerCase())) {
+            people.push({ ...normalizePerson({ name: c.name, tracked: false }, settings.growth), untracked: true });
+        }
+    }
+    // Drop picks of people who are no longer in the list (a different chat, a forgotten bond).
+    const present = new Set(people.map(p => p.name.toLowerCase()));
+    for (const k of [...picked]) if (!present.has(k)) picked.delete(k);
+
     const bar = el('div', 'snpc-bond-toolbar');
-    const updateAll = button('Update all now', 'fa-arrows-rotate', 'Read the newest reply again and apply what it changes (replaces what that reply did before)', async () => {
+    const search = el('input', 'text_pole snpc-bond-search');
+    search.type = 'search';
+    search.placeholder = 'Search characters';
+    search.value = peopleFilter;
+    search.title = 'Show only characters whose name contains this';
+    const count = el('span', 'notes snpc-bond-count');
+    const updateSel = button('', 'fa-arrows-rotate', 'Read the newest reply again for the ticked characters (only those with Track on)', async () => {
         const id = latestReplyId();
         if (id < 0) { toastr.info('There is no reply to read yet.', PRODUCT_NAME); return; }
-        updateAll.disabled = true;
-        await runBondUpdate(id, { force: true, button: true });
+        const tracked = new Set((chatStore()?.people || []).filter(p => p.tracked).map(p => p.name.toLowerCase()));
+        const names = people.filter(p => picked.has(p.name.toLowerCase()) && tracked.has(p.name.toLowerCase())).map(p => p.name);
+        if (!names.length) { toastr.info('Tick characters that have Track switched on.', PRODUCT_NAME); return; }
+        updateSel.disabled = true;
+        await runBondUpdate(id, { force: true, button: true, only: names });
         rerender();
     });
-    updateAll.disabled = !settings.enabled;
+    const trackSel = button('Track', 'fa-check', 'Switch tracking on for the ticked characters', () => {
+        for (const p of people) if (picked.has(p.name.toLowerCase())) editPerson(p.name, (x) => { x.tracked = true; });
+        rerender();
+    });
+    const untrackSel = button('Untrack', 'fa-xmark', 'Switch tracking off for the ticked characters (their bonds are kept)', () => {
+        for (const p of people) if (picked.has(p.name.toLowerCase())) editPerson(p.name, (x) => { x.tracked = false; });
+        rerender();
+    });
+    const untrackAll = button('Untrack everyone', 'fa-eraser', 'Switch tracking off for every character in this chat (bonds are kept), so you can pick just the ones you want', async () => {
+        const ok = await Popup.show.confirm('Untrack everyone?', 'Tracking goes off for every character in this chat. Their bonds and history are kept; tick the ones you want and press Track.');
+        if (!ok) return;
+        for (const p of chatStore()?.people || []) if (p.tracked) editPerson(p.name, (x) => { x.tracked = false; });
+        rerender();
+    });
+    const shownCards = () => [...list.children].filter(c => !c.hidden);
+    const pickShown = button('Select shown', 'fa-square-check', 'Tick every character the search is showing', () => {
+        for (const c of shownCards()) picked.add(c.dataset.key);
+        syncPicks();
+    });
+    const clearPicks = button('Clear', 'fa-square', 'Untick everyone', () => { picked.clear(); syncPicks(); });
     const name = input('text', '', () => {}, { placeholder: 'Add someone by name' });
-    const add = button('Add', 'fa-plus', 'Start tracking this person', () => {
+    const add = button('Add', 'fa-plus', 'Add this person to the list (not tracked until you switch Track on)', () => {
         const n = name.value.trim();
         if (!n) return;
         editPerson(n, () => {});
@@ -275,33 +318,58 @@ function renderPeople(view, rerender) {
         rerender();
     });
     name.addEventListener('keydown', (e) => { if (e.key === 'Enter') add.click(); });
-    bar.append(updateAll, el('span', 'snpc-bond-spacer'), name, add);
-    view.append(bar);
 
-    // Everyone tracked, then this chat's characters who have no bond yet, shown at the start value.
-    const people = [...store.people];
-    for (const c of getActiveCharacters()) {
-        if (c?.name && !people.some(p => p.name.toLowerCase() === c.name.toLowerCase())) {
-            people.push({ ...normalizePerson({ name: c.name }, settings.growth), untracked: true });
-        }
-    }
+    const searchRow = el('div', 'snpc-bond-toolbar');
+    searchRow.append(search, count);
+    const pickRow = el('div', 'snpc-bond-toolbar');
+    pickRow.append(pickShown, clearPicks, untrackAll, el('span', 'snpc-bond-spacer'), trackSel, untrackSel, updateSel);
+    bar.append(name, add);
+    view.append(searchRow, pickRow, bar);
+
     if (!people.length) {
         view.append(el('p', 'notes', 'Nobody yet. People are added as the tracker meets them, or by name above.'));
         return;
     }
     people.sort((a, b) => Number(Boolean(a.untracked)) - Number(Boolean(b.untracked)) || b.value - a.value || a.name.localeCompare(b.name));
     const list = el('div', 'snpc-bond-people');
-    for (const p of people) list.append(personCard(p, settings, rerender));
+    for (const p of people) list.append(personCard(p, settings, rerender, () => syncPicks()));
     view.append(list);
+
+    /** Hides the cards the search does not match, and keeps the buttons and the count true. Nothing is redrawn, so typing keeps its focus. */
+    function syncPicks() {
+        const q = peopleFilter.trim().toLowerCase();
+        let shown = 0;
+        for (const card of list.children) {
+            const match = !q || card.dataset.key.includes(q);
+            card.hidden = !match;
+            if (match) shown++;
+            const box = card.querySelector('.snpc-bond-pick');
+            if (box) box.checked = picked.has(card.dataset.key);
+        }
+        const n = picked.size;
+        count.textContent = q ? `${shown} of ${people.length} shown` : `${people.length} characters`;
+        updateSel.replaceChildren(el('i', 'fa-solid fa-arrows-rotate'), el('span', '', n ? `Update selected (${n})` : 'Update selected'));
+        updateSel.disabled = !settings.enabled || !n;
+        trackSel.disabled = untrackSel.disabled = clearPicks.disabled = !n;
+        pickShown.disabled = !shown;
+    }
+    search.addEventListener('input', () => { peopleFilter = search.value; syncPicks(); });
+    syncPicks();
 }
 
-function personCard(person, settings, rerender) {
+function personCard(person, settings, rerender, onPick = () => {}) {
     const key = person.name.toLowerCase();
     const open = expanded.has(key);
     const { level, next } = levelFor(person.value, settings.levels);
     const wrap = el('div', `snpc-bond-person${person.tracked ? '' : ' is-off'}${person.untracked ? ' is-new' : ''}`);
 
+    wrap.dataset.key = key;
     const head = el('div', 'snpc-bond-head');
+    const pick = el('input', 'snpc-bond-pick');
+    pick.type = 'checkbox';
+    pick.checked = picked.has(key);
+    pick.title = `Select ${person.name} for the buttons above`;
+    pick.addEventListener('change', () => { if (pick.checked) picked.add(key); else picked.delete(key); onPick(); });
     const toggle = iconButton(open ? 'fa-chevron-down' : 'fa-chevron-right', open ? 'Hide history' : 'Show history and milestones', () => {
         if (open) expanded.delete(key); else expanded.add(key);
         rerender();
@@ -375,7 +443,7 @@ function personCard(person, settings, rerender) {
         }, 'snpc-bond-danger'));
     }
 
-    head.append(toggle, who, meters, lock, chips, actions);
+    head.append(pick, toggle, who, meters, lock, chips, actions);
     wrap.append(head);
     if (person.suggestion && !person.untracked) wrap.append(suggestionBanner(person, rerender));
     wrap.append(playerSide(person, settings, rerender));

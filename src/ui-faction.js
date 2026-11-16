@@ -31,6 +31,15 @@ export function factionPalette(category, world = null) {
     return paletteFor(category, factionSettings(), world);
 }
 
+/**
+ * The world whose factions may colour a profile, or null. Never throws: a world that fails to
+ * load must cost the profile its world banner, not the faction colours altogether (which is
+ * how a profile came up in the plain menu look on some opens).
+ */
+export function safeWorld(read) {
+    try { return read() || null; } catch (err) { console.warn('[Worldkit] could not read the active world', err); return null; }
+}
+
 /** Gives an element the faction's colours as CSS variables, so everything inside can use them. */
 export function applyFactionTheme(node, category, world = null) {
     if (!node) return null;

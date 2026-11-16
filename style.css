@@ -5420,3 +5420,39 @@ textarea.sillynpc-profile-input {
     .sillynpc-manage-layout > #sillynpc-settings-search .sillynpc-settings-search-results { position: absolute; top: 100%; left: 8px; right: 8px; max-height: 55vh; z-index: 210; }
     .sillynpc-manage-layout > #sillynpc-settings-search .sillynpc-settings-search-hit { min-height: 44px; }
 }
+
+/* The faction palette wins over the menu theme everywhere inside a profile. Rules written
+   against the menu theme's own colours (--sillynpc-*) used to keep showing through, which
+   is why only parts of a profile took the faction colours and the rest looked like the old
+   design. Re-pointing those tokens at the faction palette themes all of it at once, so
+   nothing inside has to be restyled one rule at a time. Last in the file on purpose. */
+.sillynpc-fx,
+.sillynpc-manage[class*="sillynpc-theme-"] .sillynpc-fx {
+    --sillynpc-bg-primary: var(--fx-bg);
+    --sillynpc-bg-secondary: var(--fx-panel);
+    --sillynpc-fg-primary: var(--fx-text);
+    --sillynpc-fg-secondary: var(--fx-muted, var(--fx-text));
+    --sillynpc-accent: var(--fx-accent);
+    --sillynpc-accent-text: var(--fx-text);
+    --sillynpc-border: var(--fx-border, var(--fx-accent));
+    color: var(--fx-text);
+}
+
+/* The Characters grid in the faction look: cards and category headings take their faction's palette. */
+.sillynpc-card.sillynpc-fx {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--fx-panel) 88%, var(--fx-border)), var(--fx-panel) 40%);
+    border: 1px solid var(--fx-border);
+    border-left: 3px solid var(--fx-accent);
+    color: var(--fx-text);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--fx-bg) 55%, transparent);
+}
+.sillynpc-card.sillynpc-fx:hover { border-color: var(--fx-accent); background: var(--fx-tab); }
+.sillynpc-card.sillynpc-fx .sillynpc-card-label { color: var(--fx-text); }
+.sillynpc-category-heading.sillynpc-fx {
+    background: linear-gradient(90deg, var(--fx-panel), transparent);
+    border: 0;
+    border-bottom: 1px solid var(--fx-border);
+    border-left: 4px solid var(--fx-accent);
+    color: var(--fx-accent);
+    padding-left: 8px;
+}

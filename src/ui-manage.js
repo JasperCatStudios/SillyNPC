@@ -37,7 +37,7 @@ import { renderVitalsView } from './ui-vitals.js';
 import { renderVectorsView } from './ui-vectors.js';
 import { renderStatsView } from './ui-stats.js';
 import { renderStatusView } from './ui-tracker-settings.js';
-import { applyFactionTheme, buildFactionBanner, factionPalette } from './ui-faction.js';
+import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
 import { renderModulesView } from './ui-modules.js';
 import { renderHudView } from './ui-hud-settings.js';
@@ -717,6 +717,7 @@ function buildCategoryHeading(cat) {
     heading.className = 'sillynpc-category-heading';
     heading.draggable = true;
     heading.dataset.category = cat;
+    try { applyFactionTheme(heading, cat, safeWorld(activeCombatType)); } catch { /* presentation only */ }
 
     heading.addEventListener('dragstart', (e) => {
         draggedCategory = cat;
@@ -810,7 +811,8 @@ function buildCard(char) {
     const card = document.createElement('div');
     card.className = 'sillynpc-card';
     card.dataset.id = char.id;
-    try { card.style.setProperty('--fx-accent', factionPalette(char.category, activeCombatType()).accent); } catch { /* presentation only */ }
+    // The whole card wears its faction's colours, not just a stripe: the grid is the page the Characters button opens.
+    try { applyFactionTheme(card, char.category, safeWorld(activeCombatType)); } catch { /* presentation only */ }
 
     // Shown but dimmed rather than hidden: a character you cannot see is one you cannot
     // let back in, and "where did everyone go" is the wrong thing to learn from a filter.
@@ -1035,7 +1037,7 @@ function buildRosterRail(current) {
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'sillynpc-roster-item' + (c.id === current.id ? ' active' : '');
-            try { item.style.setProperty('--fx-accent', factionPalette(c.category, activeCombatType()).accent); } catch { /* presentation only */ }
+            try { item.style.setProperty('--fx-accent', factionPalette(c.category, safeWorld(activeCombatType)).accent); } catch { /* presentation only */ }
             if (c.imageUrl) {
                 const face = document.createElement('img');
                 face.className = 'sillynpc-roster-face';
@@ -1074,11 +1076,16 @@ function mountDetail(editView, char, ...nodes) {
     layout.className = 'sillynpc-editor-layout';
     const detail = document.createElement('div');
     detail.className = 'sillynpc-editor-detail';
+    const world = safeWorld(activeCombatType);
     try {
-        const world = activeCombatType();
         applyFactionTheme(detail, char.category, world);
+    } catch (err) {
+        console.warn('[Worldkit] faction theme failed', err);
+        try { applyFactionTheme(detail, '', null); } catch { /* the plain look is all that is left */ }
+    }
+    try {
         if (charView === 'edit') detail.append(buildFactionBanner(char.category, world));
-    } catch (err) { console.warn('[Worldkit] faction theme failed', err); }
+    } catch (err) { console.warn('[Worldkit] faction banner failed', err); }
     detail.append(...nodes);
     const rail = buildRosterRail(char);
     layout.append(rail, detail);
