@@ -363,7 +363,7 @@ const L = {
         clear: 'Очистить переписку', cleared: 'Переписка очищена.', clear_confirm: 'Точно стереть: {name}?',
         ask_photo: 'Попросить прислать фото', ask_photo_off: 'Попросить фото: включи генерацию фото в настройках телефона',
         set_vision: 'Пусть персонажи видят фото, которые я отправляю',
-        br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)',
+        br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)', br_always: 'Всегда (только персонажи в сцене)',
         br_mode_hint: 'Иногда последние сообщения из телефона попадают к модели истории, и персонаж может о них вспомнить. В чате они не показываются.',
         br_test: 'проверка', br_default: 'по умолчанию', br_chance_where: 'Работает в случайном режиме.', br_chance_set: 'Шанс: {n}%.',
         br_chance: 'Шанс, %', br_chance_hint: '5 — редко. 100 = в каждом ответе, для проверки (пауза не учитывается)',
@@ -446,7 +446,7 @@ const L = {
         clear: 'Clear thread', cleared: 'Thread cleared.', clear_confirm: 'Really erase: {name}?',
         ask_photo: 'Ask for a photo', ask_photo_off: 'Ask for a photo: turn on photo generation in the phone settings',
         set_vision: 'Let characters see the photos I send',
-        br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random (hidden)',
+        br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random (hidden)', br_always: 'Always (only characters in the scene)',
         br_mode_hint: 'Now and then the latest phone texts go to the story model so the character can bring them up. They are never shown in the chat.',
         br_test: 'testing', br_default: 'default', br_chance_where: 'Used in Random mode.', br_chance_set: 'Chance set to {n}%.',
         br_chance: 'Chance, %', br_chance_hint: '5 is rare. 100 = every reply, for testing (ignores the cooldown)',
@@ -5001,6 +5001,7 @@ function settingsHtml() {
                 <option value="off">${t('br_off')}</option>
                 <option value="manual">${t('br_manual')}</option>
                 <option value="random">${t('br_random')}</option>
+                <option value="always">${t('br_always')}</option>
             </select>
             <div>
                 <div class="rph-row">

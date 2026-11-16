@@ -11,13 +11,13 @@
  * Pure: no DOM, no SillyTavern imports, so node can test it.
  */
 
-export const BRIDGE_MODES = Object.freeze(['off', 'manual', 'random']);
+export const BRIDGE_MODES = Object.freeze(['off', 'manual', 'random', 'always']);
 export const BRIDGE_ROLES = Object.freeze(['system', 'user', 'assistant']);
 
 export const DEFAULT_BRIDGE_INSTRUCTION = 'Let this colour the scene if it fits: <<contact>> may mention or react to these texts, or act on what was said in them, in their own way. Do not recite the texts word for word, and do not treat them as read aloud in the room unless <<user>> brings them up.';
 
 export const BRIDGE_DEFAULTS = Object.freeze({
-    mode: 'off',            // 'off' | 'manual' | 'random'
+    mode: 'off',            // 'off' | 'manual' | 'random' | 'always'
     chance: 5,              // random mode: percent of replies that carry the texts (rare). 100 = every reply, for testing
     cooldown: 3,            // random mode: at least this many replies between two times
     messages: 6,            // how many of the latest texts are given
@@ -84,7 +84,8 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
         if (!(rng() * 100 < b.chance)) return none('not this time');
     }
     // asked for by hand: anyone with texts; at random: only the people in the scene (when set)
-    const wantScene = b.mode === 'random' && b.onlyScene && !asked;
+    // always: every reply, but only for people in the scene (the one texted most recently first)
+    const wantScene = b.mode === 'always' || (b.mode === 'random' && b.onlyScene && !asked);
     const picks = [];
     let anyTexts = false;
     for (const c of contacts || []) {
@@ -94,11 +95,11 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
         if (wantScene && !c.inScene) continue;
         const fresh = b.onlyNew ? all.filter(m => (Number(m.ts) || 0) > (Number(shown[c.id]) || 0)) : all;
         if (!fresh.length) continue;
-        picks.push({ id: c.id, name: c.name, messages: fresh.slice(-b.messages), last: Number(fresh[fresh.length - 1].ts) || 0 });
+        picks.push({ id: c.id, name: c.name, messages: fresh.slice(-b.messages), last: Math.max(Number(all[all.length - 1].ts) || 0, Number(fresh[fresh.length - 1].ts) || 0) });
     }
     if (!picks.length) return none(anyTexts ? (wantScene ? 'nobody texted is in the scene, or nothing new' : 'nothing new to give') : 'no texts yet');
     picks.sort((x, y) => y.last - x.last);
-    return { fire: true, reason: asked ? 'asked for' : 'random', picks: picks.slice(0, b.maxContacts).map(({ id, name, messages }) => ({ id, name, messages })) };
+    return { fire: true, reason: asked ? 'asked for' : b.mode, picks: picks.slice(0, b.maxContacts).map(({ id, name, messages }) => ({ id, name, messages })) };
 }
 
 /**
