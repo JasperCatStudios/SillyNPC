@@ -164,8 +164,15 @@ function setupSettingsSearch() {
     slot.append(buildSettingsSearch({
         index: () => buildSettingsIndex(settingsTabs()),
         onPick: (entry) => {
+            // An advanced setting is not drawn until Show Every Setting is on: turn it on rather
+            // than take you to a page where the control is missing.
+            if (entry.advanced && !getSettings().devMode) {
+                getSettings().devMode = true;
+                saveSettings();
+                try { toastr.info('Show Every Setting was turned on so this one is visible. You can turn it off under Advanced.', 'Worldkit'); } catch { /* no toast */ }
+            }
             switchTab(entry.tab);
-            revealSetting(entry.key);
+            if (!entry.page) revealSetting(entry.key);
         },
     }));
 }

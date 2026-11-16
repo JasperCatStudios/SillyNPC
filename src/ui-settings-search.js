@@ -34,6 +34,18 @@ function* walk(node) {
     for (const kid of node.children || []) yield* walk(kid);
 }
 
+/** The explanatory note under a control, so a search can match what a setting does and not only its name. */
+function helpWithin(wrap) {
+    for (const el of walk(wrap)) {
+        const cls = String(el?.className || '');
+        if (typeof el.tagName === 'string' && /^small$/i.test(el.tagName) && cls.includes('notes')) {
+            const text = String(el.textContent || '').trim();
+            if (text) return text.slice(0, 400);
+        }
+    }
+    return '';
+}
+
 /**
  * What is on each page, as a flat list.
  *
@@ -45,6 +57,8 @@ export function buildSettingsIndex(tabs) {
     const seen = new Set();
 
     for (const tab of tabs) {
+        // The page itself, so "connection" finds the Connections page and not only controls on it.
+        found.push({ key: '', label: tab.label, tab: tab.id, tabLabel: 'Page', advanced: false, page: true, help: '' });
         const view = document.createElement('div');
         try {
             tab.render(view);
@@ -64,6 +78,7 @@ export function buildSettingsIndex(tabs) {
                 tab: tab.id,
                 tabLabel: tab.label,
                 advanced: el.dataset?.advanced === 'true',
+                help: helpWithin(el),
             });
         }
     }
@@ -88,19 +103,24 @@ export function searchSettings(index, query, { limit = 8, devMode } = {}) {
     const needle = String(query ?? '').trim().toLowerCase();
     if (needle.length < 2) return [];
 
-    const showAdvanced = devMode ?? !!getSettings().devMode;
+    void devMode;   // advanced settings are offered too, marked, and picking one switches "Show Every Setting" on
 
+    // Every typed word has to appear somewhere in the label, the page name, the key or the note
+    // under the control, so "hud scale" and "connection profile" find what they mean.
+    const words = needle.split(/s+/).filter(Boolean);
     const scored = [];
     for (const entry of index) {
-        if (entry.advanced && !showAdvanced) continue;
-
         const label = entry.label.toLowerCase();
-        const key = entry.key.toLowerCase();
+        const key = String(entry.key || '').toLowerCase();
+        const page = String(entry.tabLabel || '').toLowerCase();
+        const help = String(entry.help || '').toLowerCase();
         // A label starting with what you typed is what you meant more often than one
         // merely containing it, so it goes first.
         if (label.startsWith(needle)) scored.push([0, entry]);
         else if (label.includes(needle)) scored.push([1, entry]);
         else if (key.includes(needle)) scored.push([2, entry]);
+        else if (words.every(w => label.includes(w) || key.includes(w) || page.includes(w))) scored.push([3, entry]);
+        else if (words.every(w => label.includes(w) || key.includes(w) || page.includes(w) || help.includes(w))) scored.push([4, entry]);
     }
 
     return scored
@@ -126,7 +146,7 @@ export function buildSettingsSearch({ index, onPick }) {
     input.type = 'search';
     input.className = 'text_pole sillynpc-settings-search-input';
     input.placeholder = 'Search all settings…';
-    input.title = 'Searches every page by what a control is called.';
+    input.title = 'Searches every page and setting by name and by what the setting does.';
 
     const results = document.createElement('div');
     results.className = 'sillynpc-settings-search-results';
@@ -147,9 +167,7 @@ export function buildSettingsSearch({ index, onPick }) {
         if (!hits.length) {
             const none = document.createElement('div');
             none.className = 'sillynpc-settings-search-none notes';
-            none.textContent = getSettings().devMode
-                ? 'No setting by that name.'
-                : 'No setting by that name. Some are hidden until Show Every Setting is on.';
+            none.textContent = 'No setting or page by that name.';
             results.append(none);
         }
 
@@ -166,7 +184,7 @@ export function buildSettingsSearch({ index, onPick }) {
             // are rather than being taken there blind every time.
             const where = document.createElement('span');
             where.className = 'sillynpc-settings-search-where';
-            where.textContent = entry.tabLabel;
+            where.textContent = entry.advanced && !getSettings().devMode ? `${entry.tabLabel} · advanced` : entry.tabLabel;
 
             hit.append(label, where);
             hit.addEventListener('click', () => { close(); input.value = ''; onPick(entry); });
