@@ -11,6 +11,7 @@ import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { getSettings as getWorldkitSettings } from '../../src/settings.js';
 import { bindWorkflow, substituteValue, hasPromptHelper } from '../../src/comfy-workflow-bind.js';
+import { fixModelNames } from '../../src/comfy-model-names.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
@@ -1653,6 +1654,24 @@ async function comfyUploadReference(base, dataUrl, filename = 'rpg-phone-referen
     if (!data?.name) throw comfyErr('comfy-node', 'reference upload: no name', { status: 500 });
     return data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
 }
+const comfyOptionCache = new Map();
+/** For a node type, the file lists ComfyUI offers for its inputs ({ unet_name: [...] }); read once and kept. */
+async function comfyNodeOptions(base, classType) {
+    const key = `${base}|${classType}`;
+    if (comfyOptionCache.has(key)) return comfyOptionCache.get(key);
+    let out = {};
+    try {
+        const r = await fetch(`${base}/object_info/${encodeURIComponent(classType)}`);
+        if (r.ok) {
+            const info = (await r.json())?.[classType]?.input || {};
+            for (const group of [info.required, info.optional]) {
+                for (const [name, spec] of Object.entries(group || {})) if (Array.isArray(spec?.[0])) out[name] = spec[0].map(String);
+            }
+        }
+    } catch (e) { out = {}; }
+    comfyOptionCache.set(key, out);
+    return out;
+}
 async function callComfy(prompt, ref, extras = {}) {
     const base = comfyBaseUrl();
     if (!base) throw comfyErr('comfy-noaddr', 'no address');
@@ -1683,6 +1702,11 @@ async function callComfy(prompt, ref, extras = {}) {
         const sheetPic = extras.sheet || ref;
         if (custom && sheetPic && custom.includes('%sheet%')) v.sheet = await comfyUploadReference(base, sheetPic, 'rpg-phone-sheet.png');
         const graph = custom ? comfyFillCustom(wfText, v) : comfyBuildGraph(v);
+        // a workflow from another computer names its model files by that computer's folders; this ComfyUI's own names are used
+        if (custom) {
+            const { fixed } = await fixModelNames(graph, (ct) => comfyNodeOptions(base, ct));
+            for (const f of fixed) console.info(`[Phone] ComfyUI model name corrected (node ${f.node}, ${f.input}): ${f.from} -> ${f.to}`);
+        }
         let r;
         try {
             r = await fetch(`${base}/prompt`, {
