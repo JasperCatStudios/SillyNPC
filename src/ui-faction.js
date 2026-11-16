@@ -36,11 +36,16 @@ const gameArtFound = new Map();
 export function applyGameArt(node, game) {
     if (!node) return;
     const url = gameArtUrl(game, factionSettings());
-    if (!url) { node.style.removeProperty('--worldkit-game-image'); return; }
-    const set = () => node.style.setProperty('--worldkit-game-image', `url("${url}")`);
+    if (!url) { node.style.removeProperty('--worldkit-game-image'); node.classList.remove('has-felt'); return; }
+    const set = () => {
+        node.style.setProperty('--worldkit-game-image', `url("${url}")`);
+        // The felt table is dark: the game screens switch to light text while it is showing.
+        node.classList.toggle('has-felt', /felt-table.webp$/.test(url));
+    };
     if (gameArtFound.get(url) === true) { set(); return; }
-    if (gameArtFound.get(url) === false) { node.style.removeProperty('--worldkit-game-image'); return; }
+    if (gameArtFound.get(url) === false) { node.style.removeProperty('--worldkit-game-image'); node.classList.remove('has-felt'); return; }
     node.style.removeProperty('--worldkit-game-image');
+    node.classList.remove('has-felt');
     const probe = new Image();
     probe.onload = () => { gameArtFound.set(url, true); set(); };
     probe.onerror = () => gameArtFound.set(url, false);

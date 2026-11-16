@@ -132,7 +132,7 @@ export function themeStyle(palette) {
 /** Which file under games/ each game (and the combat window) uses. */
 export const GAME_ART_FILES = Object.freeze({
     chess: 'chess', ttt: 'tic-tac-toe', bs: 'battleship', rps: 'rock-paper-scissors', pig: 'pig',
-    bj: 'blackjack', poker: 'poker', whist: 'whist', bottle: 'spin-the-bottle', combat: 'combat',
+    bj: 'felt-table', poker: 'felt-table', whist: 'felt-table', bottle: 'spin-the-bottle', combat: 'combat',
 });
 
 /** The URL of a game or combat background, or '' unless artwork AND game backgrounds are both on. */
