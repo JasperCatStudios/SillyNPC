@@ -133,7 +133,7 @@ const defaults = {
     profileId: '',
     maxReplyMessages: 3,                  // most separate messages one reply may hold
     cardMaxChars: 3000,                   // longest profile sent per contact (their lorebook entry, or profile fields)
-    mainLineChars: 500,                   // longest single main-chat message sent
+    mainChatTokens: 50000,                // token budget for the whole main-chat section (messages are sent whole)
     contactAccent: true,     // tint a contact's thread with their Worldkit colour
     enabled: false,
     language: 'en',
@@ -141,7 +141,7 @@ const defaults = {
     apiKey: '',
     model: 'google/gemma-4-31b-it',
     temperature: 0.8,
-    contextTokens: 32000,
+    contextTokens: 64000,
     maxTokens: 900,         // reply budget; some providers cut hard at their own default
     mainChatMessages: 10,
     prompt: DEFAULT_PROMPT,
@@ -258,7 +258,7 @@ function loadSettings() {
     settings.bridge = normalizeBridge(settings.bridge);
     if (!settings.bridgeShown || typeof settings.bridgeShown !== 'object' || Array.isArray(settings.bridgeShown)) settings.bridgeShown = {};
     settings.bridgeArmed = settings.bridgeArmed === true;
-    for (const k of ['temperature', 'contextTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
+    for (const k of ['temperature', 'contextTokens', 'mainChatTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
         if (!Number.isFinite(settings[k])) settings[k] = defaults[k];
     }
     // the first build hugged the very right edge and dimmed old messages far too hard —
@@ -1245,13 +1245,18 @@ function mainChatContext(names, count) {
         if (!n) return '';
         const scan = chat.slice(-Math.max(40, n * 6)).filter(m => !m.is_system);
         const involved = scan.filter(m => names.some(nm => messageInvolves(nm, m.mes)));
-        const tail = involved.slice(-n)
-            .map(m => {
-                const text = String(m.mes || '')
-                    .replace(/<!--[\s\S]*?-->/g, '')
-                    .replace(/\s+/g, ' ').slice(0, Math.max(100, settings.mainLineChars || 500));
-                return `${m.name}: ${text}`;
-            }).join('\n');
+        // Messages go in whole. The story section as a whole has a token budget instead:
+        // the newest involved messages are kept until it is full, older ones are dropped.
+        const budget = Math.max(500, settings.mainChatTokens || 50000);
+        const lines = [];
+        let used = 0;
+        for (const m of involved.slice(-n).reverse()) {
+            const line = `${m.name}: ${String(m.mes || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\s+/g, ' ').trim()}`;
+            const cost = estTokens(line);
+            if (lines.length && used + cost > budget) break;
+            lines.unshift(line); used += cost;
+        }
+        const tail = lines.join('\n');
         return tail ? `[WHAT HAS HAPPENED IN THE STORY THAT INVOLVES YOU (the main roleplay, for context - the phone chat is separate):\n${tail}\n]` : '';
     } catch (e) { console.warn('[Phone] story context left out', e); return ''; }
 }
@@ -4965,7 +4970,7 @@ function settingsHtml() {
             <div class="rph-box"><div class="rph-boxhead">🧠 ${t('set_memory')}</div>
             <div class="rph-row">
                 <div><label for="rph-max-card">Each contact's profile, characters</label><input type="number" min="200" max="50000" step="100" id="rph-max-card" class="text_pole"></div>
-                <div><label for="rph-max-line">Each main-chat line, characters</label><input type="number" min="100" max="10000" step="50" id="rph-max-line" class="text_pole"></div>
+                <div><label for="rph-max-line">Main-chat context budget, tokens</label><input type="number" min="500" max="500000" step="1000" id="rph-max-line" class="text_pole"></div>
             </div>
             <div class="rph-btnrow"><div id="rph-view-prompt" class="menu_button">View the prompt</div></div>
             <div class="rph-row">
@@ -5217,12 +5222,12 @@ function setupUI() {
     range('#rph-size', '#rph-sizeval', 'phoneSize', 80, 130, 100, v => Math.round(v) + '%');
 
     range('#rph-temp', '#rph-tempval', 'temperature', 0, 2, 0.8, v => Number(v).toFixed(1));
-    num('#rph-ctx', 'contextTokens', 1000, 1000000, 32000);
+    num('#rph-ctx', 'contextTokens', 1000, 1000000, 64000);
     num('#rph-maxlines', 'maxReplyMessages', 1, 12, 3);
     num('#rph-maxtok', 'maxTokens', 120, 8000, 900);   // thinking models need room for hidden reasoning
 
     num('#rph-max-card', 'cardMaxChars', 200, 50000, 3000);
-    num('#rph-max-line', 'mainLineChars', 100, 10000, 500);
+    num('#rph-max-line', 'mainChatTokens', 500, 500000, 50000);
     $('#rph-view-prompt').on('click', () => openPromptViewer());
     num('#rph-msgs', 'mainChatMessages', 0, 50, 10);
     num('#rph-thmem', 'threadMemory', 2, 120, 24);
