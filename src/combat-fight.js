@@ -3,7 +3,7 @@ import { project } from './combat-roles.js';
 import { resolveAttack, rollInitiative, grantsFollowUp, previewOdds, abilityChance } from './combat-math.js';
 import { resolveAbilities, abilityList, abilityActions, passivesFor, fires, heals, blowMult, formAbilities } from './combat-abilities.js';
 import { resolveLoadout, weaponName, gearRules, gatedAbilities } from './combat-gear.js';
-import { buildGearActions } from './combat-weapons.js';
+import { unarmedAttack, buildGearActions } from './combat-weapons.js';
 
 /**
  * One fight (fork): who goes when, what they may do, and where the damage lands.
@@ -50,28 +50,49 @@ function visibleProfIds(type, view) {
  */
 /** What you can always do on your turn, whatever you hold: brace, dodge and (real fights only) recover. */
 export const HEAL_USES = 2;
-const GENERIC = Object.freeze({
-    defend: { key: 'defend', label: 'Defend', self: true, generic: true, effect: { block: 0.5 }, desc: 'Brace: the next blow against you does half damage.' },
-    evade: { key: 'evade', label: 'Evade', self: true, generic: true, effect: { evade: 0.5 }, desc: 'Dodge: an even chance the next blow misses you completely.' },
-    heal: { key: 'heal', label: 'Heal', self: true, generic: true, effect: { heal: 0.2 }, desc: `Catch your breath and recover a fifth of your health. ${HEAL_USES} times a fight.` },
-});
+const clamp01 = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+/** How much of the next blow a brace turns away: the world's defense, so a sturdier fighter shrugs off more. */
+export function defendShare(view) {
+    const def = Number(view?.role?.('defense')) || 0;
+    return Math.round(clamp01(0.25 + def * 0.008, 0.25, 0.75) * 100) / 100;
+}
+
+/** The chance a dodge turns the next blow aside: the world's evasion (or speed), so a quick fighter slips more. */
+export function evadeChance(view) {
+    const ev = Number(view?.role?.('evasion')) || Number(view?.role?.('speed')) || 0;
+    return Math.round(clamp01(0.15 + ev * 0.01, 0.15, 0.7) * 100) / 100;
+}
+
+/** The three things anyone can do on a turn, with numbers that come from this fighter's own stats. */
+function genericFor(view) {
+    const block = defendShare(view);
+    const evade = evadeChance(view);
+    return {
+        defend: { key: 'defend', label: 'Defend', self: true, generic: true, effect: { block }, desc: `Brace: the next blow against you does ${Math.round(block * 100)}% less damage (from your defense).` },
+        evade: { key: 'evade', label: 'Evade', self: true, generic: true, effect: { evade }, desc: `Dodge: a ${Math.round(evade * 100)}% chance the next blow misses you completely (from your evasion).` },
+        heal: { key: 'heal', label: 'Heal', self: true, generic: true, effect: { heal: 0.2 }, desc: `Catch your breath and recover a fifth of your health. ${HEAL_USES} times a fight.` },
+    };
+}
 
 /**
- * Attacking with what you have when nothing is held: the world's own basic weapon attack, under the
- * plain name "Attack" and a little weaker than the real thing. Built here so it is the same wherever
- * it is offered or looked up.
+ * Attacking with what you have when nothing is held. Built by the gear rules (combat-weapons.js) from
+ * the world's own unarmed kind; if a world offers none usable, the first weapon attack stands in.
  */
 export function unarmedAction(type, view) {
+    const own = unarmedAttack(type);
+    if (own) return own;
     const weaponProfs = new Set((view?.profs || []).filter(p => p.roles.includes('weapon')).map(p => p.id));
     const basis = (type.actions || []).find(a => weaponProfs.has(a.prof)) || (type.actions || [])[0];
     if (!basis) return null;
     return { key: 'unarmed', label: 'Attack', prof: basis.prof, power: Math.max(1, Math.round((Number(basis.power) || 0) * 0.6)), channel: basis.channel, desc: 'Strike with what you have.' };
 }
 
-/** The actions every combatant on the player's side may take, for a fight of this kind. */
+/** Defend, Evade and (a real fight only, a couple of times) Heal, for this fighter. */
 export function genericActions(mode = 'fight', fighter = null) {
-    const out = [GENERIC.defend, GENERIC.evade];
-    if (mode !== 'spar' && !(fighter && (fighter.healUses || 0) >= HEAL_USES)) out.push(GENERIC.heal);
+    const g = genericFor(fighter?.view);
+    const out = [g.defend, g.evade];
+    if (mode !== 'spar' && !(fighter && (fighter.healUses || 0) >= HEAL_USES)) out.push(g.heal);
     return out;
 }
 
@@ -81,7 +102,8 @@ export function genericActions(mode = 'fight', fighter = null) {
  */
 export function offeredActions(type, view, weapon, abilities = [], mode = 'fight', loadout = null, options = {}) {
     const out = offeredAttacks(type, view, weapon, abilities, mode, loadout);
-    return options.player ? [...out, ...genericActions(mode, options.fighter)] : out;
+    // The player's own choices, and the computer's too: everybody has the same moves.
+    return options.generic || options.player ? [...out, ...genericActions(mode, options.fighter || { view })] : out;
 }
 
 function offeredAttacks(type, view, weapon, abilities = [], mode = 'fight', loadout = null) {
@@ -178,7 +200,7 @@ function bestExpected(type, attacker, defender, diff, mode, abilities = activeAb
  */
 export function chooseAction(type, view, weapon, extra = {}) {
     const { me, foe, mode = 'fight', diff = 0 } = extra;
-    const acts = offeredActions(type, view, weapon, me ? activeAbilities(me) : undefined, mode, me?.loadout).filter(a => canPay(view, a));
+    const acts = offeredActions(type, view, weapon, me ? activeAbilities(me) : undefined, mode, me?.loadout, me ? { generic: true, fighter: me } : {}).filter(a => canPay(view, a));
     if (!acts.length) return null;
     const attacks = acts.filter(a => !a.self);
     const selfActs = acts.filter(a => a.self);
@@ -198,16 +220,25 @@ export function chooseAction(type, view, weapon, extra = {}) {
         if (!act.self) return (expectedDamage(type, me, foe, act, diff) / theirMax) * worth;
         let v = 0;
         const block = Number(act.effect?.block) || 0;
+        const dodge = Number(act.effect?.evade) || 0;
         const heal = Number(act.effect?.heal) || 0;
+        if (dodge > 0 && !(me.evade > 0)) {
+            // A dodge is a brace that either works completely or not at all; worth the chance times the blow.
+            // Only when hurt: at full strength the computer keeps swinging instead of stalling the fight.
+            const pool = me.view.pools[hit];
+            const hurt = pool && pool.max > 0 ? 1 - pool.cur / pool.max : 0;
+            if (hurt >= 0.25) v += ((incoming * dodge) / mineMax) * (0.25 + 0.75 * hurt) * 0.8;
+        }
         if (block > 0 && !(me.shield > 0)) {
             // Bracing is worth more the more hurt I am; at full strength it mostly wastes a turn.
             const pool = me.view.pools[hit];
             const hurt = pool && pool.max > 0 ? 1 - pool.cur / pool.max : 0;
-            v += ((incoming * block) / mineMax) * (0.25 + 0.75 * hurt);
+            if (!act.generic || hurt >= 0.25) v += ((incoming * block) / mineMax) * (0.25 + 0.75 * hurt) * (act.generic ? 0.8 : 1);
         }
         if (heal > 0 && mode !== 'spar') {
             const h = me.view.pools.health;
-            if (h) v += Math.min(h.max - h.cur, Math.round(h.max * heal)) / Math.max(1, h.max);
+            // The plain Heal is worth a little less than a real healing ability, so a fighter that has one uses it first.
+            if (h) v += (Math.min(h.max - h.cur, Math.round(h.max * heal)) / Math.max(1, h.max)) * (act.generic ? 0.85 : 1);
         }
         if (act.form) {
             // Entering a form is worth what it adds to the best blow, over the next couple of turns.
@@ -610,7 +641,7 @@ export function takeTurn(type, state, actionKey, targetId) {
     const action = actor.gearActions?.byKey.get(actionKey)
         || [...(type.actions || []), ...abilityActions(activeAbilities(actor), state.mode)].find(a => a.key === actionKey)
         || (actionKey === 'unarmed' ? unarmedAction(type, actor.view) : null)
-        || genericActions('fight').find(a => a.key === actionKey);
+        || genericActions('fight', actor).find(a => a.key === actionKey);
     // A dodge or a brace lasts for one round: until this fighter next acts.
     actor.evade = 0;
     if (!action) {
@@ -718,7 +749,7 @@ export function takeTurn(type, state, actionKey, targetId) {
         events.push({
             actor: actor.id, target: target.id, action: action.key, label: off ? off.name : action.label,
             // A weapon attack is already named after the weapon; other actions keep the weapon beside them.
-            weapon: action.weapon ? '' : (actor.weaponName || ''), follow, band: result.band,
+            weapon: actor.weaponName || '', follow, band: result.band,
             ...(action.weapon ? { tier: actor.loadout.main.tierLabel } : {}),
             ...(off ? { offhand: true } : {}),
             ...(result.gearCrit ? { gearCrit: true } : {}), total: result.total, natural: result.natural,

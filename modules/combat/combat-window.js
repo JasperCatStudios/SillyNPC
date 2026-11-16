@@ -471,7 +471,7 @@ function drawBattle(body) {
         body.append(aim);
     }
     const row = el('div', 'snpc-fight-actions');
-    const mine = offeredActions(type, actor.view, actor.weapon, activeAbilities(actor), state.mode, actor.loadout, { player: true, fighter: actor });
+    const mine = offeredActions(type, actor.view, actor.weapon, activeAbilities(actor), state.mode, actor.loadout, { generic: true, fighter: actor });
     if (!mine.length) row.append(el('p', 'notes', 'This world type has no actions.'));
     for (const action of mine) {
         let affordable = canPay(actor.view, action);

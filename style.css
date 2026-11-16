@@ -5410,3 +5410,13 @@ textarea.sillynpc-profile-input {
     background: color-mix(in srgb, var(--sillynpc-accent) 18%, var(--sillynpc-bg-primary));
 }
 .sillynpc-manage .sillynpc-tab:focus-visible { outline: 2px solid var(--sillynpc-accent); outline-offset: 2px; }
+
+/* The settings search on a phone: its own full-width row above the tabs (ui-manage.js moves it there),
+   with a tall box and a 16px font so the keyboard does not zoom the page. */
+@media (max-width: 768px) {
+    .sillynpc-manage-layout > #sillynpc-settings-search { flex: 0 0 auto; width: 100%; box-sizing: border-box; padding: 8px 46px 2px 8px; position: relative; z-index: 200; }
+    .sillynpc-manage-layout > #sillynpc-settings-search .sillynpc-settings-search { margin: 0; }
+    .sillynpc-manage-layout > #sillynpc-settings-search .sillynpc-settings-search-input { box-sizing: border-box; width: 100%; min-height: 44px; font-size: 16px; padding: 8px 12px; }
+    .sillynpc-manage-layout > #sillynpc-settings-search .sillynpc-settings-search-results { position: absolute; top: 100%; left: 8px; right: 8px; max-height: 55vh; z-index: 210; }
+    .sillynpc-manage-layout > #sillynpc-settings-search .sillynpc-settings-search-hit { min-height: 44px; }
+}

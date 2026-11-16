@@ -36,6 +36,29 @@ const cache = new WeakMap();
  *   byKey: Map<string, object> every action built here, by key
  * }}
  */
+/**
+ * Fighting with nothing in hand: the world's own unarmed kind (fists, hand-to-hand, hakuda), on the same
+ * footing as a weapon. It rides on the proficiency that kind names, so a trained brawler hits and lands
+ * better, and on the attack role the damage formula already reads, which a world binds to strength.
+ * @returns {object|null} an action, or null when the world has no usable proficiency for it
+ */
+export function unarmedAttack(type) {
+    const rules = gearRules(type);
+    const kind = rules.kinds.find(k => k.id === rules.unarmed) || rules.kinds.find(k => k.slot === 'natural');
+    const actions = type.actions || [];
+    const weaponProfs = weaponRoleProfs(type);
+    const prof = kind?.prof || actions.find(a => isPlain(a) && weaponProfs.has(a.prof))?.prof || '';
+    if (!prof) return null;
+    const base = actions.find(a => isPlain(a) && a.prof === prof) || null;
+    const power = (Number(base?.power) || 0) + (Number(kind?.power) || 0);
+    const hit = Number(kind?.hit) || 0;
+    return {
+        key: 'unarmed', label: 'Attack', prof, channel: kind?.channel || base?.channel || undefined, power,
+        gear: { hit, crit: 0, mult: 1, slot: 'main' },
+        desc: `Unarmed (${kind?.label || 'fists'}): power ${power}, hit ${hit >= 0 ? '+' : ''}${hit}. Uses your skill and strength.`,
+    };
+}
+
 export function buildGearActions(type, loadout) {
     if (!loadout) return { weapon: null, off: null, focus: [], replaces: new Set(), byKey: new Map() };
     if (cache.has(loadout)) return cache.get(loadout);
@@ -54,11 +77,13 @@ export function buildGearActions(type, loadout) {
         const basePower = Number(base?.power) || 0;
         out.weapon = {
             key: 'weapon',
-            label: weaponName(loadout) || main.name,
+            // One button, "Attack": it strikes with whatever is in hand, by that weapon's kind and tier.
+            label: 'Attack',
+            weaponLabel: weaponName(loadout) || main.name,
             prof: main.prof || base?.prof || '',
             channel: main.channel || base?.channel || undefined,
             power: basePower + main.power,
-            desc: `${main.tierLabel ? `${main.tierLabel} ` : ''}${main.kindLabel}.`,
+            desc: `${weaponName(loadout) || main.name}: ${main.tierLabel ? `${main.tierLabel} ` : ''}${main.kindLabel}. Power ${basePower + main.power}, hit ${main.hit >= 0 ? '+' : ''}${main.hit}, crit ${main.crit}%, damage x${main.mult}.`,
             weapon: true,
             gear: { hit: main.hit, crit: main.crit, mult: main.mult, slot: 'main' },
             tier: main.tier,

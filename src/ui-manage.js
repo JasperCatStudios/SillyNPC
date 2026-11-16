@@ -160,6 +160,18 @@ function setupTabBar() {
 function setupSettingsSearch() {
     const slot = manageRoot.querySelector('#sillynpc-settings-search');
     if (!slot) return;
+    // On a narrow screen the tab bar scrolls sideways and squeezed the box to nothing, so the box moves
+    // out of it and sits in its own full-width row above; on a wide one it stays at the top of the sidebar.
+    const narrow = window.matchMedia?.('(max-width: 768px)');
+    const place = () => {
+        const layout = manageRoot?.querySelector('.sillynpc-manage-layout');
+        const tabs = manageRoot?.querySelector('.sillynpc-tabs');
+        if (!layout || !tabs) return;
+        if (narrow?.matches) { if (slot.parentElement !== layout) layout.prepend(slot); }
+        else if (slot.parentElement !== tabs) tabs.prepend(slot);
+    };
+    place();
+    narrow?.addEventListener?.('change', place);
     slot.replaceChildren();
     slot.append(buildSettingsSearch({
         index: () => buildSettingsIndex(settingsTabs(), moduleRoots),
