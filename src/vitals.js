@@ -1,3 +1,4 @@
+import { hasReadableText } from './message-content.js';
 import { eventSource, event_types } from '../../../../events.js';
 import { getContext } from '../../../../st-context.js';
 import {
@@ -147,6 +148,7 @@ export async function runVitalsUpdate(messageId, { force = false, button = false
     const context = getContext();
     const message = context?.chat?.[messageId];
     if (!message || message.is_user || message.is_system) return null;
+    if (!hasReadableText(message)) return null;   // nothing written yet (a blank greeting, a chat just opening)
     const store = vitalsStore();
     if (!store) return null;
 

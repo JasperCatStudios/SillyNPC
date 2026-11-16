@@ -1,3 +1,4 @@
+import { hasReadableText } from './message-content.js';
 import { eventSource, event_types } from '../../../../events.js';
 import { getContext } from '../../../../st-context.js';
 import {
@@ -187,6 +188,7 @@ export async function runBondUpdate(messageId, { force = false, only = '', butto
     const chat = context?.chat;
     const message = chat?.[messageId];
     if (!message || message.is_user || message.is_system) return null;
+    if (!hasReadableText(message)) return null;   // nothing written yet (a blank greeting, a chat just opening)
 
     const swipeId = message.swipe_id ?? 0;
     const key = only ? `manual:${only.toLowerCase()}:${messageId}` : String(messageId);

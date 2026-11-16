@@ -1859,7 +1859,9 @@ function drawErrText(e) {
         case 'comfy-net': return t('e_net', { base: e.base || '' });
         case 'comfy-nockpt': return t('e_nockpt');
         case 'comfy-node': return t('e_node', { m: e.message });
-        case 'comfy-exec': return t('e_exec', { m: e.message });
+        case 'comfy-exec':
+            if (/clip input is invalid/i.test(e.message || '')) return 'The model chosen for the built-in graph has no text encoder, so it cannot read a prompt (it is not a full checkpoint). Pick another model in the ComfyUI settings, or set a workflow for pictures: a selfie workflow draws pictures of the contact.';
+            return t('e_exec', { m: e.message });
         case 'comfy-timeout': return t('e_ctime', { s: e.secs });
         case 'comfy-badjson': return t('e_badjson');
         case 'comfy-noprompt': return t('e_noprompt');
@@ -1983,10 +1985,15 @@ async function sheetFor(name) {
     } catch (e) { }
     return null;
 }
-/** A selfie asked for in plain words, with a selfie workflow set up: that workflow draws it, from the character sheet. */
+/** A picture of the contact, with a selfie workflow set up: that workflow draws it, from the character sheet. */
 function usesSelfieWorkflow(m) {
-    return detectImageMode() === 'comfy' && !!(m && m.req && typeof m.req === 'object' && m.req.mode === 'character')
-        && !!String(imgConn().comfy?.selfieWorkflow || '').trim();
+    if (detectImageMode() !== 'comfy' || !m) return false;
+    const c = imgConn().comfy || {};
+    if (!String(c.selfieWorkflow || '').trim()) return false;
+    if (m.req && typeof m.req === 'object') return m.req.mode === 'character';
+    // A picture of them the contact sent on their own is drawn the same way when there is no general workflow,
+    // since the built-in graph needs a full checkpoint, which an image-edit setup often does not have.
+    return !String(c.workflow || '').trim();
 }
 async function ownRef(name) {
     const k = lookCfg(name).refKey;

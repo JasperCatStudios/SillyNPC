@@ -1,3 +1,4 @@
+import { hasReadableText } from './src/message-content.js';
 import { eventSource, event_types } from '../../../events.js';
 import { renderExtensionTemplateAsync } from '../../../extensions.js';
 import { LOG_PREFIX, extensionName, debugLog, PRODUCT_NAME } from './src/constants.js';
@@ -79,6 +80,7 @@ function onMessageForExtraction(messageId) {
         // Only the model's own prose is worth reading; user turns and system notes
         // describe nothing that changed.
         if (!message || message.is_user || message.is_system) return;
+        if (!hasReadableText(message)) return;   // nothing written yet (a blank greeting, a chat just opening)
 
         extractStateFromMessage(message.mes, messageId)
             .then(result => {

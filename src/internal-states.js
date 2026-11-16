@@ -1,3 +1,4 @@
+import { hasReadableText } from './message-content.js';
 import { eventSource, event_types } from '../../../../events.js';
 import { getContext } from '../../../../st-context.js';
 import { saveChatDebounced, substituteParams } from '../../../../../script.js';
@@ -231,6 +232,7 @@ export async function generateInternalStates(messageId, { force = false } = {}) 
     const chat = context.chat;
     const message = chat?.[messageId];
     if (!message || message.is_user || message.is_system) return;
+    if (!hasReadableText(message)) return;   // nothing written yet (a blank greeting, a chat just opening)
     if (!force && (stored(message) || String(message.mes).includes(GFX_START))) return;
 
     const key = `${context.chatId}:${messageId}:${message.swipe_id ?? 0}`;
