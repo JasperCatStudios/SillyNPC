@@ -18,6 +18,7 @@ import {
     wNew, wPlay, wClear, wLegal, wBotChoose,
 } from '../../src/table-games.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
+import { applyGameArt } from '../../src/ui-faction.js';
 
 const MODULE_NAME = 'sillynpc_games';
 
@@ -1298,6 +1299,8 @@ function initBottle() {
 
 function renderBottlePicker(cands) {
     const canvas = $('#rpg-game-canvas');
+    canvas.attr('data-game', gameState.active ? gameState.gameType : 'menu');
+    applyGameArt(canvas[0], gameState.active ? gameState.gameType : 'menu');
     canvas.empty();
     canvas.append(`<button class="rpg-back-btn" id="rpg-bt-back"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>`);
     $('#rpg-bt-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
@@ -1661,6 +1664,8 @@ const TABLE_HINTS = {
 /** The screen that asks who sits down (and who deals) before a group game starts. */
 function renderTablePicker(type) {
     const canvas = $('#rpg-game-canvas');
+    canvas.attr('data-game', gameState.active ? gameState.gameType : 'menu');
+    applyGameArt(canvas[0], gameState.active ? gameState.gameType : 'menu');
     canvas.empty();
     canvas.append(`<button class="rpg-back-btn" id="rpg-tb-back"><i class="fa-solid fa-arrow-left"></i> ${t('menu')}</button>`);
     $('#rpg-tb-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
@@ -2276,6 +2281,8 @@ function renderGameArea() {
     canvas.empty();
     refreshOpponentHeader();
     refreshTalkTo();
+    canvas.attr('data-game', gameState.active ? gameState.gameType : 'menu');
+    applyGameArt(canvas[0], gameState.active ? gameState.gameType : 'menu');
 
     if (!gameState.active) {
         canvas.html(`
@@ -2571,7 +2578,7 @@ function renderGameModal() {
                                 <div class="rpg-game-opp-status">${t('at_table')}</div>
                             </div>
                         </div>
-                        <div class="rpg-game-chat" id="rpg-game-chat-log"></div>
+                        <div class="rpg-game-chat-tabs" role="tablist"><button type="button" class="rpg-game-log-tab" role="tab" aria-selected="false" data-view="log">Game log</button><button type="button" class="rpg-game-log-tab is-active" role="tab" aria-selected="true" data-view="chat">Chat</button></div><div class="rpg-game-chat" id="rpg-game-chat-log" data-view="chat"></div>
                         <select id="rpg-game-talk-to" class="rpg-game-talk-to" style="display:none"></select>
                         <div class="rpg-game-input-container">
                             <input type="text" class="rpg-game-input" id="rpg-game-input-field" placeholder="${t('say_something')}">
@@ -2604,7 +2611,8 @@ function renderGameModal() {
         });
         logEl.scrollTop(logEl[0].scrollHeight);
     }
-    $('.rpg-game-close').off('click').on('click', () => modal.removeClass('visible'));
+    modal.find('.rpg-game-log-tab').off('click').on('click', function () { const view = this.dataset.view; modal.find('.rpg-game-log-tab').removeClass('is-active').attr('aria-selected', 'false'); $(this).addClass('is-active').attr('aria-selected', 'true'); modal.find('#rpg-game-chat-log').attr('data-view', view); });
+    $('.rpg-game-close').off('click').on('click', () => modal.removeClass('visible')); 
     $('#rpg-game-send-btn').off('click').on('click', sendGameMessage);
     $('#rpg-game-input-field').off('keypress').on('keypress', (e) => { if (e.which === 13) sendGameMessage(); });
     renderGameArea();

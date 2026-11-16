@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from './settings.js';
 import {
-    NEUTRAL_ICON, normalizeFactionSettings, paletteFor, themeStyle, artworkUrl, iconFor, crestPicture, BUILTIN_FACTIONS, foldFaction,
+    NEUTRAL_ICON, gameArtUrl, normalizeFactionSettings, paletteFor, themeStyle, artworkUrl, iconFor, crestPicture, BUILTIN_FACTIONS, foldFaction,
 } from './faction-theme.js';
 
 /**
@@ -24,6 +24,27 @@ export function factionSettings() {
 export function saveFactionSettings() {
     factionSettings();
     saveSettings();
+}
+
+const gameArtFound = new Map();
+
+/**
+ * Puts a table or combat background on a node as a CSS variable, but only when game backgrounds are
+ * switched on and the file really exists (checked once per file; a missing download changes nothing).
+ * Called every time a game screen is drawn, so switching the setting takes effect on the next screen.
+ */
+export function applyGameArt(node, game) {
+    if (!node) return;
+    const url = gameArtUrl(game, factionSettings());
+    if (!url) { node.style.removeProperty('--worldkit-game-image'); return; }
+    const set = () => node.style.setProperty('--worldkit-game-image', `url("${url}")`);
+    if (gameArtFound.get(url) === true) { set(); return; }
+    if (gameArtFound.get(url) === false) { node.style.removeProperty('--worldkit-game-image'); return; }
+    node.style.removeProperty('--worldkit-game-image');
+    const probe = new Image();
+    probe.onload = () => { gameArtFound.set(url, true); set(); };
+    probe.onerror = () => gameArtFound.set(url, false);
+    probe.src = url;
 }
 
 /** The palette a character's faction (category) gets. */
@@ -150,6 +171,18 @@ export function renderFactionSettings(view, rerender) {
     toggle.addEventListener('change', () => { settings.useArtwork = toggle.checked; saveFactionSettings(); rerender?.(); });
     toggleRow.append(el('span', 'sillynpc-setting-label', 'Use world artwork'), toggle);
     wrap.append(toggleRow);
+
+    const gameRow = el('label', 'checkbox_label sillynpc-setting-row');
+    const gameToggle = el('input');
+    gameToggle.type = 'checkbox';
+    gameToggle.checked = settings.gameArt;
+    gameToggle.disabled = !settings.useArtwork;
+    gameToggle.addEventListener('change', () => { settings.gameArt = gameToggle.checked; gameArtFound.clear(); saveFactionSettings(); });
+    gameRow.append(el('span', 'sillynpc-setting-label', 'Game and combat backgrounds'), gameToggle);
+    wrap.append(gameRow);
+    wrap.append(el('small', 'notes',
+        'Off by default. Table and combat backgrounds are a small extra download (about 350 KB as WebP, in the Worldkit-Content art/games folder). '
+        + 'Put that folder at data/<your user>/user/images/worldkit-art/games/. Without it, or with this off, games and combat use their built-in look.'));
     wrap.append(el('small', 'notes', 'Off: no picture is ever requested. Faction banners become coloured gradients and icons become built-in ones.'));
 
     const baseRow = el('div', 'sillynpc-setting-row');

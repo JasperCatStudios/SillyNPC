@@ -10,6 +10,7 @@ import { fractionFromStatus, statusFromFraction, STATUS_DEFAULT } from '../../sr
 import { project } from '../../src/combat-roles.js';
 import { wheelNote } from '../../src/combat-elements.js';
 import { profileText } from '../../src/profile-text.js';
+import { applyGameArt } from '../../src/ui-faction.js';
 import { contextBlocks } from '../../src/context-blocks.js';
 import { requestOnConnection } from '../../src/connections.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
@@ -799,6 +800,7 @@ function drawReady(body) {
     const row = el('div', 'snpc-fight-actions');
     const begin = el('button', 'menu_button snpc-fight-start', 'Begin');
     begin.type = 'button';
+    begin.disabled = Boolean(ready.talking);
     begin.addEventListener('click', () => beginFight());
     const back = el('button', 'menu_button', 'Back');
     back.type = 'button';
@@ -810,7 +812,7 @@ function drawReady(body) {
 
 /** Starts the fight set up on the equipment screen. */
 function beginFight() {
-    if (!ready) return;
+    if (!ready || ready.talking) return;
     const { type, player, foe, mode, diffMod } = ready;
     const allies = ready.allies || [];
     const more = ready.more || [];
@@ -820,6 +822,7 @@ function beginFight() {
     const rules = { crowding: Boolean(ready.crowding), aiFlee: Boolean(ready.aiFlee) };
     const pace = calibrate(type, people, { mode, diff: diffMod, ...rules });
     const state = startFight(type, people, { mode, diff: diffMod, seed: Date.now(), poolScale: pace.scale, ...rules });
+    const openingChat = ready.chat || [];
     ready = null;
     session = {
         type,
@@ -828,7 +831,7 @@ function beginFight() {
         records: new Map([['player', player], [foe.id, foe], ...[...allies, ...more].map(r => [r.id, r])]),
         targetId: foe.id,
         spectators: watchers,
-        chat: [],
+        chat: openingChat,
         talkTo: foe.name,
         talking: false,
         saved: false,
@@ -1005,6 +1008,7 @@ function drawWatchReady(body) {
     const row = el('div', 'snpc-fight-actions');
     const begin = el('button', 'menu_button snpc-fight-start', 'Begin');
     begin.type = 'button';
+    begin.disabled = Boolean(ready.talking);
     begin.addEventListener('click', () => beginWatch());
     const back = el('button', 'menu_button', 'Back');
     back.type = 'button';
@@ -1016,9 +1020,10 @@ function drawWatchReady(body) {
 
 /** Starts the watched fight set up on its equipment screen. */
 function beginWatch() {
-    if (!ready?.watch) return;
+    if (!ready?.watch || ready.talking) return;
     const { type, mode, a, b } = ready;
     const watchers = (ready.spectators || []).map(r => r.name);
+    const openingChat = ready.chat || [];
     const records = new Map();
     const people = [];
     a.forEach((r, i) => { records.set(`a${i + 1}`, r); people.push({ id: `a${i + 1}`, name: r.name, side: 'player', data: startData(r, type) }); });
@@ -1026,7 +1031,7 @@ function beginWatch() {
     const state = startFight(type, people, { mode, diff: 0, seed: Date.now(), poolScale: 1, crowding: Boolean(ready.crowding), aiFlee: Boolean(ready.aiFlee) });
     ready = null;
     session = {
-        type, state, pace: null, records, chat: [], talkTo: '', talking: false, saved: false, reported: false, posting: false, failed: false,
+        type, state, pace: null, records, chat: openingChat, talkTo: '', talking: false, saved: false, reported: false, posting: false, failed: false,
         spectators: watchers, spectator: true, auto: false, speed: SPEEDS[1][1], chatter: 'notable', timer: null,
     };
     draw();
@@ -1466,14 +1471,80 @@ async function sendTalk(text) {
     drawChat();
 }
 
+async function sendReadyTalk(text) {
+    const current = ready;
+    if (!current || current.talking || !text.trim() || !current.talkTo) return;
+    const name = current.talkTo;
+    current.chat ||= [];
+    current.chat.push({ who: 'You', text: text.trim(), mine: true });
+    current.talking = true;
+    draw();
+    try {
+        const records = current.watch ? [...current.a, ...current.b, ...(current.spectators || [])] : [current.foe, ...(current.allies || []), ...(current.more || []), ...(current.spectators || [])];
+        const record = records.find(r => r.name === name);
+        const profile = record ? String(profileText(record) || '').slice(0, 2500) : '';
+        const history = current.chat.slice(-8).map(m => `${m.who}: ${m.text}`).join('\n');
+        const prompt = [...contextBlocks('combat'), `You are ${name}, preparing for a ${current.mode === 'spar' ? 'spar' : 'fight'} in ${current.type.name}. The fight has not started. Respond in character without deciding the outcome. ${DIALOGUE_RULE}`, profile ? `[ABOUT ${name}:\n${profile}\n]` : ''].filter(Boolean).join('\n\n');
+        const reply = await requestOnConnection('combatProfileId', prompt, `${history}\n${name}:`, 300);
+        const line = dialogueOnly(String(reply || ''), name);
+        current.chat.push({ who: name, text: line || '...' });
+        if (line) speakLine(name, line);
+    } catch (err) { console.error('[Worldkit] preparation talk failed', err); toastr.error('They could not answer.', PRODUCT_NAME); }
+    current.talking = false;
+    if (ready === current) draw();
+}
+
+function drawReadyChat(pane) {
+    const current = ready;
+    current.chat ||= [];
+    const records = current.watch ? [...current.a, ...current.b, ...(current.spectators || [])] : [current.foe, ...(current.allies || []), ...(current.more || []), ...(current.spectators || [])];
+    const names = [...new Set(records.filter(Boolean).map(r => r.name).filter(Boolean))];
+    pane.append(el('div', 'snpc-fight-chat-title', 'Before the fight'));
+    const to = el('select', 'text_pole snpc-fight-chat-to');
+    for (const name of names) to.append(new Option(`Talk to ${name}`, name));
+    if (names.includes(current.talkTo)) to.value = current.talkTo;
+    current.talkTo = to.value;
+    to.addEventListener('change', () => { current.talkTo = to.value; });
+    pane.append(to);
+    const log = el('div', 'snpc-fight-chat-log');
+    if (!current.chat.length) log.append(el('p', 'notes', 'Talk while preparing equipment.'));
+    for (const m of current.chat) { const row = el('div', `snpc-fight-bubble${m.mine ? ' is-mine' : ''}`); row.append(el('b', '', m.who), el('span', '', m.text)); log.append(row); }
+    if (current.talking) log.append(el('p', 'notes', 'Typing...'));
+    pane.append(log);
+    const form = el('div', 'snpc-fight-chat-form');
+    const input = el('input', 'text_pole'); input.placeholder = 'Say something...'; input.disabled = current.talking || !names.length;
+    const send = el('button', 'menu_button', 'Send'); send.type = 'button'; send.disabled = input.disabled;
+    const go = () => { const text = input.value; if (text.trim()) sendReadyTalk(text); };
+    send.addEventListener('click', go); input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    form.append(input, send); pane.append(form);
+}
+
+let fightPanelTab = 'log';
 function drawChat() {
     const pane = panel?.querySelector('.snpc-fight-chat');
     if (!pane) return;
-    pane.classList.toggle('is-hidden', !session);
+    const roundLog = panel.querySelector('.snpc-fight-body > .snpc-fight-log') || pane.querySelector('.snpc-fight-log');
+    pane.classList.toggle('is-hidden', !session && !ready);
     pane.replaceChildren();
-    if (!session) return;
+    if (!session) { if (ready) drawReadyChat(pane); return; }
 
-    pane.append(el('div', 'snpc-fight-chat-title', 'Table talk'));
+    const tabs = el('div', 'snpc-fight-panel-tabs');
+    const logTab = el('button', `menu_button${fightPanelTab === 'log' ? ' is-active' : ''}`, 'Round log');
+    const chatTab = el('button', `menu_button${fightPanelTab === 'chat' ? ' is-active' : ''}`, 'Chat');
+    for (const button of [logTab, chatTab]) button.type = 'button';
+    logTab.addEventListener('click', () => { fightPanelTab = 'log'; drawChat(); });
+    chatTab.addEventListener('click', () => { fightPanelTab = 'chat'; drawChat(); });
+    tabs.append(logTab, chatTab);
+    pane.append(tabs);
+    if (roundLog) {
+        roundLog.hidden = fightPanelTab !== 'log';
+        pane.append(roundLog);
+    }
+    const chatArea = el('div', 'snpc-fight-chat-content');
+    chatArea.hidden = fightPanelTab !== 'chat';
+    pane.append(chatArea);
+    const target = chatArea;
+    target.append(el('div', 'snpc-fight-chat-title', 'Table talk'));
     const to = el('select', 'text_pole snpc-fight-chat-to');
     // Groups first: everyone in the fight, and in a watched fight each team on its own.
     const groups = [];
@@ -1485,7 +1556,7 @@ function drawChat() {
     to.value = session.talkTo && valid(session.talkTo) ? session.talkTo : (chatCast()[0] || '');
     session.talkTo = to.value;
     to.addEventListener('change', () => { session.talkTo = to.value; });
-    pane.append(to);
+    target.append(to);
 
     const log = el('div', 'snpc-fight-chat-log');
     if (!session.chat.length) log.append(el('p', 'notes', session.spectator ? 'Talk to the fighters while you watch.' : 'Say something to them while you fight.'));
@@ -1495,7 +1566,7 @@ function drawChat() {
         log.append(row);
     }
     if (session.talking) log.append(el('p', 'notes', 'Typing...'));
-    pane.append(log);
+    target.append(log);
     log.scrollTop = log.scrollHeight;
 
     const form = el('div', 'snpc-fight-chat-form');
@@ -1509,7 +1580,7 @@ function drawChat() {
     send.addEventListener('click', go);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
     form.append(input, send);
-    pane.append(form);
+    target.append(form);
 }
 
 function draw() {
@@ -1550,6 +1621,7 @@ function openPanel() {
         document.body.append(panel);
     }
     panel.classList.add('is-open');
+    applyGameArt(panel, 'combat');
     draw();
 }
 

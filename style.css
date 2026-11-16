@@ -5381,3 +5381,13 @@ textarea.sillynpc-profile-input {
         max-height: calc(100dvh - 58px);
     }
 }
+
+/* Neutral framing around the existing management navigation; faction profile
+   palettes and the user's chosen theme remain responsible for their colours. */
+.sillynpc-manage .sillynpc-tab { border-radius: 5px; border: 1px solid transparent; }
+.sillynpc-manage .sillynpc-tab.active {
+    border-color: var(--sillynpc-accent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sillynpc-accent) 35%, transparent);
+    background: color-mix(in srgb, var(--sillynpc-accent) 18%, var(--sillynpc-bg-primary));
+}
+.sillynpc-manage .sillynpc-tab:focus-visible { outline: 2px solid var(--sillynpc-accent); outline-offset: 2px; }

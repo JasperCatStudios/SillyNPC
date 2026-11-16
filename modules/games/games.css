@@ -414,3 +414,32 @@
 }
 .rpg-opp-initial { display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; color: #5a4a22; font-family: var(--rpg-type); }
 .rpg-game-opponent .rpg-game-opp-name { overflow-wrap: anywhere; line-height: 1.2; }
+
+/* Worldkit: neutral campaign frame. Individual boards keep their existing
+   light playing surfaces, so cards, chess pieces and grid markers stay legible. */
+#rpg-game-modal {
+    color: #eee7da;
+    background: linear-gradient(145deg, #373532, #1b1b1d 45%, #252320);
+    border: 1px solid #b5a58d;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 3px #201f20, inset 0 0 0 4px #756c5e, 0 18px 48px #0009;
+}
+#rpg-game-modal::before, #rpg-game-modal::after { display: none; }
+.rpg-game-header { border-bottom: 1px solid #a4947d; }
+.rpg-game-header > span, .rpg-game-header > span i, .rpg-game-close { color: #ede3d2; font-family: Georgia, serif; }
+.rpg-game-area {
+    background-color: #e4dac7;
+    background-image: linear-gradient(#f5ecdbdb,#f5ecdbdb), var(--worldkit-game-image, linear-gradient(#e4dac7,#e4dac7));
+    background-position: center; background-size: cover;
+    border: 1px solid #b5a58d; border-radius: 6px;
+    box-shadow: inset 0 0 0 3px #e8decd88, inset 0 0 0 4px #8b7962;
+}
+.rpg-game-sidebar { border: 1px solid #a4947d; border-radius: 6px; background: #252425; color: #eee7da; padding: 10px; }
+.rpg-game-sidebar :is(.rpg-game-opp-name,.rpg-game-opp-status) { color: #eee7da; }
+.rpg-game-chat-tabs { display: flex; gap: 4px; border-bottom: 1px solid #a4947d; padding-bottom: 6px; }
+.rpg-game-log-tab { background: #292827; color: #eee7da; border: 1px solid #817562; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+.rpg-game-log-tab.is-active { background: #665340; border-color: #d4b98f; }
+.rpg-game-chat[data-view="chat"] .rpg-gmsg.system, .rpg-game-chat[data-view="log"] .rpg-gmsg:not(.system) { display: none; }
+.rpg-game-log-tab:focus-visible { outline: 2px solid #ead4ae; outline-offset: 2px; }
+.rpg-game-area { background-image: linear-gradient(#f5ecdbc9,#f5ecdbc9), var(--worldkit-game-image, linear-gradient(#e4dac7,#e4dac7)); }
+.rpg-game-chat .rpg-gmsg.system { color: #f0dfbc; }
