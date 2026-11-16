@@ -398,7 +398,7 @@ const L = {
         e_nockpt: 'ComfyUI has no models — put a checkpoint into models/checkpoints.',
         e_node: 'ComfyUI refused: {m}', e_exec: 'ComfyUI failed while drawing: {m}', e_ctime: 'ComfyUI did not finish in {s} s — the job was removed from the queue.',
         e_badjson: 'Your workflow is not JSON. In ComfyUI use "Save (API Format)".', e_noprompt: 'Your workflow has no %prompt% — every photo would come out the same.',
-        e_nocfg: 'Fill in the URL and model in the photo settings.', e_time: 'No picture arrived within {s} s.', e_key: 'The key was rejected — check the photo API key.',
+        e_nocfg: 'Fill in the URL and model in the photo settings.', e_time: 'No picture arrived within {s} s.', e_key: 'The picture API rejected the key. Check the Image API key in the photo settings: it is separate from your text connection, and ComfyUI needs none.',
         e_404: 'The provider does not know this model — check the name.', e_429: 'The provider is rate-limiting. Wait a minute.',
         e_5xx: 'The provider answers with error {n} — retried, no luck. Try later or switch models.', e_other: 'Could not draw: {m}',
         e_empty: 'no picture in the answer',
@@ -2161,7 +2161,7 @@ async function runGenQueue() {
             } catch (e) {
                 if (imgCancelled || (e && e.name === 'AbortError' && imgCancelled)) genState.delete(id);
                 else if (job.redo) { genState.delete(id); toastr.warning(drawErrText(e)); console.warn('[Phone] redraw failed', e); }   // the old photo stays
-                else { genState.set(id, { err: drawErrText(e) }); console.warn('[Phone] photo failed', e); }
+                else { genState.set(id, { err: drawErrText(e) }); console.warn('[Phone] photo failed', e); toastr.warning(drawErrText(e), '', { preventDuplicates: true }); }
             }
             genRev++; renderBubbles();
         }
@@ -3435,6 +3435,8 @@ async function readPictureRequest(cur, asked, charName) {
         } catch (e) {
             if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw e;   // cancelled: stop here
             console.warn('[Phone] reading the picture request failed, using the plain reading', e);
+            // said out loud: the picture still comes, but the model did not get to read the request, and why matters
+            toastr.warning(`The model could not read the picture request (${String((e && e.message) || e).slice(0, 160)}). Using the plain reading.`, '', { preventDuplicates: true });
         }
     }
     let clock = null;
