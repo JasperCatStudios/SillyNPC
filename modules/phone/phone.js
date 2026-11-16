@@ -13,6 +13,7 @@ import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from 
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
 import { BRIDGE_MODES, BRIDGE_ROLES, DEFAULT_BRIDGE_INSTRUCTION, normalizeBridge, chooseBridge, bridgeText, markShown } from '../../src/phone-bridge.js';
+import { detectImageRequest, needsContextResolution, llmResolveMessages, parseLlmResolution, buildImageRequest, promptsForRequest } from '../../src/phone-image-requests.js';
 import { createGroup, addMember, removeMember, membersOf, addable, groupLabel, normalizeGroups, MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../../src/phone-groups.js';
 
 import { PRODUCT_NAME } from '../../src/constants.js';
@@ -113,6 +114,7 @@ const IMG_DEF = {
     apiUrl: '', apiKey: '', model: '',
     size: '768x1024',
     style: '',
+    plain: true,                  // a picture asked for in plain words ("send me a selfie") is drawn as asked
     tpl: 'A photo {NAME} took on their phone and sent in a chat: {CAPTION}. {LOOK} {STYLE} Candid phone photo, natural composition, no text, no watermark.'
 };
 const COMFY_DEF = {
@@ -247,7 +249,7 @@ function loadSettings() {
             }
         }
     } catch (e) { /* damaged settings are handled below */ }
-    for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels', 'groups']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
+    for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels', 'groups', 'gallery']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
     settings.groups = normalizeGroups(settings.groups);
     settings.bridge = normalizeBridge(settings.bridge);
     if (!settings.bridgeShown || typeof settings.bridgeShown !== 'object' || Array.isArray(settings.bridgeShown)) settings.bridgeShown = {};
@@ -1396,6 +1398,7 @@ async function imageUrl(key) {
     return url;
 }
 function dropImages(keys) {
+    galleryForget(keys);
     const store = imgStore();
     for (const k of keys) {
         if (typeof k !== 'string' || !k.startsWith(IMG_PREFIX)) continue;
@@ -2032,7 +2035,19 @@ async function recognizeLook(dataUrl) {
     return tags;
 }
 
+/* A picture asked for in plain words carries its request on the message (m.req). Pictures of the contact
+   are anchored on their look; a drawing or a photo of a thing never is. Under /sd the contact's saved image
+   prompt is added by the call itself, so only their own look override is written here. */
+function requestedPrompt(m) {
+    const cfg = imgCfg();
+    const mode = detectImageMode();
+    const tags = mode === 'sd' || mode === 'comfy';
+    const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? String(lookCfg(m.name).desc || '').trim().slice(0, 600) : descFor(m.name));
+    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, extraStyle: cfg.style ? String(cfg.style).trim() : '' });
+    return tags ? p.sdPrompt : p.contextPrompt;
+}
 function photoPrompt(m) {
+    if (m && m.req && typeof m.req === 'object') return requestedPrompt(m);
     const cfg = imgCfg();
     const kind = classify(m.text);
     const look = descFor(m.name);
@@ -2079,16 +2094,19 @@ async function runGenQueue() {
             genState.set(id, 'busy'); genRev++; renderBubbles();
             try {
                 // who they look like: reference picture + description, or the description alone
+                // a drawing or a photo of a thing is not of them: no reference picture, no LoRA, no saved image prompt
+                const ofThem = !m.req || m.req.mode === 'character';
                 let ref = null;
-                try { ref = await referenceFor(m.name); } catch (e) { ref = null; }
-                const data = await drawWithRetry(photoPrompt(m), (a, b) => toastr.info(t('img_retrying', { a, b })), ref, lensExtras(m.name));
+                if (ofThem) { try { ref = await referenceFor(m.name); } catch (e) { ref = null; } }
+                const promptUsed = photoPrompt(m);
+                const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, ofThem ? lensExtras(m.name) : {});
                 const key = newImgKey();
                 let stored = false;
                 try { stored = await putImage(key, data); } catch (e) { stored = false; }
                 const live = findMsg(job.contactId, job.ts, job.text);   // the thread may have changed meanwhile
                 if (live) {
                     const old = live.gen;                 // a redraw replaces the photo only once the new one is here
-                    if (stored) live.gen = key;
+                    if (stored) { live.gen = key; galleryAdd(job.contactId, { key, prompt: promptUsed, mode: live.req?.mode || 'character', title: photoTitle(live) }); }
                     else live.gen = typeof data === 'string' ? data : await blobToDataUrl(data);  // no storage: the old way
                     saveSettings();
                     if (old && old !== live.gen) dropImages([old]);
@@ -2111,6 +2129,193 @@ function cancelPhotos() {
     if (imgAbort) { try { imgAbort.abort(); } catch (e) { } }
     genRev++; renderBubbles();
 }
+
+/* ============================================================
+   GALLERY (fork) - every picture a contact has sent, kept per contact.
+   An entry only points at the picture in the phone's image store (the same key the message
+   holds), so no picture is kept twice. It is removed when its picture is dropped for any reason.
+   ============================================================ */
+function galleryOf(id) {
+    if (!settings.gallery || typeof settings.gallery !== 'object' || Array.isArray(settings.gallery)) settings.gallery = {};
+    if (!Array.isArray(settings.gallery[id])) settings.gallery[id] = [];
+    return settings.gallery[id];
+}
+function photoTitle(m) {
+    const k = classify(m.text);
+    const words = String(k.caption || k.text || '').replace(/\s+/g, ' ').trim();
+    return (words || 'Photo').slice(0, 60);
+}
+function galleryAdd(id, { key, prompt, mode, title }) {
+    const list = galleryOf(id);
+    if (!key || list.some(e => e.key === key)) return;
+    list.push({ id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), key, prompt: String(prompt || ''), mode: mode || 'character', title: title || 'Photo', ts: Date.now() });
+    if (list.length > 400) list.splice(0, list.length - 400);
+    saveSettings();
+}
+/** A dropped picture leaves every gallery. */
+function galleryForget(keys) {
+    if (!settings || !settings.gallery) return;
+    const gone = new Set(keys);
+    let changed = false;
+    for (const id of Object.keys(settings.gallery)) {
+        const list = settings.gallery[id];
+        if (!Array.isArray(list)) continue;
+        const kept = list.filter(e => !gone.has(e.key));
+        if (kept.length !== list.length) { settings.gallery[id] = kept; changed = true; }
+    }
+    if (changed) saveSettings();
+}
+/** Pictures sent before the gallery existed are found in the thread and listed. */
+function galleryBackfill(id) {
+    const list = galleryOf(id);
+    for (const m of threadOf(id)) {
+        if (m && m.who === 'char' && typeof m.gen === 'string' && m.gen.startsWith(IMG_PREFIX) && !list.some(e => e.key === m.gen)) {
+            list.push({ id: 'g' + Number(m.ts).toString(36) + Math.random().toString(36).slice(2, 5), key: m.gen, prompt: '', mode: m.req?.mode || 'character', title: photoTitle(m), ts: m.ts });
+        }
+    }
+}
+function galleryDelete(id, entry) {
+    for (const m of threadOf(id)) if (m && m.gen === entry.key) delete m.gen;   // the message goes back to "develop it"
+    settings.gallery[id] = galleryOf(id).filter(e => e.key !== entry.key);
+    dropImages([entry.key]);
+    saveSettings();
+    lastSig = ''; renderBubbles();
+}
+
+function openGallery(id) {
+    id = id || currentContact();
+    if (!id) { toastr.info(t('noactive')); return; }
+    document.getElementById('rph-gal')?.remove();
+    galleryBackfill(id);
+    const who = isGroup(id) ? contactLabel(id) : baseName(id);
+    const root = document.createElement('div');
+    root.id = 'rph-gal';
+    root.className = 'rph-gal';
+    root.innerHTML = `<div class="rph-gal-panel">
+        <div class="rph-gal-head"><b class="rph-gal-title"></b><span class="rph-gal-count"></span>
+            <button type="button" class="rph-gal-btn rph-gal-x" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="rph-gal-bar">
+            <label class="rph-gal-sortlbl">Sort <select class="rph-gal-sort"><option value="new">Newest</option><option value="old">Oldest</option><option value="title">Title</option></select></label>
+        </div>
+        <details class="rph-gal-look"><summary>How they look in pictures</summary>
+            <textarea class="rph-gal-desc" rows="3" placeholder="Hair, eyes, build, usual clothes. Empty: their Worldkit image prompt is used."></textarea>
+            <small>Used for pictures of them. Drawings and photos of things never use it.</small></details>
+        <div class="rph-gal-grid"></div>
+        <div class="rph-gal-empty" hidden>No pictures yet. Ask for one with the camera.</div>
+    </div>
+    <div class="rph-gal-lb" hidden>
+        <div class="rph-gal-lbbox">
+            <div class="rph-gal-lbtop"><input type="text" class="rph-gal-name" maxlength="80" aria-label="Title"><button type="button" class="rph-gal-btn rph-gal-lbx" aria-label="Close picture"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="rph-gal-imgwrap"><img class="rph-gal-big" alt=""></div>
+            <details class="rph-gal-promptbox"><summary>Prompt</summary><pre class="rph-gal-prompt"></pre></details>
+            <div class="rph-gal-acts">
+                <button type="button" class="rph-gal-btn rph-gal-prev" aria-label="Previous"><i class="fa-solid fa-chevron-left"></i></button>
+                <button type="button" class="rph-gal-btn rph-gal-copy"><i class="fa-solid fa-copy"></i> Copy prompt</button>
+                <button type="button" class="rph-gal-btn rph-gal-del"><i class="fa-solid fa-trash"></i> Delete</button>
+                <button type="button" class="rph-gal-btn rph-gal-next" aria-label="Next"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+        </div></div>`;
+    document.body.appendChild(root);
+    const q = (sel) => root.querySelector(sel);
+    q('.rph-gal-title').textContent = `Gallery · ${who}`;
+    let sort = 'new';
+    let shown = [];
+    let at = -1;
+
+    const desc = q('.rph-gal-desc');
+    if (isGroup(id)) q('.rph-gal-look').hidden = true;
+    else {
+        desc.value = String(lookCfg(who).desc || '');
+        desc.addEventListener('change', () => { lookEdit(who).desc = desc.value.trim().slice(0, 600); saveSettings(); });
+    }
+
+    const sorted = () => {
+        const list = galleryOf(id).slice();
+        if (sort === 'old') list.sort((a, b) => a.ts - b.ts);
+        else if (sort === 'title') list.sort((a, b) => String(a.title).localeCompare(String(b.title)) || b.ts - a.ts);
+        else list.sort((a, b) => b.ts - a.ts);
+        return list;
+    };
+    const fmt = (ts) => { try { return new Date(ts).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return ''; } };
+
+    const draw = () => {
+        shown = sorted();
+        const grid = q('.rph-gal-grid');
+        grid.replaceChildren();
+        q('.rph-gal-count').textContent = shown.length ? String(shown.length) : '';
+        q('.rph-gal-empty').hidden = shown.length > 0;
+        shown.forEach((entry, i) => {
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'rph-gal-card';
+            const img = document.createElement('img');
+            img.alt = '';
+            img.loading = 'lazy';
+            const cap = document.createElement('span');
+            cap.className = 'rph-gal-cap';
+            cap.textContent = entry.title || 'Photo';
+            const kind = document.createElement('small');
+            kind.textContent = `${entry.mode === 'creative' ? 'Drawing' : entry.mode === 'object' ? 'Photo of a thing' : 'Photo'} · ${fmt(entry.ts)}`;
+            card.append(img, cap, kind);
+            card.addEventListener('click', () => openBig(i));
+            grid.append(card);
+            imageUrl(entry.key).then(u => { if (u) img.src = u; else card.classList.add('is-lost'); });
+        });
+    };
+
+    const lb = q('.rph-gal-lb');
+    const openBig = (i) => {
+        if (!shown.length) { lb.hidden = true; return; }
+        at = (i + shown.length) % shown.length;
+        const entry = shown[at];
+        lb.hidden = false;
+        q('.rph-gal-name').value = entry.title || '';
+        q('.rph-gal-prompt').textContent = entry.prompt || '(no prompt was kept for this picture)';
+        const big = q('.rph-gal-big');
+        big.removeAttribute('src');
+        imageUrl(entry.key).then(u => { if (shown[at] === entry && u) big.src = u; });
+        const many = shown.length > 1;
+        q('.rph-gal-prev').disabled = !many;
+        q('.rph-gal-next').disabled = !many;
+    };
+    const closeBig = () => { lb.hidden = true; at = -1; };
+
+    q('.rph-gal-sort').addEventListener('change', (e) => { sort = e.target.value; draw(); });
+    q('.rph-gal-x').addEventListener('click', () => root.remove());
+    q('.rph-gal-lbx').addEventListener('click', closeBig);
+    q('.rph-gal-prev').addEventListener('click', () => openBig(at - 1));
+    q('.rph-gal-next').addEventListener('click', () => openBig(at + 1));
+    q('.rph-gal-name').addEventListener('change', (e) => {
+        const entry = shown[at];
+        if (!entry) return;
+        entry.title = e.target.value.trim().slice(0, 80) || 'Photo';
+        saveSettings();
+        draw();
+    });
+    q('.rph-gal-copy').addEventListener('click', async () => {
+        const entry = shown[at];
+        if (!entry || !entry.prompt) { toastr.info('No prompt was kept for this one.'); return; }
+        try { await navigator.clipboard.writeText(entry.prompt); toastr.success('Copied.'); } catch (e) { toastr.error('Could not copy.'); }
+    });
+    q('.rph-gal-del').addEventListener('click', async () => {
+        const entry = shown[at];
+        if (!entry) return;
+        const ok = await Popup.show.confirm('Delete this picture?', 'It leaves the gallery and the chat.');
+        if (!ok) return;
+        galleryDelete(id, entry);
+        draw();
+        if (shown.length) openBig(Math.min(at, shown.length - 1)); else closeBig();
+    });
+    root.addEventListener('click', (e) => { if (e.target === root) root.remove(); else if (e.target === lb) closeBig(); });
+    root.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { if (!lb.hidden) closeBig(); else root.remove(); }
+        else if (!lb.hidden && e.target.tagName !== 'INPUT') { if (e.key === 'ArrowLeft') openBig(at - 1); else if (e.key === 'ArrowRight') openBig(at + 1); }
+    });
+    draw();
+    root.tabIndex = -1;
+    root.focus({ preventScroll: true });
+}
+
 
 /* ============================================================
    VOICE NOTES THROUGH TAVERN'S TTS
@@ -2969,10 +3174,14 @@ async function sendUserText(text) {
 
     const rq = beginRequest(cur); renderBubbles();
     try {
+        if (plainPictures() && detectImageRequest(clean, pictureHistory(cur)).triggered) {
+            await photoAnswer(cur, names, clean, rq);
+        } else {
         const msgs = await generateReply(names, '', false, cur);
         if (isCurrent(rq)) {
             if (!msgs.length) toastr.info(t('err'));
             msgs.forEach(m => pushMsg(cur, 'char', m.text, m.name));
+        }
         }
     } catch (e) {
         console.debug('[Phone] send failed', { rq, current: isCurrent(rq), error: e });
@@ -3040,6 +3249,8 @@ function refreshPhotoBtn() {
     const on = !!imgCfg().enabled;
     el.style.display = on ? '' : 'none';
     el.title = t(on ? 'ask_photo' : 'ask_photo_off');
+    const gal = document.getElementById('rph-gallery');
+    if (gal) gal.style.display = on ? '' : 'none';
 }
 async function askForPhoto() {
     const cur = currentContact();
@@ -3058,24 +3269,9 @@ async function askForPhoto() {
     scrollOffset = 0;
     renderBubbles();
 
-    const { open, close } = getMarkerPair();
-    // a group thread: one member answers, not everybody at once
-    const asker = isGroup(cur) ? (names.find(n => !isUserName(n)) || names[0]) : names[0];
-    const who = isGroup(cur) ? `Only ${asker} answers, with exactly ONE message from them alone. ` : 'Answer with exactly ONE message. ';
-    const ask = `${name1 || 'The player'} asked for a picture. ${who}It must be a photo message: `
-        + `${open}${asker}${close} [sent a photo: a vivid description of what the picture shows]. The tag, and at most a few words after it.`;
     const rq = beginRequest(cur); renderBubbles();
     try {
-        const msgs = await generateReply(names, ask, false, cur);
-        if (isCurrent(rq)) {
-            if (!msgs.length) toastr.info(t('err'));
-            const first = msgs.find(m => classify(m.text).type === 'image') || msgs[0];
-            if (first) {
-                const isPhoto = classify(first.text).type === 'image';
-                const text = isPhoto ? first.text : `[sent a photo: ${String(first.text).replace(/[\[\]]/g, '').slice(0, 300)}]`;
-                pushMsg(cur, 'char', text, isGroup(cur) ? asker : first.name);
-            }
-        }
+        await photoAnswer(cur, names, typed, rq);
     } catch (e) {
         requestFailed(e, rq, 'reply');
     }
@@ -3083,6 +3279,57 @@ async function askForPhoto() {
     finishRequest(rq);
     scrollOffset = 0;
     renderBubbles();
+}
+
+/* PICTURES ASKED FOR IN PLAIN WORDS (fork) ------------------------------------------------------
+   "send me a selfie in that dress", "draw me a cartoon cat". The contact still answers with the phone's own
+   photo message; what changes is what that photo is drawn as (src/phone-image-requests.js). */
+function plainPictures() { return !!imgCfg().enabled && imgCfg().plain !== false; }
+/** The thread as the request reader wants it: who said what, a photo as its caption. */
+function pictureHistory(id) {
+    return threadOf(id).slice(-14).map(m => {
+        const k = classify(m.text);
+        return { who: m.who === 'user' ? 'user' : 'char', text: k.type === 'image' ? (k.caption || k.text || 'a photo') : (k.type === 'text' ? k.text : (k.caption || k.text || '')) };
+    });
+}
+/** Reads a request. A vague one ("wearing that") asks the text model; any failure falls back to the plain reading. */
+async function readPictureRequest(cur, asked, charName) {
+    const hist = pictureHistory(cur);
+    let resolved = null;
+    if (needsContextResolution(asked, charName) && apiKey()) {
+        try {
+            const q = llmResolveMessages(asked, hist, charName, name1 || 'User');
+            resolved = parseLlmResolution(await callAI(q.system, q.user));
+        } catch (e) {
+            if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw e;   // cancelled: stop here
+            console.warn('[Phone] reading the picture request failed, using the plain reading', e);
+        }
+    }
+    return buildImageRequest(asked, hist, { charName, resolved });
+}
+/** One photo message from one contact; with a request typed, it carries how to draw it. */
+async function photoAnswer(cur, names, asked, rq) {
+    const { open, close } = getMarkerPair();
+    // a group thread: one member answers, not everybody at once
+    const asker = isGroup(cur) ? (names.find(n => !isUserName(n)) || names[0]) : names[0];
+    const who = isGroup(cur) ? `Only ${asker} answers, with exactly ONE message from them alone. ` : 'Answer with exactly ONE message. ';
+    const req = asked && plainPictures() ? await readPictureRequest(cur, asked, asker) : null;
+    if (!isCurrent(rq)) return;
+    const said = req ? ` They said: "${String(asked).replace(/"/g, "'").slice(0, 200)}".` : '';
+    const ask = `${name1 || 'The player'} asked for a picture.${said} ${who}It must be a photo message: `
+        + `${open}${asker}${close} [sent a photo: a vivid description of what the picture shows]. The tag, and at most a few words after it.`;
+    const msgs = await generateReply(names, ask, false, cur);
+    if (!isCurrent(rq)) return;
+    if (!msgs.length) toastr.info(t('err'));
+    const first = msgs.find(m => classify(m.text).type === 'image') || msgs[0];
+    if (first) {
+        const isPhoto = classify(first.text).type === 'image';
+        const text = isPhoto ? first.text : `[sent a photo: ${String(first.text).replace(/[\[\]]/g, '').slice(0, 300)}]`;
+        const from = isGroup(cur) ? asker : first.name;
+        const msg = { who: 'char', name: from || cur, text, ts: Date.now() };
+        if (req) msg.req = req;
+        pushRaw(cur, msg);
+    }
 }
 
 // re-ask for a reply to one of YOUR messages: everything they said after it is
@@ -3285,6 +3532,7 @@ function ensureLayer() {
                     <input type="file" id="rph-file" multiple style="display:none">
                     <i class="fa-solid fa-microphone" id="rph-voice" title="Ask for a voice message"></i>
                     <i class="fa-solid fa-camera" id="rph-photo" title="Ask for a photo"></i>
+                    <i class="fa-solid fa-images" id="rph-gallery" title="Pictures they sent"></i>
                     <input type="text" id="rph-input" placeholder="" maxlength="800">
                     <i class="fa-solid fa-paper-plane" id="rph-send"></i>
                 </div>
@@ -3316,6 +3564,7 @@ function ensureLayer() {
         $('#rph-send').on('click', () => sendFromBar());
         $('#rph-voice').on('click', () => askForVoiceMessage());
         $('#rph-photo').on('click', () => askForPhoto());
+        $('#rph-gallery').on('click', () => openGallery());
         refreshPhotoBtn();
         $('#rph-input').on('keydown', (e) => {
             e.stopPropagation();
@@ -4480,6 +4729,8 @@ function settingsHtml() {
                 <div class="inline-drawer-content" style="display:none;">
                     <label class="checkbox_label"><input type="checkbox" id="rph-img-on"><span>${t('img_on')}</span></label>
                     <label class="checkbox_label"><input type="checkbox" id="rph-img-auto"><span>${t('img_auto')}</span></label>
+                    <label class="checkbox_label"><input type="checkbox" id="rph-img-plain"><span>Answer picture requests in plain words</span></label>
+                    <small>When what you type asks for a picture ("send me a selfie in that dress", "draw me a cartoon cat"), they answer with a photo, and it is drawn as you asked: a selfie looks like them, a drawing or a photo of a thing never does. Off: pictures are drawn only when they send one on their own.</small>
                     <label for="rph-img-mode">${t('img_type')}</label>
                     <select id="rph-img-mode" class="text_pole">
                         <option value="auto">${t('img_t_auto')}</option>
@@ -4712,6 +4963,7 @@ function setupImageUI() {
     };
     bindImg('#rph-img-on', 'enabled', 'check');
     bindImg('#rph-img-auto', 'auto', 'check');
+    bindImg('#rph-img-plain', 'plain', 'check');
     bindImg('#rph-img-mode', 'mode');
     bindImg('#rph-img-url', 'apiUrl');
     bindImg('#rph-img-key', 'apiKey');

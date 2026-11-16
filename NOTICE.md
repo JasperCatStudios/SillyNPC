@@ -11,5 +11,6 @@ It contains:
 | `modules/phone/` | adapted from [RPG-Phone](https://github.com/tavern-rpg-suite/RPG-Phone) by Arkana8 | AGPL-3.0 |
 | `modules/games/` | adapted from [RPG-Game-Companion](https://github.com/tavern-rpg-suite/RPG-Game-Companion) by Arkana8 | AGPL-3.0 |
 | `modules/games/chess.js` | [chess.js](https://github.com/jhlywa/chess.js) 0.10.3 by Jeff Hlywa | BSD-2-Clause (notice kept in the file) |
+| `src/phone-image-requests.js` and the Phone's picture-request wiring and gallery | request handling and gallery ideas adapted from [EchoText](https://github.com/mattjaybe/SillyTavern-EchoText) by mattjaybe | MIT (original text in `LICENSE-MIT-EchoText`), rewritten under AGPL-3.0 here |
 
 The adapted modules were changed to use SillyNPC's characters in place of SillyTavern character cards, to send requests through a SillyTavern connection profile, and to read SillyNPC's speaker tags. Their original licence texts are kept beside them.
