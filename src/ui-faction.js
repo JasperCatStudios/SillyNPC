@@ -11,7 +11,13 @@ import {
 
 export function factionSettings() {
     const settings = getSettings();
-    settings.factions = normalizeFactionSettings(settings.factions);
+    const fixed = normalizeFactionSettings(settings.factions);
+    // Repair in place. Handing back a new object each call meant edits made to an earlier copy
+    // (the "Use world artwork" switch, the folder, a palette) were thrown away on the next save.
+    if (settings.factions && typeof settings.factions === 'object') {
+        for (const key of Object.keys(settings.factions)) delete settings.factions[key];
+        Object.assign(settings.factions, fixed);
+    } else settings.factions = fixed;
     return settings.factions;
 }
 
