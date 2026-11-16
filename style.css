@@ -5256,10 +5256,12 @@ textarea.sillynpc-profile-input {
     .sillynpc-fx .snpc-vit-reset { padding-inline: 6px; }
 }
 @media (max-width: 768px) {
-    .sillynpc-tabs > #sillynpc-settings-search { flex: 0 0 140px; width: 140px; min-width: 140px; }
+    /* Its own full-width row above the tabs: squeezed in beside them it was a 140px box that read as
+       a second character search. */
+    .sillynpc-tabs > #sillynpc-settings-search { flex: 1 1 100%; width: 100%; min-width: 0; }
     .sillynpc-tabs .sillynpc-settings-search { margin: 0; }
     .sillynpc-tabs .sillynpc-settings-search-input { box-sizing: border-box; min-width: 0; width: 100%; }
-    .sillynpc-tabs .sillynpc-settings-search-results { position: fixed; top: 100px; left: 5vw; right: 5vw; max-height: 45vh; }
+    .sillynpc-tabs .sillynpc-settings-search-results { position: fixed; top: 118px; left: 5vw; right: 5vw; max-height: 45vh; }
     .sillynpc-editor-header { margin-bottom: 6px; padding: 0 0 6px; }
     .sillynpc-editor-header .sillynpc-editor-title { flex: 1 1 70px; }
 }
@@ -5288,7 +5290,24 @@ textarea.sillynpc-profile-input {
     /* The table and the mini chat stack instead of sitting side by side. */
     #rpg-game-modal .rpg-game-body { flex-direction: column; padding: 8px; gap: 8px; }
     #rpg-game-modal .rpg-game-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-    #rpg-game-modal .rpg-game-sidebar { flex: 0 0 34%; min-height: 150px; }
+    #rpg-game-modal .rpg-game-sidebar { flex: 0 0 38%; min-height: 170px; }
+    #rpg-game-modal.rpg-chat-big .rpg-game-sidebar { flex-basis: 64%; }
+    #rpg-game-modal .rpg-game-opponent { padding: 6px 10px; gap: 8px; cursor: pointer; }
+    #rpg-game-modal .rpg-game-opponent > div { display: flex; align-items: baseline; gap: 8px; }
+    #rpg-game-modal .rpg-game-opponent::after { content: '\f077'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-left: auto; opacity: .55; font-size: .8rem; }
+    #rpg-game-modal.rpg-chat-big .rpg-game-opponent::after { content: '\f078'; }
+    #rpg-game-modal .rpg-game-opp-avatar { width: 30px; height: 30px; }
+    #rpg-game-modal .rpg-game-input-container { padding: 6px 8px; }
+    /* The boards were drawn at fixed pixel sizes made for a wide window. */
+    #rpg-game-modal .rpg-chess-board { grid-template-columns: repeat(8, 1fr); grid-template-rows: none; grid-auto-rows: auto; width: min(100%, 360px); border-width: 4px; }
+    #rpg-game-modal .rpg-chess-square { width: auto; height: auto; aspect-ratio: 1; }
+    #rpg-game-modal .rpg-chess-piece { font-size: clamp(22px, 8vw, 34px); }
+    #rpg-game-modal .rpg-ttt-grid { grid-template-columns: repeat(3, minmax(0, 92px)); gap: 8px; }
+    #rpg-game-modal .rpg-ttt-cell { width: 100%; height: auto; aspect-ratio: 1; font-size: 2.6rem; }
+    #rpg-game-modal .rpg-bs-grids { flex-direction: column; gap: 8px; align-items: center; }
+    #rpg-game-modal .rpg-bs-grid { grid-template-columns: repeat(6, 26px); gap: 2px; }
+    #rpg-game-modal .rpg-bs-cell { width: 26px; height: 26px; }
+    #rpg-game-modal .rpg-bt-circle { width: min(280px, 78vw); height: min(280px, 78vw); }
     /* The phone's roster, diary and the phone itself are placed from the bottom edge, and on a
        phone that edge is not where they expect (they ended up above the top of the screen). */
     #rph-roster, #rph-diary-panel {

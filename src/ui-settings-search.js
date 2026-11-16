@@ -125,7 +125,7 @@ export function buildSettingsSearch({ index, onPick }) {
     const input = document.createElement('input');
     input.type = 'search';
     input.className = 'text_pole sillynpc-settings-search-input';
-    input.placeholder = 'Find a setting…';
+    input.placeholder = 'Search all settings…';
     input.title = 'Searches every page by what a control is called.';
 
     const results = document.createElement('div');

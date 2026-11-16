@@ -15,7 +15,7 @@ import { getContext } from '../../../../st-context.js';
 import { power_user } from '../../../../power-user.js';
 import { setUserAvatar, getUserAvatar } from '../../../../personas.js';
 import { getSettings, saveSettings, defaultSettings, normaliseStatDefs } from './settings.js';
-import { LOG_PREFIX, debugLog, isStaticField } from './constants.js';
+import { LOG_PREFIX, PRODUCT_NAME, debugLog, isStaticField } from './constants.js';
 import { extractJSON, safeJsonParse, splitValue, escapeRegExp, currentMessageIndex, ceilingFromValue } from './utils.js';
 import { getIgnoredSpeakerLabels, normaliseSpeakerLabel } from './speaker-labels.js';
 import { describeThreads } from './threads.js';
@@ -907,7 +907,15 @@ export function restoreChatSystem() {
             `This chat belongs to a system that no longer exists: "${recorded}"`);
         return false;
     }
-    return setActiveSystem(recorded);
+    const from = getActiveSystem();
+    const switched = setActiveSystem(recorded);
+    if (switched) {
+        // Opening a chat that belongs to another system loads that system's saved HUD, combat
+        // world and rules over the ones on screen. Say so, instead of settings changing unannounced.
+        console.info(LOG_PREFIX, `System switched from "${from}" to "${recorded}" because this chat belongs to it`);
+        try { toastr.info(`This chat belongs to the "${recorded}" system, so it was loaded (was "${from}"). Its own HUD and combat settings now apply.`, PRODUCT_NAME, { timeOut: 9000 }); } catch { /* no toast */ }
+    }
+    return switched;
 }
 
 async function onChatChanged() {

@@ -2581,6 +2581,9 @@ function renderGameModal() {
             </div>
         `);
         modal = $('#rpg-game-modal');
+        // On a small screen the table chat is a strip under the game; tapping the opponent's row
+        // grows it, and again shrinks it. (Only the small-screen CSS reads this class.)
+        modal.on('click', '.rpg-game-opponent', () => modal.toggleClass('rpg-chat-big'));
         makeModalDraggable(document.getElementById('rpg-game-modal'), document.getElementById('rpg-game-drag'));
     }
     // Refresh opponent name + avatar every time (so switching characters in a group updates the table)
