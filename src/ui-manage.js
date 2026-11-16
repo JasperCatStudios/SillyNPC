@@ -963,9 +963,12 @@ function buildViewTabs(char) {
 
 /** The roster beside the detail: search, and a click switches character without going Back. */
 let railFilter = '';
+// Switching character rebuilds the page, so where the list was scrolled to is remembered here.
+let railScroll = 0;
 function buildRosterRail(current) {
     const rail = document.createElement('div');
     rail.className = 'sillynpc-roster-rail';
+    rail.addEventListener('scroll', () => { railScroll = rail.scrollTop; }, { passive: true });
     const search = document.createElement('input');
     search.type = 'search';
     search.className = 'text_pole';
@@ -1026,8 +1029,10 @@ function mountDetail(editView, char, ...nodes) {
         if (charView === 'edit') detail.append(buildFactionBanner(char.category, world));
     } catch (err) { console.warn('[Worldkit] faction theme failed', err); }
     detail.append(...nodes);
-    layout.append(buildRosterRail(char), detail);
+    const rail = buildRosterRail(char);
+    layout.append(rail, detail);
     editView.append(layout);
+    rail.scrollTop = railScroll;
 }
 
 function renderEditor() {

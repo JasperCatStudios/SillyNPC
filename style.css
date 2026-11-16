@@ -5194,3 +5194,72 @@ textarea.sillynpc-profile-input {
 @media (min-width: 1000px) {
     .sillynpc-charview.sillynpc-fx > .sillynpc-fx-banner { z-index: 2; pointer-events: none; }
 }
+
+/* Phone layout: a compact, horizontally scrollable navigation keeps the active
+   page visible rather than filling the popup with fourteen wrapped buttons. */
+@media (max-width: 768px) {
+    .sillynpc-manage-layout { min-height: 0; }
+    .sillynpc-tabs {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        min-height: 48px;
+        box-sizing: border-box;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        padding: 4px 6px;
+        gap: 4px;
+    }
+    .sillynpc-tabs > input[type="search"],
+    .sillynpc-tabs > .text_pole {
+        flex: 0 0 130px;
+        min-width: 0;
+        width: 130px;
+        margin: 0;
+    }
+    .sillynpc-tabs .sillynpc-tab {
+        flex: 0 0 auto;
+        min-height: 40px;
+        padding: 6px 10px;
+        gap: 6px;
+        border-radius: 5px;
+        font-size: .9em;
+    }
+    .sillynpc-tab-panel { min-width: 0; width: 100%; box-sizing: border-box; }
+    .sillynpc-editor-layout { display: block; min-width: 0; }
+    .sillynpc-editor-detail.sillynpc-fx { min-width: 0; padding: 9px; box-sizing: border-box; }
+    .sillynpc-editor-detail.sillynpc-fx .sillynpc-editor-sticky {
+        position: static;
+        margin: 0 0 10px;
+        padding: 4px 3px 8px;
+    }
+    .sillynpc-editor-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .sillynpc-editor-header .sillynpc-editor-title { flex: 1 1 110px; min-width: 0; margin: 0; font-size: 1.15em; overflow-wrap: anywhere; }
+    .sillynpc-editor-header .menu_button { margin: 0; }
+    .sillynpc-editor-header .sillynpc-fill-btn { flex: 0 0 auto; }
+    .sillynpc-charview-tabs { margin: 8px 0 0; }
+    .sillynpc-fx .sillynpc-cv-body { min-width: 0; }
+    .sillynpc-fx .sillynpc-cv-right { width: 100%; min-width: 0; }
+    .sillynpc-fx .sillynpc-cv-left { width: min(160px, 55%); }
+    .sillynpc-fx .sillynpc-cv-tabbody { max-height: min(46vh, 340px); }
+    .sillynpc-fx .sillynpc-cv-tabrow .sillynpc-cv-tab { flex: 1 1 42%; padding: 8px 6px; }
+    .sillynpc-fx .sillynpc-cv-lorelink-line { min-width: 0; }
+    .sillynpc-fx .sillynpc-cv-lorelink-where { overflow-wrap: anywhere; }
+    .sillynpc-fx .snpc-vit-head { min-width: 0; flex-wrap: wrap; }
+    .sillynpc-fx .snpc-vit-reset { padding-inline: 6px; }
+}
+@media (max-width: 768px) {
+    .sillynpc-tabs > #sillynpc-settings-search { flex: 0 0 140px; width: 140px; min-width: 140px; }
+    .sillynpc-tabs .sillynpc-settings-search { margin: 0; }
+    .sillynpc-tabs .sillynpc-settings-search-input { box-sizing: border-box; min-width: 0; width: 100%; }
+    .sillynpc-tabs .sillynpc-settings-search-results { position: fixed; top: 100px; left: 5vw; right: 5vw; max-height: 45vh; }
+    .sillynpc-editor-header { margin-bottom: 6px; padding: 0 0 6px; }
+    .sillynpc-editor-header .sillynpc-editor-title { flex: 1 1 70px; }
+}
