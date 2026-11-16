@@ -5279,6 +5279,12 @@ textarea.sillynpc-profile-input {
         height: calc(100vh - 58px) !important;
         height: calc(100dvh - 58px) !important;
     }
+    /* A floating button from another extension (Megumin Suite) sits at the top right of the screen
+       and takes the taps there, which is where these windows keep their close buttons. On a small
+       screen the close buttons go to the left. */
+    #rpg-game-modal .rpg-game-header,
+    .snpc-fight .snpc-fight-head,
+    .snpc-hist-head { flex-direction: row-reverse; justify-content: flex-end; gap: 12px; }
     /* The table and the mini chat stack instead of sitting side by side. */
     #rpg-game-modal .rpg-game-body { flex-direction: column; padding: 8px; gap: 8px; }
     #rpg-game-modal .rpg-game-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; }

@@ -4108,7 +4108,7 @@ function renderRoster() {
     // somebody already switched on stays listed even after stepping into the scene
     Object.keys(settings.active).forEach(n => { if (settings.active[n] && !seen.has(n) && !isUserName(n) && !isGroup(n) && characters.some(c => c.name === n)) { seen.add(n); list.push(n); } });
 
-    let html = `<div class="rph-roster-title"><i class="fa-solid fa-mobile-screen-button"></i> ${t('roster')}</div>`;
+    let html = `<div class="rph-roster-title"><button type="button" class="rph-roster-close" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button><span><i class="fa-solid fa-mobile-screen-button"></i> ${t('roster')}</span></div>`;
     const gid = groupContactId();
     if (!list.length) html += `<div class="rph-hint">${t('no_chars')}</div>`;
     html += list.slice(0, 60).map(n => {
@@ -4150,6 +4150,8 @@ function renderRoster() {
     if (scroller) scroller.scrollTop = keepTop;
     body.off('.rph');
     bindOwnGroups(body);
+
+    body.on('click.rph', '.rph-roster-close', () => { $('#rph-roster').removeClass('visible'); });
 
     body.on('click.rph', '.rph-toggle', function () {
         const n = $(this).data('name');

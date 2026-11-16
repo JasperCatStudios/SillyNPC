@@ -155,7 +155,9 @@ body[data-rph-skin="lace"] #rph-roster, body[data-rph-skin="lace"] #rph-diary-pa
 body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diary-panel, body[data-rph-skin="modern"] #rph-diary-panel .rph-diary-list { scrollbar-color: #c7c7cc transparent; }
 @media (prefers-color-scheme: dark) { body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diary-panel, body[data-rph-skin="modern"] #rph-diary-panel .rph-diary-list { scrollbar-color: #48484a transparent; } }
 
-.rph-roster-title { font-weight: 700; font-size: 0.95rem; color: #bcd8ff; margin-bottom: 8px; }
+.rph-roster-title { font-weight: 700; font-size: 0.95rem; color: #bcd8ff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.rph-roster-close { background: none; border: none; color: inherit; font-size: 1.15rem; line-height: 1; padding: 6px 10px; cursor: pointer; opacity: .8; border-radius: 8px; }
+.rph-roster-close:hover { opacity: 1; background: rgba(255,255,255,0.08); }
 .rph-hint { font-size: 0.75rem; opacity: 0.65; margin-bottom: 8px; }
 .rph-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 10px; }
 .rph-row:hover { background: rgba(255,255,255,0.05); }

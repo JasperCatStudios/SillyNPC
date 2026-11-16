@@ -400,7 +400,9 @@
 
 /* history of fights and games */
 .snpc-fight-history { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.snpc-hist-overlay { position: fixed; inset: 0; z-index: 3100; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; }
+/* Sized outright rather than inset: 0 - on a phone the page root has no height of its own, the
+   overlay came out zero tall and the panel (and its close button) sat above the top of the screen. */
+.snpc-hist-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 3100; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; }
 .snpc-hist {
     width: 720px; max-width: 94vw; max-height: 86vh; overflow: auto;
     display: flex; flex-direction: column; gap: 8px; padding: 14px 18px 16px;
@@ -425,7 +427,12 @@
 .snpc-hist-add { display: grid; grid-template-columns: auto 1fr auto 2fr auto; gap: 6px; }
 .snpc-hist-addwrap { display: flex; flex-direction: column; gap: 6px; }
 .snpc-hist-sides { display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: center; gap: 6px; }
-@media (max-width: 700px) { .snpc-hist-add, .snpc-hist-sides { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+    .snpc-hist-add, .snpc-hist-sides { grid-template-columns: 1fr; }
+    .snpc-hist-overlay { align-items: flex-start; padding-top: 48px; box-sizing: border-box; }
+    .snpc-hist { max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px); }
+    .snpc-hist-head { position: sticky; top: -14px; background: #f4ecda; z-index: 1; }
+}
 
 /* ---- ability picker on the character page ---- */
 .snpc-abil-picker { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
