@@ -5307,6 +5307,51 @@ textarea.sillynpc-profile-input {
     #rpg-game-modal .rpg-bs-grids { flex-direction: column; gap: 8px; align-items: center; }
     #rpg-game-modal .rpg-bs-grid { grid-template-columns: repeat(6, 26px); gap: 2px; }
     #rpg-game-modal .rpg-bs-cell { width: 26px; height: 26px; }
+    /* The Menu / History / Surrender bar floats over the top of the table: keep the table clear of it
+       (poker's result screen slid underneath), and make the cards a little smaller. */
+    #rpg-game-modal .rpg-game-area { padding: 54px 8px 10px; }
+    #rpg-game-modal .rpg-card { width: 46px; height: 64px; }
+    #rpg-game-modal .rpg-card-rank { font-size: .95rem; }
+    #rpg-game-modal .rpg-card-suit { font-size: 1.25rem; }
+    #rpg-game-modal .rpg-card.back span { font-size: 1.3rem; }
+    #rpg-game-modal .rpg-bj-wrap { gap: 14px; }
+    #rpg-game-modal .rpg-bj-side { gap: 8px; }
+    #rpg-game-modal .rpg-bj-cards { gap: 8px 6px; min-height: 64px; }
+    #rpg-game-modal .rpg-poker-wrap { gap: 8px; }
+    /* Who sits at the table: two columns of names, and the start button stays in view. */
+    #rpg-game-modal .rpg-menu-container { width: 100%; }
+    #rpg-game-modal .rpg-menu-container .rpg-bt-cand { grid-column: auto; width: auto; margin: 0; padding: 5px 8px; font-size: .9rem; min-width: 0; }
+    #rpg-game-modal #rpg-tb-start, #rpg-game-modal #rpg-bt-start { grid-column: 1 / -1; position: sticky; bottom: 0; z-index: 2; }
+    /* Three or more hands: two columns, with the dealer across the top and Hit / Stand always in view. */
+    #rpg-game-modal .rpg-bj-wrap:has(> .rpg-bj-side:nth-child(3)) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 6px; align-items: start; width: 100%; }
+    #rpg-game-modal .rpg-bj-wrap:has(> .rpg-bj-side:nth-child(3)) > .rpg-bj-side:first-child,
+    #rpg-game-modal .rpg-bj-wrap > .rpg-pig-msg,
+    #rpg-game-modal .rpg-bj-wrap > .rpg-bj-controls { grid-column: 1 / -1; }
+    #rpg-game-modal .rpg-bj-wrap:has(> .rpg-bj-side:nth-child(3)) .rpg-card { width: 40px; height: 56px; }
+    #rpg-game-modal .rpg-bj-wrap:has(> .rpg-bj-side:nth-child(3)) .rpg-card-rank { font-size: .85rem; }
+    #rpg-game-modal .rpg-bj-wrap:has(> .rpg-bj-side:nth-child(3)) .rpg-card-suit { font-size: 1.1rem; }
+    #rpg-game-modal .rpg-bj-wrap:has(> .rpg-bj-side:nth-child(3)) .rpg-bj-cards { min-height: 56px; }
+    #rpg-game-modal .rpg-bj-controls { position: sticky; bottom: -4px; z-index: 2; padding: 6px 0; justify-content: center; }
+    /* Poker with several players: the others' face-down hands are small and sit two to a row, your own
+       hand keeps its full size across the table. */
+    #rpg-game-modal .rpg-poker-wrap:has(> .rpg-poker-side:nth-child(4)) { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 6px; align-items: start; width: 100%; }
+    #rpg-game-modal .rpg-poker-wrap > .rpg-poker-pot,
+    #rpg-game-modal .rpg-poker-wrap > .rpg-poker-result,
+    #rpg-game-modal .rpg-poker-wrap > .rpg-bj-controls,
+    #rpg-game-modal .rpg-poker-wrap > .rpg-poker-side:has(.rpg-card:not(.back)) { grid-column: 1 / -1; }
+    #rpg-game-modal .rpg-poker-wrap .rpg-card.back { width: 28px; height: 42px; }
+    #rpg-game-modal .rpg-poker-wrap .rpg-bj-cards { gap: 3px; flex-wrap: nowrap; }
+    #rpg-game-modal .rpg-poker-wrap.rpg-showdown > .rpg-poker-side:has(.rpg-card:not(.back)) { grid-column: auto; }
+    #rpg-game-modal .rpg-poker-wrap.rpg-showdown .rpg-card { width: 30px; height: 44px; }
+    #rpg-game-modal .rpg-poker-wrap.rpg-showdown .rpg-card-rank { font-size: .75rem; }
+    #rpg-game-modal .rpg-poker-wrap.rpg-showdown .rpg-card-suit { font-size: 1rem; }
+    #rpg-game-modal .rpg-poker-wrap .rpg-bj-controls { background: linear-gradient(rgba(244,236,218,0), rgba(244,236,218,.95) 35%); }
+    #rpg-game-modal .rpg-poker-wrap .rpg-card.back span { font-size: 1rem; }
+    /* "Play again" and "Send result to chat" are pinned to the bottom of a tall desktop window, so on
+       a small one they sat on top of the cards. Here they follow the table instead. */
+    #rpg-game-modal .rpg-summary-btn { position: static !important; transform: none; margin: 8px auto 0; flex: none; }
+    #rpg-game-modal #rpg-replay-btn { order: 1; }
+    #rpg-game-modal #rpg-game-summary-btn { order: 2; }
     #rpg-game-modal .rpg-bt-circle { width: min(280px, 78vw); height: min(280px, 78vw); }
     /* The phone's roster, diary and the phone itself are placed from the bottom edge, and on a
        phone that edge is not where they expect (they ended up above the top of the screen). */

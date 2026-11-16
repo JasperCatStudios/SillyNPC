@@ -2189,6 +2189,7 @@ function renderPokerTable(canvas) {
     const me = pkMe();
     const reveal = s.phase === 'result' && s.lastResult && s.lastResult.showdown;
     const wrap = $('<div class="rpg-poker-wrap"></div>');
+    if (reveal) wrap.addClass('rpg-showdown');   // every hand is face up: the small-screen CSS shrinks them
     wrap.append(`<div class="rpg-poker-pot">Dealer: ${escapeHtml(pkDealerName(s))} · Pot: 🪙 ${s.pot}${s.phase === 'bet' ? ` · bet ${s.limit}` : ''}</div>`);
     s.seats.forEach((seat, i) => {
         const isMe = i === me;
