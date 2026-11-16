@@ -135,6 +135,8 @@ export const defaultSettings = {
     ttsVoicePlayer: '',
     ttsVoiceFemale: '',
     ttsVoiceMale: '',
+    /** Voices on or off. Off: nothing is read, nothing is tested, and no error toasts about AllTalk. */
+    ttsEnabled: false,
     /** Read each new reply aloud, one voice per speaker, when it finishes. */
     ttsAutoSpeak: false,
     /** Whether (parenthesised) thoughts are read. Off: a thought is not said out loud. */

@@ -165,10 +165,13 @@ export function renderModulesView(view) {
 
     // Voices belong to SillyNPC itself rather than to a module, and come first.
     add('voices', 'fa-volume-high', 'Voices', (pane) => {
-        const intro = document.createElement('p');
-        intro.className = 'notes';
-        intro.textContent = 'Characters read aloud through AllTalk, a voice each.';
-        pane.append(intro);
+        const head = document.createElement('div');
+        head.className = 'sillynpc-pane-head';
+        const text = document.createElement('small');
+        text.className = 'notes';
+        text.textContent = 'Characters read aloud through AllTalk, a voice each. Off, nothing is read and AllTalk is never contacted.';
+        head.append(text, makeSwitch(getSettings().ttsEnabled, (on) => { getSettings().ttsEnabled = on; saveSettings(); }));
+        pane.append(head);
         renderVoiceSettings(pane);
     });
 

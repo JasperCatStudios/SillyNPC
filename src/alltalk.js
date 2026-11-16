@@ -101,7 +101,7 @@ async function pump() {
                 url = await prepare(item);
             } catch (err) {
                 console.warn(LOG_PREFIX, 'Speech failed', err);
-                toastr.warning(`Voice could not be generated: ${err.message || err}`, PRODUCT_NAME);
+                toastr.warning(`Voice could not be generated: ${err.message || err}`, PRODUCT_NAME, { preventDuplicates: true });
                 continue;
             }
             if (mine !== epoch) { URL.revokeObjectURL(url); break; }
@@ -123,6 +123,7 @@ async function pump() {
 
 /** Queues text to be read in a voice file. Returns false when there is nothing to read. */
 export function speakWith(voice, text) {
+    if (!getSettings().ttsEnabled) return false;
     const spoken = String(text ?? '').trim();
     if (!spoken || !voice) return false;
     queue.push({ text: spoken, voice, ready: null });

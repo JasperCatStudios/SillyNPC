@@ -32,7 +32,7 @@ export function dialogueOnly(text, name) {
 /** Reads a spoken line aloud when auto-speak is on. Never blocks, never throws. */
 export function speakLine(name, text) {
     try {
-        if (!getSettings().ttsAutoSpeak || !text) return;
+        if (!getSettings().ttsEnabled || !getSettings().ttsAutoSpeak || !text) return;
         Promise.resolve(speakNamed(name, text)).catch(() => {});
     } catch { /* speech is optional */ }
 }

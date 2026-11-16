@@ -26,6 +26,11 @@ export const VOICE_KEYS = {
     player: 'ttsVoicePlayer',
 };
 
+/** Whether voices are switched on. Off is the default, and then nothing here speaks or complains. */
+export function ttsEnabled() {
+    return !!getSettings().ttsEnabled;
+}
+
 /** Whether AllTalk answers, and if not, why in one sentence. */
 export async function ttsStatus() {
     if (!await alltalkReady()) {
@@ -95,6 +100,7 @@ function voiceForBeat(beat) {
  * @returns {Promise<number>} How many pieces were queued.
  */
 export async function speakMessage(mesEl) {
+    if (!ttsEnabled()) return 0;
     const status = await ttsStatus();
     if (!status.ready) {
         toastr.info(status.reason, PRODUCT_NAME);
@@ -119,6 +125,7 @@ export async function speakMessage(mesEl) {
 
 /** Reads a line in somebody's voice, by name. For the phone and the games. */
 export async function speakNamed(name, text) {
+    if (!ttsEnabled()) return false;
     const settings = getSettings();
     const voice = recordVoice(name) || String(settings[VOICE_KEYS.default] || '').trim();
     if (!voice) {
@@ -130,6 +137,10 @@ export async function speakNamed(name, text) {
 
 /** Reads one line in a voice file. For the test buttons. */
 export async function previewVoice(voice, line = 'This is what I sound like.') {
+    if (!ttsEnabled()) {
+        toastr.info('Voices are switched off. Turn them on at the top of this page first.', PRODUCT_NAME, { preventDuplicates: true });
+        return false;
+    }
     const status = await ttsStatus();
     if (!status.ready) {
         toastr.info(status.reason, PRODUCT_NAME);
@@ -146,7 +157,7 @@ export async function previewVoice(voice, line = 'This is what I sound like.') {
 /** A speaker button in the message toolbar: read this message, a voice per speaker. */
 function ensureSpeakButton(mesEl) {
     const toolbar = mesEl?.querySelector?.('.extraMesButtons');
-    if (!toolbar || toolbar.querySelector('.sillynpc-speak-btn')) return;
+    if (!ttsEnabled() || !toolbar || toolbar.querySelector('.sillynpc-speak-btn')) return;
 
     const btn = document.createElement('div');
     btn.className = 'mes_button sillynpc-speak-btn fa-solid fa-comment-dots';
@@ -164,7 +175,7 @@ let generationEndedAt = 0;
 
 function onMessageDecorated(mesEl) {
     ensureSpeakButton(mesEl);
-    if (!getSettings().ttsAutoSpeak) return;
+    if (!ttsEnabled() || !getSettings().ttsAutoSpeak) return;
     try {
         const id = Number(mesEl?.getAttribute?.('mesid'));
         const chat = getContext()?.chat;
