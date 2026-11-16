@@ -10,7 +10,7 @@ import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { getSettings as getWorldkitSettings } from '../../src/settings.js';
-import { bindWorkflow, substituteValue } from '../../src/comfy-workflow-bind.js';
+import { bindWorkflow, substituteValue, hasPromptHelper } from '../../src/comfy-workflow-bind.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
@@ -1458,6 +1458,18 @@ function imgConn() {
     if (b) return { mode: b.mode || 'auto', apiUrl: b.apiUrl, apiKey: b.apiKey, model: b.model, comfy: Object.assign({}, COMFY_DEF, b.comfy || {}), from: 'rpg_dungeons' };
     return { mode: own.mode, apiUrl: own.apiUrl, apiKey: own.apiKey, model: own.model, comfy: comfyCfg(), from: null };
 }
+/* Picture sizes to choose from (all multiples of 16, which image models and size nodes like). */
+const SIZE_CHOICES = [
+    ['768x1024', 'Portrait 3:4 (768 x 1024)'], ['832x1216', 'Tall 2:3 (832 x 1216)'], ['896x1152', 'Poster 7:9 (896 x 1152)'],
+    ['1024x1024', 'Square (1024 x 1024)'], ['1152x896', 'Landscape 9:7 (1152 x 896)'], ['1216x832', 'Wide 3:2 (1216 x 832)'],
+    ['1024x768', 'Landscape 4:3 (1024 x 768)'], ['1344x768', 'Cinematic 16:9 (1344 x 768)'], ['1920x1088', 'Large 16:9 (1920 x 1088)'],
+    ['1536x1536', 'Large square (1536 x 1536)'],
+];
+function sizeOptions(current) {
+    const cur = String(current || '').trim().replace(/\s+/g, '').replace('×', 'x') || '768x1024';
+    const list = SIZE_CHOICES.some(([v]) => v === cur) ? SIZE_CHOICES : [[cur, `Your size (${cur.replace('x', ' x ')})`], ...SIZE_CHOICES];
+    return list.map(([v, label]) => `<option value="${escapeHtml(v)}"${v === cur ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
+}
 function aspectFromSize(size) {
     const m = /^(\d+)\s*[x×]\s*(\d+)$/.exec(String(size || '').trim());
     if (!m) return null;
@@ -2088,15 +2100,22 @@ function requestedPrompt(m) {
     const cfg = imgCfg();
     const mode = detectImageMode();
     // a workflow with its own %negative% is a tag-style one; any other workflow (an image-edit model, MOSS) takes a sentence
-    const tags = mode === 'sd' || (mode === 'comfy' && String(activeWorkflowText(m)).includes('%negative%')) || (mode === 'comfy' && !String(activeWorkflowText(m)).trim());
+    const idea = mode === 'comfy' && hasPromptHelper(activeWorkflowText(m));
+    const flow = String(activeWorkflowText(m));
+    const tags = mode === 'sd' || (mode === 'comfy' && !idea && (flow.includes('%negative%') || !flow.trim()));
     const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? sdLook(m.name) : descFor(m.name));
     const wk = getWorldkitSettings();
     const templates = { character: wk.phonePromptSelfie, creative: wk.phonePromptDrawing, object: wk.phonePromptObject };
     const timeTexts = { dawn: wk.phoneTimeDawn, morning: wk.phoneTimeMorning, midday: wk.phoneTimeMidday, afternoon: wk.phoneTimeAfternoon, evening: wk.phoneTimeEvening, night: wk.phoneTimeNight };
-    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, timeTexts, outfits: outfitsOf(m.name), defaultOutfit: defaultOutfitOf(m.name), defaultStyle: String(wk.phonePictureStyle || '').trim(), extraStyle: cfg.style ? String(cfg.style).trim() : '' });
+    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, ideaOnly: detectImageMode() === 'comfy' && hasPromptHelper(activeWorkflowText(m)), timeTexts, outfits: outfitsOf(m.name), defaultOutfit: defaultOutfitOf(m.name), defaultStyle: String(wk.phonePictureStyle || '').trim(), extraStyle: cfg.style ? String(cfg.style).trim() : '' });
     return tags ? p.sdPrompt : p.contextPrompt;
 }
 function photoPrompt(m) {
+    // a workflow with a prompt helper is given the short idea (what the photo shows), not a finished prompt
+    if (!(m && m.req && typeof m.req === 'object') && detectImageMode() === 'comfy' && hasPromptHelper(activeWorkflowText(m))) {
+        const k = classify(m.text);
+        return String(k.caption || stripNamePrefix(k.text, m.name) || 'a photo').slice(0, 400);
+    }
     if (m && m.req && typeof m.req === 'object') return requestedPrompt(m);
     const cfg = imgCfg();
     const kind = classify(m.text);
@@ -4945,7 +4964,7 @@ function settingsHtml() {
                         <small class="notes" id="rph-comfy-selfie-note"></small>
                     </div>
                     <div class="rph-row">
-                        <div class="rph-narrow"><label for="rph-img-size">${t('img_size')}</label><input id="rph-img-size" class="text_pole" placeholder="768x1024"></div>
+                        <div class="rph-narrow"><label for="rph-img-size">${t('img_size')}</label><select id="rph-img-size" class="text_pole">${sizeOptions(imgCfg().size)}</select></div>
                         <div><label for="rph-img-style">${t('img_style')}</label><input id="rph-img-style" class="text_pole" placeholder="${escapeHtml(t('img_style_ph'))}"></div>
                     </div>
                     <label for="rph-img-tpl">${escapeHtml(t('img_tpl'))}</label>
@@ -5145,6 +5164,13 @@ function setupImageUI() {
     if (!ic.tpl) $('#rph-img-tpl').val(IMG_DEF.tpl);
 
     const cc = comfyCfg();
+    // a workflow loaded before is brought up to date once: a prompt helper's saved idea is emptied, a sizes node gets %width%/%height%
+    for (const key of ['workflow', 'selfieWorkflow']) {
+        const raw = String(cc[key] || '').trim();
+        if (!raw) continue;
+        const r = bindWorkflow(raw);
+        if (r.ok && r.changed) { cc[key] = r.json.slice(0, 120000); saveSettings(); }
+    }
     const fillSel = (sel, list, cur, emptyLabel) => {
         const items = Array.isArray(list) && list.length ? list.slice() : [];
         if (cur && !items.includes(cur)) items.unshift(cur);
@@ -5246,16 +5272,19 @@ function setupImageUI() {
     const adoptWorkflow = (raw, key, noteSel) => {
         let txt = String(raw || '').trim();
         const note = $(noteSel);
-        if (txt && !txt.includes('%prompt%')) {
+        if (txt) {
             const r = bindWorkflow(txt);
             if (r.error === 'badjson') { toastr.warning(drawErrText(comfyErr('comfy-badjson', ''))); return null; }
             if (r.error === 'uiformat') { toastr.warning('That workflow is in the editor format. In ComfyUI use "Save (API Format)" (turn on Dev mode options in ComfyUI settings if you do not see it).'); return null; }
             if (!r.ok) { toastr.warning(r.notes[0] || 'No prompt input was found in this workflow.'); return null; }
+            if (!r.changed) { note.text('Placeholders found.'); comfyCfg()[key] = txt.slice(0, 120000); saveSettings(); return txt; }
             txt = r.json;
             const bits = [];
             if (r.found.image.length) bits.push(`character sheet (node ${r.found.image[0]})`);
             if (r.found.prompt.length) bits.push(`prompt (node ${r.found.prompt[0]})`);
             if (r.found.seed.length) bits.push(`seed (node ${r.found.seed[0]})`);
+            if (r.found.size.length) bits.push(`size (node ${r.found.size[0]})`);
+            if (r.found.helper.length) bits.push(`prompt helper cleared (node ${r.found.helper[0]}), so it writes from the idea it is sent`);
             // a general workflow (drawings, places) takes no picture, so a missing image loader is not news there
             const notes = key === 'workflow' ? r.notes.filter(x => !/image loader/i.test(x)) : r.notes;
             note.text(`Placeholders added: ${bits.join(', ')}.${notes.length ? ' ' + notes.join(' ') : ''}`);
@@ -5294,9 +5323,9 @@ function setupImageUI() {
     });
     $('#rph-comfy-wf').on('change', function () {
         // a workflow pasted without placeholders is given them first
-        if (String(this.value || '').trim() && !this.value.includes('%prompt%')) {
+        if (String(this.value || '').trim()) {
             const r = bindWorkflow(this.value);
-            if (r.ok) this.value = r.json;
+            if (r.ok && r.changed) this.value = r.json;
         }
         const txt = String(this.value || '').trim();
         // checked right away: the error is easier to understand while the field is in front of you

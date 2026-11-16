@@ -566,6 +566,13 @@ export function promptsForRequest(req, ctx) {
             .replace(/(\s*,){2,}/g, ',').replace(/,\s*([.!?])/g, '$1').replace(/^[\s,]+|[\s,]+$/g, '').replace(/[ \t]+/g, ' ').replace(/ ,/g, ',').trim();
         return { mode, directives, sdPrompt: text, contextPrompt: text };
     }
+    // A workflow with a prompt helper writes the long prompt itself from a short idea, so it is given the idea:
+    // what to show, and a style only if one was asked for.
+    if (ctx?.ideaOnly && mode !== 'character') {
+        const subject = directives || scene || (mode === 'creative' ? 'an artistic scene' : 'the described subject');
+        const idea = [subject, named, String(extraStyle || '').trim()].filter(Boolean).join(', ');
+        return { mode, directives, sdPrompt: idea, contextPrompt: idea };
+    }
     let sd;
     let prose;
     if (mode === 'creative') {
