@@ -2025,6 +2025,28 @@ function shrinkToDataUrl(src, maxDim = 640) {
         im.src = src;
     });
 }
+/** A picture cropped (never stretched) to a shape. When it has to lose height it keeps the upper part, where faces are. */
+function cropToAspect(src, aw, ah) {
+    return new Promise(resolve => {
+        const im = new Image();
+        im.onerror = () => resolve(src);
+        im.onload = () => {
+            try {
+                const want = aw / ah;
+                const have = im.width / im.height;
+                let sw = im.width, sh = im.height, sx = 0, sy = 0;
+                if (have > want) { sw = Math.round(im.height * want); sx = Math.round((im.width - sw) / 2); }
+                else if (have < want) { sh = Math.round(im.width / want); sy = Math.round((im.height - sh) * 0.25); }
+                if (sw === im.width && sh === im.height) { resolve(src); return; }
+                const cv = document.createElement('canvas');
+                cv.width = sw; cv.height = sh;
+                cv.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, sw, sh);
+                resolve(cv.toDataURL('image/png'));
+            } catch (e) { resolve(src); }
+        };
+        im.src = src;
+    });
+}
 const avatarRefCache = new Map();
 async function avatarRef(name) {
     const ch = cardChar(name);
@@ -2253,7 +2275,12 @@ async function runGenQueue() {
                     let sheet = null;
                     try { sheet = await sheetFor(m.name); } catch (e) { sheet = null; }
                     extras.sheet = sheet || ref || null;
-                    if (usesSelfieWorkflow(m)) { extras.selfie = true; ref = sheet || ref; }
+                    if (usesSelfieWorkflow(m)) {
+                        extras.selfie = true; ref = sheet || ref;
+                        // the selfie has the shape of the picture it is made from, so the shape is chosen by cropping that picture
+                        const dims = /^(\d+)x(\d+)$/.exec(String(imgCfg().selfieShape || ''));
+                        if (ref && dims) ref = await cropToAspect(ref, +dims[1], +dims[2]);
+                    }
                 }
                 if ((/\bselfie/i.test(String(m.req?.ask || '')) || selfieAskedBefore(job.contactId, m)) && !extras.selfie) {
                     const why = selfieNotUsedBecause(m);
@@ -5056,6 +5083,7 @@ function settingsHtml() {
                     </div>
                     <div class="rph-row">
                         <div class="rph-narrow"><label for="rph-img-size">${t('img_size')}</label><select id="rph-img-size" class="text_pole">${sizeOptions(imgCfg().size)}</select></div>
+                        <div><label for="rph-img-selfieshape" title="The selfie workflow draws the shape of the picture it starts from, at about one megapixel. This crops that picture to the shape you choose.">Selfie shape</label><select id="rph-img-selfieshape" class="text_pole"><option value="">As the character picture</option>${SIZE_CHOICES.map(([v, label]) => `<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`).join('')}</select></div>
                         <div><label for="rph-img-style">${t('img_style')}</label><input id="rph-img-style" class="text_pole" placeholder="${escapeHtml(t('img_style_ph'))}"></div>
                     </div>
                     <div class="rph-styles">
@@ -5256,6 +5284,7 @@ function setupImageUI() {
     bindImg('#rph-img-key', 'apiKey');
     bindImg('#rph-img-model', 'model');
     bindImg('#rph-img-size', 'size');
+    bindImg('#rph-img-selfieshape', 'selfieShape');
     bindImg('#rph-img-style', 'style');
     bindImg('#rph-img-tpl', 'tpl');
     const drawStyles = () => {
