@@ -1,4 +1,4 @@
-import { eventSource, event_types, saveSettingsDebounced, name1, substituteParams, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../../script.js';
+import { getRequestHeaders, eventSource, event_types, saveSettingsDebounced, name1, substituteParams, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../../script.js';
 import { placeWritingPrompt, promptListAvailable } from '../../src/prompt-slot.js';
 import { SlashCommand } from '../../../../../slash-commands/SlashCommand.js';
 import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../../../slash-commands/SlashCommandArgument.js';
@@ -1470,6 +1470,22 @@ function sizeOptions(current) {
     const list = SIZE_CHOICES.some(([v]) => v === cur) ? SIZE_CHOICES : [[cur, `Your size (${cur.replace('x', ' x ')})`], ...SIZE_CHOICES];
     return list.map(([v, label]) => `<option value="${escapeHtml(v)}"${v === cur ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
 }
+/* Saved ComfyUI workflows are files in SillyTavern's own workflow folder (data/<profile>/user/workflows), the same ones its
+   Image Generation extension lists, so they are kept on disk, shared with the phone, and not in the settings. */
+async function wfApi(path, body) {
+    const r = await fetch(`/api/sd/comfy/${path}`, { method: 'POST', headers: getRequestHeaders(), body: JSON.stringify(body || {}) });
+    if (!r.ok) throw new Error(`workflow files: HTTP ${r.status}`);
+    return r;
+}
+const wfList = async () => (await (await wfApi('workflows')).json()).map(String);
+const wfRead = async (file) => String(await (await wfApi('workflow', { file_name: file })).json());
+const wfSave = (file, text) => wfApi('save-workflow', { file_name: file, workflow: text });
+const wfDelete = (file) => wfApi('delete-workflow', { file_name: file });
+/** A name typed or taken from a file, as a safe .json file name. */
+function wfFileName(name) {
+    const base = String(name || '').replace(/\.json$/i, '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    return base ? `${base}.json` : '';
+}
 function aspectFromSize(size) {
     const m = /^(\d+)\s*[x×]\s*(\d+)$/.exec(String(size || '').trim());
     if (!m) return null;
@@ -1570,7 +1586,7 @@ function comfyBuildGraph(v) {
     g['9'] = { class_type: 'SaveImage', inputs: { filename_prefix: 'rpg_phone', images: ['8', 0] } };
     return g;
 }
-const COMFY_PH = ['%prompt%', '%negative%', '%seed%', '%width%', '%height%', '%ckpt%', '%lora%', '%lora_strength%', '%image%', '%sheet%'];
+const COMFY_PH = ['%prompt%', '%negative%', '%seed%', '%width%', '%height%', '%ckpt%', '%lora%', '%lora_strength%', '%image%', '%sheet%', '%negative_prompt%', '%model%'];
 function comfyFillCustom(text, v) {
     let g;
     try { g = JSON.parse(text); } catch (e) { throw comfyErr('comfy-badjson', 'bad json'); }
@@ -1580,7 +1596,8 @@ function comfyFillCustom(text, v) {
     const L = comfyLora(v, c);
     const map = {
         '%prompt%': v.prompt, '%negative%': v.negative, '%seed%': v.seed, '%width%': v.w, '%height%': v.h,
-        '%ckpt%': v.ckpt, '%lora%': L.lora, '%lora_strength%': L.strength, '%image%': v.image || '', '%sheet%': v.sheet || v.image || ''
+        '%ckpt%': v.ckpt, '%lora%': L.lora, '%lora_strength%': L.strength, '%image%': v.image || '', '%sheet%': v.sheet || v.image || '',
+        '%negative_prompt%': v.negative, '%model%': v.ckpt
     };
     if (!L.lora) {
         for (const [id, n] of Object.entries(g)) {
@@ -4963,12 +4980,14 @@ function settingsHtml() {
                         <textarea id="rph-comfy-neg" class="text_pole" rows="2"></textarea>
                         </div>
                         <small class="notes" id="rph-comfy-own" style="display:none">Your workflow keeps its own model, LoRA, steps, sampler, size and negative prompt. Only the prompt, the picture and the seed are filled in, so the settings above are not used while a workflow is set (they are for the built-in graph).</small>
-                        <label for="rph-comfy-wf">${t('comfy_wf')}</label>
+                        <label for="rph-comfy-wf-pick">${t('comfy_wf')}</label>
+                        <div class="rph-wfpick"><select id="rph-comfy-wf-pick" class="text_pole"></select><span class="menu_button" id="rph-comfy-wf-save"><i class="fa-solid fa-floppy-disk"></i> Save as…</span><span class="menu_button" id="rph-comfy-wf-del" aria-label="Delete the saved workflow"><i class="fa-solid fa-trash"></i></span></div>
                         <textarea id="rph-comfy-wf" class="text_pole" rows="3" placeholder="Save (API Format) · %prompt% %negative% %seed% %width% %height% %ckpt% %lora% %lora_strength% %image% %sheet%"></textarea>
                         <div class="rph-comfy-selfiebar"><span class="menu_button" id="rph-comfy-wf-load"><i class="fa-solid fa-file-import"></i> Load a workflow file</span>
                         <input type="file" id="rph-comfy-wf-file" accept=".json,application/json" style="display:none"></div>
                         <small class="notes" id="rph-comfy-wf-note"></small>
-                        <label for="rph-comfy-selfie">Selfie workflow (character sheet in, selfie out)</label>
+                        <label for="rph-comfy-selfie-pick">Selfie workflow (character sheet in, selfie out)</label>
+                        <div class="rph-wfpick"><select id="rph-comfy-selfie-pick" class="text_pole"></select><span class="menu_button" id="rph-comfy-selfie-save"><i class="fa-solid fa-floppy-disk"></i> Save as…</span><span class="menu_button" id="rph-comfy-selfie-del" aria-label="Delete the saved workflow"><i class="fa-solid fa-trash"></i></span></div>
                         <textarea id="rph-comfy-selfie" class="text_pole" rows="3" placeholder="Paste a workflow saved with Save (API Format), or load the file. The placeholders are added for you."></textarea>
                         <div class="rph-comfy-selfiebar"><span class="menu_button" id="rph-comfy-selfie-load"><i class="fa-solid fa-file-import"></i> Load a workflow file</span>
                         <input type="file" id="rph-comfy-selfie-file" accept=".json,application/json" style="display:none"></div>
@@ -5349,7 +5368,7 @@ function setupImageUI() {
         let txt = '';
         try { txt = await f.text(); } catch (e) { toastr.warning('Could not read that file.'); return; }
         const out = adoptWorkflow(txt, 'workflow', '#rph-comfy-wf-note');
-        if (out !== null) $('#rph-comfy-wf').val(out);
+        if (out !== null) { $('#rph-comfy-wf').val(out); keepLoaded('workflow', f.name); }
         refresh();
     });
     $('#rph-comfy-selfie-load').on('click', () => document.getElementById('rph-comfy-selfie-file').click());
@@ -5360,7 +5379,7 @@ function setupImageUI() {
         let txt = '';
         try { txt = await f.text(); } catch (e) { toastr.warning('Could not read that file.'); return; }
         const out = adoptWorkflow(txt, 'selfieWorkflow', '#rph-comfy-selfie-note');
-        if (out !== null) $('#rph-comfy-selfie').val(out);
+        if (out !== null) { $('#rph-comfy-selfie').val(out); keepLoaded('selfieWorkflow', f.name); }
         refresh();
     });
     $('#rph-comfy-wf').on('change', function () {
@@ -5376,6 +5395,98 @@ function setupImageUI() {
         saveSettings();
         refresh();
     });
+    /* The saved workflows: a drop-down of the files in SillyTavern's workflow folder for each slot. Picking one loads it,
+       Save as writes the one in the box, a loaded file is kept there under its own name. */
+    let wfFiles = [];
+    const SLOTS = [
+        { key: 'workflow', fileKey: 'workflowFile', pick: '#rph-comfy-wf-pick', save: '#rph-comfy-wf-save', del: '#rph-comfy-wf-del', area: '#rph-comfy-wf', note: '#rph-comfy-wf-note', none: 'Built-in graph (no workflow)' },
+        { key: 'selfieWorkflow', fileKey: 'selfieWorkflowFile', pick: '#rph-comfy-selfie-pick', save: '#rph-comfy-selfie-save', del: '#rph-comfy-selfie-del', area: '#rph-comfy-selfie', note: '#rph-comfy-selfie-note', none: 'No selfie workflow' },
+    ];
+    const fillPicks = () => {
+        for (const s of SLOTS) {
+            const cur = String(cc[s.fileKey] || '');
+            let html = `<option value="">${escapeHtml(s.none)}</option>` + wfFiles.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f.replace(/\.json$/i, ''))}</option>`).join('');
+            if (cur && !wfFiles.includes(cur)) html += `<option value="${escapeHtml(cur)}">${escapeHtml(cur.replace(/\.json$/i, ''))} (file missing)</option>`;
+            else if (!cur && String(cc[s.key] || '').trim()) html += `<option value="__unsaved" selected>(loaded, not saved yet)</option>`;
+            $(s.pick).html(html).val(cur || (String(cc[s.key] || '').trim() ? '__unsaved' : ''));
+        }
+    };
+    const loadFiles = async () => {
+        try { wfFiles = await wfList(); } catch (e) { wfFiles = []; console.warn('[Phone] workflow files unavailable', e); }
+        fillPicks();
+    };
+    /** Writes the slot's workflow to the folder under a name and makes it the slot's file. */
+    const keepAs = async (s, fileName) => {
+        const text = String(cc[s.key] || '').trim();
+        if (!fileName || !text) return false;
+        try { await wfSave(fileName, text); } catch (e) { toastr.warning('Could not save the workflow file.'); return false; }
+        cc[s.fileKey] = fileName; saveSettings();
+        await loadFiles();
+        return true;
+    };
+    for (const s of SLOTS) {
+        $(s.pick).on('change', async function () {
+            const v = this.value;
+            if (v === '__unsaved') return;
+            if (!v) { cc[s.key] = ''; cc[s.fileKey] = ''; $(s.area).val(''); $(s.note).text(''); saveSettings(); refresh(); fillPicks(); return; }
+            let text = '';
+            try { text = await wfRead(v); } catch (e) { toastr.warning('Could not read that workflow file.'); fillPicks(); return; }
+            const out = adoptWorkflow(text, s.key, s.note);
+            if (out === null) { fillPicks(); return; }
+            cc[s.fileKey] = v; saveSettings();
+            $(s.area).val(out);
+            refresh(); fillPicks();
+        });
+        $(s.save).on('click', async () => {
+            if (!String(cc[s.key] || '').trim()) { toastr.info('Load or paste a workflow first.'); return; }
+            const name = window.prompt('Save this workflow as:', String(cc[s.fileKey] || '').replace(/\.json$/i, ''));
+            const file = wfFileName(name);
+            if (!file) return;
+            if (wfFiles.includes(file) && file !== cc[s.fileKey] && !window.confirm(`"${file}" already exists. Replace it?`)) return;
+            if (await keepAs(s, file)) toastr.success(`Saved "${file.replace(/\.json$/i, '')}" to SillyTavern's workflow folder.`);
+        });
+        $(s.del).on('click', async () => {
+            const v = $(s.pick).val();
+            if (!v || v === '__unsaved') { toastr.info('Pick a saved workflow to delete.'); return; }
+            if (!window.confirm(`Delete "${v.replace(/\.json$/i, '')}" from SillyTavern's workflow folder? It is also removed from its own Image Generation list.`)) return;
+            try { await wfDelete(v); } catch (e) { toastr.warning('Could not delete the workflow file.'); return; }
+            for (const o of SLOTS) if (cc[o.fileKey] === v) cc[o.fileKey] = '';
+            saveSettings();
+            await loadFiles();
+        });
+        // a pasted or edited workflow is no longer the saved file until it is saved again
+        $(s.area).on('change', () => { fillPicks(); });
+    }
+    /** A file loaded from disk is kept in the folder under its own name. */
+    const keepLoaded = async (slotKey, fileName) => {
+        const s = SLOTS.find(x => x.key === slotKey);
+        const file = wfFileName(fileName);
+        if (s && file && await keepAs(s, file)) toastr.success(`Kept "${file.replace(/\.json$/i, '')}" in SillyTavern's workflow folder.`);
+    };
+    // once at start: the folder's list; a slot's file read again (so an edit made elsewhere, or on the computer, is picked up);
+    // and a workflow loaded before the folder was used is kept there under a name
+    (async () => {
+        await loadFiles();
+        for (const s of SLOTS) {
+            try {
+                const file = String(cc[s.fileKey] || '');
+                if (file && wfFiles.includes(file)) {
+                    const raw = await wfRead(file);
+                    const r = bindWorkflow(raw);
+                    const next = r.ok && r.changed ? r.json : raw;
+                    if (next.trim() && next.trim() !== String(cc[s.key] || '').trim()) {
+                        cc[s.key] = next.slice(0, 120000); saveSettings();
+                        $(s.area).val(cc[s.key]);
+                        refresh();
+                    }
+                } else if (!file && String(cc[s.key] || '').trim()) {
+                    const mine = s.key === 'selfieWorkflow' ? 'Selfie workflow.json' : 'General workflow.json';
+                    if (!wfFiles.includes(mine)) await keepAs(s, mine);
+                }
+            } catch (e) { console.warn('[Phone] workflow file sync failed', e); }
+        }
+        fillPicks();
+    })();
     $('#rph-comfy-test').on('click', () => comfyTest(false));
     $('#rph-img-mode, #rph-img-url').on('change', () => { if (refresh() && !comfyInfoCache) comfyTest(true); });
     if (refresh() && comfyBaseUrl()) comfyTest(true);
