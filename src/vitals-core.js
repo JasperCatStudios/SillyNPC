@@ -11,12 +11,14 @@
  *   mood    a word ("Anxious", "Content") and how strongly it holds, 0 to 100. The tracker can
  *           also be pointed at stress: the word names it, the level says how much.
  *
- * Energy is not kept here. It is already a tracked stat of the status tracker, so the Status
- * card reads and resets it there.
+ *   energy  0 to 100. 0 is exhausted, 100 is rested.
+ *
+ * These four are the whole of a person's body-and-mind state; the default status tracker's HP and
+ * Energy are no longer used by the Status card.
  */
 
-export const VITAL_KEYS = Object.freeze(['health', 'hunger', 'mood']);
-export const VITAL_LABELS = Object.freeze({ health: 'Health', hunger: 'Hunger', mood: 'Mood' });
+export const VITAL_KEYS = Object.freeze(['health', 'hunger', 'energy', 'mood']);
+export const VITAL_LABELS = Object.freeze({ health: 'Health', hunger: 'Hunger', energy: 'Energy', mood: 'Mood' });
 export const VITALS_TIMINGS = Object.freeze({ request: 'After The Reply', manual: 'Only When I Press Update' });
 export const VITALS_POSITIONS = Object.freeze({ chat: 'In the chat', prompt: 'In the prompt', before: 'Before the prompt' });
 export const VITALS_ROLES = Object.freeze({ system: 'System', user: 'User', assistant: 'Assistant' });
@@ -25,7 +27,7 @@ export const VITALS_TRIGGERS = Object.freeze({
 });
 
 /** What a fresh person, and a reset, is: healthy, fed and calm. */
-export const VITAL_DEFAULTS = Object.freeze({ health: 100, hunger: 100, mood: Object.freeze({ word: 'Calm', level: 0 }) });
+export const VITAL_DEFAULTS = Object.freeze({ health: 100, hunger: 100, energy: 100, mood: Object.freeze({ word: 'Calm', level: 0 }) });
 
 export const VITALS_SETTINGS_DEFAULTS = Object.freeze({
     enabled: false,
@@ -34,10 +36,10 @@ export const VITALS_SETTINGS_DEFAULTS = Object.freeze({
     maxTokens: 600,
     prompt: '',
     includePlayer: true,
-    track: Object.freeze({ health: true, hunger: true, mood: true }),
+    track: Object.freeze({ health: true, hunger: true, energy: true, mood: true }),
     // The most one reply may move each value, in points. Health and hunger are physical and
     // change slowly; a mood can swing in a moment.
-    limits: Object.freeze({ health: 30, hunger: 15, mood: 40 }),
+    limits: Object.freeze({ health: 30, hunger: 15, energy: 25, mood: 40 }),
     inject: Object.freeze({ position: 'chat', depth: 1, role: 'system', trigger: 'scene', scanDepth: 6 }),
 });
 
@@ -58,6 +60,8 @@ function wordFor(table, value) {
     return table[table.length - 1][1];
 }
 
+const ENERGY_WORDS = [[10, 'Exhausted'], [30, 'Drained'], [50, 'Tired'], [70, 'Weary'], [89, 'Rested'], [100, 'Energised']];
+export const energyWord = (value) => wordFor(ENERGY_WORDS, value);
 export const healthWord = (value) => wordFor(HEALTH_WORDS, value);
 export const hungerWord = (value) => wordFor(HUNGER_WORDS, value);
 
@@ -82,11 +86,13 @@ export function normalizeVitalsSettings(raw) {
         track: {
             health: r.track?.health === undefined ? true : Boolean(r.track.health),
             hunger: r.track?.hunger === undefined ? true : Boolean(r.track.hunger),
+            energy: r.track?.energy === undefined ? true : Boolean(r.track.energy),
             mood: r.track?.mood === undefined ? true : Boolean(r.track.mood),
         },
         limits: {
             health: int(r.limits?.health, d.limits.health, 1, 100),
             hunger: int(r.limits?.hunger, d.limits.hunger, 1, 100),
+            energy: int(r.limits?.energy, d.limits.energy, 1, 100),
             mood: int(r.limits?.mood, d.limits.mood, 1, 100),
         },
         inject: {
@@ -114,6 +120,7 @@ export function newPerson(name, { player = false } = {}) {
         tracked: true,
         health: VITAL_DEFAULTS.health,
         hunger: VITAL_DEFAULTS.hunger,
+        energy: VITAL_DEFAULTS.energy,
         mood: { ...VITAL_DEFAULTS.mood },
         history: [],
         updated: 0,
@@ -125,6 +132,7 @@ export function normalizePerson(raw) {
     p.tracked = raw?.tracked === undefined ? true : Boolean(raw.tracked);
     p.health = percent(raw?.health) ?? VITAL_DEFAULTS.health;
     p.hunger = percent(raw?.hunger) ?? VITAL_DEFAULTS.hunger;
+    p.energy = percent(raw?.energy) ?? VITAL_DEFAULTS.energy;
     p.mood = normalizeMood(raw?.mood);
     p.history = (Array.isArray(raw?.history) ? raw.history : []).filter(h => h && typeof h === 'object').slice(-40);
     p.updated = Number(raw?.updated) || 0;
@@ -167,7 +175,7 @@ export function setVital(person, stat, value, { now = Date.now(), why = 'edited'
         note(person, 'mood', moodText(from), moodText(next), why, now);
         return true;
     }
-    if (stat !== 'health' && stat !== 'hunger') return false;
+    if (stat !== 'health' && stat !== 'hunger' && stat !== 'energy') return false;
     const next = percent(value);
     if (next === null) return false;
     const from = person[stat];
@@ -176,7 +184,7 @@ export function setVital(person, stat, value, { now = Date.now(), why = 'edited'
     return true;
 }
 
-/** Health back to 100, hunger back to full, mood back to calm. */
+/** Health, hunger and energy back to 100, mood back to calm. */
 export function resetVital(person, stat, now = Date.now()) {
     if (!VITAL_KEYS.includes(stat)) return false;
     const target = stat === 'mood' ? { ...VITAL_DEFAULTS.mood } : VITAL_DEFAULTS[stat];
@@ -214,9 +222,9 @@ export function applyTurn(store, update, settings, ctx = {}) {
             store.people.push(person);
         }
         if (!person.tracked || (isPlayer && !settings.includePlayer)) continue;
-        const snap = { health: person.health, hunger: person.hunger, mood: { ...person.mood }, existed: true };
+        const snap = { health: person.health, hunger: person.hunger, energy: person.energy, mood: { ...person.mood }, existed: true };
         let touched = false;
-        for (const stat of ['health', 'hunger']) {
+        for (const stat of ['health', 'hunger', 'energy']) {
             if (!settings.track[stat]) continue;
             const wanted = percent(row[stat]);
             if (wanted === null) continue;
@@ -258,6 +266,7 @@ export function revertTurn(store, key) {
         if (!person) continue;
         person.health = snap.health;
         person.hunger = snap.hunger;
+        if (snap.energy !== undefined) person.energy = snap.energy;
         person.mood = normalizeMood(snap.mood);
         any = true;
     }
@@ -284,18 +293,18 @@ export function parseUpdate(raw) {
 
 export const VITALS_SYSTEM = [
     'You read one reply of a story and report the physical and emotional state of the people in it.',
-    'For each person, give: health (0 to 100: 0 is dead, 100 is perfectly healthy), hunger (0 to 100: 0 is starving, 100 is full),',
+    'For each person, give: health (0 to 100: 0 is dead, 100 is perfectly healthy), hunger (0 to 100: 0 is starving, 100 is full), energy (0 to 100: 0 is exhausted, 100 is rested),',
     'and mood: a short word or two for how they feel, with a level from 0 to 100 for how strongly (0 is not at all, 100 is overwhelming).',
     'Report only what the story supports. Leave a field out when nothing in the reply changes it.',
     'Answer with one JSON object and nothing else:',
-    '{"people":[{"name":"Name","health":85,"hunger":60,"mood":{"word":"Anxious","level":55},"reason":"one short sentence"}]}',
+    '{"people":[{"name":"Name","health":85,"hunger":60,"energy":70,"mood":{"word":"Anxious","level":55},"reason":"one short sentence"}]}',
 ].join(' ');
 
 /** The two prompts for the separate request. */
 export function buildMonitorPrompt(settings, people, ctx = {}) {
-    const wants = ['health', 'hunger', 'mood'].filter(k => settings.track[k]).join(', ');
+    const wants = ['health', 'hunger', 'energy', 'mood'].filter(k => settings.track[k]).join(', ');
     const system = `${settings.prompt?.trim() || VITALS_SYSTEM}\n\nTrack only: ${wants}.`;
-    const lines = people.map(p => `- ${p.name}: health ${p.health}, hunger ${p.hunger}, mood ${moodText(p.mood)}`);
+    const lines = people.map(p => `- ${p.name}: health ${p.health}, hunger ${p.hunger}, energy ${p.energy}, mood ${moodText(p.mood)}`);
     const user = [
         lines.length ? `Current state:\n${lines.join('\n')}` : 'Nobody is being tracked yet. Report anyone named in the reply.',
         ctx.recent ? `Earlier in the story:\n${ctx.recent}` : '',
@@ -319,6 +328,7 @@ export function buildInjection(store, names, settings, playerName = '') {
         const bits = [];
         if (settings.track.health) bits.push(`health ${p.health}% (${healthWord(p.health)})`);
         if (settings.track.hunger) bits.push(`hunger ${p.hunger}% (${hungerWord(p.hunger)})`);
+        if (settings.track.energy) bits.push(`energy ${p.energy}% (${energyWord(p.energy)})`);
         if (settings.track.mood) bits.push(`mood ${moodText(p.mood)}`);
         if (bits.length) parts.push(`- ${p.name}${p.player || same(p.name, playerName) ? ' (the player)' : ''}: ${bits.join(', ')}`);
     }
@@ -332,11 +342,11 @@ export const VITALS_SUMMARY = '🩺 VITALS';
 
 /** One person's line, as the Worldkit Vitals regex expects it. A vital that is not tracked is "--". */
 export function vitalsLine(person, settings, note = '') {
-    const tracked = settings?.track || { health: true, hunger: true, mood: true };
+    const tracked = settings?.track || { health: true, hunger: true, energy: true, mood: true };
     const num = (key) => (tracked[key] ? String(person[key]) : '--');
     const mood = tracked.mood ? person.mood : { word: '--', level: 0 };
     const clean = String(note || '').replace(/[|<>\n]/g, ' ').trim();
-    return `- <b>${person.name}</b> | HEALTH: ${num('health')} | HUNGER: ${num('hunger')} | MOOD: ${mood.word} | MOODLEVEL: ${tracked.mood ? mood.level : 0}${clean ? ` | NOTE: ${clean}` : ''}`;
+    return `- <b>${person.name}</b> | HEALTH: ${num('health')} | HUNGER: ${num('hunger')} | MOOD: ${mood.word} | MOODLEVEL: ${tracked.mood ? mood.level : 0} | ENERGY: ${num('energy')}${clean ? ` | NOTE: ${clean}` : ''}`;
 }
 
 /**

@@ -35,6 +35,6 @@ message text.
 
 Dresses the **VITALS** block the Vitals Tracker writes under each reply, right below the Bond Tracker's block. Import it the same way (Extensions -> Regex -> Import) and keep it enabled. Each line looks like:
 
-    - <b>Ana</b> | HEALTH: 55 | HUNGER: 20 | MOOD: Anxious | MOODLEVEL: 60 | NOTE: health -25
+    - <b>Ana</b> | HEALTH: 55 | HUNGER: 20 | MOOD: Anxious | MOODLEVEL: 60 | ENERGY: 80 | NOTE: health -25
 
 Health and hunger run 0 to 100 (0 is dead or starving, 100 is healthy or full); mood is a word and a 0 to 100 strength. A vital that is switched off in the Vitals tab shows `--` and an empty bar. Like the bond regexes it is a display-only AI-output regex, so it never touches the prompt.

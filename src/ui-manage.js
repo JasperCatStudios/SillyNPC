@@ -312,7 +312,7 @@ function renderTrackerView(view) {
     for (const [id, label, hint] of [
         ['tracker', 'Tracker', 'Internal states, display and the rest of the tracker settings.'],
         ['bonds', 'Bonds', 'How the people in the story feel about you.'],
-        ['vitals', 'Vitals', 'Health, hunger and mood. On or off.'],
+        ['vitals', 'Vitals', 'Health, hunger, energy and mood. On or off.'],
     ]) {
         const tab = document.createElement('button');
         tab.type = 'button';

@@ -1,20 +1,19 @@
 import { eventSource } from '../../../../events.js';
 import { buildSettingToggle, buildSettingSelect, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
-import { liveFactsFor } from './api.js';
 import {
     vitalsSettings, saveVitalsSettings, vitalsStore, getVitals, resetVitalFor, runVitalsUpdate,
-    latestReplyId, currentVitalsInjection, playerName, resetTrackerStat, trackerHasStat, VITALS_CHANGED_EVENT,
+    latestReplyId, currentVitalsInjection, VITALS_CHANGED_EVENT,
 } from './vitals.js';
 import {
     VITALS_SETTINGS_DEFAULTS, VITALS_TIMINGS, VITALS_POSITIONS, VITALS_ROLES, VITALS_TRIGGERS, VITALS_SYSTEM,
-    VITAL_DEFAULTS, healthWord, hungerWord, moodText,
+    VITAL_DEFAULTS, healthWord, hungerWord, energyWord, moodText,
 } from './vitals-core.js';
 
 /**
  * The Vitals Tracker's screens (fork): its settings in the Tracker tab, and the Status card that
  * the character profile (and the player sheet) shows. The card is one function so every place
- * that wants it draws the same thing: Mood, Hunger, Health and Energy, each with a reset button.
+ * that wants it draws the same thing: Mood, Hunger, Health and Energy (all kept by the Vitals tracker), each with a reset button.
  */
 
 const el = (tag, className, text) => {
@@ -31,13 +30,6 @@ const namespaced = (node) => { if (node?.dataset?.setting) node.dataset.setting 
 const options = (table) => Object.entries(table).map(([value, label]) => ({ value, label }));
 
 /* ------------------------------------------------------------------ the Status card */
-
-/** "7/10" -> 70. Anything else is not a fraction. */
-function fractionPercent(value) {
-    const m = /(-?\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/.exec(String(value ?? ''));
-    if (!m || !Number(m[2])) return null;
-    return Math.max(0, Math.min(100, Math.round(Number(m[1]) / Number(m[2]) * 100)));
-}
 
 function meterRow({ key, label, icon, percent, text, resetTitle, onReset, off }) {
     const row = el('div', `snpc-vit-row snpc-vit-${key}${off ? ' is-off' : ''}`);
@@ -63,9 +55,8 @@ function meterRow({ key, label, icon, percent, text, resetTitle, onReset, off })
 }
 
 /**
- * The Status card: Mood, Hunger, Health, Energy. Health and hunger run 0 to 100 and a reset puts
- * them back to 100 (healthy, full); mood is a word with a strength and resets to calm; Energy is
- * the status tracker's own stat and resets to the default the tracker gives it.
+ * The Status card: Mood, Hunger, Health, Energy. Health, hunger and energy run 0 to 100 and a reset puts
+ * them back to 100 (healthy, full, rested); mood is a word with a strength and resets to calm.
  *
  * @param {{ name: string, isPlayer?: boolean }} char
  * @param {{ onChange?: () => void }} [opts] called after a reset, so the caller can redraw
@@ -75,14 +66,13 @@ export function buildStatusCard(char, { onChange } = {}) {
     const card = el('div', 'snpc-vit-card');
     card.append(el('div', 'snpc-vit-title', 'Status'));
     const settings = vitalsSettings();
-    const isPlayer = Boolean(char?.isPlayer) || String(char?.name || '').toLowerCase() === playerName().toLowerCase();
     const name = char?.name || '';
     const person = settings.enabled ? getVitals(name) : null;
     const redraw = () => { onChange?.(); };
 
     const vital = (key, label, icon, read, resetTitle) => {
         const tracked = settings.enabled && settings.track[key];
-        const p = person || { health: VITAL_DEFAULTS.health, hunger: VITAL_DEFAULTS.hunger, mood: VITAL_DEFAULTS.mood };
+        const p = person || { health: VITAL_DEFAULTS.health, hunger: VITAL_DEFAULTS.hunger, energy: VITAL_DEFAULTS.energy, mood: VITAL_DEFAULTS.mood };
         const { percent, text } = read(p);
         return meterRow({
             key, label, icon, percent, text: tracked ? text : 'not tracked', off: !tracked, resetTitle,
@@ -94,22 +84,11 @@ export function buildStatusCard(char, { onChange } = {}) {
         vital('mood', 'Mood', 'fa-face-meh', p => ({ percent: p.mood.level, text: moodText(p.mood) }), 'Back to calm'),
         vital('hunger', 'Hunger', 'fa-utensils', p => ({ percent: p.hunger, text: `${hungerWord(p.hunger)} · ${p.hunger}%` }), 'Back to full (100%)'),
         vital('health', 'Health', 'fa-heart', p => ({ percent: p.health, text: `${healthWord(p.health)} · ${p.health}%` }), 'Back to healthy (100%)'),
+        vital('energy', 'Energy', 'fa-bolt', p => ({ percent: p.energy, text: `${energyWord(p.energy)} · ${p.energy}%` }), 'Back to rested (100%)'),
     );
 
-    // Energy lives in the status tracker, so it is read and reset there.
-    const hasEnergy = trackerHasStat('Energy', isPlayer);
-    const facts = liveFactsFor(isPlayer ? { isPlayer: true, name } : { name });
-    const key = Object.keys(facts.stats || {}).find(k => k.toLowerCase() === 'energy');
-    const energyValue = key ? facts.stats[key] : '';
-    card.append(meterRow({
-        key: 'energy', label: 'Energy', icon: 'fa-bolt',
-        percent: fractionPercent(energyValue), text: hasEnergy ? (String(energyValue || '').trim() || 'default') : 'not tracked',
-        off: !hasEnergy, resetTitle: 'Back to the tracker\'s default for Energy',
-        onReset: () => { resetTrackerStat(name, 'Energy', isPlayer); redraw(); },
-    }));
-
     if (!settings.enabled) {
-        card.append(el('small', 'notes snpc-vit-note', 'Mood, hunger and health are off. Turn on the Vitals Tracker in the Tracker tab.'));
+        card.append(el('small', 'notes snpc-vit-note', 'Mood, hunger, health and energy are off. Turn on the Vitals Tracker in the Tracker tab.'));
     }
     return card;
 }
@@ -135,9 +114,9 @@ export function renderVitalsView(view) {
 
     view.append(el('h3', 'sillynpc-section-title', 'Vitals Tracker'));
     view.append(el('p', 'notes sillynpc-tab-intro',
-        'Health, hunger and mood for the people in the story. Health and hunger run from 0 to 100 (0 is dead or starving, 100 is healthy or full). '
+        'Health, hunger, energy and mood for the people in the story. Health, hunger and energy run from 0 to 100 (0 is dead, starving or exhausted; 100 is healthy, full or rested). '
         + 'Mood is a word for how someone feels and a number for how strongly. Vitals are kept per chat. The model only proposes values; '
-        + 'the limits below decide how far each one may move in a single reply. Energy is already a tracker stat, so it is not repeated here.'));
+        + 'the limits below decide how far each one may move in a single reply. These replace the default status tracker HP and Energy stats, so those can be deleted there.'));
 
     view.append(namespaced(buildSettingToggle({
         store: STORE, key: 'enabled', label: 'Track Vitals',
@@ -162,18 +141,19 @@ export function renderVitalsView(view) {
     for (const [key, label, help] of [
         ['health', 'Health', '0 is dead, 100 is healthy.'],
         ['hunger', 'Hunger', '0 is starving, 100 is full.'],
+        ['energy', 'Energy', '0 is exhausted, 100 is rested.'],
         ['mood', 'Mood / stress', 'A word for how they feel, with how strongly it holds. Use stress-style words if you want a stress meter.'],
     ]) {
         view.append(namespaced(buildSettingToggle({ store: TRACK, key, label, help, onChange: rerender })));
     }
     view.append(namespaced(buildSettingToggle({
         store: STORE, key: 'includePlayer', label: 'Include Your Persona',
-        help: 'Track the player\'s own health, hunger and mood too.',
+        help: 'Track the player\'s own health, hunger, energy and mood too.',
     })));
 
     view.append(el('h4', 'sillynpc-combat-heading', 'How fast things may change'));
     view.append(el('p', 'notes', 'The most one reply can move each value, in points. A story can hurt someone a lot at once but should not heal or feed them from nothing.'));
-    for (const [key, label] of [['health', 'Health per reply'], ['hunger', 'Hunger per reply'], ['mood', 'Mood strength per reply']]) {
+    for (const [key, label] of [['health', 'Health per reply'], ['hunger', 'Hunger per reply'], ['energy', 'Energy per reply'], ['mood', 'Mood strength per reply']]) {
         view.append(namespaced(buildSettingNumber({ store: LIMITS, key, label, suffix: 'points' })));
     }
 
@@ -210,8 +190,8 @@ function renderPeople(view, rerender) {
     for (const p of store.people) {
         const row = el('div', 'snpc-vit-person');
         row.append(el('b', '', `${p.name}${p.player ? ' (you)' : ''}`),
-            el('span', 'notes', `Health ${p.health}% · Hunger ${p.hunger}% · Mood ${moodText(p.mood)}`));
-        for (const key of ['health', 'hunger', 'mood']) {
+            el('span', 'notes', `Health ${p.health}% · Hunger ${p.hunger}% · Energy ${p.energy}% · Mood ${moodText(p.mood)}`));
+        for (const key of ['health', 'hunger', 'energy', 'mood']) {
             const b = el('button', 'menu_button', `Reset ${key}`);
             b.type = 'button';
             b.addEventListener('click', () => { resetVitalFor(p.name, key); rerender(); });

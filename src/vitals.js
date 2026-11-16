@@ -5,7 +5,7 @@ import {
 } from '../../../../../script.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestOnConnection } from './connections.js';
-import { loadStateFromMetadata, applyUpdate } from './status-logic.js';
+import { loadStateFromMetadata } from './status-logic.js';
 import { charactersMentionedIn } from './mentions.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import {
@@ -14,7 +14,7 @@ import {
 } from './vitals-core.js';
 
 /**
- * The Vitals Tracker's SillyTavern side (fork): health, hunger and mood, kept per chat in the
+ * The Vitals Tracker's SillyTavern side (fork): health, hunger, energy and mood, kept per chat in the
  * chat's metadata and read from each reply on a connection of your choosing. The rules live in
  * vitals-core.js; this file fetches what they need and stores what they return, as bonds.js does.
  *
@@ -82,40 +82,13 @@ export function editVitals(name, change) {
     return person;
 }
 
-/** Puts one vital back to its default: health 100, hunger full, mood calm. */
+/** Puts one vital back to its default: health, hunger and energy 100, mood calm. */
 export function resetVitalFor(name, stat) {
     return editVitals(name, (p) => { resetVital(p, stat); });
 }
 
 export function setVitalFor(name, stat, value) {
     return editVitals(name, (p) => { setVital(p, stat, value); });
-}
-
-/* ---- Energy: the status tracker's own stat -------------------------------------------- */
-
-/** The default the tracker gives a stat for a person or the player, e.g. "5/5" for an NPC's Energy. */
-export function trackerDefault(statName, isPlayer) {
-    const tracker = getSettings().statusTracker || {};
-    const defs = (isPlayer ? tracker.playerStats : tracker.npcStats) || [];
-    const def = defs.find(s => String(s.name).toLowerCase() === String(statName).toLowerCase());
-    return def ? String(def.defaultValue ?? '') : '';
-}
-
-/** Whether the tracker has a stat of this name for them. */
-export function trackerHasStat(statName, isPlayer) {
-    return Boolean(trackerDefault(statName, isPlayer) || ((isPlayer ? getSettings().statusTracker?.playerStats : getSettings().statusTracker?.npcStats) || [])
-        .some(s => String(s.name).toLowerCase() === String(statName).toLowerCase()));
-}
-
-/** Sets a tracked stat back to the tracker's default, through the same path a typed edit takes. */
-export function resetTrackerStat(name, statName, isPlayer) {
-    const value = trackerDefault(statName, isPlayer);
-    if (!value) return false;
-    const update = isPlayer
-        ? { player: { stats: { [statName]: value } } }
-        : { characters: [{ name, stats: { [statName]: value } }] };
-    applyUpdate(update, { label: `Reset ${statName}`, verbatim: true, admitCharacters: true });
-    return true;
 }
 
 /* ---- remembering each swipe's update -------------------------------------------------- */
