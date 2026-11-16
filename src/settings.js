@@ -137,6 +137,14 @@ export const defaultSettings = {
     ttsVoiceMale: '',
     /** Your own wording for pictures asked for in plain words, per kind (empty: built-in). {NAME} {REQUEST} {LOOK} {SCENE} {STYLE}. */
     phonePromptSelfie: '',
+    /** The art style of plain picture requests (empty: natural skin texture), and the lighting words per time of day (empty: built-in). */
+    phonePictureStyle: '',
+    phoneTimeDawn: '',
+    phoneTimeMorning: '',
+    phoneTimeMidday: '',
+    phoneTimeAfternoon: '',
+    phoneTimeEvening: '',
+    phoneTimeNight: '',
     phonePromptDrawing: '',
     phonePromptObject: '',
     /** Voices on or off. Off: nothing is read, nothing is tested, and no error toasts about AllTalk. */

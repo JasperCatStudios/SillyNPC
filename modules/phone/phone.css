@@ -1301,3 +1301,13 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 #rph-wandmenu .rph-wi { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: #eef4ff; font-size: 0.9rem; }
 #rph-wandmenu .rph-wi i { width: 20px; text-align: center; color: #8ec5ff; }
 #rph-wandmenu .rph-wi:hover, #rph-wandmenu .rph-wi:active { background: rgba(142, 197, 255, 0.16); }
+
+/* outfits on the gallery page */
+.rph-gal-outfits { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.rph-gal-olist { display: flex; flex-direction: column; gap: 8px; }
+.rph-gal-orow { display: grid; grid-template-columns: 28px 1fr 44px; grid-template-areas: "def name del" "desc desc desc"; gap: 6px; align-items: center; padding: 8px; border: 1px solid #5d5547; border-radius: 6px; background: rgba(0, 0, 0, .18); }
+.rph-gal-orow input[type=radio] { grid-area: def; width: 22px; height: 22px; }
+.rph-gal-orow input[type=text] { grid-area: name; min-width: 0; }
+.rph-gal-orow textarea { grid-area: desc; width: 100%; resize: vertical; margin: 0; }
+.rph-gal-orow .rph-gal-btn { grid-area: del; min-height: 44px; min-width: 44px; }
+.rph-gal-oadd { align-self: flex-start; min-height: 44px; }

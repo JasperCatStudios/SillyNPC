@@ -1,6 +1,7 @@
 import { getSettings, defaultSettings, recommendedImagePrompt } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
 import { SYSTEM_PROMPT, buildDialogueFormatPrompt, NARRATOR_RULES_PROMPT } from './constants.js';
+import { TIME_PERIODS } from './phone-image-requests.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -168,14 +169,15 @@ export const PROMPTS = [
         help: 'How a picture OF the contact is worded when you ask for one in plain words. A short request is enough '
             + '("a selfie in a black vest at the courtyard, smirking"): it is split into the pieces below, and anything '
             + 'you did not say is filled from the default written after the bar. Placeholders: {NAME}, {LOOK} (their look, '
-            + 'from their gallery page), {OUTFIT}, {EXPRESSION}, {BACKGROUND}, {POSE}, e.g. {OUTFIT|their usual outfit}; '
+            + 'from their gallery page), {OUTFIT} (a saved outfit when you name one, else the default outfit), {EXPRESSION}, {BACKGROUND} (from the request, else the chat or the scene), '
+            + '{POSE}, {TIME} (the lighting for the time of day), e.g. {OUTFIT|their usual outfit}; '
             + 'also {REQUEST} (everything you asked, unsplit), {SCENE} (shot type) and {STYLE}. '
             + 'Pictures the contact sends on their own use the Photo prompt in the Phone settings instead.',
         recommended: () => 'A close-up, high-angle POV selfie illustration of {NAME}, {LOOK}. One arm extends directly toward the viewer '
             + 'to hold the out-of-frame camera, creating strong foreshortening on the sleeve and forearm; the phone itself is not visible. '
             + '{POSE|The rest of the body is angled slightly}. Looking straight into the lens with {EXPRESSION|a calm, confident expression '
-            + 'and a subtle smirk}. Wearing {OUTFIT|their usual outfit}. Softly blurred {BACKGROUND|sunlit stone courtyard} in the background. '
-            + 'Clean anime art style with sharp linework and warm natural lighting.',
+            + 'and a subtle smirk}. Wearing {OUTFIT|their usual outfit}. Softly blurred {BACKGROUND|sunlit stone courtyard} in the background, '
+            + '{TIME}. {STYLE|Clean anime art style with sharp linework and warm natural lighting.}',
         emptyNote: 'The built-in wording for your image connection is sent.',
     },
     {
@@ -198,6 +200,27 @@ export const PROMPTS = [
         recommended: () => '{REQUEST}, {SCENE}, {STYLE}',
         emptyNote: 'The built-in wording for your image connection is sent.',
     },
+    {
+        id: 'phoneStyle',
+        key: 'phonePictureStyle',
+        label: 'Phone: Picture Style',
+        home: 'Phone',
+        help: 'The art style of pictures asked for in plain words, used as {STYLE} and added to the built-in wording. '
+            + 'A style the request itself names ("a cartoon of", "a watercolor") wins for that picture. Empty means a '
+            + 'plain photo style (natural skin texture).',
+        recommended: () => 'Clean anime art style with sharp linework and warm natural lighting.',
+        emptyNote: 'Natural skin texture is sent for plain photos.',
+    },
+    ...TIME_PERIODS.map(p => ({
+        id: `phoneTime${p.label}`,
+        key: `phoneTime${p.label}`,
+        label: `Phone: ${p.label} Light`,
+        home: 'Phone',
+        help: `The lighting and mood words for a picture set in the ${p.label.toLowerCase()} (${p.from}:00 to ${p.to}:00 in the story, or on your clock when the `
+            + 'story has no clock). Used as {TIME} and added to the built-in wording. Empty means the built-in words.',
+        recommended: () => p.text,
+        emptyNote: 'The built-in words are sent.',
+    })),
 
 ];
 

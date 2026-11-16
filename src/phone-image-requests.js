@@ -161,6 +161,9 @@ export function inferSceneHint(userMessage) {
     return '';
 }
 
+/** What a plain photo request gets when it names no art style; your own picture style replaces it. */
+export const DEFAULT_STYLE_TAG = 'natural skin texture';
+
 /** Quality and style tags for the kind of picture asked for. Plain photos get natural skin texture. */
 export function detectStyleTags(userMessage) {
     const m = norm(userMessage);
@@ -176,7 +179,7 @@ export function detectStyleTags(userMessage) {
     if (/\bpainting?\b/.test(m)) return 'digital painting, detailed, artistic, high quality';
     if (/\bsketch\b/.test(m) && !/\bsketch\s+(me|yourself)\b/i.test(m)) return 'pencil sketch, detailed linework, graphite, artistic';
     if (/\b(realistic|photorealistic)\b/.test(m)) return 'photorealistic, highly detailed, masterpiece, best quality';
-    return 'natural skin texture';
+    return DEFAULT_STYLE_TAG;
 }
 
 /**
@@ -354,7 +357,7 @@ export function parseLlmResolution(raw) {
 
 /* ---------------------------------------------------------------------- the pieces */
 
-const CLOTHES = 'dress|outfit|shirt|t-shirt|hoodie|suit|uniform|bikini|swimsuit|kimono|yukata|skirt|jacket|coat|sweater|pajamas|pyjamas|lingerie|armou?r|robe|gown|top|jeans|shorts|costume|cosplay|apron|towel|vest|cloak|cape|blouse|hat|scarf|gloves|boots|stockings|leggings|tank|bra|panties';
+const CLOTHES = 'clothes|clothing|attire|dress|outfit|shirt|t-shirt|hoodie|suit|uniform|bikini|swimsuit|kimono|yukata|skirt|jacket|coat|sweater|pajamas|pyjamas|lingerie|armou?r|robe|gown|top|jeans|shorts|costume|cosplay|apron|towel|vest|cloak|cape|blouse|hat|scarf|gloves|boots|stockings|leggings|tank|bra|panties';
 const MOODS = 'smil\\w*|smirk\\w*|laugh\\w*|grin\\w*|pout\\w*|blush\\w*|wink\\w*|frown\\w*|cry\\w*|sleepy|tired|shy|angry|surprised|serious|playful|flirty|sad|happy|calm|confident|smug|nervous|sultry|bashful|teasing|mischievous';
 const SHOTS = /^(selfie|photo|pic|picture|full body shot|close-up portrait|smiling|sleeping, peaceful|dancing|reading)$/i;
 
@@ -369,7 +372,7 @@ export function extractSlots(userMessage) {
     const text = String(userMessage || '');
     const out = { outfit: '', expression: '', background: '', pose: '' };
 
-    const wear = new RegExp(`\\b(?:wearing|dressed in|dressed as|decked out in|in (?:a|an|her|his|my|the|some) (?=[\\w\\s-]{0,30}\\b(?:${CLOTHES})\\b))([^,.;!?]*?)(?=\\s+(?:at|in the|on the|by|near|with a|while|and then|sitting|standing|lying)\\b|[,.;!?]|$)`, 'i').exec(text);
+    const wear = new RegExp(`\\b(?:wearing|dressed in|dressed as|decked out in|in (?:a|an|her|his|my|your|their|the|some) (?=[\\w\\s-]{0,30}\\b(?:${CLOTHES})\\b))([^,.;!?]*?)(?=\\s+(?:at|in the|on the|by|near|with a|while|and then|sitting|standing|lying)\\b|[,.;!?]|$)`, 'i').exec(text);
     if (wear) out.outfit = wear[1].trim();
 
     const seen = new Set();
@@ -384,21 +387,75 @@ export function extractSlots(userMessage) {
     const said = moods.map((w) => NOUN[w.slice(0, 4)] || NOUN[w.slice(0, 3)] || (/\s/.test(w) ? w : `a ${w} expression`));
     out.expression = [...new Set(said)].join(' and ');
 
-    const rest = wear ? text.replace(wear[0], ' ') : text;
-    for (const m of rest.matchAll(/\b(?:at|in|on|by|near|inside|outside|against)\s+(?:the|a|an|my|her|his|their)?\s*([a-z][\w\s'-]{2,40}?)(?=\s+(?:wearing|while|with|and|looking|sitting|standing)\b|[,.;!?]|$)/gi)) {
+    // The words of an outfit ("your work clothes") are not a place, whatever they say.
+    const rest = (wear ? text.replace(wear[0], ' ') : text)
+        .replace(/(?:in |wearing )?(?:your |her |his |their |my |the )?(?:[\w-]+ )?(?:clothes|clothing|outfit|attire|uniform|gear)/gi, ' ');
+    for (const m of rest.matchAll(/\b(?:at|in|on|by|near|inside|outside|against)\s+(?:the|a|an|my|her|his|their)?\s*([a-z][\w\s'-]{2,40}?)(?=\s+(?:wearing|while|with|and|looking|sitting|standing|until|since|for|because|but)\b|[,.;!?]|$)/gi)) {
         const place = m[1].trim();
         if (new RegExp(`\\b(${CLOTHES})\\b`, 'i').test(place) || SHOTS.test(place)) continue;
         out.background = place;
         break;
     }
-    if (!out.background) {
-        const hint = inferSceneHint(text);
-        if (hint && !SHOTS.test(hint) && /^(at|in|outdoors|relaxing|golden|snowy|indoor|bathroom)/i.test(hint)) out.background = hint.replace(/^(at|in) (the |a )?/i, '');
-    }
 
     const pose = /\b(sitting|standing|lying(?: down)?|laying(?: down)?|leaning|kneeling|crouching|lounging|stretching|waving|posing|peace sign|hand on (?:her|his|their) hip|arms crossed|looking over (?:her|his|their) shoulder|on (?:her|his|their) (?:back|stomach|side))\b[^,.;!?]*?(?=\s+(?:wearing|at the|in the|with a|while)\b|[,.;!?]|$)/i.exec(text);
     if (pose) out.pose = pose[0].trim();
     return out;
+}
+
+/* --------------------------------------------------- time of day, outfits, where they are */
+
+/** The six times of day a picture can be set in, each with its default lighting words (editable in Worldkit's Prompts tab). */
+export const TIME_PERIODS = Object.freeze([
+    { id: 'dawn', label: 'Dawn', from: 5, to: 8, text: 'soft pale dawn light, a hint of pink and gold at the horizon, quiet and cool' },
+    { id: 'morning', label: 'Morning', from: 8, to: 11, text: 'bright fresh morning light, clear and gentle' },
+    { id: 'midday', label: 'Midday', from: 11, to: 15, text: 'bright overhead daylight, crisp, with short sharp shadows' },
+    { id: 'afternoon', label: 'Afternoon', from: 15, to: 18, text: 'warm slanting afternoon light, long soft shadows' },
+    { id: 'evening', label: 'Evening', from: 18, to: 21, text: 'golden hour fading into dusk, a warm orange and violet glow, lamps beginning to light' },
+    { id: 'night', label: 'Night', from: 21, to: 5, text: 'night, soft warm lamp light against cool dark shadows, dark windows' },
+]);
+
+/** Which time of day an hour (0 to 23) falls in. */
+export function periodOfHour(hour) {
+    const h = Number(hour);
+    if (!Number.isFinite(h)) return 'afternoon';
+    const x = ((Math.floor(h) % 24) + 24) % 24;
+    for (const p of TIME_PERIODS) if (p.from < p.to ? (x >= p.from && x < p.to) : (x >= p.from || x < p.to)) return p.id;
+    return 'night';
+}
+
+const OUTFIT_FILLER = new Set(['outfit', 'outfits', 'clothes', 'clothing', 'wear', 'attire', 'look', 'the', 'a', 'an', 'my', 'your', 'her', 'his', 'their', 'of', 'set']);
+const wordsOf = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ').split(/\s+/).filter(Boolean);
+const stem = (w) => (w.length > 3 ? w.replace(/(es|s)$/, '') : w);
+
+/**
+ * The saved outfit a message names ("show me a picture of you in your work clothes" -> "Work"), or null.
+ * An outfit matches when every word of its name (leaving out filler like "outfit" and "clothes") is in the message.
+ *
+ * @param {string} text
+ * @param {{ name: string, desc?: string }[]} outfits
+ */
+export function matchOutfit(text, outfits) {
+    const said = new Set(wordsOf(text).map(stem));
+    let best = null;
+    let bestScore = 0;
+    for (const o of Array.isArray(outfits) ? outfits : []) {
+        const name = String(o?.name || '').trim();
+        if (!name) continue;
+        let tokens = wordsOf(name).filter(w => !OUTFIT_FILLER.has(w));
+        if (!tokens.length) tokens = wordsOf(name);
+        if (!tokens.length || !tokens.every(w => said.has(stem(w)))) continue;
+        if (tokens.length > bestScore) { best = o; bestScore = tokens.length; }
+    }
+    return best;
+}
+
+/** Where they are, read from the story: a place named in the recent messages, else the scene header's place. */
+export function inferBackground(history, place = '') {
+    for (const m of [...(Array.isArray(history) ? history : [])].reverse().slice(0, 8)) {
+        const bg = extractSlots(m?.text || '').background;
+        if (bg) return bg;
+    }
+    return String(place || '').trim();
 }
 
 /* ------------------------------------------------------------------- the request */
@@ -415,6 +472,20 @@ export function extractSlots(userMessage) {
  * @returns {{ mode: string, directives: string, scene: string, style: string, ask: string }}
  */
 export function buildImageRequest(userMessage, history = [], opts = {}) {
+    const req = buildBaseRequest(userMessage, history, opts);
+    if (req.mode === 'character') {
+        const named = matchOutfit(`${userMessage} ${req.directives}`, opts.outfits);
+        if (named) { req.slots.outfitName = String(named.name); req.slots.outfit = ''; }
+    }
+    req.inferred = {
+        background: req.slots.background ? '' : inferBackground(history, opts.place),
+        period: periodOfHour(opts.hour ?? new Date().getHours()),
+        weather: String(opts.weather || '').trim(),
+    };
+    return req;
+}
+
+function buildBaseRequest(userMessage, history = [], opts = {}) {
     const charName = opts.charName || '';
     const style = detectStyleTags(userMessage);
     const r = opts.resolved;
@@ -454,19 +525,30 @@ export function promptsForRequest(req, ctx) {
     const mode = ['character', 'creative', 'object'].includes(req?.mode) ? req.mode : 'character';
     const directives = String(req?.directives || '').trim();
     const scene = String(req?.scene || '').trim();
-    const style = [String(req?.style || '').trim(), String(extraStyle || '').trim()].filter(Boolean).join(', ');
+    // The art style: one the request named ("cartoon"), else your own picture style, else the plain-photo default.
+    const reqStyle = String(req?.style || '').trim();
+    const named = reqStyle && reqStyle !== DEFAULT_STYLE_TAG ? reqStyle : '';
+    const wanted = [named || String(ctx?.defaultStyle || '').trim(), String(extraStyle || '').trim()].filter(Boolean).join(', ');
+    const style = wanted || reqStyle;
+    // Only a picture of the contact has an outfit, a place behind them and a time of day.
+    const sl = req?.slots || {};
+    const isChar = mode === 'character';
+    const saved = sl.outfitName ? (ctx?.outfits || []).find(o => o.name === sl.outfitName) : null;
+    const outfit = !isChar ? '' : (saved ? String(saved.desc || '') : (String(sl.outfit || '') || String(ctx?.defaultOutfit || '')));
+    const background = !isChar ? '' : (String(sl.background || '') || String(req?.inferred?.background || ''));
+    const period = TIME_PERIODS.find(p => p.id === req?.inferred?.period);
+    const timeText = !isChar || !period ? '' : [String(ctx?.timeTexts?.[period.id] || '').trim() || period.text, String(req?.inferred?.weather || '')].filter(Boolean).join(', ');
     // Your own wording for this kind (Worldkit's Prompts tab); empty means the built-in wording below.
     const own = String(ctx?.templates?.[mode] || '').trim();
     if (own) {
-        const sl = req?.slots || {};
         const map = {
-            NAME: charName, REQUEST: directives || scene, LOOK: look, SCENE: scene, STYLE: style,
-            OUTFIT: String(sl.outfit || ''), EXPRESSION: String(sl.expression || ''),
-            BACKGROUND: String(sl.background || ''), POSE: String(sl.pose || ''),
+            NAME: charName, REQUEST: directives || scene, LOOK: look, SCENE: scene, STYLE: wanted,
+            OUTFIT: outfit, EXPRESSION: String(sl.expression || ''),
+            BACKGROUND: background, POSE: String(sl.pose || ''), TIME: timeText,
         };
         // {OUTFIT|their usual outfit}: what the request said, or the text after the bar when it said nothing.
         const text = own.replace(/\{(\w+)(?:\|([^}]*))?\}/g, (x, k, dflt) => (map[k] !== undefined ? (map[k] || dflt || '') : x))
-            .replace(/(\s*,){2,}/g, ',').replace(/^[\s,]+|[\s,]+$/g, '').replace(/[ \t]+/g, ' ').replace(/ ,/g, ',').trim();
+            .replace(/(\s*,){2,}/g, ',').replace(/,\s*([.!?])/g, '$1').replace(/^[\s,]+|[\s,]+$/g, '').replace(/[ \t]+/g, ' ').replace(/ ,/g, ',').trim();
         return { mode, directives, sdPrompt: text, contextPrompt: text };
     }
     let sd;
@@ -484,13 +566,21 @@ export function promptsForRequest(req, ctx) {
     } else {
         sd = [`photo of ${charName}`];
         if (directives) sd.push(directives);
+        // A saved outfit, or the default when the request named none (a worn outfit the request spelled out is in its directives).
+        const addOutfit = outfit && (saved || !sl.outfit);
+        if (addOutfit) sd.push(`wearing ${outfit}`);
         if (look) sd.push(look);
+        if (background) sd.push(background);
+        if (timeText) sd.push(timeText);
         const shot = scene || (directives ? '' : 'selfie, candid');
         if (shot) sd.push(shot);
         sd.push(style);
         prose = [directives ? `Generate a photo of ${charName} as specifically requested:\n${directives}`
             : `Generate a photo of ${charName}, something they might personally send someone.`];
         if (look) prose.push(`Base appearance (do not override the request):\n${look}`);
+        if (addOutfit) prose.push(`Outfit: ${outfit}`);
+        if (background) prose.push(`Setting: ${background}`);
+        if (timeText) prose.push(`Lighting and time of day: ${timeText}`);
         if (scene) prose.push(`Shot type / setting: ${scene}`);
         prose.push(directives ? `Render with style: ${style}. Fulfil the requested look precisely.`
             : 'Render as a candid, personal photo like a real image sent in a text message.');

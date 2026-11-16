@@ -1910,6 +1910,17 @@ function lookEdit(name) {
     if (!settings.looks[name] || typeof settings.looks[name] !== 'object') settings.looks[name] = { useAvatar: true, refKey: '', desc: '' };
     return settings.looks[name];
 }
+/* Outfits per contact: named, one of them the default ("work clothes", "pajamas"). Saying one in a picture request uses it. */
+function outfitsOf(name) {
+    const list = lookCfg(name).outfits;
+    return Array.isArray(list) ? list.filter(o => o && typeof o === 'object' && String(o.name || '').trim()).map(o => ({ id: String(o.id || ''), name: String(o.name).trim(), desc: String(o.desc || '').trim() })) : [];
+}
+function defaultOutfitOf(name) {
+    const list = outfitsOf(name);
+    const id = lookCfg(name).outfitDefault;
+    const found = list.find(o => o.id === id) || list[0];
+    return found ? found.desc : '';
+}
 function cardChar(name) { return characters.find(c => c && c.name === name) || null; }
 function lensProfile(name) {
     try {
@@ -2051,7 +2062,8 @@ function requestedPrompt(m) {
     const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? sdLook(m.name) : descFor(m.name));
     const wk = getWorldkitSettings();
     const templates = { character: wk.phonePromptSelfie, creative: wk.phonePromptDrawing, object: wk.phonePromptObject };
-    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, extraStyle: cfg.style ? String(cfg.style).trim() : '' });
+    const timeTexts = { dawn: wk.phoneTimeDawn, morning: wk.phoneTimeMorning, midday: wk.phoneTimeMidday, afternoon: wk.phoneTimeAfternoon, evening: wk.phoneTimeEvening, night: wk.phoneTimeNight };
+    const p = promptsForRequest(m.req, { charName: m.name || 'them', look, templates, timeTexts, outfits: outfitsOf(m.name), defaultOutfit: defaultOutfitOf(m.name), defaultStyle: String(wk.phonePictureStyle || '').trim(), extraStyle: cfg.style ? String(cfg.style).trim() : '' });
     return tags ? p.sdPrompt : p.contextPrompt;
 }
 function photoPrompt(m) {
@@ -2207,7 +2219,13 @@ function openGallery(id) {
         </div>
         <details class="rph-gal-look"><summary>How they look in pictures</summary>
             <textarea class="rph-gal-desc" rows="3" placeholder="Hair, eyes, build, usual clothes. Empty: their Worldkit image prompt is used."></textarea>
-            <small>Used for pictures of them. Drawings and photos of things never use it.</small></details>
+            <small>Used for pictures of them. Drawings and photos of things never use it.</small>
+            <div class="rph-gal-outfits">
+                <b>Outfits</b>
+                <small>Name them. Say "in your work clothes" and that one is worn. The marked one is worn when none is named.</small>
+                <div class="rph-gal-olist"></div>
+                <button type="button" class="rph-gal-btn rph-gal-oadd"><i class="fa-solid fa-plus"></i> Add outfit</button>
+            </div></details>
         <div class="rph-gal-grid"></div>
         <div class="rph-gal-empty" hidden>No pictures yet. Ask for one with the camera.</div>
     </div>
@@ -2239,6 +2257,39 @@ function openGallery(id) {
         if (!own && saved) { lookEdit(who).desc = saved; saveSettings(); }
         desc.value = own || saved;
         desc.addEventListener('change', () => { lookEdit(who).desc = desc.value.trim().slice(0, 600); saveSettings(); });
+        const olist = q('.rph-gal-olist');
+        const drawOutfits = () => {
+            olist.replaceChildren();
+            const look = lookEdit(who);
+            if (!Array.isArray(look.outfits)) look.outfits = [];
+            if (look.outfits.length && !look.outfits.some(o => o.id === look.outfitDefault)) look.outfitDefault = look.outfits[0].id;
+            for (const o of look.outfits) {
+                const row = document.createElement('div');
+                row.className = 'rph-gal-orow';
+                const def = document.createElement('input');
+                def.type = 'radio'; def.name = 'rph-gal-odef'; def.checked = o.id === look.outfitDefault; def.title = 'Worn when no outfit is named';
+                def.addEventListener('change', () => { look.outfitDefault = o.id; saveSettings(); });
+                const nm = document.createElement('input');
+                nm.type = 'text'; nm.maxLength = 40; nm.placeholder = 'Name (work, pajamas...)'; nm.value = o.name || '';
+                nm.addEventListener('change', () => { o.name = nm.value.trim().slice(0, 40); saveSettings(); });
+                const ds = document.createElement('textarea');
+                ds.rows = 2; ds.placeholder = 'What it looks like: clothes, colours, accessories'; ds.value = o.desc || '';
+                ds.addEventListener('change', () => { o.desc = ds.value.trim().slice(0, 400); saveSettings(); });
+                const rm = document.createElement('button');
+                rm.type = 'button'; rm.className = 'rph-gal-btn'; rm.setAttribute('aria-label', 'Delete outfit'); rm.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                rm.addEventListener('click', () => { look.outfits = look.outfits.filter(x => x.id !== o.id); saveSettings(); drawOutfits(); });
+                row.append(def, nm, ds, rm);
+                olist.append(row);
+            }
+        };
+        q('.rph-gal-oadd').addEventListener('click', () => {
+            const look = lookEdit(who);
+            if (!Array.isArray(look.outfits)) look.outfits = [];
+            if (look.outfits.length >= 12) { toastr.info('That is as many outfits as one contact can have.'); return; }
+            look.outfits.push({ id: 'o' + Date.now().toString(36), name: '', desc: '' });
+            saveSettings(); drawOutfits();
+        });
+        drawOutfits();
     }
 
     const sorted = () => {
@@ -3317,7 +3368,12 @@ async function readPictureRequest(cur, asked, charName) {
             console.warn('[Phone] reading the picture request failed, using the plain reading', e);
         }
     }
-    return buildImageRequest(asked, hist, { charName, resolved });
+    let clock = null;
+    try { clock = sceneClock(); } catch (e) { clock = null; }
+    return buildImageRequest(asked, hist, {
+        charName, resolved, outfits: outfitsOf(charName),
+        hour: clock ? clock.hour : new Date().getHours(), weather: clock?.weather || '', place: clock?.place || '',
+    });
 }
 /** One photo message from one contact; with a request typed, it carries how to draw it. */
 async function photoAnswer(cur, names, asked, rq) {
