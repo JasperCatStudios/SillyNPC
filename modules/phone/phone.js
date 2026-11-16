@@ -4898,6 +4898,7 @@ function settingsHtml() {
                             <span id="rph-comfy-state" class="rph-comfystate">${t('comfy_state0')}</span>
                             <button class="menu_button" id="rph-comfy-test">${t('comfy_test')}</button>
                         </div>
+                        <div id="rph-comfy-builtin">
                         <label for="rph-comfy-ckpt">${t('comfy_ckpt')}</label>
                         <select id="rph-comfy-ckpt" class="text_pole"></select>
                         <div class="rph-row">
@@ -4915,6 +4916,8 @@ function settingsHtml() {
                         <label class="checkbox_label"><input type="checkbox" id="rph-comfy-hires"><span>${t('comfy_hires')}</span></label>
                         <label for="rph-comfy-neg">${t('comfy_neg')}</label>
                         <textarea id="rph-comfy-neg" class="text_pole" rows="2"></textarea>
+                        </div>
+                        <small class="notes" id="rph-comfy-own" style="display:none">Your workflow keeps its own model, LoRA, steps, sampler, size and negative prompt. Only the prompt, the picture and the seed are filled in, so the settings above are not used while a workflow is set (they are for the built-in graph).</small>
                         <label for="rph-comfy-wf">${t('comfy_wf')}</label>
                         <textarea id="rph-comfy-wf" class="text_pole" rows="3" placeholder="Save (API Format) · %prompt% %negative% %seed% %width% %height% %ckpt% %lora% %lora_strength% %image% %sheet%"></textarea>
                         <label for="rph-comfy-selfie">Selfie workflow (character sheet in, selfie out)</label>
@@ -5138,13 +5141,46 @@ function setupImageUI() {
         fillSel('#rph-comfy-sched', i.schedulers, cc.scheduler);
     };
     const comfyState = (txt, kind) => $('#rph-comfy-state').text(txt).attr('data-kind', kind || '');
+    /* Is ComfyUI reachable, and does it let this page talk to it? A page on another address can only reach ComfyUI
+       when it was started with --enable-cors-header; without it the browser blocks every answer. The tell: a
+       request that skips the CORS check gets through, one that does not is blocked. */
+    const corsProbe = async (base) => {
+        let same = false;
+        try { same = new URL(base).origin === location.origin; } catch (e) { }
+        if (same) return { reachable: true, cors: true, preflight: true, same: true };
+        let reachable = true;
+        try { await fetch(`${base}/system_stats`, { mode: 'no-cors', cache: 'no-store' }); } catch (e) { reachable = false; }
+        if (!reachable) return { reachable: false, cors: false, preflight: false };
+        let cors = true;
+        try { await fetch(`${base}/system_stats`, { cache: 'no-store' }); } catch (e) { cors = false; }
+        // drawing sends JSON, which the browser first asks permission for; an empty body is refused by ComfyUI and does nothing
+        let preflight = true;
+        if (cors) { try { await fetch(`${base}/prompt`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) { preflight = false; } }
+        return { reachable, cors, preflight };
+    };
     const comfyTest = async (quiet) => {
         comfyState(t('comfy_wait'), 'wait');
+        const base = comfyBaseUrl();
+        if (base) {
+            const p = await corsProbe(base);
+            const mixed = location.protocol === 'https:' && /^http:\/\//i.test(base) && !/^http:\/\/(localhost|127\.)/i.test(base);
+            let bad = '';
+            if (!p.reachable) bad = mixed
+                ? `Cannot reach ComfyUI at ${base}: this page is on https and ComfyUI is on http, which the browser blocks. Use an https address for ComfyUI, or open SillyTavern over http.`
+                : `Cannot reach ComfyUI at ${base}. Is it running, and is the address right? On a phone use your computer's address, not localhost.`;
+            else if (!p.cors) bad = 'ComfyUI answers, but the browser blocks it: CORS is not enabled. Start ComfyUI with --enable-cors-header "*" (add it to the launcher line, for example python main.py --enable-cors-header "*"), then restart ComfyUI and check again.';
+            else if (!p.preflight) bad = 'CORS is on for reading, but not for sending a picture to draw. Start ComfyUI with --enable-cors-header "*" (with the quotes and the star, so every address is allowed), then restart it and check again.';
+            if (bad) {
+                comfyState(bad, 'bad');
+                if (!quiet) toastr.warning(bad);
+                return;
+            }
+        }
         try {
             const i = await comfyInfo(true);
             fillComfyLists();
             const from = !String(imgConn().apiUrl || '').trim() && comfyBorrowed() ? t('comfy_from_lens') : '';
-            comfyState(t('comfy_ok', { c: i.ckpts.length, l: i.loras.length }) + from, 'ok');
+            comfyState(t('comfy_ok', { c: i.ckpts.length, l: i.loras.length }) + from + ' · CORS ok', 'ok');
             if (!quiet && !i.ckpts.length) toastr.warning(drawErrText(comfyErr('comfy-nockpt', '')));
         } catch (e) {
             comfyState(drawErrText(e), 'bad');
@@ -5154,6 +5190,9 @@ function setupImageUI() {
     const refresh = () => {
         const on = detectImageMode() === 'comfy';
         $('#rph-comfy').toggle(on);
+        const own = !!String(comfyCfg().workflow || '').trim();
+        $('#rph-comfy-builtin').toggle(!own);
+        $('#rph-comfy-own').toggle(own);
         $('.rph-settings .rph-cloudonly').toggle(!on);
         $('#rph-img-url').attr('placeholder', on ? (comfyBorrowed() || 'http://127.0.0.1:8188') : 'https://api.navy/v1');
         $('#rph-img-note').text(imgConn().from ? t('img_borrowed') : '');
@@ -5230,6 +5269,7 @@ function setupImageUI() {
         if (txt) { try { comfyFillCustom(txt, { prompt: '', negative: '', seed: 1, w: 8, h: 8, ckpt: '' }); } catch (e) { toastr.warning(drawErrText(e)); } }
         comfyCfg().workflow = txt.slice(0, 60000);
         saveSettings();
+        refresh();
     });
     $('#rph-comfy-test').on('click', () => comfyTest(false));
     $('#rph-img-mode, #rph-img-url').on('change', () => { if (refresh() && !comfyInfoCache) comfyTest(true); });
