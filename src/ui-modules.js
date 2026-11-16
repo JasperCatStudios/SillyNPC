@@ -36,11 +36,10 @@ export const MODULES = [
         content: '.inline-drawer-content',
     },
     {
-        id: 'imagegen',
-        name: 'Images',
+        id: 'locations',
+        name: 'Location backgrounds',
         icon: 'fa-image',
-        blurb: 'ComfyUI pictures: a workflow per character, and a picture of the whole scene. The phone uses it for photos.',
-        // Drawn by modules/imagegen/imagegen.js. It sends nothing to the story model, so it has no context options.
+        blurb: 'Switch the chat background when the tracker Location changes, from a table of places and pictures.',
         render: true,
         noContext: true,
     },

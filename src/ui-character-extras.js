@@ -7,10 +7,6 @@ import { buildSettingSelect } from './ui-shared.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 
 import { PRODUCT_NAME } from './constants.js';
-import { workflowPicker, apiFormatWarning } from './ui-workflow-picker.js';
-import { openCharacterPicture } from './ui-character-picture.js';
-import { saveCharacterSheet } from './api.js';
-import { sheetPathOf } from './comfy-core.js';
 /**
  * What the fork adds to a character's page: the picture prompt and the voice.
  *
@@ -49,53 +45,6 @@ function button(icon, text, onClick) {
  * @param {{ part?: 'all'|'visual'|'voice' }} [options] A tab of the profile draws one half: the picture
  *   prompts (visual) or the phone skin and voice (voice). The editor draws both under one heading.
  */
-/**
- * The character sheet slot: one picture of the whole character (outfit, front and back, details) that a workflow
- * can be given in place of their portrait. A picture in the gallery whose file name says "charactersheet" is
- * found as well, so a sheet added by name works without choosing it here.
- */
-function buildSheetBlock(char) {
-    const wrap = document.createElement('div');
-    wrap.className = 'sillynpc-sheet-block';
-    wrap.append(label('Character sheet'));
-    const preview = document.createElement('img');
-    preview.className = 'sillynpc-imagegen-thumb';
-    const status = note('');
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin:6px 0;';
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.style.display = 'none';
-    const show = () => {
-        const path = sheetPathOf(char);
-        preview.style.display = path ? '' : 'none';
-        if (path) preview.src = /^(data:|https?:|\/)/i.test(path) ? path : `/${path}`;
-        const named = !char.sheetImage && path;
-        status.textContent = path
-            ? (named ? `Found in the gallery by its name: ${path.split('/').pop()}.` : `Set: ${path.split('/').pop()}.`)
-            : 'None yet. A picture named like "charactersheet" in the gallery is found by itself.';
-        remove.style.display = char.sheetImage ? '' : 'none';
-    };
-    const choose = button('fa-image', 'Choose a sheet…', () => input.click());
-    const remove = button('fa-trash', 'Remove', () => { delete char.sheetImage; saveSettings(); show(); });
-    input.addEventListener('change', () => {
-        const file = input.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async () => {
-            try { await saveCharacterSheet(char, String(reader.result)); toastr.success('Character sheet saved.', PRODUCT_NAME); show(); }
-            catch (err) { toastr.error(`Could not save it: ${err?.message || err}`, PRODUCT_NAME); }
-        };
-        reader.readAsDataURL(file);
-        input.value = '';
-    });
-    row.append(choose, remove, input);
-    wrap.append(preview, row, status);
-    show();
-    return wrap;
-}
-
 export function renderCharacterExtras(char, container, options = {}) {
     if (!container) return;
     const part = options.part || 'all';
@@ -147,34 +96,10 @@ export function renderCharacterExtras(char, container, options = {}) {
         }),
     );
 
-    // --- ComfyUI workflow for this character (the Images module draws with it, and so does the phone) ---
-    actions.append(button('fa-image', 'Draw with ComfyUI workflow', () => openCharacterPicture(char)));
-    const workflowRow = document.createElement('div');
-    workflowRow.append(
-        label('ComfyUI workflow'),
-        workflowPicker({
-            value: char.imageWorkflow || '',
-            blank: 'Use the default from Modules, Images',
-            onChange: (name) => { char.imageWorkflow = name; saveSettings(); },
-        }),
-        apiFormatWarning(),
-        note('Chosen from SillyTavern\'s ComfyUI workflow folder (data/<your user>/user/workflows). The workflow draws the pictures made '
-            + 'with the button below, using the image prompt and negative prompt above as %prompt% and %negative%.'),
-        label('Phone selfie workflow'),
-        workflowPicker({
-            value: char.phoneWorkflow || '',
-            blank: 'Use the phone default from Modules, Images',
-            onChange: (name) => { char.phoneWorkflow = name; saveSettings(); },
-        }),
-        note('Used only for this character\'s photos on the phone. A workflow with a reference picture input is shown their sheet, or their portrait.'),
-        buildSheetBlock(char),
-    );
-
     container.append(
         label('Image generation prompt'),
         promptBox,
         negBox,
-        workflowRow,
         actions,
         note('Sent to SillyTavern\'s image generation by the button, and - when "Send Image Prompts '
             + 'To The Model" is on - listed for the story model whenever this character is in the '

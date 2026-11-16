@@ -3707,8 +3707,6 @@ const SYSTEM_EXCLUDED_ROOT = new Set([
     'characters', 'personaData', 'master_items',
     // The library itself, and which system is open.
     'statusTracker', 'activeSystem', 'version', 'enabled',
-    // Where ComfyUI is on this machine and which of this machine's workflow files are chosen: not part of a ruleset.
-    'imagegen',
     // Which provider makes images and where the files land: accounts and disk.
     'imageBackend', 'geminiImageModel', 'imageSaveRoute',
     'loreProfileId', 'imageProfileId', 'combatProfileId', 'internalStatesProfileId', 'bondProfileId', 'vitalsProfileId',

@@ -266,11 +266,6 @@ export const defaultSettings = {
      */
     vitals: {},
     /**
-     * The image generation module (comfy-core.js normalizeImagegen): the ComfyUI address, the workflows chosen from
-     * SillyTavern's workflow folder and the plain graph's settings. A character's own workflow is char.imageWorkflow.
-     */
-    imagegen: {},
-    /**
      * Location backgrounds (location-core.js): which background picture each place uses, and whether the chat's
      * background follows the tracker's Location. A world's own, so it travels with its System.
      */
