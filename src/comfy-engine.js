@@ -7,6 +7,7 @@ import { charactersMentionedIn } from './mentions.js';
 import { LOG_PREFIX } from './constants.js';
 import {
     normalizeImagegen, parseSize, inspectWorkflow, fillWorkflow, valuesFor, sceneValues, firstOutputImage, SCENE_SLOTS,
+    personPicture, sheetPathOf, phoneWorkflowName,
 } from './comfy-core.js';
 
 /**
@@ -379,6 +380,42 @@ export function blobToDataUrl(blob) {
     });
 }
 
+/* ---- Vistalyze ------------------------------------------------------------------------- */
+
+/**
+ * Where the chat is, according to the Vistalyze extension (if it is installed and has been working in this chat).
+ * It keeps its locations and scene changes on the chat's own messages (message.extra.vistalyze), so the current
+ * place is the last "scene" record, and the picture is the background file it applied. Nothing is asked of it.
+ *
+ * @returns {{ name: string, key: string, background: string }|null}
+ */
+export function vistalyzeScene() {
+    try {
+        const chat = getContext()?.chat || [];
+        let scene = null;
+        for (let i = chat.length - 1; i >= 0 && !scene; i--) {
+            const list = chat[i]?.extra?.vistalyze ?? chat[i]?.vistalyze;
+            if (!Array.isArray(list)) continue;
+            for (let j = list.length - 1; j >= 0; j--) if (list[j]?.type === 'scene' && list[j]?.location) { scene = list[j]; break; }
+        }
+        if (!scene) return null;
+        let name = '';
+        for (let i = chat.length - 1; i >= 0 && !name; i--) {
+            const list = chat[i]?.extra?.vistalyze ?? chat[i]?.vistalyze;
+            if (!Array.isArray(list)) continue;
+            const def = list.slice().reverse().find(r => r?.type === 'location_def' && r.key === scene.location);
+            if (def?.name) name = String(def.name);
+        }
+        const background = scene.image ? `/backgrounds/${encodeURIComponent(String(scene.image))}` : '';
+        return { name, key: String(scene.location), background };
+    } catch { return null; }
+}
+
+/** The workflow for a phone photo of this character: theirs for the phone, else the module's phone one. */
+export function phoneWorkflowFor(char) {
+    return phoneWorkflowName(char, imagegenSettings());
+}
+
 /* ---- characters and scenes -------------------------------------------------------------- */
 
 /** The workflow a character draws with: their own, else the module's default (else the plain graph). */
@@ -417,14 +454,17 @@ export function gatherScene() {
     }
     const seen = new Set();
     const characters = chosen.filter(c => c && !seen.has(c.id) && seen.add(c.id)).map(c => ({
-        id: c.id, name: c.name, prompt: String(c.imagePrompt || '').trim(), negative: String(c.imageNegative || '').trim(), image: String(c.imageUrl || ''),
+        id: c.id, name: c.name, prompt: String(c.imagePrompt || '').trim(), negative: String(c.imageNegative || '').trim(), image: personPicture(c, imagegenSettings()), sheet: sheetPathOf(c),
     }));
     let player = { name: '', prompt: '' };
     try {
         const card = getPlayerCard();
-        player = { name: String(card?.name || context?.name1 || ''), prompt: String(card?.imagePrompt || '').trim(), image: String(card?.imageUrl || '') };
+        player = { name: String(card?.name || context?.name1 || ''), prompt: String(card?.imagePrompt || '').trim(), image: personPicture(card, imagegenSettings()) };
     } catch { player = { name: String(context?.name1 || ''), prompt: '', image: '' }; }
-    return { characters, player, location, background: currentBackgroundUrl() };
+    // Vistalyze knows the place by name and has put its picture on the chat: use both when it is there.
+    const viz = vistalyzeScene();
+    if (viz?.name) location = viz.name;
+    return { characters, player, location, background: viz?.background || currentBackgroundUrl(), vistalyze: Boolean(viz) };
 }
 
 /**

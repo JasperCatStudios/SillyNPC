@@ -14,7 +14,7 @@ import {
 } from '../../src/comfy-engine.js';
 import { apiFormatWarning, workflowPicker } from '../../src/ui-workflow-picker.js';
 import { bindingsEditor } from '../../src/ui-workflow-bindings.js';
-import { bindingsFor } from '../../src/comfy-engine.js';
+import { bindingsFor, vistalyzeScene, currentBackgroundUrl } from '../../src/comfy-engine.js';
 import { DEFAULT_SCENE_TEMPLATE } from '../../src/comfy-bindings.js';
 import { API_FORMAT_HELP, PLACEHOLDERS, SCENE_PLACEHOLDERS, SCENE_SLOTS, inspectWorkflow } from '../../src/comfy-core.js';
 
@@ -122,6 +122,18 @@ function renderPane(pane, { live } = {}) {
     template.addEventListener('change', () => { s.sceneTemplate = template.value; saveImagegenSettings(); });
     pane.append(field('Scene wording for picture workflows', template,
         'Becomes the bound prompt. Use {count}, {at}, {location}, {people} (Picture 1 is you, Picture 2 is the next person and so on) and {extra}. Empty uses the default.'));
+
+    pane.append(field('Phone selfie workflow',
+        workflowPicker({ value: s.phoneWorkflow, blank: 'None: use the plain graph from the settings below', live, onChange: (name) => { s.phoneWorkflow = name; saveImagegenSettings(); } }),
+        'Used only for the phone\'s photos, never for scenes or portraits. A character can have their own on their profile. A workflow with one picture input '
+        + '(set it as "Reference picture" under Workflow inputs) is given that character\'s sheet or portrait.'));
+    const sheets = el('input');
+    sheets.type = 'checkbox';
+    sheets.checked = s.useSheets;
+    sheets.addEventListener('change', () => { s.useSheets = sheets.checked; saveImagegenSettings(); });
+    const sheetsRow = el('label', 'checkbox_label');
+    sheetsRow.append(sheets, el('span', '', 'Use a character\'s sheet instead of their portrait when they have one'));
+    pane.append(sheetsRow);
 
     // --- placeholders
     const details = el('details', 'sillynpc-imagegen-placeholders');
@@ -251,6 +263,8 @@ export function openScenePicture() {
     location.placeholder = 'Where is the scene?';
     body.append(field('Location', location, scene.location ? '' : 'The tracker has no Location yet: type one.'));
 
+    // The place's picture is read when the picture is drawn, so a location change while this is open is picked up.
+    const liveBackground = () => vistalyzeScene()?.background || currentBackgroundUrl();
     const slotsHost = el('div', 'sillynpc-imagegen-slots');
     body.append(slotsHost);
 
@@ -321,9 +335,9 @@ export function openScenePicture() {
         }
         if (wantsPlace) {
             const source = el('select', 'text_pole');
-            if (scene.background) source.append(new Option('The chat\'s current background', 'background'));
+            if (liveBackground()) source.append(new Option(scene.vistalyze ? 'The chat\'s current background (from Vistalyze)' : 'The chat\'s current background', 'background'));
             source.append(new Option('Choose a picture…', 'file'), new Option('None', 'none'));
-            source.value = scene.background ? 'background' : 'none';
+            source.value = liveBackground() ? 'background' : 'none';
             const file = el('input');
             file.type = 'file';
             file.accept = 'image/*';
@@ -331,7 +345,7 @@ export function openScenePicture() {
             const preview = el('img', 'sillynpc-imagegen-thumb');
             preview.style.display = 'none';
             const show = () => {
-                const url = source.value === 'background' ? scene.background : (source.value === 'file' ? locationFile : '');
+                const url = source.value === 'background' ? liveBackground() : (source.value === 'file' ? locationFile : '');
                 preview.style.display = url ? '' : 'none';
                 if (url) preview.src = url;
             };
@@ -347,7 +361,7 @@ export function openScenePicture() {
                 reader.readAsDataURL(picked);
             });
             slotsHost.append(field(`Picture ${personSlots + (wantsMe ? 2 : 1)}: the place`, source), file, preview);
-            locationSource = { source, value: () => (source.value === 'background' ? scene.background : (source.value === 'file' ? locationFile : '')) };
+            locationSource = { source, value: () => (source.value === 'background' ? liveBackground() : (source.value === 'file' ? locationFile : '')) };
             show();
         }
     };

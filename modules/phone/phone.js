@@ -8,7 +8,8 @@ import { extension_settings, getContext } from '../../../../../extensions.js';
 import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
-import { comfyBase as imagegenBase, imagegenSettings, generateImage as imagegenGenerate, cancelImageGen } from '../../src/comfy-engine.js';
+import { comfyBase as imagegenBase, imagegenSettings, generateImage as imagegenGenerate, cancelImageGen, phoneWorkflowFor } from '../../src/comfy-engine.js';
+import { personPicture } from '../../src/comfy-core.js';
 import { speakNamed } from '../../src/tts.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
@@ -1505,10 +1506,14 @@ async function callComfy(prompt, ref, extras = {}) {
     const card = extras.who ? characters.find(c => c.name === extras.who) : null;
     const rec = card?._char || card || null;
     const module = imagegenSettings();
-    const workflow = String(rec?.imageWorkflow || '').trim() || module.defaultWorkflow;
+    // Phone photos have workflows of their own (the character's phone one, else the module's): never the scene or portrait ones.
+    const workflow = phoneWorkflowFor(rec);
     const negative = [String(rec?.imageNegative || '').trim(), module.negative].filter(Boolean).join(', ');
+    // A selfie workflow with a reference input is shown the character: their sheet, else their portrait.
+    const reference = ref || (rec ? personPicture(rec, module) : '');
     return imagegenGenerate({
         prompt, negative, workflow, size: imgCfg().size, ref,
+        portraits: reference ? { reference_image: reference } : {},
         lora: extras.lora || '', loraStrength: extras.loraStrength,
     });
 }

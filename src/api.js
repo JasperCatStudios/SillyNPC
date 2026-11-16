@@ -638,6 +638,27 @@ export async function adoptImageForCharacter(char, dataUri) {
 }
 
 /**
+ * Stores a character sheet for a character: one picture with a fixed name ("<Name>_charactersheet"), replaced when a
+ * new one is chosen. It is kept apart from the portrait gallery, so it never turns up as one of their faces.
+ * The Images module hands it to a workflow in place of the portrait.
+ *
+ * @param {object} char
+ * @param {string} dataUri
+ * @returns {Promise<string>} the stored path
+ */
+export async function saveCharacterSheet(char, dataUri) {
+    const match = /^data:image\/([a-z0-9+.-]+);base64,(.+)$/i.exec(dataUri);
+    if (!match) throw new Error('That is not a picture.');
+    const [, rawFormat, base64] = match;
+    const format = rawFormat.toLowerCase() === 'jpeg' ? 'jpg' : rawFormat.toLowerCase();
+    const folder = resolveImageFolder(getSettings().imageSaveRoute);
+    const path = await saveBase64AsFile(base64, folder, `${characterImagePrefix(char.name)}charactersheet`, format);
+    char.sheetImage = path;
+    saveSettings();
+    return path;
+}
+
+/**
  * Removes one image from a character, and from disk when nothing else uses it.
  *
  * The file is only unlinked when no other character points at it: sharing a portrait is

@@ -15,6 +15,7 @@ export const BINDING_ROLES = Object.freeze([
     { id: 'player_image', label: 'Your character (picture)', kind: 'image' },
     ...Array.from({ length: SCENE_SLOTS }, (_, i) => ({ id: `char${i + 1}_image`, label: `Person ${i + 1} (picture)`, kind: 'image' })),
     { id: 'location_image', label: 'Location (picture)', kind: 'image' },
+    { id: 'reference_image', label: 'Reference picture of the person (phone selfies)', kind: 'image' },
     { id: 'prompt', label: 'Prompt (text)', kind: 'text' },
     { id: 'negative', label: 'Negative prompt (text)', kind: 'text' },
     { id: 'seed', label: 'Seed', kind: 'number' },
@@ -90,8 +91,11 @@ export function detectBindings(source) {
         .sort((a, b) => a.n - b.n || Number(a.node) - Number(b.node));
     const place = numbered.find(i => /location|place|background|scene|setting/i.test(i.title));
     const people = numbered.filter(i => i !== place);
+    // A workflow with a single picture input is a reference-picture workflow (a selfie of one person), not a group scene.
+    const soloReference = people.length === 1 && !place;
     people.forEach((img, i) => {
-        if (i === 0) out.suggested.push({ role: 'player_image', node: img.node, input: img.input });
+        if (soloReference) out.suggested.push({ role: 'reference_image', node: img.node, input: img.input });
+        else if (i === 0) out.suggested.push({ role: 'player_image', node: img.node, input: img.input });
         else if (i <= SCENE_SLOTS) out.suggested.push({ role: `char${i}_image`, node: img.node, input: img.input });
     });
     if (place) out.suggested.push({ role: 'location_image', node: place.node, input: place.input });

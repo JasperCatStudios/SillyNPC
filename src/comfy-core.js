@@ -221,6 +221,10 @@ export const IMAGEGEN_DEFAULTS = Object.freeze({
     url: '',
     defaultWorkflow: '',
     sceneWorkflow: '',
+    /** Used only for phone photos (selfies): a character's own phone workflow comes first. */
+    phoneWorkflow: '',
+    /** Scene pictures use a character's sheet instead of their portrait when they have one. */
+    useSheets: true,
     ckpt: '', lora: '', loraStrength: 0.8,
     steps: 26, cfg: 6, sampler: 'euler_ancestral', scheduler: 'normal', denoise: 1, hires: false,
     negative: 'lowres, worst quality, bad anatomy, bad hands, extra fingers, missing fingers, deformed face, asymmetric eyes, blurry, jpeg artifacts, watermark, signature, text, logo, child',
@@ -245,6 +249,8 @@ export function normalizeImagegen(raw) {
         url: str(r.url).trim().replace(/\/+$/, ''),
         defaultWorkflow: str(r.defaultWorkflow).trim(),
         sceneWorkflow: str(r.sceneWorkflow).trim(),
+        phoneWorkflow: str(r.phoneWorkflow).trim(),
+        useSheets: r.useSheets === undefined ? true : Boolean(r.useSheets),
         ckpt: str(r.ckpt), lora: str(r.lora), loraStrength: num(r.loraStrength, d.loraStrength, -2, 2),
         steps: Math.round(num(r.steps, d.steps, 1, 150)), cfg: num(r.cfg, d.cfg, 1, 30),
         sampler: str(r.sampler, d.sampler) || d.sampler, scheduler: str(r.scheduler, d.scheduler) || d.scheduler,
@@ -264,4 +270,31 @@ export function parseSize(text, fallback = { w: 768, h: 1024 }) {
     const m = /^(\d+)\s*[x×]\s*(\d+)$/.exec(String(text || '').trim());
     const fit = (n) => Math.max(256, Math.min(2048, Math.round(n / 8) * 8));
     return m ? { w: fit(+m[1]), h: fit(+m[2]) } : fallback;
+}
+
+/* ------------------------------------------------------------ character sheets and phone workflows */
+
+/** A picture file named like "...charactersheet..." (also "character_sheet", "Character Sheet") is a character sheet. */
+export const SHEET_NAME = /character[\s_-]*sheet/i;
+
+/**
+ * A character's sheet: the one chosen for them, else any picture in their gallery whose file name says it is one.
+ * @returns {string} a path, or ''
+ */
+export function sheetPathOf(char) {
+    const own = String(char?.sheetImage || '').trim();
+    if (own) return own;
+    const found = (Array.isArray(char?.images) ? char.images : []).find(p => SHEET_NAME.test(String(p).split(/[\\/]/).pop() || ''));
+    return found ? String(found) : '';
+}
+
+/** The picture a scene or workflow should be shown of someone: their sheet when sheets are in use, else their portrait. */
+export function personPicture(char, settings) {
+    const sheet = settings?.useSheets === false ? '' : sheetPathOf(char);
+    return sheet || String(char?.imageUrl || '').trim();
+}
+
+/** The workflow for a phone photo: the character's phone workflow, else the module's. Never their general one. */
+export function phoneWorkflowName(char, settings) {
+    return String(char?.phoneWorkflow || '').trim() || String(settings?.phoneWorkflow || '').trim();
 }
