@@ -4648,8 +4648,10 @@ function renderRoster() {
     const seen = new Set();
     const list = [];
     // this chat's characters first, then everybody else - the order the list comes in
+    // Everyone is listed, including whoever is in the current scene (marked "in the scene"): hiding them made a
+    // contact impossible to find by search, and nobody could tell why she was missing. Only the player is left out.
     const away = awayFromScene();
-    characters.forEach(c => { if (c?.name && !seen.has(c.name) && away(c.name)) { seen.add(c.name); list.push(c.name); } });
+    characters.forEach(c => { if (c?.name && !seen.has(c.name) && !isUserName(c.name)) { seen.add(c.name); list.push(c.name); } });
     // somebody already switched on stays listed even after stepping into the scene
     Object.keys(settings.active).forEach(n => { if (settings.active[n] && !seen.has(n) && !isUserName(n) && !isGroup(n) && characters.some(c => c.name === n)) { seen.add(n); list.push(n); } });
 
@@ -4673,7 +4675,7 @@ function renderRoster() {
         return `${head}
         <div class="rph-row">
             ${avatarHtml(n)}
-            <span class="rph-row-name rph-open" data-open="${escapeHtml(n)}" title="${escapeHtml(t('open_chat'))}">${escapeHtml(n)}${settings.active[n] && unreadOf(n) ? ` <b class="rph-unread">•</b>` : ''}</span>
+            <span class="rph-row-name rph-open" data-open="${escapeHtml(n)}" title="${escapeHtml(t('open_chat'))}">${escapeHtml(n)}${away(n) ? '' : ' <small class="rph-here">in the scene</small>'}${settings.active[n] && unreadOf(n) ? ` <b class="rph-unread">•</b>` : ''}</span>
             ${settings.active[n] ? `<i class="fa-solid fa-image-portrait rph-look-btn" data-name="${escapeHtml(n)}" title="${escapeHtml(t('look_title'))}"></i>` : ''}
             <i class="fa-solid fa-pen rph-edit-btn" data-name="${escapeHtml(n)}" title="Edit this contact"></i>
             ${settings.active[n] ? `<i class="fa-solid fa-user-group rph-cast-btn ${castN ? 'has' : ''}" data-name="${escapeHtml(n)}" title="${escapeHtml(t('cast_title'))}">${castN ? `<b>${castN}</b>` : ''}</i>` : ''}
