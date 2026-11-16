@@ -2042,6 +2042,23 @@ function usesSelfieWorkflow(m) {
     if (/\b(selfie|photo of (me|myself)|pic of (me|myself)|picture of (me|myself))\b/i.test(`${k.caption} ${k.text}`)) return true;
     return !String(c.workflow || '').trim();
 }
+/** Did the player's last message before this picture say selfie? (For a picture that has no request of its own.) */
+function selfieAskedBefore(contactId, m) {
+    const th = threadOf(contactId);
+    const at = th.indexOf(m);
+    for (let i = (at < 0 ? th.length : at) - 1, n = 0; i >= 0 && n < 4; i--, n++) {
+        if (th[i].who === 'user') return /\bselfies?\b/i.test(String(th[i].text || ''));
+    }
+    return false;
+}
+/** Why a selfie that was asked for is not drawn by the selfie workflow, in words ('' when it is). */
+function selfieNotUsedBecause(m) {
+    const c = imgConn().comfy || {};
+    if (detectImageMode() !== 'comfy') return 'ComfyUI is not the active picture mode, so the selfie workflow is not used.';
+    if (!String(c.selfieWorkflow || '').trim()) return 'No selfie workflow is set in the ComfyUI settings (the selfie drop-down shows none).';
+    if (m.req && typeof m.req === 'object' && m.req.mode !== 'character') return `The request was read as a ${m.req.mode} picture, not a selfie.`;
+    return '';
+}
 async function ownRef(name) {
     const k = lookCfg(name).refKey;
     if (!k || !imgStore()) return null;
@@ -2194,6 +2211,11 @@ async function runGenQueue() {
             try {
                 // who they look like: reference picture + description, or the description alone
                 // a drawing or a photo of a thing is not of them: no reference picture, no LoRA, no saved image prompt
+                // A picture after a message that said selfie, with no request attached, gets the selfie request it should have had.
+                if (!m.req && m.who === 'char' && selfieAskedBefore(job.contactId, m)) {
+                    m.req = buildImageRequest('send me a selfie', [], { charName: m.name || '' });
+                    saveSettings();
+                }
                 const ofThem = !m.req || m.req.mode === 'character';
                 let ref = null;
                 if (ofThem) { try { ref = await referenceFor(m.name); } catch (e) { ref = null; } }
@@ -2205,6 +2227,10 @@ async function runGenQueue() {
                     try { sheet = await sheetFor(m.name); } catch (e) { sheet = null; }
                     extras.sheet = sheet || ref || null;
                     if (usesSelfieWorkflow(m)) { extras.selfie = true; ref = sheet || ref; }
+                }
+                if ((/\bselfie/i.test(String(m.req?.ask || '')) || selfieAskedBefore(job.contactId, m)) && !extras.selfie) {
+                    const why = selfieNotUsedBecause(m);
+                    if (why) toastr.warning(`A selfie was asked for, but ${why.charAt(0).toLowerCase()}${why.slice(1)}`, '', { preventDuplicates: true });
                 }
                 console.info('[Phone] picture drawn by', extras.selfie ? 'the selfie workflow' : (String(imgConn().comfy?.workflow || '').trim() ? 'the general workflow' : 'the built-in graph'), '| request:', m.req ? m.req.mode : 'none');
                 const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, extras);
