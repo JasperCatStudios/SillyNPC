@@ -321,13 +321,14 @@ Output ONLY a raw JSON object, no markdown, no explanation, no code fences.
 Fields:
 - "directives": Concrete visual description of what to show. If the user points at something from the conversation ("that", "what you're wearing", "the thing you described"), resolve it to the actual concrete description from the chat. Short: comma-separated tags or a brief phrase. Empty string if none.
 - "scene": Shot type or setting only (for example "selfie", "full body shot", "at a café"). Empty string if none.
+- "outfit", "expression", "background", "pose": the clothes, the facial expression, the setting behind and the body pose, when the request or the chat says them. Empty string for any that is not said.
 - "mode": one of
   - "character": the picture features ${charName} (selfies, appearance, outfit photos).
   - "object": a photo of something that is NOT ${charName} (a place, a thing described in the chat).
   - "creative": a drawn, painted or illustrated work of art.
 
 Examples:
-{"directives":"royal blue regalia, gold embroidery, flowing cape","scene":"selfie","mode":"character"}
+{"directives":"royal blue regalia, gold embroidery, flowing cape","scene":"selfie","outfit":"royal blue regalia with gold embroidery and a flowing cape","expression":"","background":"","pose":"","mode":"character"}
 {"directives":"rug with a gradient of lavender and pale green","scene":"photo","mode":"object"}
 {"directives":"cartoon cat with a hat","scene":"","mode":"creative"}
 {"directives":"","scene":"selfie","mode":"character"}`;
@@ -344,7 +345,60 @@ export function parseLlmResolution(raw) {
     try { parsed = JSON.parse(found[0]); } catch { return null; }
     if (!parsed || typeof parsed.directives !== 'string' || typeof parsed.mode !== 'string') return null;
     const mode = ['character', 'creative', 'object'].includes(parsed.mode) ? parsed.mode : 'character';
-    return { directives: parsed.directives.trim(), scene: String(parsed.scene || '').trim(), mode };
+    const slot = (k) => String(parsed[k] || '').trim();
+    return {
+        directives: parsed.directives.trim(), scene: String(parsed.scene || '').trim(), mode,
+        slots: { outfit: slot('outfit'), expression: slot('expression'), background: slot('background'), pose: slot('pose') },
+    };
+}
+
+/* ---------------------------------------------------------------------- the pieces */
+
+const CLOTHES = 'dress|outfit|shirt|t-shirt|hoodie|suit|uniform|bikini|swimsuit|kimono|yukata|skirt|jacket|coat|sweater|pajamas|pyjamas|lingerie|armou?r|robe|gown|top|jeans|shorts|costume|cosplay|apron|towel|vest|cloak|cape|blouse|hat|scarf|gloves|boots|stockings|leggings|tank|bra|panties';
+const MOODS = 'smil\\w*|smirk\\w*|laugh\\w*|grin\\w*|pout\\w*|blush\\w*|wink\\w*|frown\\w*|cry\\w*|sleepy|tired|shy|angry|surprised|serious|playful|flirty|sad|happy|calm|confident|smug|nervous|sultry|bashful|teasing|mischievous';
+const SHOTS = /^(selfie|photo|pic|picture|full body shot|close-up portrait|smiling|sleeping, peaceful|dancing|reading)$/i;
+
+/**
+ * The pieces of a request a template can ask for by name: outfit, expression, background, pose.
+ * Read by plain pattern matching, so a short natural request is enough; whatever is not said is left
+ * empty and the template's own default for it is used.
+ *
+ * @returns {{ outfit: string, expression: string, background: string, pose: string }}
+ */
+export function extractSlots(userMessage) {
+    const text = String(userMessage || '');
+    const out = { outfit: '', expression: '', background: '', pose: '' };
+
+    const wear = new RegExp(`\\b(?:wearing|dressed in|dressed as|decked out in|in (?:a|an|her|his|my|the|some) (?=[\\w\\s-]{0,30}\\b(?:${CLOTHES})\\b))([^,.;!?]*?)(?=\\s+(?:at|in the|on the|by|near|with a|while|and then|sitting|standing|lying)\\b|[,.;!?]|$)`, 'i').exec(text);
+    if (wear) out.outfit = wear[1].trim();
+
+    const seen = new Set();
+    const moods = [];
+    for (const m of text.matchAll(new RegExp(`\\b(${MOODS})\\b`, 'gi'))) {
+        const k = m[1].toLowerCase();
+        if (!seen.has(k)) { seen.add(k); moods.push(k); }
+    }
+    const withLook = /\bwith (?:a|an) ([\w\s-]{2,30}?) (?:look|expression|smile|smirk|grin)\b/i.exec(text);
+    if (withLook && !seen.has(withLook[1].toLowerCase())) moods.push(withLook[1].toLowerCase());
+    const NOUN = { smil: 'a smile', smir: 'a smirk', laug: 'a laugh', grin: 'a grin', pout: 'a pout', blus: 'a blush', wink: 'a wink', frow: 'a frown', cry: 'tears' };
+    const said = moods.map((w) => NOUN[w.slice(0, 4)] || NOUN[w.slice(0, 3)] || (/\s/.test(w) ? w : `a ${w} expression`));
+    out.expression = [...new Set(said)].join(' and ');
+
+    const rest = wear ? text.replace(wear[0], ' ') : text;
+    for (const m of rest.matchAll(/\b(?:at|in|on|by|near|inside|outside|against)\s+(?:the|a|an|my|her|his|their)?\s*([a-z][\w\s'-]{2,40}?)(?=\s+(?:wearing|while|with|and|looking|sitting|standing)\b|[,.;!?]|$)/gi)) {
+        const place = m[1].trim();
+        if (new RegExp(`\\b(${CLOTHES})\\b`, 'i').test(place) || SHOTS.test(place)) continue;
+        out.background = place;
+        break;
+    }
+    if (!out.background) {
+        const hint = inferSceneHint(text);
+        if (hint && !SHOTS.test(hint) && /^(at|in|outdoors|relaxing|golden|snowy|indoor|bathroom)/i.test(hint)) out.background = hint.replace(/^(at|in) (the |a )?/i, '');
+    }
+
+    const pose = /\b(sitting|standing|lying(?: down)?|laying(?: down)?|leaning|kneeling|crouching|lounging|stretching|waving|posing|peace sign|hand on (?:her|his|their) hip|arms crossed|looking over (?:her|his|their) shoulder|on (?:her|his|their) (?:back|stomach|side))\b[^,.;!?]*?(?=\s+(?:wearing|at the|in the|with a|while)\b|[,.;!?]|$)/i.exec(text);
+    if (pose) out.pose = pose[0].trim();
+    return out;
 }
 
 /* ------------------------------------------------------------------- the request */
@@ -369,7 +423,10 @@ export function buildImageRequest(userMessage, history = [], opts = {}) {
         const scene = r.scene || inferSceneHint(userMessage);
         let directives = r.directives || '';
         if (mode === 'creative' && !directives) directives = extractCreativeSubject(userMessage);
-        return { mode, directives, scene, style, ask: String(userMessage).slice(0, 300) };
+        const found = extractSlots(userMessage);
+        const slots = {};
+        for (const k of ['outfit', 'expression', 'background', 'pose']) slots[k] = (r.slots && r.slots[k]) || found[k] || '';
+        return { mode, directives, scene, style, slots, ask: String(userMessage).slice(0, 300) };
     }
     const raw = extractUserVisualDirectives(userMessage, charName);
     const directives = resolveContextualDirectives(raw, userMessage, history);
@@ -379,6 +436,7 @@ export function buildImageRequest(userMessage, history = [], opts = {}) {
         directives: mode === 'creative' ? (directives || extractCreativeSubject(userMessage)) : directives,
         scene: inferSceneHint(userMessage),
         style,
+        slots: extractSlots(userMessage),
         ask: String(userMessage).slice(0, 300),
     };
 }
@@ -400,8 +458,14 @@ export function promptsForRequest(req, ctx) {
     // Your own wording for this kind (Worldkit's Prompts tab); empty means the built-in wording below.
     const own = String(ctx?.templates?.[mode] || '').trim();
     if (own) {
-        const map = { NAME: charName, REQUEST: directives || scene, LOOK: look, SCENE: scene, STYLE: style };
-        const text = own.replace(/\{(\w+)\}/g, (x, k) => (map[k] !== undefined ? map[k] : x))
+        const sl = req?.slots || {};
+        const map = {
+            NAME: charName, REQUEST: directives || scene, LOOK: look, SCENE: scene, STYLE: style,
+            OUTFIT: String(sl.outfit || ''), EXPRESSION: String(sl.expression || ''),
+            BACKGROUND: String(sl.background || ''), POSE: String(sl.pose || ''),
+        };
+        // {OUTFIT|their usual outfit}: what the request said, or the text after the bar when it said nothing.
+        const text = own.replace(/\{(\w+)(?:\|([^}]*))?\}/g, (x, k, dflt) => (map[k] !== undefined ? (map[k] || dflt || '') : x))
             .replace(/(\s*,){2,}/g, ',').replace(/^[\s,]+|[\s,]+$/g, '').replace(/[ \t]+/g, ' ').replace(/ ,/g, ',').trim();
         return { mode, directives, sdPrompt: text, contextPrompt: text };
     }

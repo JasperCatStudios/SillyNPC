@@ -165,11 +165,17 @@ export const PROMPTS = [
         key: 'phonePromptSelfie',
         label: 'Phone: Selfie Prompt',
         home: 'Phone',
-        help: 'How a picture OF the contact is worded when you ask for one in plain words (a selfie, a photo '
-            + 'of them somewhere, in an outfit). Placeholders: {NAME}, {REQUEST} (what you asked for: pose, outfit, '
-            + 'place), {LOOK} (their look, from their gallery page), {SCENE} (shot type), {STYLE}. '
+        help: 'How a picture OF the contact is worded when you ask for one in plain words. A short request is enough '
+            + '("a selfie in a black vest at the courtyard, smirking"): it is split into the pieces below, and anything '
+            + 'you did not say is filled from the default written after the bar. Placeholders: {NAME}, {LOOK} (their look, '
+            + 'from their gallery page), {OUTFIT}, {EXPRESSION}, {BACKGROUND}, {POSE}, e.g. {OUTFIT|their usual outfit}; '
+            + 'also {REQUEST} (everything you asked, unsplit), {SCENE} (shot type) and {STYLE}. '
             + 'Pictures the contact sends on their own use the Photo prompt in the Phone settings instead.',
-        recommended: () => 'photo of {NAME}, {REQUEST}, {LOOK}, {SCENE}, {STYLE}',
+        recommended: () => 'A close-up, high-angle POV selfie illustration of {NAME}, {LOOK}. One arm extends directly toward the viewer '
+            + 'to hold the out-of-frame camera, creating strong foreshortening on the sleeve and forearm; the phone itself is not visible. '
+            + '{POSE|The rest of the body is angled slightly}. Looking straight into the lens with {EXPRESSION|a calm, confident expression '
+            + 'and a subtle smirk}. Wearing {OUTFIT|their usual outfit}. Softly blurred {BACKGROUND|sunlit stone courtyard} in the background. '
+            + 'Clean anime art style with sharp linework and warm natural lighting.',
         emptyNote: 'The built-in wording for your image connection is sent.',
     },
     {
