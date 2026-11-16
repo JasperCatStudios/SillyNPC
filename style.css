@@ -5352,6 +5352,25 @@ textarea.sillynpc-profile-input {
     #rpg-game-modal .rpg-summary-btn { position: static !important; transform: none; margin: 8px auto 0; flex: none; }
     #rpg-game-modal #rpg-replay-btn { order: 1; }
     #rpg-game-modal #rpg-game-summary-btn { order: 2; }
+    /* Whist: the table and the info line take less room, and your hand stays in view along the bottom. */
+    #rpg-game-modal .rpg-whist-wrap { gap: 6px; }
+    #rpg-game-modal .rpg-whist-wrap .rpg-card { width: 34px; height: 48px; }
+    #rpg-game-modal .rpg-whist-table { min-height: 56px; gap: 10px; }
+    #rpg-game-modal .rpg-whist-info { font-size: .8rem; text-align: center; }
+    #rpg-game-modal .rpg-whist-hand { position: sticky; bottom: 0; z-index: 2; flex-wrap: nowrap; gap: 3px; padding: 6px 4px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.45)); }
+    /* Spin the bottle: the button row was pinned over the bottle and the dare; let it follow them. */
+    #rpg-game-modal .rpg-bt-wrap { padding-top: 40px; gap: 6px; }
+    #rpg-game-modal .rpg-bt-wrap .rpg-bj-controls { position: static; background: none; padding: 2px 0; }
+    #rpg-game-modal .rpg-bt-circle { width: min(230px, 62vw); height: min(230px, 62vw); }
+    /* The result buttons are smaller so both fit under a board. */
+    #rpg-game-modal .rpg-summary-btn { padding: 6px 14px; margin-top: 4px; }
+    /* The chat strip: smaller tabs and talk-to box, and a header that survives several avatars. */
+    #rpg-game-modal .rpg-game-log-tab { padding: 3px 9px; font-size: .75rem; }
+    #rpg-game-modal .rpg-game-chat-tabs { padding-bottom: 4px; }
+    #rpg-game-modal .rpg-game-talk-to, #rpg-game-modal #rpg-game-talk-to { height: 28px; min-height: 0; padding: 2px 8px; font-size: .8rem; }
+    #rpg-game-modal .rpg-game-opponent > div { min-width: 0; flex: 1 1 auto; }
+    #rpg-game-modal .rpg-game-opp-name { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    #rpg-game-modal .rpg-menu-history { margin-bottom: 6px; }
     #rpg-game-modal .rpg-bt-circle { width: min(280px, 78vw); height: min(280px, 78vw); }
     /* The phone's roster, diary and the phone itself are placed from the bottom edge, and on a
        phone that edge is not where they expect (they ended up above the top of the screen). */

@@ -137,7 +137,8 @@ export const GAME_ART_FILES = Object.freeze({
 
 /** The URL of a game or combat background, or '' unless artwork AND game backgrounds are both on. */
 export function gameArtUrl(game, settings = normalizeFactionSettings()) {
-    const file = GAME_ART_FILES[game];
+    // A game with no file of its own (a new one added later) gets the felt table; the menu has none.
+    const file = game === 'menu' || !game ? '' : (GAME_ART_FILES[game] || 'felt-table');
     if (!file || !settings.useArtwork || !settings.gameArt) return '';
     return artworkUrl(`games/${file}.webp`, settings);
 }
