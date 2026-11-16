@@ -289,6 +289,7 @@ function describe(event) {
         if (event.form) bits.push(`takes up ${event.form}`);
         if (event.healed > 0) bits.push(`recovers ${Math.max(1, Math.round((event.healed / actor.view.pools.health.max) * 100))}% health`);
         if (event.braced > 0) bits.push(`braces against the next blow (${Math.round(event.braced * 100)}% off)`);
+        if (event.evading > 0) bits.push('watches for a chance to dodge the next blow');
         return `${actor.name} — ${event.label}: ${bits.join(', ') || 'no effect'}.`;
     }
     const band = BANDS[event.band] || event.band;
@@ -470,16 +471,19 @@ function drawBattle(body) {
         body.append(aim);
     }
     const row = el('div', 'snpc-fight-actions');
-    const mine = offeredActions(type, actor.view, actor.weapon, activeAbilities(actor), state.mode, actor.loadout);
+    const mine = offeredActions(type, actor.view, actor.weapon, activeAbilities(actor), state.mode, actor.loadout, { player: true, fighter: actor });
     if (!mine.length) row.append(el('p', 'notes', 'This world type has no actions.'));
     for (const action of mine) {
-        const affordable = canPay(actor.view, action);
+        let affordable = canPay(actor.view, action);
+        const fullHealth = action.key === 'heal' && actor.view.pools.health && actor.view.pools.health.cur >= actor.view.pools.health.max;
+        if (fullHealth) affordable = false;
         const button = el('button', `menu_button${action.ability ? ' is-ability' : ''}`, action.label);
         button.type = 'button';
         button.disabled = !affordable;
         const tip = [action.desc, action.cost?.amount ? `Costs ${action.cost.amount} ${type.pools.find(p => p.role === action.cost.pool)?.label || action.cost.pool}.` : ''].filter(Boolean).join(' ');
         if (tip) button.title = tip;
-        if (!affordable && action.cost?.amount) button.title = `Needs ${action.cost.amount} ${type.pools.find(p => p.role === action.cost.pool)?.label || action.cost.pool}. ${tip}`;
+        if (fullHealth) button.title = 'You are not hurt.';
+        else if (!affordable && action.cost?.amount) button.title = `Needs ${action.cost.amount} ${type.pools.find(p => p.role === action.cost.pool)?.label || action.cost.pool}. ${tip}`;
         button.addEventListener('click', () => {
             const result = takeTurn(type, state, action.key, target.id);
             if (!result.ok) { toastr.warning(result.reason, PRODUCT_NAME); return; }

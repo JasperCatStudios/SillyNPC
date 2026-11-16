@@ -48,7 +48,43 @@ function visibleProfIds(type, view) {
  * Actions this combatant can choose. Trained weapons and spells come first. With none, every
  * action on their card is offered untrained, so a fight can still start.
  */
-export function offeredActions(type, view, weapon, abilities = [], mode = 'fight', loadout = null) {
+/** What you can always do on your turn, whatever you hold: brace, dodge and (real fights only) recover. */
+export const HEAL_USES = 2;
+const GENERIC = Object.freeze({
+    defend: { key: 'defend', label: 'Defend', self: true, generic: true, effect: { block: 0.5 }, desc: 'Brace: the next blow against you does half damage.' },
+    evade: { key: 'evade', label: 'Evade', self: true, generic: true, effect: { evade: 0.5 }, desc: 'Dodge: an even chance the next blow misses you completely.' },
+    heal: { key: 'heal', label: 'Heal', self: true, generic: true, effect: { heal: 0.2 }, desc: `Catch your breath and recover a fifth of your health. ${HEAL_USES} times a fight.` },
+});
+
+/**
+ * Attacking with what you have when nothing is held: the world's own basic weapon attack, under the
+ * plain name "Attack" and a little weaker than the real thing. Built here so it is the same wherever
+ * it is offered or looked up.
+ */
+export function unarmedAction(type, view) {
+    const weaponProfs = new Set((view?.profs || []).filter(p => p.roles.includes('weapon')).map(p => p.id));
+    const basis = (type.actions || []).find(a => weaponProfs.has(a.prof)) || (type.actions || [])[0];
+    if (!basis) return null;
+    return { key: 'unarmed', label: 'Attack', prof: basis.prof, power: Math.max(1, Math.round((Number(basis.power) || 0) * 0.6)), channel: basis.channel, desc: 'Strike with what you have.' };
+}
+
+/** The actions every combatant on the player's side may take, for a fight of this kind. */
+export function genericActions(mode = 'fight', fighter = null) {
+    const out = [GENERIC.defend, GENERIC.evade];
+    if (mode !== 'spar' && !(fighter && (fighter.healUses || 0) >= HEAL_USES)) out.push(GENERIC.heal);
+    return out;
+}
+
+/**
+ * @param {{ player?: boolean, fighter?: object }} [options] player: the person at the screen is choosing, so
+ *   Defend, Evade and Heal are offered too (the computer's fighters keep choosing among attacks).
+ */
+export function offeredActions(type, view, weapon, abilities = [], mode = 'fight', loadout = null, options = {}) {
+    const out = offeredAttacks(type, view, weapon, abilities, mode, loadout);
+    return options.player ? [...out, ...genericActions(mode, options.fighter)] : out;
+}
+
+function offeredAttacks(type, view, weapon, abilities = [], mode = 'fight', loadout = null) {
     const visible = visibleProfIds(type, view);
     const actions = (type.actions || []).filter(a => !a.prof || visible.has(a.prof));
     const held = new Set(view.profs
@@ -61,6 +97,14 @@ export function offeredActions(type, view, weapon, abilities = [], mode = 'fight
     const base = [...(withWeapon.length ? withWeapon : pool), ...abilityActions(abilities, mode)];
     // Holding a weapon: its own attack, named after it, stands in for the world's basic one.
     const gear = loadout ? buildGearActions(type, loadout) : null;
+    // Holding nothing: the weapons the world lists are not theirs to swing. One plain Attack stands in for them.
+    if (loadout && gear && !gear.weapon && !weapon?.prof) {
+        const weaponProfs = new Set((view.profs || []).filter(p => p.roles.includes('weapon')).map(p => p.id));
+        const rest = base.filter(a => a.ability || !weaponProfs.has(a.prof));
+        const fists = unarmedAction(type, view);
+        const kept = [...(fists ? [fists] : []), ...rest.filter(a => !gear.replaces.has(a.key) && !gear.byKey.has(a.key)), ...gear.focus];
+        return kept;
+    }
     if (!gear || (!gear.weapon && !gear.focus.length)) return base;
     const rest = base.filter(a => !gear.replaces.has(a.key) && !gear.byKey.has(a.key));
     return [...(gear.weapon ? [gear.weapon] : []), ...rest, ...gear.focus];
@@ -484,6 +528,8 @@ export function startFight(type, people, opts = {}) {
             weaponName: loadout.main.default ? (p.weapon?.name || '') : weaponName(loadout),
             abilities: gatedAbilities(gearRules(type), abilityList(type), resolveAbilities(type, p.data?.abilities), loadout).filter(ab => !Array.isArray(ab.modes) || ab.modes.includes(mode)),
             shield: 0,
+            evade: 0,
+            healUses: 0,
             sig: JSON.stringify([p.data?.stats, p.data?.meta, p.data?.profs, p.data?.abilities, p.weapon, loadout.main, loadout.off, loadout.focus]),
             // Fork: lasting effects, a stun, running away, a form, and the belt's uses for this fight.
             effects: [],
@@ -562,7 +608,11 @@ export function takeTurn(type, state, actionKey, targetId) {
     if (!actor) return { ok: false, reason: 'Nobody is left to act.' };
     if (String(actionKey).startsWith('tool:')) return useTool(type, state, actor, String(actionKey).slice(5), targetId);
     const action = actor.gearActions?.byKey.get(actionKey)
-        || [...(type.actions || []), ...abilityActions(activeAbilities(actor), state.mode)].find(a => a.key === actionKey);
+        || [...(type.actions || []), ...abilityActions(activeAbilities(actor), state.mode)].find(a => a.key === actionKey)
+        || (actionKey === 'unarmed' ? unarmedAction(type, actor.view) : null)
+        || genericActions('fight').find(a => a.key === actionKey);
+    // A dodge or a brace lasts for one round: until this fighter next acts.
+    actor.evade = 0;
     if (!action) {
         const held = String(actionKey).startsWith('ability:') && actor.abilities.find(x => `ability:${x.id}` === actionKey);
         if (held && state.mode === 'spar' && heals(held)) return { ok: false, reason: 'There is no healing in a spar.' };
@@ -595,12 +645,15 @@ export function takeTurn(type, state, actionKey, targetId) {
         const block = Number(action.effect?.block) || 0;
         let healed = 0;
         if (block > 0) actor.shield = Math.max(actor.shield, Math.min(1, block));
+        const evade = Number(action.effect?.evade) || 0;
+        if (evade > 0) actor.evade = Math.min(1, evade);
+        if (action.key === 'heal') actor.healUses = (actor.healUses || 0) + 1;
         if (Number(action.effect?.heal) > 0) healed = healFighter(actor, Number(action.effect.heal));
         // A form: from now on their abilities are the form's (see formAbilities).
         if (action.form) actor.form = { ...action.form };
         events.push({
             actor: actor.id, target: actor.id, action: action.key, label: action.label, ability: true,
-            healed, braced: block > 0 ? block : 0, pool: 'health', band: '', taken: 0, down: false,
+            healed, braced: block > 0 ? block : 0, ...(evade > 0 ? { evading: evade } : {}), pool: 'health', band: '', taken: 0, down: false,
             ...(action.form ? { form: action.form.label } : {}),
         });
         state.log.push(...events);
@@ -621,6 +674,12 @@ export function takeTurn(type, state, actionKey, targetId) {
         }, { rng: state.rng, diff: playerDiff(state, actor) + edge.hit + press, gear: off ? off.gear : action.gear });
         let damage = result.damage;
         const notes = [];
+        // A dodge in hand: one chance to turn the blow aside completely.
+        if (damage > 0 && target.evade > 0) {
+            const dodged = state.rng() < target.evade;
+            target.evade = 0;
+            if (dodged) { damage = 0; notes.push('evaded'); }
+        }
         let blocked = 0;
         let drain = Number(action.effect?.drain) || 0;
         let firedDefend = [];
