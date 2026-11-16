@@ -363,7 +363,7 @@ const L = {
         clear: 'Очистить переписку', cleared: 'Переписка очищена.', clear_confirm: 'Точно стереть: {name}?',
         ask_photo: 'Попросить прислать фото', ask_photo_off: 'Попросить фото: включи генерацию фото в настройках телефона',
         set_vision: 'Пусть персонажи видят фото, которые я отправляю',
-        br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)', br_always: 'Всегда (только персонажи в сцене)',
+        br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)', br_always: 'Всегда (каждый ответ, последние сообщения)', br_arrive: 'Если персонажа нет в сцене, пусть история приведёт его к игроку',
         br_mode_hint: 'Иногда последние сообщения из телефона попадают к модели истории, и персонаж может о них вспомнить. В чате они не показываются.',
         br_test: 'проверка', br_default: 'по умолчанию', br_chance_where: 'Работает в случайном режиме.', br_chance_set: 'Шанс: {n}%.',
         br_chance: 'Шанс, %', br_chance_hint: '5 — редко. 100 = в каждом ответе, для проверки (пауза не учитывается)',
@@ -446,7 +446,7 @@ const L = {
         clear: 'Clear thread', cleared: 'Thread cleared.', clear_confirm: 'Really erase: {name}?',
         ask_photo: 'Ask for a photo', ask_photo_off: 'Ask for a photo: turn on photo generation in the phone settings',
         set_vision: 'Let characters see the photos I send',
-        br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random (hidden)', br_always: 'Always (only characters in the scene)',
+        br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random chance (hidden)', br_always: 'Always (every reply, latest texts)', br_arrive: 'If the person is not in the scene, tell the story to bring them to the player',
         br_mode_hint: 'Now and then the latest phone texts go to the story model so the character can bring them up. They are never shown in the chat.',
         br_test: 'testing', br_default: 'default', br_chance_where: 'Used in Random mode.', br_chance_set: 'Chance set to {n}%.',
         br_chance: 'Chance, %', br_chance_hint: '5 is rare. 100 = every reply, for testing (ignores the cooldown)',
@@ -3057,7 +3057,7 @@ function onBridgeGeneration(type, _options, dryRun) {
             bridgeTurn = key ? { key, text: '', names: [] } : null;
             return;
         }
-        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime() });
+        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime(), arrive: b.arrive });
         const names = res.picks.map(p => p.name);
         bridgeApply(text);
         markShown(settings.bridgeShown, res.picks);
@@ -3078,7 +3078,7 @@ function bridgePreview() {
     let res;
     if (b.mode === 'off') res = { fire: false, reason: 'off', picks: [] };
     else res = chooseBridge({ bridge: { ...b, chance: 100 }, contacts: bridgeContacts(), shown: settings.bridgeShown, armed: true, since: Infinity });
-    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime() }) : '';
+    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime(), arrive: b.arrive }) : '';
     return { res, text };
 }
 
@@ -3135,6 +3135,7 @@ function setupBridgeUI() {
     bcheck('#rph-br-inlist', 'inList');
     bcheck('#rph-br-onlynew', 'onlyNew');
     bcheck('#rph-br-onlyscene', 'onlyScene');
+    bcheck('#rph-br-arrive', 'arrive');
     bcheck('#rph-br-notify', 'notify');
     $('#rph-br-role').val(b.role).on('change', function () { b.role = BRIDGE_ROLES.includes(this.value) ? this.value : 'system'; save(); });
     $('#rph-br-instr').val(b.instruction).on('change', function () {
@@ -5020,6 +5021,7 @@ function settingsHtml() {
             </div>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-onlynew"><span>${t('br_onlynew')}</span></label>
             <label class="checkbox_label rph-br-random"><input type="checkbox" id="rph-br-onlyscene"><span>${t('br_onlyscene')}</span></label>
+            <label class="checkbox_label"><input type="checkbox" id="rph-br-arrive"><span>${t('br_arrive')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-notify"><span>${t('br_notify')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-inlist"><span>${t('br_inlist')}</span></label>
             <small>${t('br_inlist_hint')}</small>

@@ -22,6 +22,7 @@ export const BRIDGE_DEFAULTS = Object.freeze({
     cooldown: 3,            // random mode: at least this many replies between two times
     messages: 6,            // how many of the latest texts are given
     onlyNew: true,          // only texts not given before
+    arrive: false,          // when the texts of someone who is NOT in the scene go to the story, also tell it to bring them to the player
     onlyScene: true,        // random mode: only people who are in the scene
     maxContacts: 1,         // how many conversations at once
     depth: 0,               // how far back in the chat the block sits (0: with the latest message)
@@ -44,6 +45,7 @@ export function normalizeBridge(raw) {
         cooldown: clamp(r.cooldown, 0, 50, d.cooldown),
         messages: clamp(r.messages, 1, 30, d.messages),
         onlyNew: r.onlyNew === undefined ? d.onlyNew : Boolean(r.onlyNew),
+        arrive: Boolean(r.arrive),
         onlyScene: r.onlyScene === undefined ? d.onlyScene : Boolean(r.onlyScene),
         maxContacts: clamp(r.maxContacts, 1, 4, d.maxContacts),
         depth: clamp(r.depth, 0, 20, d.depth),
@@ -84,8 +86,8 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
         if (!(rng() * 100 < b.chance)) return none('not this time');
     }
     // asked for by hand: anyone with texts; at random: only the people in the scene (when set)
-    // always: every reply, but only for people in the scene (the one texted most recently first)
-    const wantScene = b.mode === 'always' || (b.mode === 'random' && b.onlyScene && !asked);
+    // always: every reply, anyone you have texted (not only the people in the scene), the one texted most recently first
+    const wantScene = b.mode === 'random' && b.onlyScene && !asked;
     const picks = [];
     let anyTexts = false;
     for (const c of contacts || []) {
@@ -95,11 +97,11 @@ export function chooseBridge({ bridge, contacts, shown = {}, armed = false, sinc
         if (wantScene && !c.inScene) continue;
         const fresh = b.onlyNew ? all.filter(m => (Number(m.ts) || 0) > (Number(shown[c.id]) || 0)) : all;
         if (!fresh.length) continue;
-        picks.push({ id: c.id, name: c.name, messages: fresh.slice(-b.messages), last: Math.max(Number(all[all.length - 1].ts) || 0, Number(fresh[fresh.length - 1].ts) || 0) });
+        picks.push({ id: c.id, name: c.name, inScene: Boolean(c.inScene), messages: fresh.slice(-b.messages), last: Math.max(Number(all[all.length - 1].ts) || 0, Number(fresh[fresh.length - 1].ts) || 0) });
     }
     if (!picks.length) return none(anyTexts ? (wantScene ? 'nobody texted is in the scene, or nothing new' : 'nothing new to give') : 'no texts yet');
     picks.sort((x, y) => y.last - x.last);
-    return { fire: true, reason: asked ? 'asked for' : b.mode, picks: picks.slice(0, b.maxContacts).map(({ id, name, messages }) => ({ id, name, messages })) };
+    return { fire: true, reason: asked ? 'asked for' : b.mode, picks: picks.slice(0, b.maxContacts).map(({ id, name, inScene, messages }) => ({ id, name, inScene, messages })) };
 }
 
 /**
@@ -138,14 +140,16 @@ export function nowLine({ clock = null, nowMs = Date.now() } = {}) {
  * ago it was sent and the block says what time it is now; without it, no times are written.
  * These words are only for the model: nothing here is ever shown in the phone.
  */
-export function bridgeText({ picks, user = 'the player', instruction = DEFAULT_BRIDGE_INSTRUCTION, time = null }) {
+export function bridgeText({ picks, user = 'the player', instruction = DEFAULT_BRIDGE_INSTRUCTION, time = null, arrive = false }) {
     if (!picks || !picks.length) return '';
     return picks.map((p) => {
         const lines = p.messages.map((m) => {
             const ago = time ? agoText(m, time) : '';
             return `- ${m.who === 'user' ? user : (m.name || p.name)}${ago ? ` (${ago})` : ''}: ${textOf(m)}`;
         });
-        const how = String(instruction || DEFAULT_BRIDGE_INSTRUCTION).replace(/<<contact>>/gi, p.name).replace(/<<user>>/gi, user);
+        let how = String(instruction || DEFAULT_BRIDGE_INSTRUCTION).replace(/<<contact>>/gi, p.name).replace(/<<user>>/gi, user);
+        // texted, but not here: the story is told to bring them over
+        if (arrive && p.inScene === false) how += ` ${p.name} is not with ${user} right now. In this reply, have ${p.name} come to ${user} and arrive in the scene, as these texts suggest.`;
         const last = time ? agoText(p.messages[p.messages.length - 1], time) : '';
         const when = time ? `${nowLine(time)}${last ? ` The last text was sent ${last}.` : ''}\n` : '';
         return `[PHONE TEXTS between ${p.name} and ${user}, newest last:\n${when}${lines.join('\n')}\n${how}]`;
