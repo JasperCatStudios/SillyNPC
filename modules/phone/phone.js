@@ -1697,6 +1697,8 @@ async function callComfy(prompt, ref, extras = {}) {
         }
         const v = { prompt, negative: c.negative || '', seed, w, h, ckpt, lora: extras.lora || '', loraStrength: extras.loraStrength };
         const custom = String(wfText || '').trim();
+        // a workflow that edits a picture needs one: say so, rather than let ComfyUI fail on an empty file name
+        if (custom && custom.includes('%image%') && !ref) throw comfyErr('comfy-noimage', 'no picture');
         if (custom && ref && custom.includes('%image%')) v.image = await comfyUploadReference(base, ref);
         // the character sheet: their own, else the reference picture
         const sheetPic = extras.sheet || ref;
@@ -1918,6 +1920,7 @@ function drawErrText(e) {
         case 'comfy-timeout': return t('e_ctime', { s: e.secs });
         case 'comfy-badjson': return t('e_badjson');
         case 'comfy-noprompt': return t('e_noprompt');
+        case 'comfy-noimage': return 'This workflow edits a picture of the character, and there is none for them. Upload a character sheet on their Gallery page, or give them a portrait.';
     }
     if (e.message === 'no-img-cfg') return t('e_nocfg');
     if (e.name === 'TimeoutError' || e.name === 'AbortError') return t('e_time', { s: IMG_TIMEOUT_S });
