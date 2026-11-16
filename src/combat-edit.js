@@ -1,4 +1,5 @@
 import { ladderOf, rungIndex } from './combat-roles.js';
+import { normalizeStyle } from './combat-style.js';
 import { emptyTypeData, normalizeCombatBlock, normalizeWeapon } from './combat-store.js';
 import { isStatus } from './combat-status.js';
 import {
@@ -223,6 +224,20 @@ export function setAbilities(record, type, ids, at = Date.now()) {
         log(data, 'abilities', from.join(', ') || null, next.join(', ') || null, at);
     }
     return { ok: true, from, to: next };
+}
+
+/**
+ * Writes a combat style on a character (attack, defend and evade priorities, 0 to 100). Passing null,
+ * or nothing usable, removes it, so their default (worked out from their sheet) applies again.
+ */
+export function setStyle(record, type, style, at = Date.now()) {
+    const data = ensureTypeData(record, type.dataKey);
+    const next = normalizeStyle(style);
+    const from = data.style ? JSON.stringify(data.style) : null;
+    if (next) data.style = next; else delete data.style;
+    const to = next ? JSON.stringify(next) : null;
+    if (from !== to) log(data, 'style', from, to, at);
+    return { ok: true, from, to };
 }
 
 /** Sets the condition grade (E- near death ... S+ healthy). Blank clears it, which reads as S+. */

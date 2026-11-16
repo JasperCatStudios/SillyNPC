@@ -96,7 +96,7 @@ export function simulate(type, people, opts, poolScale, runs = 41) {
             const actor = currentActor(state);
             if (!actor) break;
             const target = living(state, actor.side === 'player' ? 'foe' : 'player')[0];
-            const action = target ? chooseAction(type, actor.view, actor.weapon, { me: actor, foe: target, mode: state.mode, diff: actor.side === 'player' ? state.diff : -state.diff }) : null;
+            const action = target ? chooseAction(type, actor.view, actor.weapon, { me: actor, foe: target, mode: state.mode, diff: actor.side === 'player' ? state.diff : -state.diff, rng: state.rng }) : null;
             if (!target || !action) {
                 actor.down = true;
                 skipTurn(state, 'nothing to do');

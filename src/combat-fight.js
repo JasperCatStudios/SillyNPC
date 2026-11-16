@@ -3,6 +3,7 @@ import { project } from './combat-roles.js';
 import { resolveAttack, rollInitiative, grantsFollowUp, previewOdds, abilityChance } from './combat-math.js';
 import { resolveAbilities, abilityList, abilityActions, passivesFor, fires, heals, blowMult, formAbilities } from './combat-abilities.js';
 import { resolveLoadout, weaponName, gearRules, gatedAbilities } from './combat-gear.js';
+import { resolveStyle } from './combat-style.js';
 import { unarmedAttack, buildGearActions } from './combat-weapons.js';
 
 /**
@@ -88,11 +89,27 @@ export function unarmedAction(type, view) {
     return { key: 'unarmed', label: 'Attack', prof: basis.prof, power: Math.max(1, Math.round((Number(basis.power) || 0) * 0.6)), channel: basis.channel, desc: 'Strike with what you have.' };
 }
 
-/** Defend, Evade and (a real fight only, a couple of times) Heal, for this fighter. */
-export function genericActions(mode = 'fight', fighter = null) {
+/**
+ * Why a fighter may not brace or dodge right now, or '' when they may. Never twice in a row, and never
+ * more than two in any five turns: it is better than most moves but cannot be done every turn.
+ */
+export function defensiveLocked(fighter) {
+    const turns = fighter?.turns || 0;
+    const history = fighter?.defHistory || [];
+    if (history.includes(turns - 1)) return 'You just braced or dodged. Attack, or use an ability, before you do it again.';
+    if (history.filter(t => t >= turns - 4).length >= 2) return 'You cannot keep falling back: two braces or dodges in five turns is the limit.';
+    return '';
+}
+
+/**
+ * Defend, Evade and (a real fight only, a couple of times, and never for the computer) Heal, for this
+ * fighter. Defend and Evade carry a locked reason while the limit above holds.
+ */
+export function genericActions(mode = 'fight', fighter = null, computer = false) {
     const g = genericFor(fighter?.view);
-    const out = [g.defend, g.evade];
-    if (mode !== 'spar' && !(fighter && (fighter.healUses || 0) >= HEAL_USES)) out.push(g.heal);
+    const lock = defensiveLocked(fighter);
+    const out = [lock ? { ...g.defend, locked: lock } : g.defend, lock ? { ...g.evade, locked: lock } : g.evade];
+    if (!computer && mode !== 'spar' && !(fighter && (fighter.healUses || 0) >= HEAL_USES)) out.push(g.heal);
     return out;
 }
 
@@ -103,7 +120,7 @@ export function genericActions(mode = 'fight', fighter = null) {
 export function offeredActions(type, view, weapon, abilities = [], mode = 'fight', loadout = null, options = {}) {
     const out = offeredAttacks(type, view, weapon, abilities, mode, loadout);
     // The player's own choices, and the computer's too: everybody has the same moves.
-    return options.generic || options.player ? [...out, ...genericActions(mode, options.fighter || { view })] : out;
+    return options.generic || options.player ? [...out, ...genericActions(mode, options.fighter || { view }, Boolean(options.computer))] : out;
 }
 
 function offeredAttacks(type, view, weapon, abilities = [], mode = 'fight', loadout = null) {
@@ -199,9 +216,13 @@ function bestExpected(type, attacker, defender, diff, mode, abilities = activeAb
  * Null when nothing is affordable.
  */
 export function chooseAction(type, view, weapon, extra = {}) {
-    const { me, foe, mode = 'fight', diff = 0 } = extra;
-    const acts = offeredActions(type, view, weapon, me ? activeAbilities(me) : undefined, mode, me?.loadout, me ? { generic: true, fighter: me } : {}).filter(a => canPay(view, a));
-    if (!acts.length) return null;
+    const { me, foe, mode = 'fight', diff = 0, rng } = extra;
+    const all = offeredActions(type, view, weapon, me ? activeAbilities(me) : undefined, mode, me?.loadout,
+        me ? { generic: true, computer: true, fighter: me } : {}).filter(a => canPay(view, a));
+    // Bracing and dodging are chosen by the fighter's combat style (below), not by comparing blows.
+    const acts = all.filter(a => !a.generic);
+    const guards = all.filter(a => a.generic && !a.locked);
+    if (!acts.length) return guards[0] || null;
     const attacks = acts.filter(a => !a.self);
     const selfActs = acts.filter(a => a.self);
     if (!attacks.length) return selfActs[0] || null;
@@ -220,25 +241,16 @@ export function chooseAction(type, view, weapon, extra = {}) {
         if (!act.self) return (expectedDamage(type, me, foe, act, diff) / theirMax) * worth;
         let v = 0;
         const block = Number(act.effect?.block) || 0;
-        const dodge = Number(act.effect?.evade) || 0;
         const heal = Number(act.effect?.heal) || 0;
-        if (dodge > 0 && !(me.evade > 0)) {
-            // A dodge is a brace that either works completely or not at all; worth the chance times the blow.
-            // Only when hurt: at full strength the computer keeps swinging instead of stalling the fight.
-            const pool = me.view.pools[hit];
-            const hurt = pool && pool.max > 0 ? 1 - pool.cur / pool.max : 0;
-            if (hurt >= 0.25) v += ((incoming * dodge) / mineMax) * (0.25 + 0.75 * hurt) * 0.8;
-        }
         if (block > 0 && !(me.shield > 0)) {
             // Bracing is worth more the more hurt I am; at full strength it mostly wastes a turn.
             const pool = me.view.pools[hit];
             const hurt = pool && pool.max > 0 ? 1 - pool.cur / pool.max : 0;
-            if (!act.generic || hurt >= 0.25) v += ((incoming * block) / mineMax) * (0.25 + 0.75 * hurt) * (act.generic ? 0.8 : 1);
+            v += ((incoming * block) / mineMax) * (0.25 + 0.75 * hurt);
         }
         if (heal > 0 && mode !== 'spar') {
             const h = me.view.pools.health;
-            // The plain Heal is worth a little less than a real healing ability, so a fighter that has one uses it first.
-            if (h) v += (Math.min(h.max - h.cur, Math.round(h.max * heal)) / Math.max(1, h.max)) * (act.generic ? 0.85 : 1);
+            if (h) v += Math.min(h.max - h.cur, Math.round(h.max * heal)) / Math.max(1, h.max);
         }
         if (act.form) {
             // Entering a form is worth what it adds to the best blow, over the next couple of turns.
@@ -248,6 +260,30 @@ export function chooseAction(type, view, weapon, extra = {}) {
         }
         return v * 0.95 * worth;
     };
+
+    // First the style: a chance to brace or dodge instead, shaped by how hurt they are and how hard the
+    // next blow is expected to land. Only with a random source, so a fight with a seed replays exactly.
+    if (guards.length && typeof rng === 'function') {
+        const style = me.style || { defend: 0, evade: 0 };
+        const pool = me.view.pools[hit];
+        const hurt = pool && pool.max > 0 ? 1 - pool.cur / pool.max : 0;
+        const danger = incoming / mineMax;
+        const urge = Math.min(1.6, Math.max(0.3, 0.4 + 1.2 * hurt + 1.5 * danger));
+        const want = (key) => {
+            if (!guards.some(g => g.key === key)) return 0;
+            if (key === 'defend' && me.shield > 0) return 0;
+            if (key === 'evade' && me.evade > 0) return 0;
+            return Math.min(0.9, Math.max(0, ((Number(style[key]) || 0) / 100) * urge * 0.65));
+        };
+        const pd = want('defend');
+        const pe = want('evade');
+        const p = 1 - (1 - pd) * (1 - pe);
+        if (p > 0 && rng() < p) {
+            const key = rng() * (pd + pe) < pd ? 'defend' : 'evade';
+            const g = guards.find(x => x.key === key);
+            if (g) return g;
+        }
+    }
 
     let best = null;
     let bestValue = -1;
@@ -410,7 +446,7 @@ export function autoTurn(type, state) {
     }
     const target = pickTarget(type, state, actor);
     const action = target ? chooseAction(type, actor.view, actor.weapon, {
-        me: actor, foe: target, mode: state.mode, diff: playerDiff(state, actor),
+        me: actor, foe: target, mode: state.mode, diff: playerDiff(state, actor), rng: state.rng,
     }) : null;
     if (!target || !action) {
         actor.down = true;
@@ -561,6 +597,12 @@ export function startFight(type, people, opts = {}) {
             shield: 0,
             evade: 0,
             healUses: 0,
+            // How this fighter chooses when the computer plays them (see combat-style.js), and the
+            // turn counters that limit bracing and dodging.
+            style: resolveStyle(view, p.data?.style, { class: view.meta?.class }),
+            turns: 0,
+            defHistory: [],
+            opening: null,
             sig: JSON.stringify([p.data?.stats, p.data?.meta, p.data?.profs, p.data?.abilities, p.weapon, loadout.main, loadout.off, loadout.focus]),
             // Fork: lasting effects, a stun, running away, a form, and the belt's uses for this fight.
             effects: [],
@@ -642,8 +684,6 @@ export function takeTurn(type, state, actionKey, targetId) {
         || [...(type.actions || []), ...abilityActions(activeAbilities(actor), state.mode)].find(a => a.key === actionKey)
         || (actionKey === 'unarmed' ? unarmedAction(type, actor.view) : null)
         || genericActions('fight', actor).find(a => a.key === actionKey);
-    // A dodge or a brace lasts for one round: until this fighter next acts.
-    actor.evade = 0;
     if (!action) {
         const held = String(actionKey).startsWith('ability:') && actor.abilities.find(x => `ability:${x.id}` === actionKey);
         if (held && state.mode === 'spar' && heals(held)) return { ok: false, reason: 'There is no healing in a spar.' };
@@ -657,6 +697,18 @@ export function takeTurn(type, state, actionKey, targetId) {
     if (!action.self && (!target || target.side === actor.side || target.down)) {
         return { ok: false, reason: 'Pick someone still standing on the other side.' };
     }
+    const defensive = Boolean(action.generic && (action.key === 'defend' || action.key === 'evade'));
+    if (defensive) {
+        const lock = defensiveLocked(actor);
+        if (lock) return { ok: false, reason: lock };
+    }
+    // A dodge or a brace lasts until this fighter next acts; an opening from a dodge is spent on this turn's attack.
+    actor.evade = 0;
+    const turnIndex = actor.turns || 0;
+    actor.turns = turnIndex + 1;
+    if (defensive) (actor.defHistory ||= []).push(turnIndex);
+    const opening = !action.self ? actor.opening : null;
+    if (!action.self) actor.opening = null;
 
     const events = [];
     const foeView = action.self ? actor.view : target.view;
@@ -698,24 +750,27 @@ export function takeTurn(type, state, actionKey, targetId) {
         const off = hand === 'off' ? actor.gearActions?.off : null;
         const edge = teamEdge(type, state, actor);
         // Crowding and lasting effects: both 0 in a fight that has neither, so the roll is as it was.
-        const press = crowdPenalty(type, state, actor, target) + effectHit(actor, target);
+        const press = crowdPenalty(type, state, actor, target) + effectHit(actor, target) + (opening ? opening.hit : 0);
         const result = resolveAttack(type, actor.view, target.view, {
             prof: action.prof, power: off ? off.power : actionPower(action, actor), channel: action.channel,
             ...(action.element && !off ? { element: action.element } : {}),
         }, { rng: state.rng, diff: playerDiff(state, actor) + edge.hit + press, gear: off ? off.gear : action.gear });
         let damage = result.damage;
         const notes = [];
+        let braceUsed = false;
+        let dodgedBlow = false;
         // A dodge in hand: one chance to turn the blow aside completely.
         if (damage > 0 && target.evade > 0) {
             const dodged = state.rng() < target.evade;
             target.evade = 0;
-            if (dodged) { damage = 0; notes.push('evaded'); }
+            // A clean dodge leaves the attacker off balance: the dodger's next attack finds an opening.
+            if (dodged) { damage = 0; notes.push('evaded'); target.opening = { hit: 3, mult: 1.25 }; dodgedBlow = true; }
         }
         let blocked = 0;
         let drain = Number(action.effect?.drain) || 0;
         let firedDefend = [];
         if (damage > 0) {
-            let mult = blowMult(action.effect, actor.view) * (follow ? followMult : 1) * edge.mult;
+            let mult = blowMult(action.effect, actor.view) * (follow ? followMult : 1) * edge.mult * (opening ? opening.mult : 1);
             for (const ab of passivesFor(activeAbilities(actor), 'attack', state.mode, actor.view)) {
                 if (!fires(ab, actor.view, target.view, state.rng)) continue;
                 mult *= blowMult(ab.effect, actor.view);
@@ -723,7 +778,7 @@ export function takeTurn(type, state, actionKey, targetId) {
                 notes.push(ab.label);
             }
             damage = Math.max(1, Math.round(damage * mult));
-            if (target.shield > 0) { blocked = target.shield; target.shield = 0; notes.push('braced'); }
+            if (target.shield > 0) { blocked = target.shield; target.shield = 0; notes.push('braced'); braceUsed = true; }
             // Each defending passive is rolled once; what it does (block, heal, counter) all follows from that roll.
             firedDefend = passivesFor(activeAbilities(target), 'defend', state.mode, target.view)
                 .filter(ab => fires(ab, target.view, actor.view, state.rng));
@@ -756,7 +811,26 @@ export function takeTurn(type, state, actionKey, targetId) {
             damage, margin: result.margin, advantage: result.element ? [...result.advantage.labels, result.element.label] : result.advantage.labels,
             pool: applied.pool, taken: applied.taken, down: applied.down,
             passives: notes, blocked: Math.round(blocked * 100), healed, drained,
+            ...(opening ? { opening: true } : {}),
+            ...(dodgedBlow ? { evaded: true } : {}),
         });
+        // A brace that turned a blow aside is answered at once: a riposte at the defender's own best free attack.
+        if (braceUsed && result.damage > 0 && !target.down && !actor.down) {
+            const back = offeredActions(type, target.view, target.weapon, [], state.mode, target.loadout).find(x => !x.self && !(x.cost?.amount));
+            if (back) {
+                const r = resolveAttack(type, target.view, actor.view, {
+                    prof: back.prof, power: actionPower(back, target), channel: back.channel,
+                }, { rng: state.rng, diff: playerDiff(state, target) + effectHit(target, actor), gear: back.gear });
+                const dealt = r.damage > 0 ? Math.max(1, Math.round(r.damage * 0.6)) : 0;
+                const hitBack = applyDamage(actor, dealt, state.mode);
+                events.push({
+                    actor: target.id, target: actor.id, action: back.key, label: 'Riposte', counter: true, riposte: true,
+                    weapon: target.weaponName || '', follow: false, band: r.band, total: r.total, natural: r.natural,
+                    damage: dealt, advantage: [], pool: hitBack.pool, taken: hitBack.taken, down: hitBack.down,
+                    passives: [], blocked: 0, healed: 0, drained: 0,
+                });
+            }
+        }
         // A counter: the one who was struck hits back at once, with the best attack that costs nothing.
         if (damage > 0 && !target.down) {
             for (const ab of firedDefend) {

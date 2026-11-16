@@ -3,6 +3,8 @@ import { project, ladderOf, rolesUsingStat, PROF_ROLES } from './combat-roles.js
 import { getTypeData, hasTypeData } from './combat-store.js';
 import { detectLegacy } from './combat-migrate.js';
 import { planFromLegacy } from './combat-plan.js';
+import { setStyle } from './combat-edit.js';
+import { STYLE_KEYS, STYLE_LABELS, defaultStyle, normalizeStyle } from './combat-style.js';
 import { setStat, setMeta, setRank, setStatus, setAbilities, setXp, setLevel, removeUnknown, visibleProfs } from './combat-edit.js';
 import { combatPrefs, allTypes, activeCombatType, isPersonaChar, setPersonaChar } from './combat-access.js';
 import { runMigration } from './combat-run.js';
@@ -284,6 +286,37 @@ function renderType(record, type, rerender, options) {
         statusSel.value = data.status || STATUS_DEFAULT;
         statusSel.addEventListener('change', () => commit(setStatus(record, type, statusSel.value), null));
         row.append(field('Status', statusSel, 'How hurt they are. Fights start from this and update it afterwards. Set S+ to fully rest.'));
+        body.append(row);
+    }
+
+    // Combat style: how the computer plays this character. The default is worked out from their sheet.
+    {
+        const view = project(data, type);
+        const fallback = defaultStyle(view, { class: view.meta?.class });
+        const written = normalizeStyle(data.style) || {};
+        body.append(el('div', 'sillynpc-combat-group', 'Combat style'));
+        body.append(el('small', 'notes',
+            'How the computer plays them: how readily they attack, brace (Defend) or dodge (Evade). Defend and Evade can never be '
+            + 'done twice in a row, or more than twice in five turns, and a brace that lands is answered with a riposte and a clean dodge '
+            + 'with an opening. The grey number is the default from their stats and class; type a number to replace it.'));
+        const row = el('div', 'sillynpc-combat-meta');
+        for (const key of STYLE_KEYS) {
+            const input = el('input', 'text_pole');
+            input.type = 'number'; input.min = '0'; input.max = '100'; input.step = '5';
+            input.placeholder = String(fallback[key]);
+            input.value = written[key] ?? '';
+            input.title = `Default ${fallback[key]}. Blank uses the default.`;
+            input.addEventListener('change', () => {
+                const next = {};
+                for (const k of STYLE_KEYS) {
+                    const box = row.querySelector(`[data-style="${k}"]`);
+                    if (box && box.value !== '') next[k] = Number(box.value);
+                }
+                commit(setStyle(record, type, Object.keys(next).length ? next : null), null);
+            });
+            input.dataset.style = key;
+            row.append(field(STYLE_LABELS[key], input, key === 'attack' ? 'Priority to simply strike' : key === 'defend' ? 'How readily they brace' : 'How readily they dodge'));
+        }
         body.append(row);
     }
 

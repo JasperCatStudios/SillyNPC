@@ -294,13 +294,15 @@ function describe(event) {
     }
     const band = BANDS[event.band] || event.band;
     const how = event.weapon ? `${event.label}, ${event.weapon}` : event.label;
-    const lead = event.parting ? `${actor.name} catches ${target.name} running (${event.label})` : event.counter ? `${actor.name} strikes back (${event.label})` : event.offhand ? `${actor.name} strikes again with the second blade (${event.label})` : event.follow ? `${actor.name} follows up` : `${actor.name} — ${how}`;
+    const lead = event.parting ? `${actor.name} catches ${target.name} running (${event.label})` : event.riposte ? `${actor.name} ripostes the blow they turned aside` : event.counter ? `${actor.name} strikes back (${event.label})` : event.offhand ? `${actor.name} strikes again with the second blade (${event.label})` : event.follow ? `${actor.name} follows up` : `${actor.name} — ${how}`;
     const edge = event.advantage?.length ? ` (${event.advantage.join(', ')})` : '';
     const pool = target.view.pools[event.pool];
     const amount = pool && asPercent(event.pool) ? `${Math.max(1, Math.round((event.taken / pool.max) * 100))}%` : event.taken;
     const extras = [];
     if (event.passives?.length) extras.push(event.passives.join(', '));
     if (event.gearCrit) extras.push('finds a weak point');
+    if (event.opening) extras.push('seizes the opening from the dodge');
+    if (event.evaded) extras.push(`dodged: ${target.name} gains an opening`);
     if (event.blocked > 0) extras.push(`${event.blocked}% blocked`);
     if (event.healed > 0) extras.push(`recovers ${Math.max(1, Math.round((event.healed / target.view.pools.health.max) * 100))}% health`);
     if (event.drained > 0) extras.push(`${actor.name} drains ${Math.max(1, Math.round((event.drained / actor.view.pools.health.max) * 100))}% health`);
@@ -476,13 +478,14 @@ function drawBattle(body) {
     for (const action of mine) {
         let affordable = canPay(actor.view, action);
         const fullHealth = action.key === 'heal' && actor.view.pools.health && actor.view.pools.health.cur >= actor.view.pools.health.max;
-        if (fullHealth) affordable = false;
+        if (fullHealth || action.locked) affordable = false;
         const button = el('button', `menu_button${action.ability ? ' is-ability' : ''}`, action.label);
         button.type = 'button';
         button.disabled = !affordable;
         const tip = [action.desc, action.cost?.amount ? `Costs ${action.cost.amount} ${type.pools.find(p => p.role === action.cost.pool)?.label || action.cost.pool}.` : ''].filter(Boolean).join(' ');
         if (tip) button.title = tip;
-        if (fullHealth) button.title = 'You are not hurt.';
+        if (action.locked) button.title = action.locked;
+        else if (fullHealth) button.title = 'You are not hurt.';
         else if (!affordable && action.cost?.amount) button.title = `Needs ${action.cost.amount} ${type.pools.find(p => p.role === action.cost.pool)?.label || action.cost.pool}. ${tip}`;
         button.addEventListener('click', () => {
             const result = takeTurn(type, state, action.key, target.id);

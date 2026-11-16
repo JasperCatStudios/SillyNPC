@@ -1,4 +1,5 @@
 import { ladderOf, rungIndex } from './combat-roles.js';
+import { normalizeStyle } from './combat-style.js';
 import { isStatus } from './combat-status.js';
 import { normalizeCharGear } from './combat-gear.js';
 
@@ -62,6 +63,9 @@ function normalizeTypeData(raw) {
     out.status = isStatus(d.status) ? d.status : null;
     out.xp = Math.max(0, Math.min(199, Math.floor(Number(d.xp)) || 0));
     out.level = Number(d.level) >= 1 ? Math.floor(Number(d.level)) : null;
+    // A combat style written on the character (combat-style.js); absent means the default for their sheet.
+    const style = normalizeStyle(d.style);
+    if (style) out.style = style;
     out.abilities = Array.isArray(d.abilities) ? [...new Set(d.abilities.map(String))] : [];
     return out;
 }
