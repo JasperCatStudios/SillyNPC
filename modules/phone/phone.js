@@ -8,6 +8,7 @@ import { extension_settings, getContext } from '../../../../../extensions.js';
 import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
+import { comfyBase as imagegenBase, imagegenSettings, generateImage as imagegenGenerate, cancelImageGen } from '../../src/comfy-engine.js';
 import { speakNamed } from '../../src/tts.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
@@ -301,11 +302,11 @@ const L = {
         img_size: 'Размер', img_style: 'Стиль', img_style_ph: 'например: аниме, мягкий свет', img_tpl: 'Промпт фото · {CAPTION} {NAME} {LOOK} {STYLE}',
         img_borrowed: 'Подключение взято из Кроличьей норы.', img_develop: 'Проявить', img_drawing: 'Рисую…', img_retry: 'Не вышло — нажми, чтобы повторить',
         img_off: 'Включи «Фото от персонажей» в настройках телефона.', img_retrying: 'Фото: попытка {a} из {b}…', img_cancel: 'Остановить', img_redo: 'Перерисовать',
-        comfy_state0: 'ещё не проверяли', comfy_test: '🔌 Проверить', comfy_ckpt: 'Модель (чекпойнт)', comfy_first: 'первая по списку',
+        comfy_moved: 'ComfyUI настраивается в модуле «Images» (Modules): адрес, воркфлоу и все параметры. Воркфлоу каждого персонажа выбирается в его профиле.', comfy_state0: 'ещё не проверяли', comfy_test: '🔌 Проверить', comfy_ckpt: 'Модель (чекпойнт)', comfy_first: 'первая по списку',
         comfy_lora: 'Лора', comfy_nolora: 'без лоры', comfy_lstr: 'Сила', comfy_sampler: 'Сэмплер', comfy_sched: 'Планировщик', comfy_steps: 'Шаги',
         comfy_hires: 'Второй проход — чётче, но дольше', comfy_neg: 'Негативный промпт', comfy_wf: 'Свой воркфлоу (необязательно)',
         comfy_ok: '✓ на связи · моделей {c} · лор {l}', comfy_from_lens: ' · адрес из Линзы', comfy_wait: 'проверяю…',
-        e_noaddr: 'Впиши адрес ComfyUI в «URL API картинок», например http://127.0.0.1:8188',
+        e_noaddr: 'Впиши адрес ComfyUI в модуле «Images» (Modules), например http://127.0.0.1:8188',
         e_net: 'Не достучаться до ComfyUI: {base}. Он запущен с флагом --enable-cors-header?',
         e_nockpt: 'В ComfyUI нет ни одной модели — положи чекпойнт в models/checkpoints.',
         e_node: 'ComfyUI отказался: {m}', e_exec: 'ComfyUI упал во время рисования: {m}', e_ctime: 'ComfyUI не закончил за {s} с — задача снята с очереди.',
@@ -384,11 +385,11 @@ const L = {
         img_size: 'Size', img_style: 'Style', img_style_ph: 'e.g. anime, soft light', img_tpl: 'Photo prompt · {CAPTION} {NAME} {LOOK} {STYLE}',
         img_borrowed: 'Connection borrowed from the Rabbit Hole.', img_develop: 'Develop', img_drawing: 'Drawing…', img_retry: 'Failed — click to retry',
         img_off: 'Turn on "Photos from characters" in the phone settings.', img_retrying: 'Photo: attempt {a} of {b}…', img_cancel: 'Stop', img_redo: 'Redraw',
-        comfy_state0: 'not checked yet', comfy_test: '🔌 Check', comfy_ckpt: 'Model (checkpoint)', comfy_first: 'first in the list',
+        comfy_moved: 'ComfyUI is set up in Modules, Images: the address, the workflows and every setting. Each character\'s workflow is chosen on their profile.', comfy_state0: 'not checked yet', comfy_test: '🔌 Check', comfy_ckpt: 'Model (checkpoint)', comfy_first: 'first in the list',
         comfy_lora: 'LoRA', comfy_nolora: 'no LoRA', comfy_lstr: 'Strength', comfy_sampler: 'Sampler', comfy_sched: 'Scheduler', comfy_steps: 'Steps',
         comfy_hires: 'Second pass — sharper, but slower', comfy_neg: 'Negative prompt', comfy_wf: 'Your own workflow (optional)',
         comfy_ok: '✓ connected · models {c} · LoRAs {l}', comfy_from_lens: ' · address from Lens', comfy_wait: 'checking…',
-        e_noaddr: 'Enter the ComfyUI address in "Image API URL", e.g. http://127.0.0.1:8188',
+        e_noaddr: 'Enter the ComfyUI address in Modules, Images, e.g. http://127.0.0.1:8188',
         e_net: 'Cannot reach ComfyUI at {base}. Is it running with --enable-cors-header?',
         e_nockpt: 'ComfyUI has no models — put a checkpoint into models/checkpoints.',
         e_node: 'ComfyUI refused: {m}', e_exec: 'ComfyUI failed while drawing: {m}', e_ctime: 'ComfyUI did not finish in {s} s — the job was removed from the queue.',
@@ -1487,226 +1488,29 @@ function imgFetch(url, opts) {
     return fetch(url, Object.assign({}, opts, { signal: ctrl.signal }))
         .finally(() => { clearTimeout(timer); if (imgAbort === ctrl) imgAbort = null; });
 }
-function comfyCfg() {
+/* ComfyUI now lives in the Images module (src/comfy-engine.js): its address, the workflows (one per character,
+   chosen on their profile) and every setting that used to be here. The phone only asks it for a picture. */
+function comfyCfg() {   // kept so older saved settings still load
     const c = imgCfg();
     if (!c.comfy || typeof c.comfy !== 'object') c.comfy = { ...COMFY_DEF };
     for (const k in COMFY_DEF) if (c.comfy[k] === undefined) c.comfy[k] = COMFY_DEF[k];
     return c.comfy;
 }
-// ComfyUI address of Character Lens, when ours is empty — a peek, not a dependency
-function comfyBorrowed() {
-    try {
-        const l = extension_settings.character_lens;
-        const u = String(l?.img?.apiUrl || '').trim().replace(/\/+$/, '');
-        if (!u) return '';
-        if (l.img.mode === 'comfy' || /:8188(\/|$)/.test(u.toLowerCase()) || u.toLowerCase().includes('comfyui')) return u;
-    } catch (e) { }
-    return '';
-}
-function comfyBaseUrl() {
-    const own = String(imgConn().apiUrl || '').trim().replace(/\/+$/, '');
-    return own || comfyBorrowed();
-}
-function comfySize() {
-    const m = /^(\d+)\s*[x×]\s*(\d+)$/.exec(String(imgCfg().size || '').trim());
-    const fit = n => Math.max(256, Math.min(2048, Math.round(n / 8) * 8));
-    return m ? { w: fit(+m[1]), h: fit(+m[2]) } : { w: 768, h: 1024 };
-}
+function comfyBorrowed() { return ''; }
+function comfyBaseUrl() { return imagegenBase(); }
+function comfySize() { return { w: 768, h: 1024 }; }
 function comfyErr(code, msg, extra) { const e = new Error(msg); e.code = code; Object.assign(e, extra || {}); return e; }
-// a character's own LoRA (from Character Lens) wins over the general one for their photo
-function comfyLora(v, c) {
-    if (v && v.lora) return { lora: v.lora, strength: Number.isFinite(+v.loraStrength) ? +v.loraStrength : 1 };
-    return { lora: c.lora, strength: +c.loraStrength || 0.8 };
-}
-function comfyBuildGraph(v) {
-    const c = imgConn().comfy;
-    const g = {};
-    g['4'] = { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: v.ckpt } };
-    let model = ['4', 0], clip = ['4', 1];
-    const L = comfyLora(v, c);
-    if (L.lora) {
-        const st = Number.isFinite(+L.strength) ? Math.max(-2, Math.min(2, +L.strength)) : 0.8;
-        g['10'] = { class_type: 'LoraLoader', inputs: { lora_name: L.lora, strength_model: st, strength_clip: st, model, clip } };
-        model = ['10', 0]; clip = ['10', 1];
-    }
-    g['6'] = { class_type: 'CLIPTextEncode', inputs: { text: v.prompt, clip } };
-    g['7'] = { class_type: 'CLIPTextEncode', inputs: { text: v.negative, clip } };
-    g['5'] = { class_type: 'EmptyLatentImage', inputs: { width: v.w, height: v.h, batch_size: 1 } };
-    const steps = Math.max(1, Math.min(150, Math.round(+c.steps) || 26));
-    const cfgv = Math.max(1, Math.min(30, +c.cfg || 6));
-    const ks = (latent, denoise, nSteps) => ({
-        class_type: 'KSampler',
-        inputs: {
-            seed: v.seed, steps: nSteps, cfg: cfgv, sampler_name: c.sampler || 'euler_ancestral',
-            scheduler: c.scheduler || 'normal', denoise, model, positive: ['6', 0], negative: ['7', 0], latent_image: latent
-        }
-    });
-    g['3'] = ks(['5', 0], 1, steps);
-    let last = ['3', 0];
-    if (c.hires) {
-        g['11'] = { class_type: 'LatentUpscaleBy', inputs: { upscale_method: 'nearest-exact', scale_by: 1.5, samples: last } };
-        g['12'] = ks(['11', 0], 0.45, Math.max(8, Math.round(steps * 0.6)));
-        last = ['12', 0];
-    }
-    g['8'] = { class_type: 'VAEDecode', inputs: { samples: last, vae: ['4', 2] } };
-    g['9'] = { class_type: 'SaveImage', inputs: { filename_prefix: 'rpg_phone', images: ['8', 0] } };
-    return g;
-}
-const COMFY_PH = ['%prompt%', '%negative%', '%seed%', '%width%', '%height%', '%ckpt%', '%lora%', '%lora_strength%', '%image%'];
-function comfyFillCustom(text, v) {
-    let g;
-    try { g = JSON.parse(text); } catch (e) { throw comfyErr('comfy-badjson', 'bad json'); }
-    if (!g || typeof g !== 'object' || Array.isArray(g)) throw comfyErr('comfy-badjson', 'bad json');
-    if (!JSON.stringify(g).includes('%prompt%')) throw comfyErr('comfy-noprompt', 'no %prompt%');
-    const c = imgConn().comfy;
-    const L = comfyLora(v, c);
-    const map = {
-        '%prompt%': v.prompt, '%negative%': v.negative, '%seed%': v.seed, '%width%': v.w, '%height%': v.h,
-        '%ckpt%': v.ckpt, '%lora%': L.lora, '%lora_strength%': L.strength, '%image%': v.image || ''
-    };
-    if (!L.lora) {
-        for (const [id, n] of Object.entries(g)) {
-            if (!n || n.class_type !== 'LoraLoader' || n.inputs?.lora_name !== '%lora%') continue;
-            const src = [n.inputs.model, n.inputs.clip];
-            for (const m of Object.values(g)) {
-                for (const [k, val] of Object.entries(m?.inputs || {})) {
-                    if (Array.isArray(val) && String(val[0]) === id) m.inputs[k] = src[val[1]] ?? val;
-                }
-            }
-            delete g[id];
-        }
-    }
-    const sub = (val) => {
-        if (typeof val !== 'string') return val;
-        if (COMFY_PH.includes(val)) return map[val];
-        let s = val;
-        for (const p of COMFY_PH) if (s.includes(p)) s = s.split(p).join(String(map[p] ?? ''));
-        return s;
-    };
-    for (const n of Object.values(g)) {
-        if (!n || !n.inputs) continue;
-        for (const k of Object.keys(n.inputs)) n.inputs[k] = sub(n.inputs[k]);
-    }
-    return g;
-}
-let comfyInfoCache = null;
-async function comfyInfo(force) {
-    if (comfyInfoCache && !force) return comfyInfoCache;
-    const base = comfyBaseUrl();
-    if (!base) throw comfyErr('comfy-noaddr', 'no address');
-    const pick = async (node, field) => {
-        try {
-            const r = await fetch(`${base}/object_info/${node}`);
-            if (!r.ok) return [];
-            const j = await r.json();
-            const opt = j?.[node]?.input?.required?.[field];
-            return Array.isArray(opt?.[0]) ? opt[0].map(String) : [];
-        } catch (e) { if (e instanceof TypeError) throw comfyErr('comfy-net', 'unreachable', { base }); return []; }
-    };
-    const [ckpts, loras, samplers, schedulers] = await Promise.all([
-        pick('CheckpointLoaderSimple', 'ckpt_name'), pick('LoraLoader', 'lora_name'),
-        pick('KSampler', 'sampler_name'), pick('KSampler', 'scheduler')
-    ]);
-    comfyInfoCache = { ckpts, loras, samplers, schedulers, base, at: Date.now() };
-    return comfyInfoCache;
-}
-// the reference goes into ComfyUI's input folder, for a LoadImage node with %image% (IPAdapter)
-async function comfyUploadReference(base, dataUrl) {
-    const blob = await (await fetch(dataUrl)).blob();
-    const form = new FormData();
-    form.append('image', blob, 'rpg-phone-reference.png');
-    form.append('type', 'input');
-    form.append('overwrite', 'true');   // one slot, reused, instead of littering input/
-    const resp = await fetch(`${base}/upload/image`, { method: 'POST', body: form });
-    if (!resp.ok) throw comfyErr('comfy-node', `reference upload HTTP ${resp.status}`, { status: resp.status });
-    const data = await resp.json();
-    if (!data?.name) throw comfyErr('comfy-node', 'reference upload: no name', { status: 500 });
-    return data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
-}
 async function callComfy(prompt, ref, extras = {}) {
-    const base = comfyBaseUrl();
-    if (!base) throw comfyErr('comfy-noaddr', 'no address');
-    const c = imgConn().comfy;
-    const { w, h } = comfySize();
-    const seed = Math.floor(Math.random() * 2 ** 32);
-    const ctrl = new AbortController();
-    imgAbort = ctrl; imgCancelled = false;
-    const sig = ctrl.signal;
-    let promptId = null;
-    const giveUp = async () => {
-        try { if (promptId) await fetch(`${base}/queue`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: [promptId] }) }); } catch (e) { }
-        try { await fetch(`${base}/interrupt`, { method: 'POST' }); } catch (e) { }
-    };
-    try {
-        let ckpt = c.ckpt;
-        if (!String(c.workflow || '').trim() && !ckpt) {
-            const info = await comfyInfo();
-            ckpt = info.ckpts[0] || '';
-            if (!ckpt) throw comfyErr('comfy-nockpt', 'no checkpoints');
-        }
-        const v = { prompt, negative: c.negative || '', seed, w, h, ckpt, lora: extras.lora || '', loraStrength: extras.loraStrength };
-        const custom = String(c.workflow || '').trim();
-        if (custom && ref && custom.includes('%image%')) v.image = await comfyUploadReference(base, ref);
-        const graph = custom ? comfyFillCustom(c.workflow, v) : comfyBuildGraph(v);
-        let r;
-        try {
-            r = await fetch(`${base}/prompt`, {
-                method: 'POST', signal: sig, headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: graph, client_id: 'rpg_phone' })
-            });
-        } catch (e) {
-            if (e.name === 'AbortError') throw e;
-            throw comfyErr('comfy-net', 'unreachable', { base });
-        }
-        if (!r.ok) {
-            let j = null; try { j = await r.json(); } catch (e) { }
-            const ne = j?.node_errors && Object.values(j.node_errors)[0];
-            const first = ne?.errors?.[0];
-            const msg = first ? `${ne.class_type || ''}: ${first.message}${first.details ? ' — ' + first.details : ''}` : (j?.error?.message || `HTTP ${r.status}`);
-            throw comfyErr('comfy-node', msg.slice(0, 220), { status: r.status });
-        }
-        promptId = (await r.json())?.prompt_id;
-        if (!promptId) throw comfyErr('comfy-node', 'no prompt_id', { status: 500 });
-        // local generation: the first checkpoint load alone can take half a minute
-        const limit = Math.max(IMG_TIMEOUT_S, 300) * 1000;
-        const t0 = Date.now();
-        let entry = null;
-        while (Date.now() - t0 < limit) {
-            await new Promise((res, rej) => {
-                const tm = setTimeout(res, 1000);
-                sig.addEventListener('abort', () => { clearTimeout(tm); rej(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true });
-            });
-            let hr;
-            try { hr = await fetch(`${base}/history/${encodeURIComponent(promptId)}`, { signal: sig }); }
-            catch (e) { if (e.name === 'AbortError') throw e; continue; }
-            if (!hr.ok) continue;
-            const hj = await hr.json();
-            entry = hj?.[promptId];
-            if (!entry) continue;
-            const st = entry.status;
-            if (st?.status_str === 'error') {
-                const m = (st.messages || []).find(x => x?.[0] === 'execution_error')?.[1];
-                throw comfyErr('comfy-exec', `${m?.node_type || ''}: ${m?.exception_message || 'execution error'}`.trim().slice(0, 220), { status: 400 });
-            }
-            if (st?.completed || Object.keys(entry.outputs || {}).length) break;
-        }
-        if (!entry || !Object.keys(entry.outputs || {}).length) {
-            await giveUp();
-            throw comfyErr('comfy-timeout', 'timeout', { secs: Math.round(limit / 1000), status: 400 });
-        }
-        const outs = entry.outputs;
-        const img = (outs['9']?.images || []).concat(...Object.values(outs).map(o => o?.images || []))[0];
-        if (!img) throw comfyErr('comfy-exec', t('e_empty'), { status: 400 });
-        const q = new URLSearchParams({ filename: img.filename, subfolder: img.subfolder || '', type: img.type || 'output' });
-        const vr = await fetch(`${base}/view?${q}`, { signal: sig });
-        if (!vr.ok) throw comfyErr('comfy-exec', `view HTTP ${vr.status}`, { status: vr.status });
-        return await vr.blob();
-    } catch (e) {
-        if (e.name === 'AbortError') await giveUp();
-        throw e;
-    } finally {
-        if (imgAbort === ctrl) imgAbort = null;
-    }
+    if (!comfyBaseUrl()) throw comfyErr('comfy-noaddr', 'no address');
+    const card = extras.who ? characters.find(c => c.name === extras.who) : null;
+    const rec = card?._char || card || null;
+    const module = imagegenSettings();
+    const workflow = String(rec?.imageWorkflow || '').trim() || module.defaultWorkflow;
+    const negative = [String(rec?.imageNegative || '').trim(), module.negative].filter(Boolean).join(', ');
+    return imagegenGenerate({
+        prompt, negative, workflow, size: imgCfg().size, ref,
+        lora: extras.lora || '', loraStrength: extras.loraStrength,
+    });
 }
 /* SillyTavern's own image generation (fork). The character's saved Worldkit image prompt
    goes first, so the picture looks like them; the phone's own photo text follows. */
@@ -1855,8 +1659,9 @@ function drawErrText(e) {
         case 'comfy-node': return t('e_node', { m: e.message });
         case 'comfy-exec': return t('e_exec', { m: e.message });
         case 'comfy-timeout': return t('e_ctime', { s: e.secs });
-        case 'comfy-badjson': return t('e_badjson');
-        case 'comfy-noprompt': return t('e_noprompt');
+        case 'comfy-badjson':
+        case 'comfy-noprompt':
+        case 'comfy-workflow': return e.message;
     }
     if (e.message === 'no-img-cfg') return t('e_nocfg');
     if (e.name === 'TimeoutError' || e.name === 'AbortError') return t('e_time', { s: IMG_TIMEOUT_S });
@@ -2109,6 +1914,7 @@ function cancelPhotos() {
     imgCancelled = true;
     for (const j of genQueue.splice(0)) genState.delete(photoId(j.contactId, j));
     if (imgAbort) { try { imgAbort.abort(); } catch (e) { } }
+    try { cancelImageGen(); } catch (e) { }
     genRev++; renderBubbles();
 }
 
@@ -4498,29 +4304,7 @@ function settingsHtml() {
                         <input id="rph-img-model" class="text_pole" placeholder="${escapeHtml(t('img_model_ph'))}">
                     </div>
                     <div id="rph-comfy" class="rph-comfybox" style="display:none">
-                        <div class="rph-comfyhead">
-                            <span id="rph-comfy-state" class="rph-comfystate">${t('comfy_state0')}</span>
-                            <button class="menu_button" id="rph-comfy-test">${t('comfy_test')}</button>
-                        </div>
-                        <label for="rph-comfy-ckpt">${t('comfy_ckpt')}</label>
-                        <select id="rph-comfy-ckpt" class="text_pole"></select>
-                        <div class="rph-row">
-                            <div><label for="rph-comfy-lora">${t('comfy_lora')}</label><select id="rph-comfy-lora" class="text_pole"></select></div>
-                            <div class="rph-num"><label for="rph-comfy-lstr">${t('comfy_lstr')}</label><input id="rph-comfy-lstr" type="number" class="text_pole" step="0.05" min="-2" max="2"></div>
-                        </div>
-                        <div class="rph-row">
-                            <div><label for="rph-comfy-sampler">${t('comfy_sampler')}</label><select id="rph-comfy-sampler" class="text_pole"></select></div>
-                            <div><label for="rph-comfy-sched">${t('comfy_sched')}</label><select id="rph-comfy-sched" class="text_pole"></select></div>
-                        </div>
-                        <div class="rph-row">
-                            <div><label for="rph-comfy-steps">${t('comfy_steps')}</label><input id="rph-comfy-steps" type="number" class="text_pole" min="1" max="150" step="1"></div>
-                            <div><label for="rph-comfy-cfg">CFG</label><input id="rph-comfy-cfg" type="number" class="text_pole" min="1" max="30" step="0.5"></div>
-                        </div>
-                        <label class="checkbox_label"><input type="checkbox" id="rph-comfy-hires"><span>${t('comfy_hires')}</span></label>
-                        <label for="rph-comfy-neg">${t('comfy_neg')}</label>
-                        <textarea id="rph-comfy-neg" class="text_pole" rows="2"></textarea>
-                        <label for="rph-comfy-wf">${t('comfy_wf')}</label>
-                        <textarea id="rph-comfy-wf" class="text_pole" rows="3" placeholder="Save (API Format) · %prompt% %negative% %seed% %width% %height% %ckpt% %lora% %lora_strength%"></textarea>
+                        <small class="notes">${t('comfy_moved')}</small>
                     </div>
                     <div class="rph-row">
                         <div class="rph-narrow"><label for="rph-img-size">${t('img_size')}</label><input id="rph-img-size" class="text_pole" placeholder="768x1024"></div>
@@ -4721,75 +4505,17 @@ function setupImageUI() {
     bindImg('#rph-img-tpl', 'tpl');
     if (!ic.tpl) $('#rph-img-tpl').val(IMG_DEF.tpl);
 
-    const cc = comfyCfg();
-    const fillSel = (sel, list, cur, emptyLabel) => {
-        const items = Array.isArray(list) && list.length ? list.slice() : [];
-        if (cur && !items.includes(cur)) items.unshift(cur);
-        const head = emptyLabel !== undefined ? `<option value="">${escapeHtml(emptyLabel)}</option>` : '';
-        $(sel).html(head + items.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('')).val(cur || '');
-    };
-    const fillComfyLists = () => {
-        const i = comfyInfoCache || {};
-        fillSel('#rph-comfy-ckpt', i.ckpts, cc.ckpt, t('comfy_first'));
-        fillSel('#rph-comfy-lora', i.loras, cc.lora, t('comfy_nolora'));
-        fillSel('#rph-comfy-sampler', i.samplers, cc.sampler);
-        fillSel('#rph-comfy-sched', i.schedulers, cc.scheduler);
-    };
-    const comfyState = (txt, kind) => $('#rph-comfy-state').text(txt).attr('data-kind', kind || '');
-    const comfyTest = async (quiet) => {
-        comfyState(t('comfy_wait'), 'wait');
-        try {
-            const i = await comfyInfo(true);
-            fillComfyLists();
-            const from = !String(imgConn().apiUrl || '').trim() && comfyBorrowed() ? t('comfy_from_lens') : '';
-            comfyState(t('comfy_ok', { c: i.ckpts.length, l: i.loras.length }) + from, 'ok');
-            if (!quiet && !i.ckpts.length) toastr.warning(drawErrText(comfyErr('comfy-nockpt', '')));
-        } catch (e) {
-            comfyState(drawErrText(e), 'bad');
-            if (!quiet) toastr.warning(drawErrText(e));
-        }
-    };
     const refresh = () => {
         const on = detectImageMode() === 'comfy';
         $('#rph-comfy').toggle(on);
         $('.rph-settings .rph-cloudonly').toggle(!on);
-        $('#rph-img-url').attr('placeholder', on ? (comfyBorrowed() || 'http://127.0.0.1:8188') : 'https://api.navy/v1');
+        // In ComfyUI mode the address is the Images module's, not this field's.
+        $('#rph-img-url, label[for="rph-img-url"]').toggle(!on);
         $('#rph-img-note').text(imgConn().from ? t('img_borrowed') : '');
         return on;
     };
-    fillComfyLists();
-    $('#rph-comfy-lstr').val(cc.loraStrength);
-    $('#rph-comfy-steps').val(cc.steps);
-    $('#rph-comfy-cfg').val(cc.cfg);
-    $('#rph-comfy-hires').prop('checked', !!cc.hires);
-    $('#rph-comfy-neg').val(cc.negative);
-    $('#rph-comfy-wf').val(cc.workflow);
-    const clampNum = (lo, hi, dflt) => el => { const n = Number(el.value); return Number.isFinite(n) && el.value !== '' ? Math.max(lo, Math.min(hi, n)) : dflt; };
-    const bindC = (sel, key, conv) => $(sel).on('change', function () {
-        const v = conv ? conv(this) : this.value;
-        comfyCfg()[key] = v;
-        if (conv && this.type === 'number') this.value = v;
-        saveSettings();
-    });
-    bindC('#rph-comfy-ckpt', 'ckpt');
-    bindC('#rph-comfy-lora', 'lora');
-    bindC('#rph-comfy-sampler', 'sampler');
-    bindC('#rph-comfy-sched', 'scheduler');
-    bindC('#rph-comfy-lstr', 'loraStrength', clampNum(-2, 2, 0.8));
-    bindC('#rph-comfy-steps', 'steps', clampNum(1, 150, 26));
-    bindC('#rph-comfy-cfg', 'cfg', clampNum(1, 30, 6));
-    bindC('#rph-comfy-hires', 'hires', el => !!el.checked);
-    bindC('#rph-comfy-neg', 'negative', el => String(el.value).slice(0, 2000));
-    $('#rph-comfy-wf').on('change', function () {
-        const txt = String(this.value || '').trim();
-        // checked right away: the error is easier to understand while the field is in front of you
-        if (txt) { try { comfyFillCustom(txt, { prompt: '', negative: '', seed: 1, w: 8, h: 8, ckpt: '' }); } catch (e) { toastr.warning(drawErrText(e)); } }
-        comfyCfg().workflow = txt.slice(0, 60000);
-        saveSettings();
-    });
-    $('#rph-comfy-test').on('click', () => comfyTest(false));
-    $('#rph-img-mode, #rph-img-url').on('change', () => { if (refresh() && !comfyInfoCache) comfyTest(true); });
-    if (refresh() && comfyBaseUrl()) comfyTest(true);
+    $('#rph-img-mode').on('change', refresh);
+    refresh();
 }
 
 /* ============================================================

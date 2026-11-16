@@ -266,6 +266,11 @@ export const defaultSettings = {
      */
     vitals: {},
     /**
+     * The image generation module (comfy-core.js normalizeImagegen): the ComfyUI address, the workflows chosen from
+     * SillyTavern's workflow folder and the plain graph's settings. A character's own workflow is char.imageWorkflow.
+     */
+    imagegen: {},
+    /**
      * Faction colours and artwork (faction-theme.js): palettes you add, the default faction, whether pictures are
      * used at all (off means built-in icons only) and the folder they are read from. Presentation only.
      */

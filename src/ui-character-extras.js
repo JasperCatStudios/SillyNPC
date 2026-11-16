@@ -7,6 +7,8 @@ import { buildSettingSelect } from './ui-shared.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 
 import { PRODUCT_NAME } from './constants.js';
+import { workflowPicker, apiFormatWarning } from './ui-workflow-picker.js';
+import { openCharacterPicture } from './ui-character-picture.js';
 /**
  * What the fork adds to a character's page: the picture prompt and the voice.
  *
@@ -96,10 +98,26 @@ export function renderCharacterExtras(char, container, options = {}) {
         }),
     );
 
+    // --- ComfyUI workflow for this character (the Images module draws with it, and so does the phone) ---
+    actions.append(button('fa-image', 'Draw with ComfyUI workflow', () => openCharacterPicture(char)));
+    const workflowRow = document.createElement('div');
+    workflowRow.append(
+        label('ComfyUI workflow'),
+        workflowPicker({
+            value: char.imageWorkflow || '',
+            blank: 'Use the default from Modules, Images',
+            onChange: (name) => { char.imageWorkflow = name; saveSettings(); },
+        }),
+        apiFormatWarning(),
+        note('Chosen from SillyTavern\'s ComfyUI workflow folder (data/<your user>/user/workflows). The workflow draws this character\'s '
+            + 'phone photos and the pictures made with the button below, using the image prompt and negative prompt above as %prompt% and %negative%.'),
+    );
+
     container.append(
         label('Image generation prompt'),
         promptBox,
         negBox,
+        workflowRow,
         actions,
         note('Sent to SillyTavern\'s image generation by the button, and - when "Send Image Prompts '
             + 'To The Model" is on - listed for the story model whenever this character is in the '

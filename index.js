@@ -207,6 +207,7 @@ function addWandMenuEntry() {
             ['sillynpc_wand_games', 'fa-gamepad', 'Games', 'rpg-game-btn'],
             ['sillynpc_wand_combat', 'fa-khanda', 'Combat', 'snpc-combat-btn'],
             ['sillynpc_wand_phone', 'fa-mobile-screen-button', 'Phone', 'rph-btn'],
+            ['sillynpc_wand_scene', 'fa-image', 'Scene picture', ''],
         ]) {
             if (document.getElementById(id)) continue;
             const entry = document.createElement('div');
@@ -219,6 +220,8 @@ function addWandMenuEntry() {
             text.textContent = label;
             entry.append(glyph, text);
             entry.addEventListener('click', () => {
+                // Scene picture is a dialog of the Images module, opened through an event rather than a button.
+                if (!buttonId) { eventSource.emit('worldkit-scene-picture'); return; }
                 const button = document.getElementById(buttonId);
                 if (!button || button.style.display === 'none') {
                     toastr.info(`${label} is switched off, or no chat is open.`, PRODUCT_NAME);
@@ -453,7 +456,7 @@ jQuery(async () => {
             // failing, or one folder missing, takes nothing else with it.
             // A failure is said out loud (console and one toast) and kept, so the Modules tab can
             // show the real error where the module's pane should be.
-            for (const name of ['phone', 'games', 'combat']) {
+            for (const name of ['phone', 'games', 'combat', 'imagegen']) {
                 recordModuleLoad(name, 'loading');
                 import(`./modules/${name}/${name}.js`)
                     .then(() => {

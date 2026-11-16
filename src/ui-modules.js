@@ -36,6 +36,15 @@ export const MODULES = [
         content: '.inline-drawer-content',
     },
     {
+        id: 'imagegen',
+        name: 'Images',
+        icon: 'fa-image',
+        blurb: 'ComfyUI pictures: a workflow per character, and a picture of the whole scene. The phone uses it for photos.',
+        // Drawn by modules/imagegen/imagegen.js. It sends nothing to the story model, so it has no context options.
+        render: true,
+        noContext: true,
+    },
+    {
         id: 'combat',
         name: 'Combat',
         icon: 'fa-khanda',
@@ -243,6 +252,7 @@ export function renderModulesView(view) {
 
             // What this module sends along with its requests.
             const options = document.createElement('div');
+            if (mod.noContext) options.style.display = 'none';
             options.className = 'sillynpc-pane-opts';
             for (const [kind, label] of [['persona', 'Send my persona'], ['memory', 'Send other extensions\' memory']]) {
                 const item = document.createElement('label');
