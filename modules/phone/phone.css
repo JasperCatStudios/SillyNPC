@@ -1311,3 +1311,11 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 .rph-gal-orow textarea { grid-area: desc; width: 100%; resize: vertical; margin: 0; }
 .rph-gal-orow .rph-gal-btn { grid-area: del; min-height: 44px; min-width: 44px; }
 .rph-gal-oadd { align-self: flex-start; min-height: 44px; }
+
+/* the character sheet on the gallery page, and the selfie workflow loader */
+.rph-gal-sheet { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.rph-gal-sheetrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rph-gal-sheetthumb { width: 72px; height: 72px; border: 1px solid #5d5547; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; background: rgba(0, 0, 0, .25); color: #a4947d; }
+.rph-gal-sheetthumb img { width: 100%; height: 100%; object-fit: cover; }
+.rph-gal-sheetrow .rph-gal-btn { min-height: 44px; }
+.rph-comfy-selfiebar { margin: 6px 0; }

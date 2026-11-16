@@ -10,6 +10,7 @@ import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
 import { getSettings as getWorldkitSettings } from '../../src/settings.js';
+import { bindWorkflow, substituteValue } from '../../src/comfy-workflow-bind.js';
 import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from '../../src/context-blocks.js';
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
@@ -123,7 +124,8 @@ const COMFY_DEF = {
     steps: 26, cfg: 6, sampler: 'euler_ancestral', scheduler: 'normal',
     hires: false,
     negative: 'lowres, worst quality, bad anatomy, bad hands, extra fingers, missing fingers, deformed face, asymmetric eyes, blurry, jpeg artifacts, watermark, signature, text, logo, child',
-    workflow: ''
+    workflow: '',
+    selfieWorkflow: ''            // a ComfyUI workflow just for selfies: the character sheet in, the picture out
 };
 
 const defaults = {
@@ -1556,7 +1558,7 @@ function comfyBuildGraph(v) {
     g['9'] = { class_type: 'SaveImage', inputs: { filename_prefix: 'rpg_phone', images: ['8', 0] } };
     return g;
 }
-const COMFY_PH = ['%prompt%', '%negative%', '%seed%', '%width%', '%height%', '%ckpt%', '%lora%', '%lora_strength%', '%image%'];
+const COMFY_PH = ['%prompt%', '%negative%', '%seed%', '%width%', '%height%', '%ckpt%', '%lora%', '%lora_strength%', '%image%', '%sheet%'];
 function comfyFillCustom(text, v) {
     let g;
     try { g = JSON.parse(text); } catch (e) { throw comfyErr('comfy-badjson', 'bad json'); }
@@ -1566,7 +1568,7 @@ function comfyFillCustom(text, v) {
     const L = comfyLora(v, c);
     const map = {
         '%prompt%': v.prompt, '%negative%': v.negative, '%seed%': v.seed, '%width%': v.w, '%height%': v.h,
-        '%ckpt%': v.ckpt, '%lora%': L.lora, '%lora_strength%': L.strength, '%image%': v.image || ''
+        '%ckpt%': v.ckpt, '%lora%': L.lora, '%lora_strength%': L.strength, '%image%': v.image || '', '%sheet%': v.sheet || v.image || ''
     };
     if (!L.lora) {
         for (const [id, n] of Object.entries(g)) {
@@ -1580,13 +1582,8 @@ function comfyFillCustom(text, v) {
             delete g[id];
         }
     }
-    const sub = (val) => {
-        if (typeof val !== 'string') return val;
-        if (COMFY_PH.includes(val)) return map[val];
-        let s = val;
-        for (const p of COMFY_PH) if (s.includes(p)) s = s.split(p).join(String(map[p] ?? ''));
-        return s;
-    };
+    // a value that is one placeholder keeps its type; a prompt inside a node's JSON state stays valid JSON
+    const sub = (val) => substituteValue(val, map, COMFY_PH);
     for (const n of Object.values(g)) {
         if (!n || !n.inputs) continue;
         for (const k of Object.keys(n.inputs)) n.inputs[k] = sub(n.inputs[k]);
@@ -1615,10 +1612,10 @@ async function comfyInfo(force) {
     return comfyInfoCache;
 }
 // the reference goes into ComfyUI's input folder, for a LoadImage node with %image% (IPAdapter)
-async function comfyUploadReference(base, dataUrl) {
+async function comfyUploadReference(base, dataUrl, filename = 'rpg-phone-reference.png') {
     const blob = await (await fetch(dataUrl)).blob();
     const form = new FormData();
-    form.append('image', blob, 'rpg-phone-reference.png');
+    form.append('image', blob, filename);
     form.append('type', 'input');
     form.append('overwrite', 'true');   // one slot, reused, instead of littering input/
     const resp = await fetch(`${base}/upload/image`, { method: 'POST', body: form });
@@ -1643,15 +1640,20 @@ async function callComfy(prompt, ref, extras = {}) {
     };
     try {
         let ckpt = c.ckpt;
-        if (!String(c.workflow || '').trim() && !ckpt) {
+        // a selfie goes through the selfie workflow when there is one; everything else through the general one
+        const wfText = extras.selfie && String(c.selfieWorkflow || '').trim() ? c.selfieWorkflow : c.workflow;
+        if (!String(wfText || '').trim() && !ckpt) {
             const info = await comfyInfo();
             ckpt = info.ckpts[0] || '';
             if (!ckpt) throw comfyErr('comfy-nockpt', 'no checkpoints');
         }
         const v = { prompt, negative: c.negative || '', seed, w, h, ckpt, lora: extras.lora || '', loraStrength: extras.loraStrength };
-        const custom = String(c.workflow || '').trim();
+        const custom = String(wfText || '').trim();
         if (custom && ref && custom.includes('%image%')) v.image = await comfyUploadReference(base, ref);
-        const graph = custom ? comfyFillCustom(c.workflow, v) : comfyBuildGraph(v);
+        // the character sheet: their own, else the reference picture
+        const sheetPic = extras.sheet || ref;
+        if (custom && sheetPic && custom.includes('%sheet%')) v.sheet = await comfyUploadReference(base, sheetPic, 'rpg-phone-sheet.png');
+        const graph = custom ? comfyFillCustom(wfText, v) : comfyBuildGraph(v);
         let r;
         try {
             r = await fetch(`${base}/prompt`, {
@@ -1971,6 +1973,21 @@ async function avatarRef(name) {
     avatarRefCache.set(ch.avatar, out);
     return out;
 }
+async function sheetFor(name) {
+    const k = lookCfg(name).sheetKey;
+    if (!k || !imgStore()) return null;
+    try {
+        const v = await imgStore().getItem(k);
+        if (typeof v === 'string' && v.startsWith('data:image/')) return v;
+        if (v instanceof Blob) return await blobToDataUrl(v);
+    } catch (e) { }
+    return null;
+}
+/** A selfie asked for in plain words, with a selfie workflow set up: that workflow draws it, from the character sheet. */
+function usesSelfieWorkflow(m) {
+    return detectImageMode() === 'comfy' && !!(m && m.req && typeof m.req === 'object' && m.req.mode === 'character')
+        && !!String(imgConn().comfy?.selfieWorkflow || '').trim();
+}
 async function ownRef(name) {
     const k = lookCfg(name).refKey;
     if (!k || !imgStore()) return null;
@@ -2058,7 +2075,8 @@ function sdLook(name) {
 function requestedPrompt(m) {
     const cfg = imgCfg();
     const mode = detectImageMode();
-    const tags = mode === 'sd' || mode === 'comfy';
+    // the selfie workflow takes a sentence, not tags
+    const tags = (mode === 'sd' || mode === 'comfy') && !usesSelfieWorkflow(m);
     const look = m.req.mode !== 'character' ? '' : (mode === 'sd' ? sdLook(m.name) : descFor(m.name));
     const wk = getWorldkitSettings();
     const templates = { character: wk.phonePromptSelfie, creative: wk.phonePromptDrawing, object: wk.phonePromptObject };
@@ -2119,7 +2137,15 @@ async function runGenQueue() {
                 let ref = null;
                 if (ofThem) { try { ref = await referenceFor(m.name); } catch (e) { ref = null; } }
                 const promptUsed = photoPrompt(m);
-                const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, ofThem ? lensExtras(m.name) : {});
+                const extras = ofThem ? lensExtras(m.name) : {};
+                if (ofThem) {
+                    // the character sheet: their own, else the reference; a selfie workflow works from it
+                    let sheet = null;
+                    try { sheet = await sheetFor(m.name); } catch (e) { sheet = null; }
+                    extras.sheet = sheet || ref || null;
+                    if (usesSelfieWorkflow(m)) { extras.selfie = true; ref = sheet || ref; }
+                }
+                const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, extras);
                 const key = newImgKey();
                 let stored = false;
                 try { stored = await putImage(key, data); } catch (e) { stored = false; }
@@ -2220,6 +2246,16 @@ function openGallery(id) {
         <details class="rph-gal-look"><summary>How they look in pictures</summary>
             <textarea class="rph-gal-desc" rows="3" placeholder="Hair, eyes, build, usual clothes. Empty: their Worldkit image prompt is used."></textarea>
             <small>Used for pictures of them. Drawings and photos of things never use it.</small>
+            <div class="rph-gal-sheet">
+                <b>Character sheet</b>
+                <small>A picture of them for ComfyUI workflows that edit an image: the selfie workflow, or any workflow with %sheet%. Without one, their reference picture is used.</small>
+                <div class="rph-gal-sheetrow">
+                    <span class="rph-gal-sheetthumb"><i class="fa-solid fa-image-portrait"></i></span>
+                    <button type="button" class="rph-gal-btn rph-gal-sheetup"><i class="fa-solid fa-upload"></i> Upload</button>
+                    <button type="button" class="rph-gal-btn rph-gal-sheetdel" hidden><i class="fa-solid fa-trash"></i> Remove</button>
+                    <input type="file" class="rph-gal-sheetfile" accept="image/*" hidden>
+                </div>
+            </div>
             <div class="rph-gal-outfits">
                 <b>Outfits</b>
                 <small>Name them. Say "in your work clothes" and that one is worn. The marked one is worn when none is named.</small>
@@ -2257,6 +2293,39 @@ function openGallery(id) {
         if (!own && saved) { lookEdit(who).desc = saved; saveSettings(); }
         desc.value = own || saved;
         desc.addEventListener('change', () => { lookEdit(who).desc = desc.value.trim().slice(0, 600); saveSettings(); });
+        const sheetThumb = q('.rph-gal-sheetthumb');
+        const sheetDel = q('.rph-gal-sheetdel');
+        const showSheet = async () => {
+            const pic = await sheetFor(who);
+            sheetThumb.innerHTML = pic ? `<img src="${pic}" alt="">` : '<i class="fa-solid fa-image-portrait"></i>';
+            sheetDel.hidden = !pic;
+        };
+        q('.rph-gal-sheetup').addEventListener('click', () => q('.rph-gal-sheetfile').click());
+        q('.rph-gal-sheetfile').addEventListener('change', async function () {
+            const f = this.files && this.files[0];
+            this.value = '';
+            if (!f || !/^image\//.test(f.type || '')) return;
+            if (!imgStore()) { toastr.warning(t('wall_nostore')); return; }
+            const u = URL.createObjectURL(f);
+            const data = await shrinkToDataUrl(u, 1536);
+            URL.revokeObjectURL(u);
+            if (!data) { toastr.warning(t('err')); return; }
+            const L = lookEdit(who);
+            const key = newImgKey();
+            try { await imgStore().setItem(key, data); } catch (e) { toastr.warning(t('wall_nostore')); return; }
+            if (L.sheetKey) dropImages([L.sheetKey]);
+            L.sheetKey = key;
+            saveSettings();
+            showSheet();
+        });
+        sheetDel.addEventListener('click', () => {
+            const L = lookEdit(who);
+            if (L.sheetKey) dropImages([L.sheetKey]);
+            L.sheetKey = '';
+            saveSettings();
+            showSheet();
+        });
+        showSheet();
         const olist = q('.rph-gal-olist');
         const drawOutfits = () => {
             olist.replaceChildren();
@@ -4847,7 +4916,12 @@ function settingsHtml() {
                         <label for="rph-comfy-neg">${t('comfy_neg')}</label>
                         <textarea id="rph-comfy-neg" class="text_pole" rows="2"></textarea>
                         <label for="rph-comfy-wf">${t('comfy_wf')}</label>
-                        <textarea id="rph-comfy-wf" class="text_pole" rows="3" placeholder="Save (API Format) · %prompt% %negative% %seed% %width% %height% %ckpt% %lora% %lora_strength%"></textarea>
+                        <textarea id="rph-comfy-wf" class="text_pole" rows="3" placeholder="Save (API Format) · %prompt% %negative% %seed% %width% %height% %ckpt% %lora% %lora_strength% %image% %sheet%"></textarea>
+                        <label for="rph-comfy-selfie">Selfie workflow (character sheet in, selfie out)</label>
+                        <textarea id="rph-comfy-selfie" class="text_pole" rows="3" placeholder="Paste a workflow saved with Save (API Format), or load the file. The placeholders are added for you."></textarea>
+                        <div class="rph-comfy-selfiebar"><span class="menu_button" id="rph-comfy-selfie-load"><i class="fa-solid fa-file-import"></i> Load a workflow file</span>
+                        <input type="file" id="rph-comfy-selfie-file" accept=".json,application/json" style="display:none"></div>
+                        <small class="notes" id="rph-comfy-selfie-note"></small>
                     </div>
                     <div class="rph-row">
                         <div class="rph-narrow"><label for="rph-img-size">${t('img_size')}</label><input id="rph-img-size" class="text_pole" placeholder="768x1024"></div>
@@ -5092,6 +5166,8 @@ function setupImageUI() {
     $('#rph-comfy-hires').prop('checked', !!cc.hires);
     $('#rph-comfy-neg').val(cc.negative);
     $('#rph-comfy-wf').val(cc.workflow);
+    $('#rph-comfy-selfie').val(cc.selfieWorkflow);
+    if (cc.selfieWorkflow) $('#rph-comfy-selfie-note').text('A selfie asked for in plain words is drawn by this workflow, from the contact\'s character sheet.');
     const clampNum = (lo, hi, dflt) => el => { const n = Number(el.value); return Number.isFinite(n) && el.value !== '' ? Math.max(lo, Math.min(hi, n)) : dflt; };
     const bindC = (sel, key, conv) => $(sel).on('change', function () {
         const v = conv ? conv(this) : this.value;
@@ -5108,7 +5184,47 @@ function setupImageUI() {
     bindC('#rph-comfy-cfg', 'cfg', clampNum(1, 30, 6));
     bindC('#rph-comfy-hires', 'hires', el => !!el.checked);
     bindC('#rph-comfy-neg', 'negative', el => String(el.value).slice(0, 2000));
+    /* A workflow with no placeholders is read and given them: the character sheet, the prompt and the seed. */
+    const adoptWorkflow = (raw, key, noteSel) => {
+        let txt = String(raw || '').trim();
+        const note = $(noteSel);
+        if (txt && !txt.includes('%prompt%')) {
+            const r = bindWorkflow(txt);
+            if (r.error === 'badjson') { toastr.warning(drawErrText(comfyErr('comfy-badjson', ''))); return null; }
+            if (r.error === 'uiformat') { toastr.warning('That workflow is in the editor format. In ComfyUI use "Save (API Format)" (turn on Dev mode options in ComfyUI settings if you do not see it).'); return null; }
+            if (!r.ok) { toastr.warning(r.notes[0] || 'No prompt input was found in this workflow.'); return null; }
+            txt = r.json;
+            const bits = [];
+            if (r.found.image.length) bits.push(`character sheet (node ${r.found.image[0]})`);
+            if (r.found.prompt.length) bits.push(`prompt (node ${r.found.prompt[0]})`);
+            if (r.found.seed.length) bits.push(`seed (node ${r.found.seed[0]})`);
+            note.text(`Placeholders added: ${bits.join(', ')}.${r.notes.length ? ' ' + r.notes.join(' ') : ''}`);
+        } else if (txt) note.text('Placeholders found.');
+        else note.text('');
+        comfyCfg()[key] = txt.slice(0, 120000);
+        saveSettings();
+        return txt;
+    };
+    $('#rph-comfy-selfie').on('change', function () {
+        const out = adoptWorkflow(this.value, 'selfieWorkflow', '#rph-comfy-selfie-note');
+        if (out !== null) this.value = out;
+    });
+    $('#rph-comfy-selfie-load').on('click', () => document.getElementById('rph-comfy-selfie-file').click());
+    $('#rph-comfy-selfie-file').on('change', async function () {
+        const f = this.files && this.files[0];
+        this.value = '';
+        if (!f) return;
+        let txt = '';
+        try { txt = await f.text(); } catch (e) { toastr.warning('Could not read that file.'); return; }
+        const out = adoptWorkflow(txt, 'selfieWorkflow', '#rph-comfy-selfie-note');
+        if (out !== null) $('#rph-comfy-selfie').val(out);
+    });
     $('#rph-comfy-wf').on('change', function () {
+        // a workflow pasted without placeholders is given them first
+        if (String(this.value || '').trim() && !this.value.includes('%prompt%')) {
+            const r = bindWorkflow(this.value);
+            if (r.ok) this.value = r.json;
+        }
         const txt = String(this.value || '').trim();
         // checked right away: the error is easier to understand while the field is in front of you
         if (txt) { try { comfyFillCustom(txt, { prompt: '', negative: '', seed: 1, w: 8, h: 8, ckpt: '' }); } catch (e) { toastr.warning(drawErrText(e)); } }
