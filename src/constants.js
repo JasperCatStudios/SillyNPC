@@ -64,16 +64,10 @@ export const EXTENSION_VERSION = '0.5.7';
  * started to drift.
  * @type {readonly string[]}
  */
-export const SILLYNPC_THEMES = Object.freeze([
-    'terminal',
-    'cyberpunk',
-    'monochrome',
-    'modern-dark',
-    'fantasy-hud',
-    'tabletop-parchment',
-    'analog-horror',
-    'rosewater',
-]);
+export const SILLYNPC_THEMES = Object.freeze([]);
+// The eight extra menu themes (terminal, cyberpunk, monochrome, modern-dark, fantasy-hud,
+// tabletop-parchment, analog-horror, rosewater) and their CSS were removed: the menu has one
+// look now and menuStyle is always 'default'.
 
 /** Native SillyTavern theme classes we also toggle, used only for cleanup. */
 export const NATIVE_THEME_CLASSES = Object.freeze([
