@@ -157,6 +157,79 @@ export function bridgeText({ picks, user = 'the player', instruction = DEFAULT_B
     }).join('\n\n');
 }
 
+/* ---------------------------------------------------------------------------------------------
+   PHONE CONTACTS ENTER THE SCENE. A second setting, separate from sending texts above: it does not
+   send any text. It only tells the story model that the people you have been texting arrive in the
+   next scene. Same four modes, its own chance and cooldown.
+   --------------------------------------------------------------------------------------------- */
+
+export const ARRIVAL_MODES = Object.freeze(['off', 'manual', 'random', 'always']);
+
+export const DEFAULT_ARRIVAL_INSTRUCTION = '<<contact>> is not with <<user>> right now, but has been texting them. In this reply, have <<contact>> come to <<user>> and arrive in the scene.';
+
+export const ARRIVAL_DEFAULTS = Object.freeze({
+    mode: 'off',            // 'off' | 'manual' | 'random' | 'always'
+    chance: 25,             // random mode: percent chance FOR EACH active conversation, rolled once per reply. 100 = all of them arrive
+    cooldown: 3,            // random mode: at least this many replies between two arrivals (not used at 100%)
+    maxContacts: 4,         // how many active conversations can arrive at once (the most recently texted first)
+    notify: false,          // a small notice when it happens
+    instruction: DEFAULT_ARRIVAL_INSTRUCTION,
+});
+
+/** The arrival settings, repaired: unknown values fall back to the defaults. */
+export function normalizeArrival(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const d = ARRIVAL_DEFAULTS;
+    return {
+        mode: ARRIVAL_MODES.includes(r.mode) ? r.mode : d.mode,
+        chance: clamp(r.chance, 0, 100, d.chance),
+        cooldown: clamp(r.cooldown, 0, 50, d.cooldown),
+        maxContacts: clamp(r.maxContacts, 1, 8, d.maxContacts),
+        notify: Boolean(r.notify),
+        instruction: typeof r.instruction === 'string' && r.instruction.trim() ? r.instruction.slice(0, 600) : d.instruction,
+    };
+}
+
+/**
+ * Who arrives in the next scene. Only people with an active conversation (at least one text) who are
+ * not in the scene already. Always: every one of them (up to the limit). Random: each one on their own
+ * chance, so at 100% every active conversation arrives. Manual: all of them when the player asks.
+ *
+ * @param {object} p
+ * @param {object} p.arrival normalized settings
+ * @param {{ id: string, name: string, inScene: boolean, messages: object[] }[]} p.contacts
+ * @param {boolean} [p.armed] manual mode: the player has asked for it this time
+ * @param {number} [p.since] replies since people last arrived (random mode's cooldown)
+ * @param {() => number} [p.rng]
+ * @returns {{ fire: boolean, reason: string, picks: { id: string, name: string }[] }}
+ */
+export function chooseArrival({ arrival, contacts, armed = false, since = Infinity, rng = Math.random }) {
+    const a = normalizeArrival(arrival);
+    const none = (reason) => ({ fire: false, reason, picks: [] });
+    if (a.mode === 'off') return none('off');
+    const asked = Boolean(armed);
+    if (a.mode === 'manual' && !asked) return none('not asked for');
+    const eligible = (contacts || [])
+        .filter(c => !c.inScene && (c.messages || []).some(m => m && (m.text || m.img || m.imgKey)))
+        .map(c => ({ id: c.id, name: c.name, last: Math.max(0, ...(c.messages || []).map(m => Number(m?.ts) || 0)) }))
+        .sort((x, y) => y.last - x.last);
+    if (!eligible.length) return none('nobody with an active conversation is outside the scene');
+    let picks = eligible;
+    if (a.mode === 'random' && !asked) {
+        if (a.chance < 100 && since < a.cooldown) return none('cooling down');
+        picks = eligible.filter(() => rng() * 100 < a.chance);
+        if (!picks.length) return none('not this time');
+    }
+    return { fire: true, reason: asked ? 'asked for' : a.mode, picks: picks.slice(0, a.maxContacts).map(({ id, name }) => ({ id, name })) };
+}
+
+/** The block that goes to the story model. It carries no texts, only the arrival. */
+export function arrivalText({ picks, user = 'the player', instruction = DEFAULT_ARRIVAL_INSTRUCTION }) {
+    if (!picks || !picks.length) return '';
+    const how = String(instruction || DEFAULT_ARRIVAL_INSTRUCTION);
+    return `[PHONE CONTACTS ARRIVING: ${picks.map(p => how.replace(/<<contact>>/gi, p.name).replace(/<<user>>/gi, user)).join(' ')}]`;
+}
+
 /** Remembers how far each conversation has been given, so the same texts are not given twice. Mutates and returns `shown`. */
 export function markShown(shown, picks) {
     for (const p of picks || []) {

@@ -16,6 +16,7 @@ import { personaBlock as corePersona, extensionMemoryBlock as coreMemory } from 
 import { mountVectorPanel } from '../../src/ui-vectors.js';
 import { pickVisionImages, buildVisionContent, fitSize, visionKeysOf, shouldRetryWithoutImages, visionReport, newestPlayerPhoto, MAX_VISION_IMAGES, VISION_SIDE, VISION_QUALITY } from '../../src/phone-vision.js';
 import { BRIDGE_MODES, BRIDGE_ROLES, DEFAULT_BRIDGE_INSTRUCTION, normalizeBridge, chooseBridge, bridgeText, markShown } from '../../src/phone-bridge.js';
+import { ARRIVAL_MODES, DEFAULT_ARRIVAL_INSTRUCTION, normalizeArrival, chooseArrival, arrivalText } from '../../src/phone-bridge.js';
 import { detectImageRequest, needsContextResolution, llmResolveMessages, parseLlmResolution, buildImageRequest, promptsForRequest } from '../../src/phone-image-requests.js';
 import { createGroup, addMember, removeMember, membersOf, addable, groupLabel, normalizeGroups, MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../../src/phone-groups.js';
 
@@ -186,6 +187,8 @@ const defaults = {
     bridge: {},             // the phone in the story: normalized by normalizeBridge in loadSettings
     bridgeShown: {},        // thread id -> time of the last text already given to the story
     bridgeArmed: false,     // "on request" mode: the next reply carries the texts
+    arrival: {},            // phone contacts enter the scene: normalized by normalizeArrival in loadSettings (separate from the texts)
+    arrivalArmed: false,    // its "on request" mode: the next reply brings them
     threads: {},            // contactId -> [{who:'user'|'char', name, text, ts}]
     active: {},             // contactId -> true (who is on the phone)
     state: {},              // contactId -> {lastInitiative, todayCount, dayStamp, ignored}
@@ -250,6 +253,14 @@ function loadSettings() {
     } catch (e) { /* damaged settings are handled below */ }
     for (const k of ['threads', 'active', 'state', 'unread', 'diaries', 'cast', 'looks', 'aliases', 'chats', 'mainLabels', 'groups', 'gallery']) if (!settings[k] || typeof settings[k] !== 'object') settings[k] = {};
     settings.groups = normalizeGroups(settings.groups);
+    // The old "also bring them to the player" tick on the texts setting became its own setting: whoever had it on
+    // keeps arrivals in the same mode as their texts.
+    if (settings.bridge && settings.bridge.arrive === true && (!settings.arrival || !settings.arrival.mode)) {
+        settings.arrival = { mode: BRIDGE_MODES.includes(settings.bridge.mode) ? settings.bridge.mode : 'off' };
+    }
+    if (settings.bridge) settings.bridge.arrive = false;
+    settings.arrival = normalizeArrival(settings.arrival);
+    settings.arrivalArmed = settings.arrivalArmed === true;
     settings.bridge = normalizeBridge(settings.bridge);
     if (!settings.bridgeShown || typeof settings.bridgeShown !== 'object' || Array.isArray(settings.bridgeShown)) settings.bridgeShown = {};
     settings.bridgeArmed = settings.bridgeArmed === true;
@@ -358,7 +369,17 @@ const L = {
         clear: 'Очистить переписку', cleared: 'Переписка очищена.', clear_confirm: 'Точно стереть: {name}?',
         ask_photo: 'Попросить прислать фото', ask_photo_off: 'Попросить фото: включи генерацию фото в настройках телефона',
         set_vision: 'Пусть персонажи видят фото, которые я отправляю',
-        br_hdr: 'Телефон в истории', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'По запросу', br_random: 'Случайно (скрыто)', br_always: 'Всегда (каждый ответ, последние сообщения)', br_arrive: 'Если персонажа нет в сцене, пусть история приведёт его к игроку',
+        br_hdr: 'Отправлять сообщения из телефона в основной чат', br_mode: 'Режим', br_off: 'Выключено', br_manual: 'Вручную (кнопка)', br_random: 'Случайно (шанс на каждый ответ)', br_always: 'Всегда (каждый ответ)',
+        br_msgs_hint: 'Сколько последних сообщений из каждой переписки попадает в один ответ. Если их больше, уходят только последние.',
+        br_max_hint: 'Сколько недавних переписок отправляется вместе (сначала самые свежие). При 3 и четырёх активных переписках уйдут 3 самые свежие.',
+        ar_hdr: 'Контакты из телефона приходят в следующую сцену', ar_always: 'Всегда (каждый ответ, для проверки)', ar_random: 'Случайно (шанс на каждый ответ)',
+        ar_mode_hint: 'Отдельно от настройки выше, и сообщения НЕ отправляет. Только сообщает модели истории, что персонажи, которым вы писали, приходят в следующую сцену, если их там ещё нет.',
+        ar_chance: 'Шанс для каждого, %', ar_chance_hint: 'Каждая активная переписка бросает этот шанс на каждом ответе. 100% — приходят все, с кем есть активная переписка: при четырёх переписках придут все четыре персонажа.',
+        ar_cooldown_hint: 'Минимум столько ответов между двумя приходами. При 100% не используется.',
+        ar_max: 'Сколько переписок могут прийти (1-8)', ar_max_hint: 'Сколько персонажей может прийти одновременно, сначала те, кому писали недавно. Приходят только те, с кем есть активная переписка и кого ещё нет в сцене.',
+        ar_placement_note: 'Попадает в промпт там же, где и сообщения выше (те же глубина, роль и порядок), сразу после них.',
+        ar_ask: 'Привести их в следующую сцену', ar_cancel: 'Отмена', ar_asked: 'В следующем ответе контакты из телефона придут в сцену.', ar_preview: 'Показать, кто пришёл бы сейчас', ar_notice: 'Приходят в историю: {names}', ar_prev_title: 'Контакты приходят в сцену: проверка (ничего не отправлено)',
+        br_arrive: 'Если персонажа нет в сцене, пусть история приведёт его к игроку',
         br_mode_hint: 'Иногда последние сообщения из телефона попадают к модели истории, и персонаж может о них вспомнить. В чате они не показываются.',
         br_test: 'проверка', br_default: 'по умолчанию', br_chance_where: 'Работает в случайном режиме.', br_chance_set: 'Шанс: {n}%.',
         br_chance: 'Шанс, %', br_chance_hint: '5 — редко. 100 = в каждом ответе, для проверки (пауза не учитывается)',
@@ -441,8 +462,18 @@ const L = {
         clear: 'Clear thread', cleared: 'Thread cleared.', clear_confirm: 'Really erase: {name}?',
         ask_photo: 'Ask for a photo', ask_photo_off: 'Ask for a photo: turn on photo generation in the phone settings',
         set_vision: 'Let characters see the photos I send',
-        br_hdr: 'Phone in the story', br_mode: 'Mode', br_off: 'Off', br_manual: 'On request', br_random: 'Random chance (hidden)', br_always: 'Always (every reply, latest texts)', br_arrive: 'If the person is not in the scene, tell the story to bring them to the player',
-        br_mode_hint: 'Now and then the latest phone texts go to the story model so the character can bring them up. They are never shown in the chat.',
+        br_hdr: 'Send phone texts to the main chat', br_mode: 'Mode', br_off: 'Off', br_manual: 'Manual (button)', br_random: 'Random (a chance each reply)', br_always: 'Always (every reply)',
+        br_msgs_hint: 'The most texts that go into one reply, per conversation. If a conversation has more than this, only its latest texts are sent.',
+        br_max_hint: 'How many of your recent conversations are sent together (the most recently texted first). With 3 here and 4 active conversations, the 3 newest go.',
+        ar_hdr: 'Phone contacts enter the next scene', ar_always: 'Always (every reply, for testing)', ar_random: 'Random (a chance each reply)',
+        ar_mode_hint: 'Separate from the setting above, and it sends NO texts. It only tells the story model that characters you have been texting arrive in the next scene, if they are not already in it. Use it to have people turn up after you text them.',
+        ar_chance: 'Chance each, %', ar_chance_hint: 'Each active conversation rolls this chance on every reply. 100% means everyone you have an active conversation with arrives: with four active conversations, all four characters arrive in the next scene.',
+        ar_cooldown_hint: 'At least this many replies between two arrivals. Not used at 100%.',
+        ar_max: 'Conversations that can arrive (1-8)', ar_max_hint: 'The most characters who can arrive at once, the most recently texted first. Only people with an active conversation who are not in the scene already can arrive.',
+        ar_placement_note: 'It goes in the prompt in the same place as the texts above (same depth, role and order settings), right after them.',
+        ar_ask: 'Bring them into the next scene', ar_cancel: 'Cancel', ar_asked: 'The next reply will have your phone contacts arrive.', ar_preview: 'Preview who would arrive now', ar_notice: 'Arriving in the story: {names}', ar_prev_title: 'Phone contacts enter the scene: preview (nothing was sent)',
+        br_arrive: 'If the person is not in the scene, tell the story to bring them to the player',
+        br_mode_hint: 'Sends the actual text messages from your recent phone conversations to the story model with the next reply, so characters can bring them up or react. The texts are never shown in the chat. Separate from the setting below, which only brings characters into the scene.',
         br_test: 'testing', br_default: 'default', br_chance_where: 'Used in Random mode.', br_chance_set: 'Chance set to {n}%.',
         br_chance: 'Chance, %', br_chance_hint: '5 is rare. 100 = every reply, for testing (ignores the cooldown)',
         br_cooldown: 'Cooldown (replies between two times)', br_msgs: 'Texts given (latest)', br_max: 'Conversations at once (1-4)',
@@ -3012,16 +3043,16 @@ function registerPhoneTextsCommand() {
  * player's to move). Elsewhere, or with the list switched off, it is an ordinary in-chat prompt
  * with the chosen depth and role.
  */
-function bridgeApply(text) {
+function bridgeApply(text, key = BRIDGE_KEY, name = BRIDGE_NAME, orderOffset = 0) {
     const b = bridgeBox();
     if (b.inList && promptListAvailable()) {
-        placeWritingPrompt(BRIDGE_KEY, text, { inList: true, depth: b.depth, order: b.order, name: BRIDGE_NAME });
+        placeWritingPrompt(key, text, { inList: true, depth: b.depth, order: b.order + orderOffset, name });
         return;
     }
     // not in the list: make sure no list entry is left holding old text, then use the extension slot
-    placeWritingPrompt(BRIDGE_KEY, '', { inList: false });
+    placeWritingPrompt(key, '', { inList: false });
     const role = extension_prompt_roles[String(b.role).toUpperCase()] ?? extension_prompt_roles.SYSTEM;
-    setExtensionPrompt(BRIDGE_KEY, text, extension_prompt_types.IN_CHAT, b.depth, false, role);
+    setExtensionPrompt(key, text, extension_prompt_types.IN_CHAT, b.depth, false, role);
 }
 
 function bridgeNotice(names) {
@@ -3052,7 +3083,7 @@ function onBridgeGeneration(type, _options, dryRun) {
             bridgeTurn = key ? { key, text: '', names: [] } : null;
             return;
         }
-        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime(), arrive: b.arrive });
+        const text = bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime() });
         const names = res.picks.map(p => p.name);
         bridgeApply(text);
         markShown(settings.bridgeShown, res.picks);
@@ -3073,7 +3104,7 @@ function bridgePreview() {
     let res;
     if (b.mode === 'off') res = { fire: false, reason: 'off', picks: [] };
     else res = chooseBridge({ bridge: { ...b, chance: 100 }, contacts: bridgeContacts(), shown: settings.bridgeShown, armed: true, since: Infinity });
-    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime(), arrive: b.arrive }) : '';
+    const text = res.fire ? bridgeText({ picks: res.picks, user: name1 || 'the player', instruction: b.instruction, time: bridgeTime() }) : '';
     return { res, text };
 }
 
@@ -3091,6 +3122,130 @@ function openBridgePreview() {
     pre.textContent = text || t('br_prev_none');
     wrap.append(head, info, pre);
     new Popup(wrap, POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true, okButton: 'Close' }).show();
+}
+
+/* PHONE CONTACTS ENTER THE SCENE (fork) ---------------------------------------------------------
+   A second setting, separate from sending texts: it sends no text. It tells the story model that the
+   people you have been texting arrive in the next scene. The decision and the wording live in
+   src/phone-bridge.js (chooseArrival, arrivalText). Same slot rules as the texts. */
+const ARRIVAL_KEY = 'sillynpc_phone_arrival';
+const ARRIVAL_NAME = 'SillyNPC - Phone Contacts Arriving';
+let arrivalSince = Infinity;    // replies since people last arrived (random mode's cooldown); not saved
+let arrivalTurn = null;         // { key, text, names } the decision made for the current turn, reused by a swipe or regenerate
+
+function arrivalBox() { return settings.arrival || (settings.arrival = normalizeArrival({})); }
+
+function setArrivalArmed(on) {
+    settings.arrivalArmed = Boolean(on);
+    saveSettings();
+    try { $('#rph-ar-ask').text(settings.arrivalArmed ? t('ar_cancel') : t('ar_ask')); } catch (e) { /* drawer not open */ }
+}
+
+function onArrivalGeneration(type, _options, dryRun) {
+    if (dryRun || type === 'quiet' || type === 'impersonate') return;
+    try {
+        const a = arrivalBox();
+        if (!settings.enabled || a.mode === 'off') {
+            placeWritingPrompt(ARRIVAL_KEY, '', { inList: false });
+            setExtensionPrompt(ARRIVAL_KEY, '', extension_prompt_types.IN_CHAT, 0, false);
+            return;
+        }
+        bridgeApply('', ARRIVAL_KEY, ARRIVAL_NAME, 1);
+        const key = bridgeTurnKey(type);
+        // a swipe or regenerate of the same turn: the same people arrive, nothing spent twice
+        if (key && arrivalTurn && arrivalTurn.key === key) {
+            if (arrivalTurn.text) bridgeApply(arrivalTurn.text, ARRIVAL_KEY, ARRIVAL_NAME, 1);
+            return;
+        }
+        const armed = settings.arrivalArmed === true;
+        const res = chooseArrival({ arrival: a, contacts: bridgeContacts(), armed, since: arrivalSince });
+        if (!res.fire) {
+            arrivalSince += 1;
+            arrivalTurn = key ? { key, text: '', names: [] } : null;
+            return;
+        }
+        const text = arrivalText({ picks: res.picks, user: name1 || 'the player', instruction: a.instruction });
+        const names = res.picks.map(p => p.name);
+        bridgeApply(text, ARRIVAL_KEY, ARRIVAL_NAME, 1);
+        arrivalSince = 0;
+        if (armed) settings.arrivalArmed = false;
+        arrivalTurn = key ? { key, text, names } : null;
+        saveSettings();
+        if (a.notify && names.length && typeof toastr !== 'undefined') toastr.info(t('ar_notice', { names: names.join(', ') }));
+        try { $('#rph-ar-ask').text(t('ar_ask')); } catch (e) { /* drawer not open */ }
+    } catch (e) {
+        console.warn('[Phone] arrival failed', e);
+    }
+}
+
+/** What would arrive now, without spending the cooldown or the request flag. */
+function arrivalPreview() {
+    const a = arrivalBox();
+    const res = a.mode === 'off'
+        ? { fire: false, reason: 'off', picks: [] }
+        : chooseArrival({ arrival: { ...a, chance: 100 }, contacts: bridgeContacts(), armed: true, since: Infinity });
+    const text = res.fire ? arrivalText({ picks: res.picks, user: name1 || 'the player', instruction: a.instruction }) : '';
+    return { res, text };
+}
+
+function openArrivalPreview() {
+    const { res, text } = arrivalPreview();
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'text-align:left';
+    const head = document.createElement('b');
+    head.textContent = t('ar_prev_title');
+    const info = document.createElement('small');
+    info.style.display = 'block';
+    info.textContent = `${res.fire ? t('br_prev_fire') : t('br_prev_nofire')} - ${t('br_prev_reason')}: ${res.reason}`;
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow:auto; font-size:.85em; user-select:text';
+    pre.textContent = text || t('br_prev_none');
+    wrap.append(head, info, pre);
+    new Popup(wrap, POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true, okButton: 'Close' }).show();
+}
+
+function setupArrivalUI() {
+    const a = arrivalBox();
+    const save = () => saveSettings();
+    const showFor = () => {
+        $('#rph-arrival .rph-ar-random').toggle(a.mode === 'random');
+        $('#rph-arrival .rph-ar-manual').toggle(a.mode === 'manual');
+        $('#rph-ar-preview').toggle(a.mode !== 'off');
+    };
+    const askLabel = () => $('#rph-ar-ask').text(settings.arrivalArmed ? t('ar_cancel') : t('ar_ask'));
+    const anum = (sel, key, min, max) => $(sel).val(a[key]).on('change input', function (e) {
+        const n = Number(this.value);
+        if (e.type === 'input') {
+            if (this.value !== '' && Number.isFinite(n)) { a[key] = Math.max(min, Math.min(max, Math.round(n))); save(); }
+            return;
+        }
+        a[key] = Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : normalizeArrival({})[key];
+        $(this).val(a[key]); save();
+    });
+    const setArChance = (v) => { a.chance = v; $('#rph-ar-chance').val(v); save(); };
+    $('#rph-ar-chance-100').on('click', () => { setArChance(100); toastr.info(t('br_chance_set', { n: 100 })); });
+    $('#rph-ar-chance-25').on('click', () => { setArChance(25); toastr.info(t('br_chance_set', { n: 25 })); });
+    $('#rph-ar-mode').val(ARRIVAL_MODES.includes(a.mode) ? a.mode : 'off').on('change', function () {
+        a.mode = ARRIVAL_MODES.includes(this.value) ? this.value : 'off';
+        if (a.mode !== 'manual') settings.arrivalArmed = false;
+        save(); showFor(); askLabel();
+    });
+    anum('#rph-ar-chance', 'chance', 0, 100);
+    anum('#rph-ar-cooldown', 'cooldown', 0, 50);
+    anum('#rph-ar-max', 'maxContacts', 1, 8);
+    $('#rph-ar-notify').prop('checked', !!a.notify).on('change', function () { a.notify = this.checked; save(); });
+    $('#rph-ar-instr').val(a.instruction).on('change', function () {
+        a.instruction = String(this.value).trim() ? String(this.value).slice(0, 600) : DEFAULT_ARRIVAL_INSTRUCTION;
+        $(this).val(a.instruction); save();
+    });
+    $('#rph-ar-instr-reset').on('click', () => { a.instruction = DEFAULT_ARRIVAL_INSTRUCTION; $('#rph-ar-instr').val(a.instruction); save(); });
+    $('#rph-ar-ask').on('click', () => {
+        setArrivalArmed(!settings.arrivalArmed);
+        askLabel();
+        toastr.info(settings.arrivalArmed ? t('ar_asked') : t('br_cancelled'));
+    });
+    $('#rph-ar-preview').on('click', () => openArrivalPreview());
+    showFor(); askLabel();
 }
 
 function setupBridgeUI() {
@@ -3130,7 +3285,6 @@ function setupBridgeUI() {
     bcheck('#rph-br-inlist', 'inList');
     bcheck('#rph-br-onlynew', 'onlyNew');
     bcheck('#rph-br-onlyscene', 'onlyScene');
-    bcheck('#rph-br-arrive', 'arrive');
     bcheck('#rph-br-notify', 'notify');
     $('#rph-br-role').val(b.role).on('change', function () { b.role = BRIDGE_ROLES.includes(this.value) ? this.value : 'system'; save(); });
     $('#rph-br-instr').val(b.instruction).on('change', function () {
@@ -4987,9 +5141,9 @@ function settingsHtml() {
             <label for="rph-br-mode">${t('br_mode')}</label>
             <select id="rph-br-mode" class="text_pole">
                 <option value="off">${t('br_off')}</option>
-                <option value="manual">${t('br_manual')}</option>
-                <option value="random">${t('br_random')}</option>
                 <option value="always">${t('br_always')}</option>
+                <option value="random">${t('br_random')}</option>
+                <option value="manual">${t('br_manual')}</option>
             </select>
             <div>
                 <div class="rph-row">
@@ -5003,12 +5157,11 @@ function settingsHtml() {
                 <small>${t('br_chance_hint')} ${t('br_chance_where')}</small>
             </div>
             <div class="rph-row">
-                <div><label for="rph-br-msgs">${t('br_msgs')}</label><input type="number" min="1" max="30" id="rph-br-msgs" class="text_pole"></div>
-                <div><label for="rph-br-max">${t('br_max')}</label><input type="number" min="1" max="4" id="rph-br-max" class="text_pole"></div>
+                <div><label for="rph-br-msgs" title="${escapeHtml(t('br_msgs_hint'))}">${t('br_msgs')} ⓘ</label><input type="number" min="1" max="30" id="rph-br-msgs" class="text_pole" title="${escapeHtml(t('br_msgs_hint'))}"></div>
+                <div><label for="rph-br-max" title="${escapeHtml(t('br_max_hint'))}">${t('br_max')} ⓘ</label><input type="number" min="1" max="4" id="rph-br-max" class="text_pole" title="${escapeHtml(t('br_max_hint'))}"></div>
             </div>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-onlynew"><span>${t('br_onlynew')}</span></label>
             <label class="checkbox_label rph-br-random"><input type="checkbox" id="rph-br-onlyscene"><span>${t('br_onlyscene')}</span></label>
-            <label class="checkbox_label"><input type="checkbox" id="rph-br-arrive"><span>${t('br_arrive')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-notify"><span>${t('br_notify')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-inlist"><span>${t('br_inlist')}</span></label>
             <small>${t('br_inlist_hint')}</small>
@@ -5027,6 +5180,41 @@ function settingsHtml() {
             <div class="rph-btnrow">
                 <div class="menu_button rph-br-manual" id="rph-br-ask">${t('br_ask')}</div>
                 <div class="menu_button" id="rph-br-preview">${t('br_preview')}</div>
+            </div>
+            </div>
+
+            <div class="rph-box" id="rph-arrival"><div class="rph-boxhead">🚶 ${t('ar_hdr')}</div>
+            <small>${t('ar_mode_hint')}</small>
+            <label for="rph-ar-mode">${t('br_mode')}</label>
+            <select id="rph-ar-mode" class="text_pole">
+                <option value="off">${t('br_off')}</option>
+                <option value="always">${t('ar_always')}</option>
+                <option value="random">${t('ar_random')}</option>
+                <option value="manual">${t('br_manual')}</option>
+            </select>
+            <div class="rph-ar-random">
+                <div class="rph-row">
+                    <div><label for="rph-ar-chance" title="${escapeHtml(t('ar_chance_hint'))}">${t('ar_chance')} ⓘ</label><input type="number" min="0" max="100" step="1" id="rph-ar-chance" class="text_pole" title="${escapeHtml(t('ar_chance_hint'))}"></div>
+                    <div><label for="rph-ar-cooldown" title="${escapeHtml(t('ar_cooldown_hint'))}">${t('br_cooldown')} ⓘ</label><input type="number" min="0" max="50" id="rph-ar-cooldown" class="text_pole" title="${escapeHtml(t('ar_cooldown_hint'))}"></div>
+                </div>
+                <div class="rph-btnrow">
+                    <button class="menu_button" id="rph-ar-chance-100" title="${escapeHtml(t('ar_chance_hint'))}">100% (${t('br_test')})</button>
+                    <button class="menu_button" id="rph-ar-chance-25">25% (${t('br_default')})</button>
+                </div>
+                <small>${t('ar_chance_hint')}</small>
+            </div>
+            <div class="rph-row">
+                <div><label for="rph-ar-max" title="${escapeHtml(t('ar_max_hint'))}">${t('ar_max')} ⓘ</label><input type="number" min="1" max="8" id="rph-ar-max" class="text_pole" title="${escapeHtml(t('ar_max_hint'))}"></div>
+            </div>
+            <label class="checkbox_label"><input type="checkbox" id="rph-ar-notify"><span>${t('br_notify')}</span></label>
+            <small>${t('ar_placement_note')}</small>
+            <label for="rph-ar-instr">${t('br_instr')}</label>
+            <textarea id="rph-ar-instr" class="text_pole" rows="3" maxlength="600"></textarea>
+            <small>${t('br_instr_hint')}</small>
+            <div class="rph-btnrow"><button class="menu_button" id="rph-ar-instr-reset">${t('br_instr_reset')}</button></div>
+            <div class="rph-btnrow">
+                <div class="menu_button rph-ar-manual" id="rph-ar-ask">${t('ar_ask')}</div>
+                <div class="menu_button" id="rph-ar-preview">${t('ar_preview')}</div>
             </div>
             </div>
 
@@ -5282,6 +5470,7 @@ function setupUI() {
     $('#rph-tts-auto').prop('checked', !!settings.ttsAuto).on('change', function () { settings.ttsAuto = this.checked; saveSettings(); });
 
     setupBridgeUI();
+    setupArrivalUI();
     setupImageUI();
 }
 
@@ -5628,6 +5817,7 @@ jQuery(() => {
     eventSource.on(event_types.CHAT_CHANGED, () => { scrollOffset = 0; renderButton(); renderBubbles(); });
     // Fork: the phone in the story
     eventSource.on(event_types.GENERATION_STARTED, onBridgeGeneration);
+    eventSource.on(event_types.GENERATION_STARTED, onArrivalGeneration);
     registerPhoneTextsCommand();
     eventSource.on('sillynpc-phone-refresh', () => renderBubbles(true));
     // the cards' pictures: SillyTavern may finish loading the cards after the phone first drew
