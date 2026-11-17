@@ -63,6 +63,8 @@ export const defaultSettings = {
     activeSystem: '',
     /** The world opened each time SillyTavern starts. Empty: whichever was in use last. */
     defaultWorld: '',
+    /** The Custom look runs the regex scripts whose name starts with this, whether or not they are switched on in SillyTavern. */
+    customRegexPrefix: 'Custom - ',
     /** Where the Content Kit is fetched from (git). Empty means the official Worldkit-Content repository. */
     contentKitUrl: 'https://github.com/JasperCatStudios/Worldkit-Content.git',
     /** Each prompt's remembered template choice and the own-text kept aside: { [promptId]: { mode, custom } }. */

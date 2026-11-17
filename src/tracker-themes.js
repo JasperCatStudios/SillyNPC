@@ -21,11 +21,13 @@ export const THEME_PLAIN = 'plain';
 export const THEME_PARCHMENT = 'parchment';
 export const THEME_PERSONA = 'persona';
 export const THEME_TACTICAL = 'tactical';
+export const THEME_CUSTOM = 'custom';
 export const TRACKER_THEMES = Object.freeze({
     [THEME_PLAIN]: 'Default - Freaky Frankenstein',
     [THEME_PARCHMENT]: 'Cozy Parchment',
     [THEME_PERSONA]: 'Persona HUD',
     [THEME_TACTICAL]: 'Tactical Glass Telemetry',
+    [THEME_CUSTOM]: 'Custom (my own regexes)',
 });
 /** The trackers that have a look. `states` is the Internal States template, the rest are regex-dressed. */
 export const THEMED_TRACKERS = Object.freeze(['states', 'bonds', 'vitals', 'inventory']);
@@ -241,6 +243,32 @@ export function applyDefaultRegexes(html, tracker) {
     let out = String(html ?? '');
     for (const r of DEFAULT_REGEXES[tracker] || []) {
         try { out = out.replace(toRegExp(r.find), r.replace); } catch { /* a bad pattern leaves the block as it was */ }
+    }
+    return out;
+}
+
+/**
+ * The Custom look: the person's own regex scripts, and nothing else. Worldkit runs only the scripts in SillyTavern's regex list
+ * whose name starts with a prefix (default "Custom - "), whether or not they are switched on there. So a custom look can be kept
+ * switched OFF in the Regex menu, where it cannot touch the Default look or any chat, and still be used here. Every script runs on
+ * every tracker's block in list order; each regex only matches the block it was written for.
+ */
+export const CUSTOM_REGEX_PREFIX_DEFAULT = 'Custom - ';
+
+/** The scripts a custom look runs: named with the prefix, a regex that is set, and meant for AI output (not prompt-only). */
+export function customScripts(all, prefix = CUSTOM_REGEX_PREFIX_DEFAULT) {
+    const want = String(prefix || CUSTOM_REGEX_PREFIX_DEFAULT).trim().toLowerCase();
+    return (Array.isArray(all) ? all : []).filter(s => s && typeof s.findRegex === 'string' && s.findRegex
+        && String(s.scriptName ?? '').trim().toLowerCase().startsWith(want)
+        && !s.promptOnly
+        && (!Array.isArray(s.placement) || !s.placement.length || s.placement.includes(2)));
+}
+
+/** Runs those scripts over a block, in order. `run(script, text)` is SillyTavern's runRegexScript, passed in so this stays testable. */
+export function applyCustomScripts(html, scripts, run) {
+    let out = String(html ?? '');
+    for (const script of scripts) {
+        try { out = run({ ...script, disabled: false }, out); } catch { /* a broken script leaves the block as it was */ }
     }
     return out;
 }
