@@ -1,5 +1,5 @@
 import { saveSettingsDebounced } from '../../../../../script.js';
-import { normalizeGradient } from './gradient-style.js';
+import { normalizeGradient, legacyGradient } from './gradient-style.js';
 import { extension_settings } from '../../../../extensions.js';
 import {
     EXTENSION_VERSION,
@@ -972,7 +972,10 @@ export function normalizeSettings(settings) {
         }
         if (typeof char.colorGradient !== 'boolean') char.colorGradient = false;
         // The gradient for the profile page (banner, name, labels, portrait frame). null means none.
-        char.gradient = normalizeGradient(char.gradient);
+        char.gradient = normalizeGradient(char.gradient) || legacyGradient(char);
+        // The old two-colour switch has become the gradient above; it is turned off so that removing the gradient later
+        // is not undone by reading the old switch again.
+        char.colorGradient = false;
         if (typeof char.category !== 'string') char.category = '';
         if (typeof char.imageFit !== 'string') char.imageFit = '';
         if (!char.statusOverrides || typeof char.statusOverrides !== 'object') char.statusOverrides = {};

@@ -104,6 +104,18 @@ export function presetGradient(name) {
     return preset ? structuredClone(preset) : null;
 }
 
+/**
+ * The old two-colour "Gradient dialogue text" setting (colorGradient with a text colour and a second colour) as a
+ * gradient, so a character who had it keeps the same look. Null when it was not on or has no usable colours.
+ */
+export function legacyGradient(char) {
+    if (!char || char.colorGradient !== true) return null;
+    const from = HEX.test(String(char.colorText || '')) ? char.colorText : (HEX.test(String(char.color || '')) ? char.color : '');
+    const to = HEX.test(String(char.colorText2 || '')) ? char.colorText2 : from;
+    if (!from) return null;
+    return normalizeGradient({ type: 'linear', angle: 90, stops: [{ color: from, position: 0 }, { color: to, position: 100 }] });
+}
+
 /** A plain two-colour gradient to start from. */
 export function defaultGradient(color = '#d9b45a') {
     return normalizeGradient({

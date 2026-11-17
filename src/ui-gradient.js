@@ -5,20 +5,20 @@ import {
 } from './gradient-style.js';
 
 /**
- * The profile gradient editor in a character's Edit tab (fork): pick a shipped gradient or build one with
- * 2 to 5 colour stops, set its type, angle and position, and optionally let it drift. It colours the
- * character's profile page; the dialogue colours above are separate.
+ * The dialogue gradient editor in a character's Edit tab (fork): pick a shipped gradient or build one with
+ * 2 to 5 colour stops, set its type, angle and position, and optionally let it drift. It paints the
+ * character's dialogue text in the chat.
  *
  * Gradient model and presets adapted from the Dialogue Colors extension (MIT licence): see gradient-style.js.
  *
  * @param {object} char
  * @returns {HTMLElement}
  */
-export function buildProfileGradientPanel(char) {
+export function buildDialogueGradientPanel(char) {
     const panel = document.createElement('details');
     panel.className = 'sillynpc-gradient-panel';
     const summary = document.createElement('summary');
-    summary.textContent = 'Profile gradient';
+    summary.textContent = 'Gradient text';
     panel.append(summary);
     const body = document.createElement('div');
     panel.append(body);

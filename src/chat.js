@@ -1,3 +1,4 @@
+import { normalizeGradient, gradientCss, gradientFallback } from './gradient-style.js';
 import { LOG_PREFIX, BUILT_IN_DEFAULT_AVATAR, paletteColorFor, debugLog, PRODUCT_NAME } from './constants.js';
 import { getSettings } from './settings.js';
 import { getContext } from '../../../../st-context.js';
@@ -655,12 +656,13 @@ export function createAvatarImg({ char, defaultImage, name, isLastMessage }) {
  */
 export function resolveSpeakerColor(charId, charName) {
     const char = charId ? findCharacter(charId) : null;
-    if (char?.color) {
+    const gradient = normalizeGradient(char?.gradient);
+    if (char?.color || gradient) {
         const hex = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v) : '');
         return {
-            color: char.color, charId: char.id,
+            color: char.color || gradientFallback(gradient), charId: char.id,
             text: hex(char.colorText), border: hex(char.colorBorder), bg: hex(char.colorBg),
-            text2: hex(char.colorText2), gradient: Boolean(char.colorGradient),
+            gradient,
         };
     }
 
@@ -718,9 +720,9 @@ function decorateSpeechBlocks(container) {
         block.classList.remove(
             'sillynpc-speech-block', 
             'divider-subtle', 'divider-bold', 'divider-dashed', 'divider-none',
-            'color-text', 'color-background', 'color-border', 'color-gradient', 'color-all', 'sillynpc-gradient-text'
+            'color-text', 'color-background', 'color-border', 'color-gradient', 'color-all', 'sillynpc-gradient-text', 'sillynpc-gradient-drift'
         );
-        for (const prop of ['--sillynpc-color', '--sillynpc-text-color', '--sillynpc-text-color-2', '--sillynpc-border-color', '--sillynpc-bg-color', '--sillynpc-bg-fade']) {
+        for (const prop of ['--sillynpc-color', '--sillynpc-text-color', '--sillynpc-gradient', '--sillynpc-gradient-duration', '--sillynpc-gradient-direction', '--sillynpc-border-color', '--sillynpc-bg-color', '--sillynpc-bg-fade']) {
             block.style.removeProperty(prop);
         }
 
@@ -747,8 +749,12 @@ function decorateSpeechBlocks(container) {
                     block.style.setProperty('--sillynpc-bg-fade', '65%');
                 }
                 if (colour.gradient) {
-                    block.style.setProperty('--sillynpc-text-color-2', colour.text2 || colour.color);
+                    // The character's gradient paints the dialogue text itself (and can drift slowly).
+                    block.style.setProperty('--sillynpc-gradient', gradientCss(colour.gradient));
+                    block.style.setProperty('--sillynpc-gradient-duration', `${colour.gradient.animation.duration}s`);
+                    block.style.setProperty('--sillynpc-gradient-direction', colour.gradient.animation.reverse ? 'alternate-reverse' : 'alternate');
                     block.classList.add('sillynpc-gradient-text');
+                    block.classList.toggle('sillynpc-gradient-drift', colour.gradient.animation.enabled);
                 }
                 if (colour.charId) block.setAttribute('data-sillynpc-char', colour.charId);
                 block.classList.add(`color-${settings.colorStyle || 'text'}`);

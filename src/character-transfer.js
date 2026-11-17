@@ -1,4 +1,4 @@
-import { normalizeGradient } from './gradient-style.js';
+import { normalizeGradient, legacyGradient } from './gradient-style.js';
 import { getSettings, saveSettings, normalizeSettings } from './settings.js';
 import { createCharacter } from './characters.js';
 import { adoptImageForCharacter, createLoreEntry, saveLoreContent } from './api.js';
@@ -68,8 +68,6 @@ export async function serialiseCharacter(char) {
         colorText: String(char.colorText || ''),
         colorBorder: String(char.colorBorder || ''),
         colorBg: String(char.colorBg || ''),
-        colorText2: String(char.colorText2 || ''),
-        colorGradient: Boolean(char.colorGradient),
         gradient: normalizeGradient(char.gradient),
         category: String(char.category || ''),
         imageFit: String(char.imageFit || ''),
@@ -169,9 +167,7 @@ function applyRecord(char, record, name) {
     char.colorText = String(record.colorText || '');
     char.colorBorder = String(record.colorBorder || '');
     char.colorBg = String(record.colorBg || '');
-    char.colorText2 = String(record.colorText2 || '');
-    char.colorGradient = Boolean(record.colorGradient);
-    char.gradient = normalizeGradient(record.gradient);
+    char.gradient = normalizeGradient(record.gradient) || legacyGradient(record);
     char.imageFit = String(record.imageFit || '');
     char.imagePrompt = String(record.imagePrompt || '');
     char.imageNegative = String(record.imageNegative || '');

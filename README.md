@@ -182,4 +182,4 @@ window.SILLYNPC_DEBUG = true;
 
 ## Credits
 
-The profile gradient model and its shipped gradients (`src/gradient-style.js`) are adapted from the **Dialogue Colors** SillyTavern extension (`sillytavern-character-colors`), which is MIT licensed.
+The dialogue gradient model and its shipped gradients (`src/gradient-style.js`) are adapted from the **Dialogue Colors** SillyTavern extension (`sillytavern-character-colors`), which is MIT licensed.
