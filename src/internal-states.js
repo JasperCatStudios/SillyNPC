@@ -8,9 +8,9 @@ import { getSettings } from './settings.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
-import { getTrackerTheme, dressDefault } from './tracker-theme-setting.js';
+import { dressWithTheme } from './tracker-theme-setting.js';
 import { textFromRaw } from './raw-text.js';
-import { THEME_PLAIN, TRACKER_THEMES, internalStatesTemplate, INTERNAL_STATES_LINE_BREAK_RULE } from './tracker-themes.js';
+import { THEME_PLAIN, dressDefault } from './tracker-themes.js';
 
 /**
  * The preset's Internal States, kept outside the story (fork).
@@ -98,25 +98,14 @@ export const INTERNAL_STATES_SYSTEM = [
 ].join('\n');
 
 /**
- * The writer's instructions for a look. Plain is the original template; Parchment, Persona and
- * Tactical swap the template for an inline-styled one and add the line-break rule.
+ * Whether a saved prompt is just a built-in one that should be replaced by the current built-in: the plain one, or an inline-styled
+ * HTML template an earlier version wrote into the settings when a look was chosen. The writer is only ever asked for the plain
+ * block now; looks are regexes drawn afterwards.
  */
-export function internalStatesSystem(theme = THEME_PLAIN) {
-    const template = internalStatesTemplate(theme);
-    if (!template) return INTERNAL_STATES_SYSTEM;
-    const cut = INTERNAL_STATES_SYSTEM.indexOf('\nTEMPLATE\n');
-    return `${INTERNAL_STATES_SYSTEM.slice(0, cut)}\n${INTERNAL_STATES_LINE_BREAK_RULE}\n\nTEMPLATE\n${template}`;
-}
-
-/** Every built-in version of the writer's instructions, one per look. */
-export function builtInStatesPrompts() {
-    return Object.keys(TRACKER_THEMES).map(theme => internalStatesSystem(theme));
-}
-
-/** Whether a saved prompt is just one of the built-in ones (so it should follow the look, not stay fixed). */
 export function isBuiltInStatesPrompt(text) {
     const t = String(text ?? '').trim();
-    return Boolean(t) && builtInStatesPrompts().some(p => p.trim() === t);
+    if (!t) return false;
+    return t === INTERNAL_STATES_SYSTEM.trim() || /<!-- GFX_START -->\s*<div style=/.test(t);
 }
 
 function mode() {
@@ -126,7 +115,7 @@ function mode() {
 
 function systemPrompt() {
     const own = String(getSettings().internalStatesPrompt ?? '').trim();
-    return substituteParams(own && !isBuiltInStatesPrompt(own) ? own : internalStatesSystem(getTrackerTheme('states')));
+    return substituteParams(own && !isBuiltInStatesPrompt(own) ? own : INTERNAL_STATES_SYSTEM);
 }
 
 /** What is stored for this message's current swipe, or null. */
@@ -325,17 +314,15 @@ function dress(html) {
     // GM's Notebook entries sit on their own lines in the text, which HTML runs together:
     // put a break between one "- [R]/[T]/[D]" entry and the next (not after one already broken).
     let out = String(html ?? '').replace(/(?<!<br\s*\/?>|<\/summary>)[ \t]*\n[ \t]*-[ \t]*\[([RTD])\]/g, '<br>- [$1]');
-    // A chosen look is already in the block's own styles, so the preset's regexes stay out of its way.
-    if (getTrackerTheme('states') === THEME_PLAIN) {
-        out = dressDefault(out, 'states', (text) => {
-            try {
-                return getRegexedString(text, regex_placement.AI_OUTPUT, { isMarkdown: true });
-            } catch (err) {
-                debugLog('Preset regexes failed on the Internal States block', err);
-                return text;
-            }
-        });
-    }
+    // The plain look is SillyTavern's own regexes plus the built-in default; a chosen look is the extension's regexes for it.
+    out = dressWithTheme(out, 'states', (text) => {
+        try {
+            return getRegexedString(text, regex_placement.AI_OUTPUT, { isMarkdown: true });
+        } catch (err) {
+            debugLog('Preset regexes failed on the Internal States block', err);
+            return text;
+        }
+    });
     // Whatever the regexes left as markup is used as it is; anything that is still
     // an HTML comment (the markers) goes, and the result is sanitised like a message is.
     out = out.replace(/<!--[\s\S]*?-->/g, '');

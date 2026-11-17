@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { themeRegexes, internalStatesTemplate, THEME_PARCHMENT, THEME_PERSONA, THEME_TACTICAL } from '../src/tracker-themes.js';
+import { themeRegexes, THEME_PARCHMENT, THEME_PERSONA, THEME_TACTICAL } from '../src/tracker-themes.js';
 
 const out = process.argv[2];
 if (!out) {
@@ -52,13 +52,12 @@ const write = (file, data) => {
 
 let count = 0;
 for (const theme of [THEME_PARCHMENT, THEME_PERSONA, THEME_TACTICAL]) {
-    for (const tracker of ['bonds', 'vitals', 'inventory']) {
+    for (const tracker of ['states', 'bonds', 'vitals', 'inventory']) {
         for (const r of themeRegexes(tracker, theme)) {
             write(path.join(out, 'themes', theme, `${slug(r.name)}.json`), script(r.name, r.find, r.replace));
             count++;
         }
     }
-    write(path.join(out, 'themes', theme, `Worldkit-Internal-States-${theme}-template.html`), `${internalStatesTemplate(theme)}\n`);
 }
 
 // The default look for Inventory, in the same dark palette as the Vitals and Bond bars.
@@ -69,4 +68,4 @@ const item = '<div style="background:rgba(24,24,37,0.8);border:1px solid #45475a
 write(path.join(out, 'Worldkit-Inventory-Person.json'), script('Worldkit - Inventory Person', INV_HEAD, head));
 write(path.join(out, 'Worldkit-Inventory-Item.json'), script('Worldkit - Inventory Item', INV_ITEM, item));
 
-console.log(`Wrote ${count + 2} regex files and 3 templates to ${out}`);
+console.log(`Wrote ${count + 2} regex files to ${out}`);

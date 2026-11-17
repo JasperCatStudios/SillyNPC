@@ -50,6 +50,11 @@ export const DEFAULT_REGEXES = Object.freeze({
     ],
     "states": [
         {
+            "name": "Worldkit - Internal States Entry Breaks",
+            "find": "/([^>\\n])[ \\t]*\\n[ \\t]*(-[ \\t]*<b)/g",
+            "replace": "$1<br>$2"
+        },
+        {
             "name": "Worldkit - Internal States Frame",
             "find": "/<details>\\s{0,100}<summary>([^<]{0,200}?INTERNAL STATES[^<]{0,200}?)<\\/summary>/g",
             "replace": "<details open style=\"margin:8px 0;\"><summary style=\"background:linear-gradient(90deg,#2b2b40,#1e1e2e);border-radius:8px 8px 0 0;padding:14px 16px;border-bottom:2px solid #89b4fa;margin-bottom:6px;cursor:pointer;font-weight:bold;color:#cdd6f4;text-transform:uppercase;letter-spacing:1px;list-style:none;\">$1</summary>"

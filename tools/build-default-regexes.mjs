@@ -39,6 +39,8 @@ const bondsFrame = menu('Worldkit - Bonds Frame', 'BOND TRACKER', ...TEAL);
 const vitalsFrame = menu('Worldkit - Vitals Frame', 'VITALS', ...ROSE);
 
 const states = [
+    // each entry ("- <b>Name</b> ...") on its own line: a newline is not a line break in HTML
+    display('Worldkit - Internal States Entry Breaks', '/([^>\\n])[ \\t]*\\n[ \\t]*(-[ \\t]*<b)/g', '$1<br>$2'),
     // the header: a navy bar with a blue rule under it
     display('Worldkit - Internal States Frame',
         '/<details>\\s{0,100}<summary>([^<]{0,200}?INTERNAL STATES[^<]{0,200}?)<\\/summary>/g',

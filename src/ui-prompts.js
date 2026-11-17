@@ -22,9 +22,7 @@ export function buildPromptEditor(entry, { onChange, showHome = false } = {}) {
     const slot = slotFor(entry);
     const presets = entry.presets || [];
     const defaultText = String(entry.recommended?.() ?? '');
-    // Other built-in versions of this prompt (one per look, for Internal States) count as the default too.
-    const alsoDefault = entry.knownDefaults?.() ?? [];
-    const ctx = () => { const r = slot.read(); return { ...r, defaultText, presets, alsoDefault }; };
+    const ctx = () => { const r = slot.read(); return { ...r, defaultText, presets }; };
 
     const wrap = document.createElement('div');
     wrap.className = 'sillynpc-setting';
@@ -55,12 +53,13 @@ export function buildPromptEditor(entry, { onChange, showHome = false } = {}) {
 
     // Opened for the first time the box shows the text that is sent, not an empty box.
     const show = () => {
-        const c = ctx();
-        const mode = currentMode(c);
-        // A saved copy of another built-in version is the default, not the person's own: it goes back to following the default.
-        if (mode === MODE_DEFAULT && String(c.stored ?? '').trim() && String(c.stored).trim() !== defaultText.trim()) {
+        let c = ctx();
+        // A saved copy of an out-of-date built-in version is the default, not the person's own: it goes back to following the default.
+        if (entry.isStale?.(c.stored)) {
             slot.write({ mode: MODE_DEFAULT, stored: slot.storeDefault ? defaultText : '', custom: c.custom });
+            c = ctx();
         }
+        const mode = currentMode(c);
         picker.value = mode;
         textarea.value = textForMode(mode, c);
         tokens.refresh();

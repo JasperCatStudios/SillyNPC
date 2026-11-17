@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from './settings.js';
-import { TRACKER_THEMES, THEMED_TRACKERS, THEME_PLAIN, THEME_FONTS_URL, applyThemeRegexes, applyDefaultRegexes } from './tracker-themes.js';
+import { TRACKER_THEMES, THEMED_TRACKERS, THEME_PLAIN, THEME_FONTS_URL, applyThemeRegexes, dressDefault } from './tracker-themes.js';
 
 /**
  * Which look each tracker uses, kept in the settings as { states, bonds, vitals, inventory }.
@@ -31,20 +31,6 @@ export function ensureThemeFonts() {
     link.rel = 'stylesheet';
     link.href = THEME_FONTS_URL;
     document.head.append(link);
-}
-
-/**
- * The default look. SillyTavern's own regexes get the block first (`stRegexes` runs them); if they changed nothing, because none
- * are imported or none match, the extension's built-in default look is applied instead. So imported regexes always win, and no
- * import is needed to get a styled block.
- *
- * @param {string} html
- * @param {'states'|'bonds'|'vitals'|'inventory'} tracker
- * @param {(html: string) => string} stRegexes
- */
-export function dressDefault(html, tracker, stRegexes) {
-    const out = stRegexes(html);
-    return out === html ? applyDefaultRegexes(html, tracker) : out;
 }
 
 /**

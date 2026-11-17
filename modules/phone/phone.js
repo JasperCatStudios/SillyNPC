@@ -2888,6 +2888,7 @@ function bridgeBox() { return settings.bridge || (settings.bridge = normalizeBri
 function bridgeContacts() {
     const out = [];
     const seen = new Set();
+    const here = sceneNames();
     const open = settings.current;
     for (const id of activeNames()) {
         if (isGroup(id)) continue;
@@ -2897,8 +2898,10 @@ function bridgeContacts() {
         const useId = open && open !== name && chatInfo(open) && baseName(open) === name ? open : name;
         const thread = settings.threads[useId];
         if (!Array.isArray(thread) || !thread.length) continue;
+        // In the SCENE (who has appeared in the story lately), not on the chat's roster: with every character allowed in the chat,
+        // the roster holds everybody, which made every contact "in the scene" and left nobody to arrive or to be told to come.
         let inScene = false;
-        try { inScene = contactMembers(useId).some(openChatHas); } catch (e) { inScene = false; }
+        try { inScene = contactMembers(useId).some(n => here.has(String(n || '').trim().toLowerCase())); } catch (e) { inScene = false; }
         out.push({ id: useId, name, inScene, messages: threadOf(useId) });
     }
     return out;

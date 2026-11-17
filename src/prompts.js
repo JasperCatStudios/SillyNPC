@@ -2,8 +2,7 @@ import { getSettings, defaultSettings } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
 import { SYSTEM_PROMPT, buildDialogueFormatPrompt } from './constants.js';
 import { TIME_PERIODS } from './phone-image-requests.js';
-import { internalStatesSystem, builtInStatesPrompts } from './internal-states.js';
-import { getTrackerTheme } from './tracker-theme-setting.js';
+import { INTERNAL_STATES_SYSTEM, isBuiltInStatesPrompt } from './internal-states.js';
 import { INVENTORY_SYSTEM } from './inventory-core.js';
 import { BOND_SYSTEM } from './bonds-core.js';
 import { VITALS_SYSTEM } from './vitals-core.js';
@@ -67,8 +66,8 @@ export const PROMPTS = [
         home: 'Trackers',
         help: 'What the writer is told when it writes the Internal States block. Empty uses the built-in, '
             + 'which follows the Worldkit preset. Only used when Internal States writes the block after the reply.',
-        recommended: () => internalStatesSystem(getTrackerTheme('states')),
-        knownDefaults: () => builtInStatesPrompts(),
+        recommended: () => INTERNAL_STATES_SYSTEM,
+        isStale: (text) => isBuiltInStatesPrompt(text),
         emptyNote: 'The built-in instructions are sent.',
         available: () => getSettings().internalStatesMode === 'after',
     },

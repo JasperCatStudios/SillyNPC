@@ -25,7 +25,7 @@ const el = (tag, className, text) => {
 };
 
 /** 'unknown' until checked, then 'missing' (not installed), 'ready' (catalog read) or 'broken' (installed, no catalog). */
-const state = { status: 'unknown', catalog: null, busy: '', message: '' };
+const state = { status: 'unknown', catalog: null, busy: '', message: '', open: new Set(['world']) };
 
 const savedUrl = () => {
     const url = String(getSettings().contentKitUrl || '').trim();
@@ -115,9 +115,6 @@ async function importItem(item) {
         case 'workflow':
             await navigator.clipboard.writeText(text);
             return 'Copied. Paste it into the Phone\'s ComfyUI workflow box.';
-        case 'template':
-            await navigator.clipboard.writeText(text);
-            return 'Copied. Paste it over the template part of Prompts, Internal States.';
         case 'regex': {
             const { added, replaced } = await importRegex(item);
             return `${added} added, ${replaced} updated. They work now; reload SillyTavern to see them in the Regex list.`;
@@ -149,7 +146,7 @@ function itemRow(item, rerender) {
     if (item.description) text.append(document.createElement('br'), el('small', 'notes', item.description));
     row.append(text);
     if (item.type === 'art') return row;   // copied by hand; the description says where
-    const copies = item.type === 'workflow' || item.type === 'template';
+    const copies = item.type === 'workflow';
     const verb = copies ? 'Copy' : 'Import';
     row.append(button(verb, copies ? 'fa-copy' : 'fa-file-import', async () => {
         state.busy = item.file;
@@ -172,7 +169,9 @@ function renderCatalog(view, rerender) {
     if (!sections.length) { view.append(el('p', 'notes', 'The catalog is empty.')); return; }
     for (const section of sections) {
         const details = el('details', 'sillynpc-prompt-group');
-        details.open = section.type === 'world';
+        // Kept across redraws: an import redraws the screen, and a section you had opened must not fold shut under you.
+        details.open = state.open.has(section.type);
+        details.addEventListener('toggle', () => { if (details.open) state.open.add(section.type); else state.open.delete(section.type); });
         const count = section.groups.reduce((n, g) => n + g.items.length, 0);
         details.append(el('summary', '', `${section.label} (${count})`));
         for (const group of section.groups) {
@@ -201,6 +200,8 @@ function renderCatalog(view, rerender) {
 
 export function renderContentKitView(view) {
     if (!view) return;
+    // The page stays where it was: an import redraws it, and it must not jump back to the top.
+    const scroll = view.closest('.sillynpc-tab-panel')?.scrollTop ?? 0;
     view.replaceChildren();
     view.classList.add('snpc-content-kit');
     const rerender = () => renderContentKitView(view);
@@ -270,6 +271,9 @@ export function renderContentKitView(view) {
     view.append(actions);
 
     if (state.status === 'ready' && state.catalog) renderCatalog(view, rerender);
+
+    const panel = view.closest('.sillynpc-tab-panel');
+    if (panel) panel.scrollTop = scroll;
 
     // The first time the screen opens it looks for the kit by itself.
     if (state.status === 'unknown' && !state.busy && view.isConnected) {

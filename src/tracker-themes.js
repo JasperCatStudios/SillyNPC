@@ -190,6 +190,7 @@ const WORD = { bonds: 'BOND TRACKER', vitals: 'VITALS', inventory: 'INVENTORY' }
  */
 export function themeRegexes(tracker, theme) {
     if (theme !== THEME_PARCHMENT && theme !== THEME_PERSONA && theme !== THEME_TACTICAL) return [];
+    if (tracker === 'states') return statesThemeRegexes(theme);
     const label = { [THEME_PARCHMENT]: 'Parchment', [THEME_PERSONA]: 'Persona', [THEME_TACTICAL]: 'Tactical' }[theme];
     const c = card(theme, accents[tracker]?.[theme]);
     const nice = { bonds: 'Bonds', vitals: 'Vitals', inventory: 'Inventory' }[tracker];
@@ -244,123 +245,63 @@ export function applyDefaultRegexes(html, tracker) {
     return out;
 }
 
+/**
+ * The default look as it is really used: SillyTavern's own regexes first (`stRegexes` runs them), then the built-in scripts on
+ * whatever is left. The built-in frames and rows only match a block that is still plain (a bare <details><summary>, a raw line),
+ * so anything a regex of yours already styled is left exactly as it is. It does not matter whether yours changed a little, a lot
+ * or nothing: only the parts still plain get the built-in look.
+ */
+export function dressDefault(html, tracker, stRegexes) {
+    return applyDefaultRegexes(stRegexes(html), tracker);
+}
+
 /* ---------------------------------------------------------------- Internal States */
 
 /**
- * The Internal States template in a theme: the HTML the writing model fills in. Parchment and
- * Persona are inline-styled, so no regex is needed to dress them. Every entry is on its own line
- * ending in <br>, so several NPCs never run together. Plain is not built here (it is the
- * original template, kept in internal-states.js).
+ * Internal States looks, as regexes like every other tracker's. The writing model always writes the same plain block (see
+ * INTERNAL_STATES_SYSTEM): it is never asked for inline-styled HTML, so a look costs it nothing and can be changed on blocks
+ * already written. The block is a <details> per section; one script restyles the header, and one per colour group restyles
+ * the section rows. A script that matches nothing leaves the block as it is.
  */
-export function internalStatesTemplate(theme) {
-    if (theme === THEME_TACTICAL) return tacticalStatesTemplate();
-    const P = theme === THEME_PARCHMENT;
-    if (!P && theme !== THEME_PERSONA) return null;
+export const STATE_SECTION_GROUPS = Object.freeze({
+    a: 'NPC AGENDAS|NPC LOCATIONS|FACTIONS|BONDS',
+    b: "QUESTS|CHEKHOV'S GUN|CHEKHOV SEEDS|INTERNAL THOUGHTS|GM'S NOTEBOOK",
+    c: 'WORLD SIM|PLOT MOMENTUM|DND TASK SIM|PHYSICS, ENGINE &(?:amp;)? WORLD',
+    d: 'BODY SCALE',
+});
+const statesFrameFind = '/<details>\\s{0,100}<summary>([^<]{0,200}?INTERNAL STATES[^<]{0,200}?)<\\/summary>/g';
+const statesSectionFind = (words) => `/<details>\\s{0,100}<summary>([^<]{0,200}?)(${words})([^<]{0,200}?)<\\/summary>((?:(?!<\\/details>)[\\s\\S])*)<\\/details>/g`;
+/** Entries are lines starting "- <b>"; in HTML a newline is not a line break, so each entry gets one. */
+export const STATES_ENTRY_BREAKS = Object.freeze({ find: '/([^>\\n])[ \\t]*\\n[ \\t]*(-[ \\t]*<b)/g', replace: '$1<br>$2' });
 
-    const outer = P
-        ? `font-family:${PA.serif};background:#f5ebd6;color:#3b2818;border:2px solid #b89f7d;border-radius:10px;padding:18px;width:100%;max-width:580px;box-shadow:0 8px 24px rgba(0,0,0,.45),inset 0 0 40px rgba(184,159,125,.35);`
-        : `font-family:${PE.sans};background:#09090b;color:#ffffff;border:3px solid #e11d48;padding:16px;width:100%;max-width:580px;position:relative;overflow:hidden;box-shadow:6px 6px 0 #e11d48;`;
+const statesLooks = {
+    [THEME_PARCHMENT]: {
+        frame: `<details open style="font-family:${PA.serif};background:#f5ebd6;color:#3b2818;border:2px solid #b89f7d;border-radius:10px;padding:18px;max-width:580px;margin:8px 0;box-shadow:0 8px 24px rgba(0,0,0,.45),inset 0 0 40px rgba(184,159,125,.35);"><summary style="cursor:pointer;font-weight:700;font-size:1.15em;color:#5c3a21;border-bottom:2px double #b89f7d;padding-bottom:5px;margin-bottom:12px;">$1</summary>`,
+        section: () => `<details open style="background:#ede0c4;border:1px solid #cbb38f;border-radius:8px;padding:8px 12px;margin:6px 0;font-family:${PA.serif};"><summary style="cursor:pointer;font-weight:700;color:#5c3a21;font-size:.98em;">$1$2$3</summary><div style="margin-top:8px;padding-top:8px;border-top:1px dashed #b89f7d;font-size:.9em;line-height:1.45;color:#3b2818;">$4</div></details>`,
+    },
+    [THEME_PERSONA]: {
+        frame: `<details open style="font-family:${PE.sans};background:#09090b;color:#ffffff;border:3px solid #e11d48;padding:16px;max-width:580px;margin:8px 0;box-shadow:6px 6px 0 #e11d48;"><summary style="cursor:pointer;font-family:${PE.head};font-size:1.25em;letter-spacing:1px;color:#09090b;background:#ffffff;padding:4px 14px;transform:skewX(-8deg);list-style:none;margin-bottom:12px;border-left:6px solid #e11d48;">$1</summary>`,
+        section: (accent) => `<details open style="background:#18181b;border:1px solid #3f3f46;border-left:5px solid ${accent};padding:8px 12px;margin:6px 0;font-family:${PE.sans};"><summary style="cursor:pointer;font-family:${PE.head};letter-spacing:.8px;color:${accent};list-style:none;">$1$2$3</summary><div style="margin-top:8px;padding-top:8px;border-top:1px solid #27272a;font-size:.82em;line-height:1.5;color:#e4e4e7;">$4</div></details>`,
+        accents: { a: '#e11d48', b: '#facc15', c: '#38bdf8', d: '#ffffff' },
+    },
+    [THEME_TACTICAL]: {
+        frame: `<details open style="font-family:${TG.sans};background:linear-gradient(165deg,${TG.from} 0%,${TG.to} 100%);color:${TG.text};border:1px solid ${TG.edge};border-radius:12px;padding:16px;max-width:580px;margin:8px 0;box-shadow:0 10px 25px rgba(0,0,0,.45);"><summary style="cursor:pointer;font-weight:700;font-size:1.05em;letter-spacing:.06em;color:#f43f5e;border-bottom:1px solid ${TG.edge};padding-bottom:5px;margin-bottom:10px;">$1</summary>`,
+        section: (accent) => `<details open style="background:rgba(30,41,59,.65);border:1px solid rgba(${hexRgb(accent)},.24);border-left:3px solid ${accent};border-radius:8px;padding:8px 12px;margin:6px 0;font-family:${TG.sans};"><summary style="cursor:pointer;font-weight:700;font-size:.92em;letter-spacing:.06em;color:${accent};">$1$2$3</summary><div style="margin-top:6px;padding-top:6px;border-top:1px solid ${TG.edge};font-size:.8em;line-height:1.5;color:#e2e8f0;">$4</div></details>`,
+        accents: { a: TG.rose, b: '#c084fc', c: TG.sky, d: TG.green },
+    },
+};
 
-    const title = P
-        ? `<summary style="cursor:pointer;font-weight:700;font-size:1.15em;color:#5c3a21;border-bottom:2px double #b89f7d;padding-bottom:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;"><span>🎬 INTERNAL STATES (Turn: <span style="background:#e6d5b3;border:1px solid #a88b63;padding:0 6px;border-radius:4px;font-family:monospace;font-size:.85em;">[ct]</span>)</span><span style="font-size:.72em;color:#7c583a;font-style:italic;">Chronicle Ledger</span></summary>`
-        : `<summary style="cursor:pointer;font-family:'Anton',sans-serif;font-size:1.25em;letter-spacing:1px;color:#09090b;background:#ffffff;padding:4px 14px;transform:skewX(-8deg);list-style:none;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border-left:6px solid #e11d48;"><span style="transform:skewX(8deg);">🎬 INTERNAL STATES (Turn: <span style="background:#e11d48;color:#ffffff;padding:0 7px;font-family:'Inter',sans-serif;font-size:.78em;font-weight:900;">[ct]</span>)</span><span style="transform:skewX(8deg);font-family:'Inter',sans-serif;font-size:.58em;font-weight:900;background:#09090b;color:#facc15;padding:2px 7px;">LIVE TELEMETRY</span></summary>`;
-
-    // A section box. `edge` is the persona accent colour; parchment boxes are all one colour.
-    const box = (open, edge, name, body, { size = 1, bodyStyle = '', head } = {}) => {
-        const o = open ? ' open' : '';
-        if (P) {
-            return `<details${o} style="background:#ede0c4;border:1px solid #cbb38f;border-radius:8px;padding:8px 12px;"><summary style="cursor:pointer;font-weight:700;color:#5c3a21;font-size:${size === 1 ? '.98' : '.95'}em;">${name}</summary><div style="margin-top:8px;padding-top:8px;border-top:1px dashed #b89f7d;font-size:.88em;line-height:1.45;${bodyStyle}">${body}</div></details>`;
-        }
-        return `<details${o} style="background:#18181b;border:1px solid #3f3f46;border-left:5px solid ${edge};padding:8px 12px;"><summary style="cursor:pointer;font-family:'Anton',sans-serif;letter-spacing:.8px;font-size:${size === 1 ? '1' : '.95'}em;color:${head || '#ffffff'};">${name}</summary><div style="margin-top:8px;padding-top:8px;border-top:1px solid #27272a;font-size:.8em;line-height:1.5;color:#e4e4e7;${bodyStyle}">${body}</div></details>`;
-    };
-
-    const nm = (t) => (P ? `<b style="color:#7f1d1d;">${t}</b>` : `<b style="color:#ffffff;background:#e11d48;padding:0 5px;">${t}</b>`);
-    const nm2 = (t) => (P ? `<b style="color:#7f1d1d;">${t}</b>` : `<b style="color:#38bdf8;">${t}</b>`);
-    const hi = (t) => (P ? `<span style="color:#4a3520;">${t}</span>` : `<span style="color:#facc15;font-weight:700;">${t}</span>`);
-    const chip = (t) => (P
-        ? `<span style="background:#f5ebd6;border:1px solid #b89f7d;padding:0 6px;border-radius:999px;font-size:.85em;font-weight:700;">${t}</span>`
-        : `<span style="background:#ffffff;color:#09090b;font-weight:900;padding:0 6px;font-size:.9em;">${t}</span>`);
-    const tier = (t) => (P ? `<span style="background:#e6d5b3;padding:0 5px;border-radius:4px;">${t}</span>` : `<span style="background:#e11d48;color:#fff;font-weight:800;padding:0 5px;">${t}</span>`);
-    const gun = (edgeP, edgeE, label, colorP, colorE, text) => (P
-        ? `<div style="background:#f5ebd6;border-left:3px solid ${edgeP};padding:4px 8px;border-radius:4px;margin-bottom:4px;">- <b style="color:${colorP};">${label}:</b> ${text}</div>`
-        : `<div style="background:#09090b;border-left:4px solid ${edgeE};padding:4px 8px;margin-bottom:5px;">- <b style="color:${colorE};">${label}:</b> ${text}</div>`);
-
-    const agendas = box(true, '#e11d48', '👤 NPC AGENDAS', `- ${nm('[NPC Name]')} | Agenda: ${hi('[task]')} | ${chip('(Step [current]/[max])')} | Aware: <i>[secrets]</i> | Fibs: <i>[lies_told]</i> | Circle: <span>[allies]</span><br>`);
-    const locations = box(true, '#38bdf8', '👤 NPC LOCATIONS', `- ${nm2('[NPC Name]')} | Location: ${hi('[coords/scene, current activity]')}<br>`);
-    const chekhov = box(true, '#facc15', "🔫 CHEKHOV'S GUN",
-        gun('#15803d', '#22c55e', 'Active', '#14532d', '#4ade80', '[active bullets or None]')
-        + gun('#b45309', '#facc15', 'Locked', '#78350f', '#facc15', '[locked bullets or None]')
-        + gun('#991b1b', '#e11d48', 'Fired', '#7f1d1d', '#fb7185', '[fired bullets or None]'), { head: '#facc15' });
-    const body = box(false, '#ffffff', '🧍 BODY SCALE',
-        `- <b style="font-size:1.05em;">[Character Name]</b><br>`
-        + `&nbsp;&nbsp;&bull; <b>🧍🏻‍♀️ Frame &amp; Stature:</b> ${tier('[S1–S5]')} [Height cm / Weight kg] — [Direct physical &amp; eye-level contrast to {{user}}]<br>`
-        + `&nbsp;&nbsp;&bull; <b>🤝 Tactile &amp; Contact Scale:</b> [Hand size, wrist/waist span, shoulder width &amp; weight feel against {{user}}]<br>`
-        + `&nbsp;&nbsp;&bull; <b>📐 Proportions &amp; Kinetics:</b> Bust/Chest: ${tier('[S1–S5]')} / Hips &amp; Ass: ${tier('[S1–S5]')} — [Softness vs. muscle tone, sway &amp; bounce]<br>`
-        + `&nbsp;&nbsp;&bull; <b>👗 Attire Fit &amp; Posture:</b> [Current clothes, fabric tension/drape over frame, footwear &amp; exact stance]<br>`);
-    const thoughts = P
-        ? box(true, '', '🧠 INTERNAL THOUGHTS', `- ${nm('[NPC Name]')} <span style="background:#f5ebd6;border:1px solid #a88b63;padding:1px 7px;border-radius:999px;font-size:.82em;font-weight:700;">([In Sync / Mild Rub / Friction / Clash])</span> — <b>Body/Mood:</b> [Somatic load &amp; VAD] — <b>Thought:</b> <em style="color:#4a3520;background:#f5ebd6;padding:1px 5px;border-radius:4px;">"[Raw 1st-person thought]"</em> — <b>Stance Lock:</b> [Sustained demeanor &amp; unspoken carryover]<br>`)
-        : `<details open style="background:#ffffff;color:#09090b;border-left:6px solid #e11d48;padding:8px 12px;"><summary style="cursor:pointer;font-family:'Anton',sans-serif;letter-spacing:.8px;font-size:1em;color:#09090b;">🧠 INTERNAL THOUGHTS</summary><div style="margin-top:6px;padding-top:6px;border-top:2px solid #09090b;font-size:.82em;line-height:1.45;font-weight:600;">- <b style="background:#09090b;color:#ffffff;padding:1px 6px;">[NPC Name]</b> <span style="background:#e11d48;color:#ffffff;padding:1px 6px;font-weight:800;">([In Sync / Mild Rub / Friction / Clash])</span> — <b>Body/Mood:</b> [Somatic load &amp; VAD] — <b>Thought:</b> <span style="color:#be123c;font-style:italic;font-weight:800;">"[Raw 1st-person thought]"</span> — <b>Stance Lock:</b> [Sustained demeanor &amp; unspoken carryover]<br></div></details>`;
-    const notebook = box(true, '#a1a1aa', "📓 GM'S NOTEBOOK", '- [R] No active notes.<br>', { size: 2, head: '#e4e4e7' });
-    const sim = box(true, '#38bdf8', '🌎 WORLD SIM',
-        `- <b>Scene Mode:</b> ${P ? '<span style="background:#5c3a21;color:#f5ebd6;padding:0 6px;border-radius:4px;font-size:.85em;">[LOCKED / ACTIVE / TRANSITION]</span>' : '<span style="background:#38bdf8;color:#09090b;font-weight:900;padding:0 5px;">[LOCKED / ACTIVE / TRANSITION]</span>'}<br>`
-        + '- <b>Event:</b> [Brief description of ambient detail or off-screen shift]<br>', { size: 2, head: '#38bdf8' });
-    const physics = box(false, '#a855f7', '🌌 PHYSICS, ENGINE &amp; WORLD', '- <b>Env:</b> [hazards/magic/weather]<br>- <b>Physics:</b> [spatial positioning, distances, line-of-sight]<br>', { head: '#d8b4fe' });
-
-    const row2 = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;">${notebook}${sim}</div>`;
-    const gap = '<div style="display:flex;flex-direction:column;gap:8px;">';
-    return [
-        '<!-- GFX_START -->',
-        `<div style="${outer}">`,
-        '<internal_states>',
-        `<details open style="margin-bottom:14px;">${title}`,
-        gap,
-        agendas, locations, chekhov, body, thoughts, row2, physics,
-        '</div>',
-        '</details>',
-        '</internal_states>',
-        '</div>',
-        '<!-- GFX_END -->',
-    ].join('\n');
-}
-
-/** The extra rule the themed templates ask for, so entries do not run together. */
-export const INTERNAL_STATES_LINE_BREAK_RULE = '- Line breaks: every entry is its own line ending in <br> (every NPC under Agendas, Locations and Internal Thoughts, and each character under Body Scale), repeating the example line once per entry, so entries never run together. Keep the inline styles exactly as the template gives them.';
-
-/**
- * Internal States in the tactical glass look. The owner's mock-up had no Internal States version
- * of this theme, so it is built here from the same palette as the other three tactical blocks.
- */
-function tacticalStatesTemplate() {
-    const box = (open, edge, name, body, color = TG.text) => `<details${open ? ' open' : ''} style="background:rgba(30,41,59,.65);border:1px solid rgba(${hexRgb(edge)},.24);border-left:3px solid ${edge};border-radius:8px;padding:8px 12px;"><summary style="cursor:pointer;font-weight:700;font-size:.92em;letter-spacing:.06em;color:${color};">${name}</summary><div style="margin-top:6px;padding-top:6px;border-top:1px solid ${TG.edge};font-size:.8em;line-height:1.5;color:#e2e8f0;">${body}</div></details>`;
-    const nm = (t) => `<b style="color:#fda4af;">${t}</b>`;
-    const mono = (t) => `<span style="font-family:${TG.mono};color:${TG.sky};">${t}</span>`;
-    const chip = (t, c = TG.sky) => `<span style="font-family:${TG.mono};font-size:.85em;color:${c};background:rgba(${hexRgb(c)},.12);border:1px solid rgba(${hexRgb(c)},.3);padding:0 6px;border-radius:999px;">${t}</span>`;
-    const gun = (c, label, text) => `<div style="border-left:3px solid ${c};padding:3px 8px;background:rgba(15,23,42,.75);border-radius:4px;margin-bottom:4px;">- <b style="color:${c};">${label}:</b> ${text}</div>`;
-    const agendas = box(true, TG.rose, '👤 NPC AGENDAS', `- ${nm('[NPC Name]')} | Agenda: ${mono('[task]')} | ${chip('(Step [current]/[max])')} | Aware: <i>[secrets]</i> | Fibs: <i>[lies_told]</i> | Circle: <span>[allies]</span><br>`, '#fda4af');
-    const locations = box(true, TG.sky, '👤 NPC LOCATIONS', `- ${nm('[NPC Name]')} | Location: ${mono('[coords/scene, current activity]')}<br>`, '#7dd3fc');
-    const chekhov = box(true, TG.amber, "🔫 CHEKHOV'S GUN", gun(TG.green, 'Active', '[active bullets or None]') + gun(TG.amber, 'Locked', '[locked bullets or None]') + gun(TG.rose, 'Fired', '[fired bullets or None]'), '#fbbf24');
-    const body = box(false, TG.green, '🧍 BODY SCALE',
-        `- <b style="font-size:1.05em;">[Character Name]</b><br>`
-        + `&nbsp;&nbsp;&bull; <b>🧍🏻‍♀️ Frame &amp; Stature:</b> ${chip('[S1–S5]')} [Height cm / Weight kg] — [Direct physical &amp; eye-level contrast to {{user}}]<br>`
-        + `&nbsp;&nbsp;&bull; <b>🤝 Tactile &amp; Contact Scale:</b> [Hand size, wrist/waist span, shoulder width &amp; weight feel against {{user}}]<br>`
-        + `&nbsp;&nbsp;&bull; <b>📐 Proportions &amp; Kinetics:</b> Bust/Chest: ${chip('[S1–S5]')} / Hips &amp; Ass: ${chip('[S1–S5]')} — [Softness vs. muscle tone, sway &amp; bounce]<br>`
-        + `&nbsp;&nbsp;&bull; <b>👗 Attire Fit &amp; Posture:</b> [Current clothes, fabric tension/drape over frame, footwear &amp; exact stance]<br>`, '#6ee7b7');
-    const thoughts = box(true, '#c084fc', '🧠 INTERNAL THOUGHTS', `- ${nm('[NPC Name]')} ${chip('([In Sync / Mild Rub / Friction / Clash])', '#c084fc')} — <b>Body/Mood:</b> [Somatic load &amp; VAD] — <b>Thought:</b> <em style="color:#e9d5ff;">"[Raw 1st-person thought]"</em> — <b>Stance Lock:</b> [Sustained demeanor &amp; unspoken carryover]<br>`, '#d8b4fe');
-    const notebook = box(true, TG.mute, "📓 GM'S NOTEBOOK", '- [R] No active notes.<br>', '#cbd5e1');
-    const sim = box(true, TG.sky, '🌎 WORLD SIM', `- <b>Scene Mode:</b> ${chip('[LOCKED / ACTIVE / TRANSITION]')}<br>- <b>Event:</b> [Brief description of ambient detail or off-screen shift]<br>`, '#7dd3fc');
-    const physics = box(false, '#a855f7', '🌌 PHYSICS, ENGINE &amp; WORLD', '- <b>Env:</b> [hazards/magic/weather]<br>- <b>Physics:</b> [spatial positioning, distances, line-of-sight]<br>', '#d8b4fe');
-    const row2 = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;">${notebook}${sim}</div>`;
-    return [
-        '<!-- GFX_START -->',
-        `<div style="font-family:${TG.sans};background:linear-gradient(165deg,${TG.from} 0%,${TG.to} 100%);color:${TG.text};border:1px solid ${TG.edge};border-radius:12px;padding:16px;width:100%;max-width:580px;box-shadow:0 10px 25px rgba(0,0,0,.45);">`,
-        '<internal_states>',
-        `<details open style="margin-bottom:14px;"><summary style="cursor:pointer;font-weight:700;font-size:1.05em;letter-spacing:.06em;color:#f43f5e;border-bottom:1px solid ${TG.edge};padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;"><span>🎬 INTERNAL STATES (Turn: ${chip('[ct]', '#f43f5e')})</span><span style="font-family:${TG.mono};font-size:.7em;color:${TG.dim};">TELEMETRY</span></summary>`,
-        '<div style="display:flex;flex-direction:column;gap:8px;">',
-        agendas, locations, chekhov, body, thoughts, row2, physics,
-        '</div>',
-        '</details>',
-        '</internal_states>',
-        '</div>',
-        '<!-- GFX_END -->',
-    ].join('\n');
+/** The Internal States scripts of a look, in the order they run: [{ name, find, replace }]. */
+function statesThemeRegexes(theme) {
+    const look = statesLooks[theme];
+    if (!look) return [];
+    const label = { [THEME_PARCHMENT]: 'Parchment', [THEME_PERSONA]: 'Persona', [THEME_TACTICAL]: 'Tactical' }[theme];
+    const out = [
+        { name: `Worldkit - Internal States ${label} Entry Breaks`, find: STATES_ENTRY_BREAKS.find, replace: STATES_ENTRY_BREAKS.replace },
+        { name: `Worldkit - Internal States ${label} Frame`, find: statesFrameFind, replace: look.frame },
+    ];
+    // Parchment is one colour, so one script covers every section; the others colour each group.
+    if (!look.accents) out.push({ name: `Worldkit - Internal States ${label} Sections`, find: statesSectionFind(Object.values(STATE_SECTION_GROUPS).join('|')), replace: look.section() });
+    else for (const [key, words] of Object.entries(STATE_SECTION_GROUPS)) out.push({ name: `Worldkit - Internal States ${label} Sections ${key.toUpperCase()}`, find: statesSectionFind(words), replace: look.section(look.accents[key]) });
+    return out;
 }

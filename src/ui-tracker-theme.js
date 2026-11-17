@@ -46,8 +46,8 @@ export function buildThemePicker(tracker, { onChange } = {}) {
     help.textContent = select.value === THEME_PLAIN
         ? 'How the block under a reply looks. Default - Freaky Frankenstein leaves it to the regexes you have imported in SillyTavern (the Freaky Frankenstein preset\'s, plus the Worldkit bars from the Content Kit), the way it always was. '
           + 'Picking a look here picks it for Internal States, Bonds, Vitals and Inventory together.'
-        : 'Picked for Internal States, Bonds, Vitals and Inventory together, so they match. Internal States writes new blocks in this look; '
-          + 'the others are dressed as they are drawn. The same looks are in the Worldkit-Content regex folder for use outside the extension.';
+        : 'Picked for Internal States, Bonds, Vitals and Inventory together, so they match. The model always writes the same plain block; '
+          + 'the look is drawn over it afterwards, so it can be changed on blocks already written. The same looks are in the Worldkit-Content regex folder for use outside the extension.';
     wrap.append(row, help);
     return wrap;
 }
