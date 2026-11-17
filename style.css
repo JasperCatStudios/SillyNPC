@@ -3531,13 +3531,6 @@ span.sillynpc-review-to {
 
 /* ─── Filling in a character card ───────────────────────────────────────── */
 
-.sillynpc-fill-plan {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sillynpc-space-sm);
-    text-align: left;
-}
-
 
 /* Asking what to do about names already in use. Left-aligned and stacked for the same
    reason the fill plan is: SillyTavern centres everything inside a popup, and a centred
@@ -3564,32 +3557,11 @@ span.sillynpc-review-to {
 
 /* Checkbox and description side by side, aligned to the top of the text so a two-line
    summary does not push the box to the middle of the row. */
-.sillynpc-fill-row {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--sillynpc-space-sm);
-    padding: var(--sillynpc-space-sm) var(--sillynpc-space-md);
-    background: var(--sillynpc-bg-secondary);
-    border: 1px solid var(--sillynpc-border);
-    border-radius: var(--sillynpc-radius-md);
-    cursor: pointer;
-}
 
-.sillynpc-fill-row .sillynpc-fill-check {
-    margin-top: 3px;
-    flex-shrink: 0;
-}
 
 /* A stage with nothing to do is shown rather than hidden - "there was nothing to do" and
    "it did nothing" are different answers - but it should not read as a choice. */
-.sillynpc-fill-row.is-done {
-    opacity: 0.55;
-    cursor: default;
-}
 
-.sillynpc-fill-text {
-    line-height: var(--sillynpc-line-height);
-}
 
 /* ─── Character profile fields ──────────────────────────────────────────────
    The four built-in fields on the character editor. A label above its box
@@ -4856,7 +4828,7 @@ textarea.sillynpc-profile-input {
     .sillynpc-editor-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
     .sillynpc-editor-header .sillynpc-editor-title { flex: 1 1 110px; min-width: 0; margin: 0; font-size: 1.15em; overflow-wrap: anywhere; }
     .sillynpc-editor-header .menu_button { margin: 0; }
-    .sillynpc-editor-header .sillynpc-fill-btn { flex: 0 0 auto; }
+    
     .sillynpc-charview-tabs { margin: 8px 0 0; }
     .sillynpc-fx .sillynpc-cv-body { min-width: 0; }
     .sillynpc-fx .sillynpc-cv-right { width: 100%; min-width: 0; }
@@ -5094,3 +5066,7 @@ textarea.sillynpc-profile-input {
 /* Dialogue text and its gradient, grouped. */
 .sillynpc-color-group { border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 6px 10px 10px; margin: 8px 0; }
 .sillynpc-color-group > legend { padding: 0 6px; font-weight: bold; font-size: 0.9em; width: auto; }
+
+/* Phone prompts, collapsed together. */
+.sillynpc-prompt-group { margin: 12px 0; border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 4px 10px; }
+.sillynpc-prompt-group > summary { cursor: pointer; font-weight: bold; padding: 8px 0; }

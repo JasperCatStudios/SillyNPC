@@ -2,10 +2,6 @@ import { getContext } from '../../../../st-context.js';
 import { applyMacros } from './macros.js';
 import { getSettings } from './settings.js';
 import {
-    THREAD_KINDS, openThreads, coerceThread, addThread, closeThread,
-    activeThreads, touchThreads, pruneThreads,
-} from './threads.js';
-import {
     LOG_PREFIX, debugLog, SYSTEM_PROMPT, isStaticField, PRODUCT_NAME } from './constants.js';
 export { SYSTEM_PROMPT };
 import { extractJSON, safeJsonParse, describeConnection, currentMessageIndex } from './utils.js';
@@ -26,7 +22,7 @@ import {
 } from './status-logic.js';
 import { computeStateDiff, partitionChanges, buildUpdateFromChanges, attachReasons } from './status-diff.js';
 import { setPendingChanges, isItemDecided } from './status-review.js';
-import { recordAppliedChanges, recordThreadChanges } from './status-snapshots.js';
+import { recordAppliedChanges } from './status-snapshots.js';
 import { applyTimeRules } from './status-rules.js';
 
 /**
@@ -172,26 +168,6 @@ export function buildExtractionSchema(trackerSettings) {
                     },
                 },
             },
-            // Only when threads are on. A schema names what may come back, so a key it
-            // does not mention is a key the model is told not to send - the ask would
-            // still be in the prompt and the answer would never arrive, which is the
-            // worst shape of failure: a feature that is switched on and silent.
-            ...(trackerSettings.threadsEnabled === true ? {
-                threads: {
-                    type: 'array',
-                    items: {
-                        type: 'object',
-                        required: ['text', 'quote'],
-                        properties: {
-                            kind: { type: 'string' },
-                            text: { type: 'string' },
-                            quote: { type: 'string' },
-                            who: { type: 'string' },
-                        },
-                    },
-                },
-                closed: { type: 'array', items: { type: 'string' } },
-            } : {}),
         },
     };
 }
@@ -542,15 +518,6 @@ function describeAbsentButNamed(state, messageText, trackerSettings) {
 // Exported for the tests: what reaches the model on every message is worth holding to
 // a shape, and the vocabulary in it is the whole point of this function.
 export function buildUserPrompt(state, messageText, trackerSettings, leadUp = []) {
-    // What is already open, so the reader is not asked to find it again every message.
-    //
-    // The active ones only. This listed every open thread, which made the block grow with
-    // the pile: a chat carrying eighty of them paid eighty lines here on every single
-    // message, to stop the model re-proposing threads that mostly were not being sent to
-    // it anyway. The ones worth naming are the ones in play, and addThread still refuses
-    // an exact repeat of any of the rest.
-    const openText = activeThreads(state, currentMessageIndex())
-        .map(t => `  - "${t.quote}"`).join('\n');
     const limits = describeLimits(trackerSettings, state);
     const schema = describeCollections(trackerSettings);
     const example = buildDeltaExample(trackerSettings);
@@ -614,30 +581,6 @@ export function buildUserPrompt(state, messageText, trackerSettings, leadUp = []
             'If you cannot point at something in the latest message, do not change the',
             'value at all and do not list it.',
         ].join('\n'),
-        // Threads. Also here rather than the system prompt, and for the same reason as the
-        // reasons above: a user's own extraction prompt replaces the shipped one outright.
-        //
-        // The ask names speech acts rather than asking what was important. "Will this
-        // matter later" is the question nobody can answer at the time - it is why
-        // summaries lose the line that turns out to count - but "did somebody promise,
-        // threaten, owe, confide, set a deadline or make a plan" is answerable from the
-        // message alone.
-        trackerSettings.threadsEnabled !== true ? '' : [
-            '',
-            'Also return a "threads" array for anything in the latest message that opened',
-            'one of these and is not finished with:',
-            ...THREAD_KINDS.map(k => `  ${k.id} - ${k.hint}`),
-            'Each: { "kind": "...", "text": "what is outstanding, one line",',
-            '"quote": "the words from the message that opened it", "who": "who it is about" }.',
-            // The rule that keeps this from becoming invented plot. A quote can be checked
-            // against the message; a description cannot.
-            'The quote must be words that appear in the latest message. If you cannot quote',
-            'it, do not list it.',
-            'Most messages open nothing. An empty array is the usual answer.',
-            openText ? `Already open, do not list again:\n${openText}` : '',
-            'Return "closed" as an array of the quoted lines above that this message',
-            'resolved, if any.',
-        ].filter(Boolean).join('\n'),
     ].filter(Boolean).join('\n');
 }
 
@@ -773,139 +716,6 @@ function buildMinimalExample(state, trackerSettings) {
 
 
 /**
- * Opens and closes threads from what the reader returned.
- *
- * Saved in its own step rather than through applyUpdate, and returns what it did so a
- * caller reading a whole history can report totals.
- *
- * @param {object} parsed The reply.
- * @param {string|number|null} messageId Which message opened them.
- * @param {string} [messageText] The message itself, used only to decide whether the player
- *   was named in it. The history scan does not pass one, and does not need to.
- * @returns {{ opened: number, closed: number }}
- */
-export function applyThreadsFromReply(parsed, messageId = null, messageText = '') {
-    const trackerSettings = getSettings().statusTracker;
-    if (trackerSettings.threadsEnabled !== true) return { opened: 0, closed: 0 };
-
-    const proposed = Array.isArray(parsed?.threads) ? parsed.threads : [];
-    const resolved = Array.isArray(parsed?.closed) ? parsed.closed : [];
-    const state = loadStateFromMetadata();
-    const present = (Array.isArray(parsed?.characters) ? parsed.characters : [])
-        .map(c => c?.name)
-        .filter(Boolean);
-
-    /* The player, who is never in `characters` - they are reported under `player` - and so
-       could never touch a thread about themselves. In a real chat most threads are about
-       the player, and those were the ones ageing fastest.
-
-       Only when the reply actually names them, rather than always. They are in every scene
-       by definition, so counting them unconditionally would mean their threads never
-       decayed at all and simply held the cap by weight. Naming is the honest signal: a
-       reply that says "Kristof, you're the one holding the line" is engaging with them,
-       and one that never mentions them is not. Second-person narration means this is
-       often false, which is the point. */
-    const playerName = String(state?.player?.name || '').trim();
-    if (playerName && mentionsName(messageText, playerName)) present.push(playerName);
-
-    // No early return on "nothing proposed" any more. Most messages open and close
-    // nothing, and those are exactly the messages that say a thread is still live: whoever
-    // it is about was in the scene. Leaving before touching them was what let a running
-    // obligation age as though the story had dropped it.
-    if (!proposed.length && !resolved.length && !present.length) return { opened: 0, closed: 0 };
-
-    const now = currentMessageIndex();
-    let opened = 0;
-    let closed = 0;
-    const touched = touchThreads(state, present, messageId ?? now);
-
-    // Kept so the message can be told what it did: rebaseToSwipe rebuilds a swipe from
-    // what was recorded against it, and a thread recorded nowhere is a thread that swipe
-    // loses on the way back.
-    const openedThreads = [];
-    const closedIds = [];
-
-    for (const raw of proposed) {
-        const thread = coerceThread(raw, { messageId });
-        // Refused rather than repaired. A thread with no quotable source is a thread
-        // nobody opened, and the whole value of these is that the line can be checked.
-        if (!thread) continue;
-        if (addThread(state, thread)) {
-            openedThreads.push(thread);
-            opened += 1;
-        }
-    }
-
-    for (const quote of resolved) {
-        const key = String(quote ?? '').trim().toLowerCase();
-        if (!key) continue;
-        const match = openThreads(state)
-            .find(t => String(t.quote).toLowerCase().includes(key)
-                || key.includes(String(t.quote).toLowerCase()));
-        if (match && closeThread(state, match.id)) {
-            closedIds.push(match.id);
-            closed += 1;
-        }
-    }
-
-    // Only ever grew before. Every open thread also went into the next extraction prompt
-    // as "already open, do not list again", so a chat that had collected eighty of them
-    // was paying for eighty lines on every message while only the injected handful ever
-    // reached the story.
-    const pruned = pruneThreads(state, now);
-
-    if (opened || closed || touched || pruned.open || pruned.closed) {
-        saveStateToMetadata(state, { label: 'Threads', recordHistory: false });
-        // Only when there is a message to record against. The catch-up scan passes none:
-        // it reads the whole story rather than one reply, so there is no swipe to return
-        // to and nothing for a rebuild to put back.
-        //
-        // Only what this message did, too - a thread dropped by the cap was not closed by
-        // the reply, so a swipe back has nothing to undo about it.
-        if ((opened || closed) && messageId !== null && messageId !== undefined) {
-            recordThreadChanges(messageId, { opened: openedThreads, closed: closedIds });
-        }
-        debugLog(`Threads: opened ${opened}, closed ${closed}, touched ${touched}, `
-            + `pruned ${pruned.open} open and ${pruned.closed} settled`);
-    }
-    return { opened, closed, touched, pruned };
-}
-
-/**
- * Brings an already-open chat within the caps.
- *
- * The caps arrived after the flooding did, so the chats that need them most are the ones
- * that already have eighty threads in them and would otherwise carry that until their next
- * extraction. Runs on chat load.
- *
- * It says what it removed rather than doing it quietly. Deleting sixty entries without a
- * word would look like the feature had lost them, and the number is the thing that makes
- * it read as tidying instead.
- *
- * @returns {{ open: number, closed: number }}
- */
-export function tidyThreadsOnLoad() {
-    const trackerSettings = getSettings().statusTracker;
-    if (trackerSettings.threadsEnabled !== true) return { open: 0, closed: 0 };
-
-    const state = loadStateFromMetadata();
-    if (!Array.isArray(state?.threads) || !state.threads.length) return { open: 0, closed: 0 };
-
-    const pruned = pruneThreads(state, currentMessageIndex());
-    if (!pruned.open && !pruned.closed) return pruned;
-
-    saveStateToMetadata(state, { label: 'Threads', recordHistory: false });
-
-    const parts = [];
-    if (pruned.open) parts.push(`${pruned.open} stale`);
-    if (pruned.closed) parts.push(`${pruned.closed} settled`);
-    toastr.info(`Tidied ${parts.join(' and ')} thread${pruned.open + pruned.closed === 1 ? '' : 's'}. `
-        + 'Pin one to keep it for good.', PRODUCT_NAME);
-    debugLog(`Threads tidied on load: ${pruned.open} open, ${pruned.closed} settled`);
-    return pruned;
-}
-
-/**
  * Extracts state from one message and applies it.
  *
  * @param {string} messageText
@@ -985,16 +795,6 @@ export async function extractStateFromMessage(messageText, messageId, options = 
             // list is complete and absence means departure.
             if (names.length) reconcileScenePresence(names, key, { authoritative: true });
         }
-
-        // Threads, applied on their own rather than through applyUpdate. They are not
-        // tracker state - nothing about them is a stat or an item - and routing them
-        // through the update path would put them in the diff, the review rows and the
-        // undo history as if a number had moved.
-        //
-        // They are also not held for review. A thread costs a line in the prompt and
-        // closing a wrong one is a click; holding them would mean a decision per message
-        // about something that is only ever context.
-        applyThreadsFromReply(parsed, messageId, String(messageText));
 
         // Propose, then decide. A dry run says what the update would do, so additions,
         // removals and implausible jumps can be held back for a look rather than

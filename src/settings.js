@@ -90,6 +90,8 @@ export const defaultSettings = {
      * Travels with the system rather than staying global: what counts as slop is a
      * property of the fiction, and a horror world and a comedy one do not agree about it.
      */
+    /** The connection profile Threads reads replies on. Empty is the main API. */
+    threadsProfileId: '',
     banListEnabled: false,
     banList: [],
     /** How far back the scan reads when it goes looking for them. */

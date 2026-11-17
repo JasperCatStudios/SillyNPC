@@ -28,7 +28,6 @@ import { renderCombatSection } from './ui-combat-section.js';
 import { renderProfileView } from './ui-profile.js';
 import { renderCharacterExtras } from './ui-character-extras.js';
 import { renderThreadsView } from './ui-threads.js';
-import { fillCharacter } from './ui-fill.js';
 import { renderAppearanceView, renderWritingRulesView, renderAdvancedView } from './ui-settings-tabs.js';
 import { renderPromptsView } from './ui-prompts.js';
 import { renderConnectionsView } from './connections.js';
@@ -1093,15 +1092,6 @@ function renderEditor() {
         }
     });
     
-    // Between the title and delete: it acts on this whole card, like they do.
-    const fillBtn = document.createElement('button');
-    fillBtn.type = 'button';
-    fillBtn.className = 'menu_button sillynpc-fill-btn';
-    fillBtn.innerHTML = '<i class="fa-solid fa-fill-drip"></i> <span>Fill</span>';
-    fillBtn.title = 'Give this character a lore entry, tracker fields and a portrait, '
-        + 'reading the story for what is missing.';
-    fillBtn.addEventListener('click', () => fillCharacter(char, { onSave: () => renderEditor() }));
-
     const exportBtn = document.createElement('button');
     exportBtn.type = 'button';
     exportBtn.className = 'menu_button sillynpc-export-char-btn';
@@ -1110,7 +1100,7 @@ function renderEditor() {
         + 'so it can be sent to somebody else.';
     exportBtn.addEventListener('click', () => exportCharacterFile([char]));
 
-    header.append(backBtn, title, fillBtn, exportBtn, deleteBtn);
+    header.append(backBtn, title, exportBtn, deleteBtn);
 
     // Header and tabs travel together so they can stay put while the page scrolls: a long
     // profile used to put Back, Fill and the tab switch off the top of the screen.

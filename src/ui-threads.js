@@ -1,10 +1,9 @@
 import { getSettings } from './settings.js';
-import { loadStateFromMetadata, saveStateToMetadata } from './status-logic.js';
+import { threadsStore, saveThreadsStore, scanHistoryForThreads } from './threads-runtime.js';
 import {
     THREAD_KINDS, getThreads, openThreads, closeThread, reopenThread, addThread, manualThread,
     activeThreads, rankedThreads, setThreadPinned, threadLimits,
 } from './threads.js';
-import { scanHistoryForThreads } from './history-scan.js';
 import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { currentMessageIndex } from './utils.js';
 import { buildSettingToggle, buildSettingNumber } from './ui-shared.js';
@@ -96,7 +95,7 @@ function threadRow(thread, state, redraw, { isActive = false, now = 0 } = {}) {
             : 'Always send this one, and never tidy it away';
         pin.addEventListener('click', () => {
             setThreadPinned(state, thread.id, !thread.pinned);
-            saveStateToMetadata(state, { label: thread.pinned ? 'Thread unpinned' : 'Thread pinned' });
+            saveThreadsStore();
             redraw();
         });
         actions.append(pin);
@@ -113,7 +112,7 @@ function threadRow(thread, state, redraw, { isActive = false, now = 0 } = {}) {
     settle.addEventListener('click', () => {
         if (isClosed) reopenThread(state, thread.id);
         else closeThread(state, thread.id);
-        saveStateToMetadata(state, { label: isClosed ? 'Thread reopened' : 'Thread closed' });
+        saveThreadsStore();
         redraw();
     });
 
@@ -126,7 +125,7 @@ function threadRow(thread, state, redraw, { isActive = false, now = 0 } = {}) {
         const list = getThreads(state);
         const at = list.findIndex(t => t.id === thread.id);
         if (at >= 0) list.splice(at, 1);
-        saveStateToMetadata(state, { label: 'Thread dropped' });
+        saveThreadsStore();
         redraw();
     });
 
@@ -217,7 +216,8 @@ async function askForThread(redraw) {
         return;
     }
 
-    const state = loadStateFromMetadata();
+    const state = threadsStore();
+    if (!state) { toastr.info('Open a chat first.', PRODUCT_NAME); return; }
     if (!addThread(state, thread)) {
         toastr.info('Something with that line is already being kept.', PRODUCT_NAME);
         return;
@@ -225,7 +225,7 @@ async function askForThread(redraw) {
     // Labelled, so it is an undo step - the same as closing or dropping one. A
     // deliberate action of yours should be reversible; the reader's own finds are not
     // recorded that way, because they arrive with the message rather than from a click.
-    saveStateToMetadata(state, { label: 'Thread added' });
+    saveThreadsStore();
     redraw();
 }
 
@@ -237,10 +237,8 @@ export function renderThreads(container) {
 
     const redraw = () => renderThreads(container);
 
-    let state;
-    try {
-        state = loadStateFromMetadata();
-    } catch {
+    const state = threadsStore();
+    if (!state) {
         const none = document.createElement('p');
         none.className = 'notes';
         none.textContent = 'No chat open.';

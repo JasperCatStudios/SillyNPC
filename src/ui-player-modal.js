@@ -8,7 +8,6 @@ import { buildPortraitBlock, openLightbox } from './ui-portrait.js';
 import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section.js';
 import { renderCombatSection } from './ui-combat-section.js';
 import { readLoreEntry } from './character-fill.js';
-import { fillCharacter } from './ui-fill.js';
 import { buildStatusCard } from './ui-vitals.js';
 import { buildProfileTabs } from './ui-profile-tabs.js';
 import { playerHistory, restorePlayerFromMessage } from './status-snapshots.js';
@@ -93,7 +92,6 @@ export function openPlayerModal() {
                     ${levelValue !== null ? `<div class="level-badge">Lvl ${escapeHtml(levelValue)}</div>` : ''}
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <button type="button" class="menu_button sillynpc-sheet-fill" title="Read the story for who you are, a lore entry, your fields and a portrait - filling only what is still empty."><i class="fa-solid fa-fill-drip"></i> <span>Fill</span></button>
                     <button type="button" class="menu_button sillynpc-restore-open" title="Put your stats and collections back to what they were after an earlier message"><i class="fa-solid fa-clock-rotate-left"></i></button>
                     <div class="sillynpc-sheet-settings" title="Extension Settings" style="cursor: pointer;"><i class="fa-solid fa-cog"></i></div>
                     <div class="sillynpc-sheet-close" style="cursor: pointer;"><i class="fa-solid fa-xmark"></i></div>
@@ -472,21 +470,6 @@ function attachModalListeners(dom) {
         });
         btn.dataset.listenerAttached = 'true';
     });
-
-    const fillBtn = dom.querySelector('.sillynpc-sheet-fill');
-    if (fillBtn && !fillBtn.dataset.listenerAttached) {
-        fillBtn.addEventListener('click', () => {
-            fillCharacter(getPlayerCard(), {
-                onSave: () => {
-                    renderSidebar(dom);
-                    refreshModal(dom);
-                    // A portrait or a new set of stats both show outside this popup.
-                    eventSource.emit('sillynpc-player-portrait-changed');
-                },
-            });
-        });
-        fillBtn.dataset.listenerAttached = 'true';
-    }
 
     const restoreBtn = dom.querySelector('.sillynpc-restore-open');
     if (restoreBtn && !restoreBtn.dataset.listenerAttached) {

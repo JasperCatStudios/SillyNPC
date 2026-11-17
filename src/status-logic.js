@@ -18,7 +18,6 @@ import { getSettings, saveSettings, defaultSettings, normaliseStatDefs } from '.
 import { LOG_PREFIX, PRODUCT_NAME, debugLog, isStaticField } from './constants.js';
 import { extractJSON, safeJsonParse, splitValue, escapeRegExp, currentMessageIndex, ceilingFromValue } from './utils.js';
 import { getIgnoredSpeakerLabels, normaliseSpeakerLabel } from './speaker-labels.js';
-import { describeThreads } from './threads.js';
 import { charactersFromActivatedLore } from './activated-lore.js';
 
 /**
@@ -1445,12 +1444,6 @@ export function formatCompactStatus(state, fullDetail = false) {
     // And who the story just named without putting on stage.
     const named = describeNamedButUnlisted(state);
     if (named) output += `${named}\n`;
-
-    // What is still outstanding, riding the block that is already being sent. Nothing
-    // is retrieved to put it here - a thread was caught when it opened, which is the
-    // whole difference between this and searching a summary for it later.
-    const threads = describeThreads(state, currentMessageIndex());
-    if (threads) output += `${threads}\n`;
 
     return output.trim();
 }

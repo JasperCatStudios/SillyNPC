@@ -77,13 +77,28 @@ export function renderPromptsView(view, onApply) {
     view.append(intro);
 
     const shown = availablePrompts();
+    // The phone prompts are most of this page, so they sit in one collapsible group, closed by default.
+    const phoneEntries = shown.filter(e => e.home === 'Phone');
+    let phoneGroup = null;
     for (const entry of shown) {
         const section = document.createElement('div');
         section.className = 'sillynpc-prompt-section';
         section.append(buildPromptEditor(entry, { onChange: onApply, showHome: true }));
         const budget = buildPromptBudget(entry, { onChange: onApply });
         if (budget) section.append(budget);
-        view.append(section);
+        if (entry.home === 'Phone') {
+            if (!phoneGroup) {
+                phoneGroup = document.createElement('details');
+                phoneGroup.className = 'sillynpc-prompt-group';
+                const summary = document.createElement('summary');
+                summary.textContent = `Phone prompts (${phoneEntries.length})`;
+                phoneGroup.append(summary);
+                view.append(phoneGroup);
+            }
+            phoneGroup.append(section);
+        } else {
+            view.append(section);
+        }
     }
 
     // A prompt hidden because it does not apply is different from one that does not
