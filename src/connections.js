@@ -12,6 +12,9 @@ import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
  */
 
 /** @type {{ id: string, label: string, help: string, scope?: 'root'|'tracker', key?: string, dom?: string }[]} */
+/** The connections that belong to the Trackers group. */
+const TRACKER_CONNECTIONS = ['internal', 'bonds', 'vitals', 'inventory'];
+
 export const CONNECTION_USES = [
     { id: 'combat', label: 'Combat', scope: 'root', key: 'combatProfileId',
       help: 'Generating combat stats from lore, and the table talk during a fight.' },
@@ -21,6 +24,8 @@ export const CONNECTION_USES = [
       help: 'Reading each reply to propose bond changes and milestones (Bond Tracker, after-the-reply timing).' },
     { id: 'vitals', label: 'Vitals', scope: 'root', key: 'vitalsProfileId',
       help: 'Reading each reply to update health, hunger and mood (Vitals Tracker).' },
+    { id: 'inventory', label: 'Inventory', scope: 'root', key: 'inventoryProfileId',
+      help: 'Reading each reply to update items and money (Inventory Tracker).' },
     { id: 'threads', label: 'Threads', scope: 'root', key: 'threadsProfileId',
       help: 'Reading each reply for promises, debts, secrets and plans left open, and the catch-up scan. Empty means your main API.' },
     { id: 'banscan', label: 'Ban scan', scope: 'root', key: 'banScanProfileId',
@@ -92,9 +97,18 @@ export function renderConnectionsView(view) {
         + '"Main API" uses the connection you are chatting with. Needs the Connection Manager extension.';
     view.append(intro);
 
+    // The trackers' connections sit together in a collapsible group.
+    const trackers = document.createElement('details');
+    trackers.className = 'sillynpc-prompt-group';
+    trackers.open = true;
+    const trackersTitle = document.createElement('summary');
+    trackersTitle.textContent = 'Trackers';
+    trackers.append(trackersTitle);
+    view.append(trackers);
+
     for (const use of CONNECTION_USES) {
         if (use.dom) { view.append(domPicker(use)); continue; }
-        view.append(buildConnectionProfilePicker(null, {
+        (TRACKER_CONNECTIONS.includes(use.id) ? trackers : view).append(buildConnectionProfilePicker(null, {
             key: use.key,
             scope: use.scope,
             labelText: use.label,

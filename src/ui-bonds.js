@@ -3,7 +3,7 @@ import { eventSource } from '../../../../events.js';
 import { Popup } from '../../../../popup.js';
 import { getActiveCharacters } from './characters.js';
 import { buildSettingToggle, buildSettingSelect, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
-import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
+import { buildThemePicker } from './ui-tracker-theme.js';
 import {
     bondSettings, saveBondSettings, chatStore, editPerson, removePerson, runBondUpdate,
     latestReplyId, currentBondInjection, todayForMilestone, playerName, BONDS_CHANGED_EVENT,
@@ -179,6 +179,7 @@ function renderGeneral(view, rerender) {
         help: 'The master switch. Off: no requests, no changes, nothing in the story prompt.',
         onChange: rerender,
     })));
+    view.append(buildThemePicker('bonds', { onChange: rerender }));
     view.append(namespaced(buildSettingSelect({
         store: STORE,
         key: 'timing',
@@ -192,14 +193,7 @@ function renderGeneral(view, rerender) {
     })));
     const timing = bondSettings().timing;
     if (timing !== 'inline') {
-        view.append(buildConnectionProfilePicker(null, {
-            key: 'bondProfileId',
-            scope: 'root',
-            labelText: 'Bonds Connection',
-            fallbackLabel: 'Main API (same as chat)',
-            noteText: 'Which connection reads replies for bond changes. A small, fast model is enough.',
-            unavailableText: 'Connection Manager is not available, so the main API is used.',
-        }));
+        // The connection that reads replies is chosen in Connections, under Trackers.
         view.append(namespaced(buildSettingNumber({
             store: STORE,
             key: 'maxTokens',

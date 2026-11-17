@@ -2,9 +2,12 @@ import { getSettings, defaultSettings } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
 import { SYSTEM_PROMPT, buildDialogueFormatPrompt } from './constants.js';
 import { TIME_PERIODS } from './phone-image-requests.js';
-import { INTERNAL_STATES_SYSTEM } from './internal-states.js';
+import { internalStatesSystem } from './internal-states.js';
+import { getTrackerTheme } from './tracker-theme-setting.js';
+import { INVENTORY_SYSTEM } from './inventory-core.js';
 import { BOND_SYSTEM } from './bonds-core.js';
 import { VITALS_SYSTEM } from './vitals-core.js';
+import { DEFAULT_PROMPT, PROMPT_SHORT } from './phone-prompts.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -64,7 +67,7 @@ export const PROMPTS = [
         home: 'Trackers',
         help: 'What the writer is told when it writes the Internal States block. Empty uses the built-in, '
             + 'which follows the Worldkit preset. Only used when Internal States writes the block after the reply.',
-        recommended: () => INTERNAL_STATES_SYSTEM,
+        recommended: () => internalStatesSystem(getTrackerTheme('states')),
         emptyNote: 'The built-in instructions are sent.',
         available: () => getSettings().internalStatesMode === 'after',
     },
@@ -87,6 +90,27 @@ export const PROMPTS = [
             + 'mood. Empty uses the built-in.',
         recommended: () => VITALS_SYSTEM,
         emptyNote: 'The built-in instructions are sent.',
+    },
+    {
+        id: 'inventoryReader',
+        key: 'inventory.prompt',
+        label: 'Inventory: Reader Instructions',
+        home: 'Trackers',
+        help: 'The system prompt of the separate request that reads each reply for items picked up, used, lost and for '
+            + 'money. Empty uses the built-in.',
+        recommended: () => INVENTORY_SYSTEM,
+        emptyNote: 'The built-in instructions are sent.',
+    },
+    {
+        id: 'phoneSystem',
+        key: 'phoneSystemPrompt',
+        storage: 'phone',
+        label: 'Phone System Prompt',
+        home: 'Phone',
+        help: 'What every contact is told before they text you: who they are, how to write, what they may send. '
+            + 'Placeholders: <<user>>, <<contact>>, and the speaker tag. Default is the main prompt; Short replies keeps messages brief.',
+        recommended: () => DEFAULT_PROMPT,
+        presets: [{ id: 'short', label: 'Short replies', text: PROMPT_SHORT }],
     },
     {
         id: 'phoneSelfie',

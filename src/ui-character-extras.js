@@ -5,6 +5,7 @@ import { previewVoice, voiceChoices, ttsStatus, VOICE_KEYS } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 import { buildSettingSelect } from './ui-shared.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
+import { buildThemePicker } from './ui-tracker-theme.js';
 
 import { PRODUCT_NAME } from './constants.js';
 /**
@@ -294,6 +295,7 @@ export function renderInternalStatesSettings(container, rerender) {
         + 'and its instructions are in Prompts, under Tracker prompts.';
     toggleWrap.append(toggleRow, toggleHelp);
     container.append(toggleWrap);
+    container.append(buildThemePicker('states', { onChange: rerender }));
 
     if (getSettings().internalStatesMode === 'off') return;
 

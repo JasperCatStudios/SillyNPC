@@ -1,7 +1,7 @@
 import { getSettings } from './settings.js';
 import { offerDownload } from './utils.js';
 import { updateAllExtensionThemes } from './ui-shared.js';
-import { deleteSystemPreset, importSystemPreset, getActiveSystem, setActiveSystem, createSystem, saveCheckpoint, restoreCheckpoint, deleteCheckpoint, getCheckpoints } from './status-logic.js';
+import { deleteSystemPreset, importSystemPreset, getActiveSystem, getDefaultWorld, setDefaultWorld, setActiveSystem, createSystem, saveCheckpoint, restoreCheckpoint, deleteCheckpoint, getCheckpoints } from './status-logic.js';
 import { Popup } from '../../../../popup.js';
 import { triggerReprocess } from './chat.js';
 import { escapeHtml } from './utils.js';
@@ -187,6 +187,7 @@ export function buildSystemManager(onRefresh) {
             ].filter(Boolean).join(' — ');
             nameCell.innerHTML = `<div style="font-weight:bold">${escapeHtml(name)}`
                 + (name === getActiveSystem() ? ' <small style="opacity:0.6">(in use)</small>' : '')
+                + (name === getDefaultWorld() ? ' <small style="opacity:0.6">(default)</small>' : '')
                 + `</div><small style="opacity:0.6">${escapeHtml(detail)}</small>`;
             
             // The world's character profiles, listed by name under it. A world stores its own cast.
@@ -229,6 +230,14 @@ export function buildSystemManager(onRefresh) {
             });
             activeCell.append(radio);
 
+            const isDefault = name === getDefaultWorld();
+            const starBtn = document.createElement('button');
+            starBtn.className = 'menu_button';
+            starBtn.title = isDefault ? 'This world opens when SillyTavern starts. Click to clear.' : 'Open this world every time SillyTavern starts';
+            starBtn.innerHTML = `<i class="fa-${isDefault ? 'solid' : 'regular'} fa-star"></i>`;
+            if (isDefault) starBtn.style.color = 'var(--golden, gold)';
+            starBtn.addEventListener('click', () => { setDefaultWorld(name); onRefresh(); });
+
             const expBtn = document.createElement('button');
             expBtn.className = 'menu_button';
             expBtn.title = 'Export to JSON';
@@ -258,7 +267,7 @@ export function buildSystemManager(onRefresh) {
                 }
             });
 
-            actionsCell.append(expBtn, delBtn);
+            actionsCell.append(starBtn, expBtn, delBtn);
             row.append(activeCell, nameCell, actionsCell);
             table.appendChild(row);
         });

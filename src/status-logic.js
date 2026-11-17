@@ -662,6 +662,7 @@ export function initStatusLogic() {
     debugLog('Initializing persona and system tracking');
     // Before anything reads configuration, so the world in use belongs to a system.
     migrateToActiveSystem();
+    applyDefaultWorld();
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
     eventSource.on(event_types.PERSONA_CHANGED, onPersonaChanged);
 }
@@ -2586,7 +2587,7 @@ const SYSTEM_EXCLUDED_ROOT = new Set([
     'statusTracker', 'activeSystem', 'version', 'enabled',
     // Which provider makes images and where the files land: accounts and disk.
     'imageBackend', 'geminiImageModel', 'imageSaveRoute',
-    'loreProfileId', 'imageProfileId', 'combatProfileId', 'internalStatesProfileId', 'bondProfileId', 'vitalsProfileId',
+    'loreProfileId', 'imageProfileId', 'combatProfileId', 'internalStatesProfileId', 'bondProfileId', 'vitalsProfileId', 'inventoryProfileId',
     // Custom combat world types are a library, like the systems themselves: shared by all of them.
     'combatTypes', 'combatAbilities',
     // Your window, not your world.
@@ -2730,6 +2731,25 @@ export function migrateToActiveSystem() {
  *
  * @returns {boolean} False when there is no such system, or it is already active.
  */
+/** The world marked as the default, or ''. A name that no longer exists counts as none. */
+export function getDefaultWorld() {
+    const settings = getSettings();
+    return settings.defaultWorld && settings.statusTracker.presets?.[settings.defaultWorld] ? settings.defaultWorld : '';
+}
+
+/** Marks a world as the one opened at startup; the same name again clears it. */
+export function setDefaultWorld(name) {
+    const settings = getSettings();
+    settings.defaultWorld = name && settings.statusTracker.presets?.[name] && settings.defaultWorld !== name ? name : '';
+    saveSettings();
+}
+
+/** At startup, moves into the default world when it is not the one already in use. */
+function applyDefaultWorld() {
+    const name = getDefaultWorld();
+    if (name && name !== getActiveSystem()) setActiveSystem(name);
+}
+
 export function setActiveSystem(name) {
     const settings = getSettings();
     const target = settings.statusTracker.presets?.[name];
@@ -3107,6 +3127,7 @@ export function applyCheckpointSchedule() {
 export function deleteSystemPreset(name) {
     if (!name) return;
     const settings = getSettings();
+    if (settings.defaultWorld === name) settings.defaultWorld = '';
     if (settings.statusTracker.presets?.[name]) {
         delete settings.statusTracker.presets[name];
         saveSettings();

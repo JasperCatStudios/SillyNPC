@@ -8,6 +8,8 @@ import { getSettings } from './settings.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
+import { getTrackerTheme } from './tracker-theme-setting.js';
+import { THEME_PLAIN, internalStatesTemplate, INTERNAL_STATES_LINE_BREAK_RULE } from './tracker-themes.js';
 
 /**
  * The preset's Internal States, kept outside the story (fork).
@@ -94,13 +96,24 @@ export const INTERNAL_STATES_SYSTEM = [
     GFX_END,
 ].join('\n');
 
+/**
+ * The writer's instructions for a look. Plain is the original template; Parchment, Persona and
+ * Tactical swap the template for an inline-styled one and add the line-break rule.
+ */
+export function internalStatesSystem(theme = THEME_PLAIN) {
+    const template = internalStatesTemplate(theme);
+    if (!template) return INTERNAL_STATES_SYSTEM;
+    const cut = INTERNAL_STATES_SYSTEM.indexOf('\nTEMPLATE\n');
+    return `${INTERNAL_STATES_SYSTEM.slice(0, cut)}\n${INTERNAL_STATES_LINE_BREAK_RULE}\n\nTEMPLATE\n${template}`;
+}
+
 function mode() {
     const m = getSettings().internalStatesMode;
     return m === 'inline' || m === 'off' ? m : 'after';
 }
 
 function systemPrompt() {
-    return substituteParams(String(getSettings().internalStatesPrompt ?? '').trim() || INTERNAL_STATES_SYSTEM);
+    return substituteParams(String(getSettings().internalStatesPrompt ?? '').trim() || internalStatesSystem(getTrackerTheme('states')));
 }
 
 /** What is stored for this message's current swipe, or null. */
@@ -299,7 +312,8 @@ function dress(html) {
     // GM's Notebook entries sit on their own lines in the text, which HTML runs together:
     // put a break between one "- [R]/[T]/[D]" entry and the next (not after one already broken).
     let out = String(html ?? '').replace(/(?<!<br\s*\/?>|<\/summary>)[ \t]*\n[ \t]*-[ \t]*\[([RTD])\]/g, '<br>- [$1]');
-    {
+    // A chosen look is already in the block's own styles, so the preset's regexes stay out of its way.
+    if (getTrackerTheme('states') === THEME_PLAIN) {
         try {
             out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
         } catch (err) {

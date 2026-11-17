@@ -15,7 +15,7 @@
 Worldkit is made of a few parts that work together:
 
 1. **Character Stylist** - detects speaker names in chat messages and injects character portraits, dialogue colours (solid or gradient) and speech dividers.
-2. **Trackers** - Internal States, Bonds, Vitals and Threads, each read from the story on a connection of your choosing and shown under each reply.
+2. **Trackers** - Internal States, Bonds, Vitals, Inventory and Threads, each read from the story on a connection of your choosing and shown under each reply.
 3. **Phone, Games and Combat** - a phone for texting characters, table games, and a combat system, each with its own window.
 
 ---
@@ -32,6 +32,8 @@ Worldkit is made of a few parts that work together:
 * **Internal States:** what the characters think and feel, written after each reply and shown in its own section under the message.
 * **Bonds:** how close each person is to you, with levels, gates and milestones the model can only propose changes to.
 * **Vitals:** health, hunger, energy and mood for the people you choose, with bars.
+* **Inventory:** what you carry and your money (only you by default; other characters are optional), with a currency name of your choosing.
+* **Looks:** a **Look** choice at the top of the Internal States, Bonds, Vitals and Inventory menus: Default (your own regexes), Cozy Parchment, Persona HUD or Tactical Glass Telemetry. Picking one picks it for all four. The same looks are in the Worldkit-Content regex folder.
 * **Open Threads:** promises, threats, debts, secrets, deadlines and plans are caught as they are made and sent with each message until they are settled. Each thread keeps the line it came from.
 * **Their own connections and prompts:** every tracker has its own entry in Connections, and its instructions are in Prompts under Tracker prompts.
 * **Inventory (planned):** a tracker of its own, per chat and per character.
@@ -117,7 +119,7 @@ Advanced settings and fine-tuning parameters remain hidden until **Show Every Se
 | **Appearance** | Faction themes, speech dividers, spacing, avatar shapes, and fallback faces |
 | **Writing Rules** | Dialogue format, ban list, and how replies are parsed |
 | **Threads** | Active plotlines, promises, debts, secrets, and deadlines |
-| **Trackers** | Internal States, Bonds and Vitals |
+| **Trackers** | Internal States, Bonds, Vitals and Inventory |
 | **World Management** | Your worlds, the characters each one holds, saved states and import/export |
 | **Connections** | The connection profile each part of Worldkit uses |
 | **Vectors** | Optional vector search over the story |

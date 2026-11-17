@@ -34,6 +34,7 @@ import { renderPromptsView } from './ui-prompts.js';
 import { renderConnectionsView } from './connections.js';
 import { renderBondsView } from './ui-bonds.js';
 import { renderVitalsView } from './ui-vitals.js';
+import { renderInventoryView } from './ui-inventory.js';
 import { renderVectorsView } from './ui-vectors.js';
 import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
@@ -319,6 +320,7 @@ function settingsTabs() {
               { sub: 'Internal States', hint: 'What the characters think and feel.', render: v => renderInternalStatesSettings(v, () => {}) },
               { sub: 'Bonds', hint: 'How the people in the story feel about you.', render: v => renderBondsView(v) },
               { sub: 'Vitals', hint: 'Health, hunger, energy and mood.', render: v => renderVitalsView(v) },
+              { sub: 'Inventory', hint: 'Items and money.', render: v => renderInventoryView(v) },
           ] },
         { id: 'systems', label: 'World Management', container: 'sillynpc-systems-view',
           render: v => renderSystemsView(v) },
@@ -341,7 +343,7 @@ function settingsTabs() {
 let trackerView = 'internal';
 
 /**
- * The Trackers tab: Internal States, Bonds and Vitals as three views of one page (same pattern as
+ * The Trackers tab: Internal States, Bonds, Vitals and Inventory as four views of one page (same pattern as
  * Systems). The original SillyNPC default tracker has no view here any more.
  *
  * @param {HTMLElement} view
@@ -355,6 +357,7 @@ function renderTrackerView(view) {
         ['internal', 'Internal States', 'What the characters think and feel, written under each reply.'],
         ['bonds', 'Bonds', 'How the people in the story feel about you.'],
         ['vitals', 'Vitals', 'Health, hunger, energy and mood. On or off.'],
+        ['inventory', 'Inventory', 'Items and money. Only you by default.'],
     ]) {
         const tab = document.createElement('button');
         tab.type = 'button';
@@ -376,6 +379,7 @@ function renderTrackerView(view) {
     try {
         if (trackerView === 'bonds') renderBondsView(body);
         else if (trackerView === 'vitals') renderVitalsView(body);
+        else if (trackerView === 'inventory') renderInventoryView(body);
         else renderInternalStatesSettings(body, () => renderTrackerView(view));
     } catch (e) {
         console.error(LOG_PREFIX, `Tracker ${trackerView} view failed`, e);

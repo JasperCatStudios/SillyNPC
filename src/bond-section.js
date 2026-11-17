@@ -3,6 +3,7 @@ import { getRegexedString, regex_placement } from '../../../regex/engine.js';
 import { getSettings } from './settings.js';
 import { trackerBlockHtml } from './bonds-core.js';
 import { debugLog } from './constants.js';
+import { dressWithTheme } from './tracker-theme-setting.js';
 
 /**
  * The Bond Tracker's section under a reply, like Internal States has (fork).
@@ -93,14 +94,15 @@ function suggestionCard(person, mesEl, ctx) {
 
 /** The block dressed by the preset's display regexes, then made safe to insert. */
 function dress(html) {
-    let out = html;
-    {
+    // The plain look is the preset's own regexes; a chosen look is applied by the extension itself.
+    const out = dressWithTheme(html, 'bonds', (h) => {
         try {
-            out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
+            return getRegexedString(h, regex_placement.AI_OUTPUT, { isMarkdown: true });
         } catch (err) {
             debugLog('Preset regexes failed on the Bond Tracker block', err);
+            return h;
         }
-    }
+    });
     return DOMPurify.sanitize(out, { ADD_TAGS: ['details', 'summary'] });
 }
 
@@ -113,7 +115,7 @@ function dress(html) {
  */
 export function drawBondSection(mesEl, ctx) {
     if (!mesEl) return;
-    mesEl.querySelector(':scope .sillynpc-bond-section')?.remove();
+    mesEl.querySelector(':scope .sillynpc-bond-section:not(.sillynpc-vitals-section):not(.sillynpc-inventory-section)')?.remove();
     const { message, id, store, settings, playerName, latest, redo, onEdit } = ctx;
     if (!settings?.enabled || !getSettings().enabled || settings.timing === 'inline') return;
     if (!message || message.is_user || message.is_system || !store) return;

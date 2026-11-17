@@ -40,6 +40,8 @@ import { initVitals } from './src/vitals.js';
 import { initThreads } from './src/threads-runtime.js';
 import { initResultInjection } from './src/result-runtime.js';
 import { initVitalsSection } from './src/vitals-section.js';
+import { initInventory } from './src/inventory.js';
+import { initInventorySection } from './src/inventory-section.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
 import { initImagePromptInjection } from './src/image-prompts.js';
@@ -278,6 +280,12 @@ jQuery(async () => {
                 initVitalsSection();
             } catch (vitalsErr) {
                 console.error(LOG_PREFIX, 'initVitals failed', vitalsErr);
+            }
+            try {
+                initInventory();
+                initInventorySection();
+            } catch (inventoryErr) {
+                console.error(LOG_PREFIX, 'initInventory failed', inventoryErr);
             }
             try {
                 initResultInjection();

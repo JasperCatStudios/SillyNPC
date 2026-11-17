@@ -1,5 +1,10 @@
 import { availablePrompts, PROMPTS } from './prompts.js';
-import { buildSettingTextArea, buildSettingNumber, buildSettingSlider } from './ui-shared.js';
+import { buildSettingNumber, buildSettingSlider } from './ui-shared.js';
+import { getSettings, saveSettings } from './settings.js';
+import { extension_settings } from '../../../../extensions.js';
+import { buildTokenReadout } from './tokens.js';
+import { phonePromptHost } from './phone-prompts.js';
+import { MODE_DEFAULT, MODE_CUSTOM, modeChoices, currentMode, textForMode, chooseMode, editText } from './prompt-picker.js';
 import { escapeHtml } from './utils.js';
 
 /**
@@ -14,15 +19,76 @@ import { escapeHtml } from './utils.js';
  *   noise in the tab it names.
  */
 export function buildPromptEditor(entry, { onChange, showHome = false } = {}) {
-    const wrap = buildSettingTextArea({
-        key: entry.key,
-        label: entry.label,
-        help: entry.help,
-        recommended: entry.recommended?.(),
-        emptyNote: entry.emptyNote,
-        showTokens: true,
-        onChange,
+    const slot = slotFor(entry);
+    const presets = entry.presets || [];
+    const defaultText = String(entry.recommended?.() ?? '');
+    const ctx = () => { const r = slot.read(); return { ...r, defaultText, presets }; };
+
+    const wrap = document.createElement('div');
+    wrap.className = 'sillynpc-setting';
+    wrap.dataset.setting = entry.key;
+
+    const head = document.createElement('div');
+    head.className = 'sillynpc-setting-row';
+    const title = document.createElement('label');
+    title.style.fontWeight = 'bold';
+    title.textContent = entry.label;
+    const picker = document.createElement('select');
+    picker.className = 'text_pole sillynpc-prompt-picker';
+    picker.title = 'Pick the built-in prompt, another template, or your own saved text.';
+    for (const c of modeChoices(presets)) {
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = c.label;
+        picker.append(o);
+    }
+    head.append(title, picker);
+    wrap.append(head);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'text_pole sillynpc-setting-textarea';
+    textarea.rows = 6;
+    textarea.style.marginTop = '6px';
+    const tokens = buildTokenReadout(() => textarea.value, { note: entry.emptyNote });
+
+    // Opened for the first time the box shows the text that is sent, not an empty box.
+    const show = () => {
+        const c = ctx();
+        const mode = currentMode(c);
+        picker.value = mode;
+        textarea.value = textForMode(mode, c);
+        tokens.refresh();
+    };
+    show();
+
+    picker.addEventListener('change', () => {
+        const c = ctx();
+        const from = currentMode(c);
+        const r = chooseMode(picker.value, { ...c, currentMode: from, currentText: textarea.value }, { storeDefault: slot.storeDefault });
+        slot.write(r);
+        textarea.value = r.text;
+        tokens.refresh();
+        onChange?.();
     });
+    textarea.addEventListener('input', () => {
+        // Typing makes it your own; the dropdown follows without being rebuilt.
+        slot.write(editText(textarea.value));
+        if (picker.value !== MODE_CUSTOM) picker.value = MODE_CUSTOM;
+        tokens.refresh();
+        onChange?.();
+    });
+    wrap.append(textarea, tokens.element);
+
+    if (entry.help) {
+        const helpEl = document.createElement('small');
+        helpEl.className = 'notes';
+        helpEl.textContent = entry.help;
+        wrap.append(helpEl);
+    }
+    const note = document.createElement('small');
+    note.className = 'notes';
+    note.textContent = 'Default is the built-in prompt. Type in the box and it becomes My own, kept separately so you can switch back and forth without losing it.';
+    wrap.append(note);
 
     if (showHome && entry.home) {
         const where = document.createElement('small');
@@ -32,6 +98,60 @@ export function buildPromptEditor(entry, { onChange, showHome = false } = {}) {
     }
 
     return wrap;
+}
+
+const getPath = (obj, path) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
+function setPath(obj, path, value) {
+    const parts = path.split('.');
+    const last = parts.pop();
+    const target = parts.reduce((acc, part) => acc && acc[part], obj);
+    if (target) target[last] = value;
+}
+
+/**
+ * Where a prompt's text and its remembered choice live. Most live in this extension's settings
+ * (the text at the entry's key, the choice and own-text in promptPicks); the phone's belong to
+ * the phone module, which keeps the same three fields under its own names.
+ */
+function slotFor(entry) {
+    if (entry.storage === 'phone') {
+        const raw = () => phonePromptHost.get?.() ?? {
+            prompt: extension_settings.sillynpc_phone?.prompt,
+            preset: extension_settings.sillynpc_phone?.promptPreset,
+            custom: extension_settings.sillynpc_phone?.promptCustom,
+        };
+        return {
+            storeDefault: true,
+            read: () => {
+                const r = raw();
+                return { stored: r.prompt, mode: r.preset === 'main' ? MODE_DEFAULT : r.preset, custom: r.custom };
+            },
+            write: ({ mode, stored, custom }) => {
+                const patch = { prompt: stored, preset: mode === MODE_DEFAULT ? 'main' : mode, custom };
+                if (phonePromptHost.set) phonePromptHost.set(patch);
+                else {
+                    const s = (extension_settings.sillynpc_phone ||= {});
+                    s.prompt = patch.prompt; s.promptPreset = patch.preset; s.promptCustom = patch.custom;
+                    saveSettings();
+                }
+            },
+        };
+    }
+    return {
+        storeDefault: false,
+        read: () => {
+            const s = getSettings();
+            const pick = s.promptPicks?.[entry.id] || {};
+            return { stored: getPath(s, entry.key), mode: pick.mode, custom: pick.custom };
+        },
+        write: ({ mode, stored, custom }) => {
+            const s = getSettings();
+            setPath(s, entry.key, stored);
+            if (!s.promptPicks || typeof s.promptPicks !== 'object') s.promptPicks = {};
+            s.promptPicks[entry.id] = { mode, custom };
+            saveSettings();
+        },
+    };
 }
 
 /** The reply budget that belongs to a prompt, if it has one. */

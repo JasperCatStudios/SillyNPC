@@ -1,7 +1,7 @@
 import { redrawWhenIdle } from './ui-edit-guard.js';
 import { eventSource } from '../../../../events.js';
 import { buildSettingToggle, buildSettingSelect, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
-import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
+import { buildThemePicker } from './ui-tracker-theme.js';
 import {
     vitalsSettings, saveVitalsSettings, vitalsStore, getVitals, resetVitalFor, runVitalsUpdate,
     latestReplyId, currentVitalsInjection, VITALS_CHANGED_EVENT,
@@ -125,6 +125,7 @@ export function renderVitalsView(view) {
         help: 'The master switch. Off: no requests, no changes, nothing sent to the story. What is already recorded is kept.',
         onChange: rerender,
     })));
+    view.append(buildThemePicker('vitals', { onChange: rerender }));
     if (!vitalsSettings().enabled) {
         view.append(el('p', 'notes snpc-vit-off', 'The tracker is off. Everything below can still be set up.'));
     }
@@ -133,11 +134,7 @@ export function renderVitalsView(view) {
         store: STORE, key: 'timing', label: 'When Vitals Update', options: options(VITALS_TIMINGS), onChange: rerender,
         help: 'After The Reply: a separate request on the Vitals connection reads each new reply. Only When I Press Update: nothing happens by itself.',
     })));
-    view.append(buildConnectionProfilePicker(null, {
-        key: 'vitalsProfileId', scope: 'root', labelText: 'Vitals Connection', fallbackLabel: 'Main API (same as chat)',
-        noteText: 'Which connection reads replies for vitals. A small, fast model is enough.',
-        unavailableText: 'Connection Manager is not available, so the main API is used.',
-    }));
+    // The connection that reads replies is chosen in Connections, under Trackers.
 
     view.append(el('h4', 'sillynpc-combat-heading', 'What to track'));
     for (const [key, label, help] of [

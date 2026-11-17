@@ -384,3 +384,73 @@ export function vitalsBlockHtml(store, record, settings) {
     });
     return `<details><summary>${VITALS_SUMMARY}</summary>\n${lines.join('\n')}\n</details>`;
 }
+
+/* ---------------------------------------------------------- editing a block by hand */
+
+const stripTags = (html) => String(html ?? '').replace(/<[^>]+>/g, '');
+
+/** The tracked people as editable plain lines, the same lines the block under a reply is made from. */
+export function vitalsToText(store, settings) {
+    return (store?.people || []).filter(p => p.tracked).slice(0, 12).map(p => stripTags(vitalsLine(p, settings))).join('\n');
+}
+
+/**
+ * Reads the editable lines back: `- Ana | HEALTH: 55 | HUNGER: 20 | MOOD: Anxious | MOODLEVEL: 60 | ENERGY: 70`.
+ * Fields may come in any order and any may be left out or `--`. Lines with no name are skipped.
+ *
+ * @returns {{ name: string, health?: number, hunger?: number, energy?: number, mood?: { word: string, level: number|null } }[]}
+ */
+export function parseVitalsText(text) {
+    const out = [];
+    for (const line of String(text || '').split('\n')) {
+        const parts = line.split('|');
+        const name = parts[0].replace(/^\s*-?\s*/, '').trim();
+        if (!name || parts.length < 2) continue;
+        const row = { name: name.slice(0, 80) };
+        let moodWord = null;
+        let moodLevel = null;
+        for (const part of parts.slice(1)) {
+            const m = /^\s*([A-Za-z]+)\s*:\s*(.*?)\s*$/.exec(part);
+            if (!m) continue;
+            const key = m[1].toLowerCase();
+            const value = m[2];
+            if (key === 'health' || key === 'hunger' || key === 'energy') {
+                if (/^\d{1,3}$/.test(value)) row[key] = clamp(Number(value), 0, 100);
+            } else if (key === 'mood') {
+                if (value && value !== '--') moodWord = value.slice(0, 40);
+            } else if (key === 'moodlevel') {
+                if (/^\d{1,3}$/.test(value)) moodLevel = clamp(Number(value), 0, 100);
+            }
+        }
+        if (moodWord !== null) row.mood = { word: moodWord, level: moodLevel };
+        out.push(row);
+    }
+    return out;
+}
+
+/**
+ * Sets what was edited, with no limit (it is you saying how things are). Only people already in the
+ * store change, and only vitals that are switched on. Returns how many people changed.
+ */
+export function applyVitalsEdit(store, parsed, settings, { now = Date.now() } = {}) {
+    let changed = 0;
+    for (const row of parsed || []) {
+        const person = findPerson(store, row.name);
+        if (!person) continue;
+        let touched = false;
+        for (const stat of ['health', 'hunger', 'energy']) {
+            if (!settings.track[stat] || row[stat] === undefined || row[stat] === person[stat]) continue;
+            setVital(person, stat, row[stat], { now, why: 'edited' });
+            touched = true;
+        }
+        if (settings.track.mood && row.mood) {
+            const level = row.mood.level ?? (row.mood.word === person.mood.word ? person.mood.level : 50);
+            if (row.mood.word !== person.mood.word || level !== person.mood.level) {
+                setVital(person, 'mood', { word: row.mood.word, level }, { now, why: 'edited' });
+                touched = true;
+            }
+        }
+        if (touched) changed++;
+    }
+    return changed;
+}

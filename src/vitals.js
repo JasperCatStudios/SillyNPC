@@ -12,6 +12,7 @@ import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import {
     normalizeVitalsSettings, normalizeStore, findPerson, ensurePerson, applyTurn, revertTurn,
     setVital, resetVital, parseUpdate, buildMonitorPrompt, selectPeople, buildInjection,
+    parseVitalsText, applyVitalsEdit,
 } from './vitals-core.js';
 
 /**
@@ -81,6 +82,15 @@ export function editVitals(name, change) {
     change(person, store);
     saveStore();
     return person;
+}
+
+/** Applies hand-edited block text to this chat's vitals and saves. Returns how many people changed. */
+export function editVitalsText(text) {
+    const store = vitalsStore();
+    if (!store) return 0;
+    const changed = applyVitalsEdit(store, parseVitalsText(text), vitalsSettings(), { now: Date.now() });
+    if (changed) saveStore();
+    return changed;
 }
 
 /** Puts one vital back to its default: health, hunger and energy 100, mood calm. */

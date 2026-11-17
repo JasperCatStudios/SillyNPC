@@ -52,6 +52,10 @@ export const defaultSettings = {
        came into being the first time setActiveSystem wrote it - so the same enumeration
        problem applied, and reading the defaults gave no hint that the concept existed. */
     activeSystem: '',
+    /** The world opened each time SillyTavern starts. Empty: whichever was in use last. */
+    defaultWorld: '',
+    /** Each prompt's remembered template choice and the own-text kept aside: { [promptId]: { mode, custom } }. */
+    promptPicks: {},
     /**
      * Whether the story model is told how to lay dialogue out.
      *
@@ -292,6 +296,15 @@ export const defaultSettings = {
      * normalizeVitalsSettings in vitals-core.js, so an empty object is every default - which is off.
      */
     vitals: {},
+    /**
+     * The Inventory Tracker: what each person carries, and money, per chat. Repaired on read by
+     * normalizeInventorySettings in inventory-core.js, so an empty object is every default - off.
+     */
+    inventory: {},
+    /** Which connection reads replies for the inventory. Empty means your main API. */
+    inventoryProfileId: '',
+    /** The look of each tracker block: { states, bonds, vitals, inventory }, each plain, parchment, persona or tactical. */
+    trackerThemes: {},
     /**
      * Faction colours and artwork (faction-theme.js): palettes you add, the default faction, whether pictures are
      * used at all (off means built-in icons only) and the folder they are read from. Presentation only.
