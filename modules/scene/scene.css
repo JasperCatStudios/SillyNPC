@@ -1,0 +1,159 @@
+/* Scene module (fork). Uses SillyTavern's theme variables so it follows the user's theme. */
+
+.sillynpc-scene-intro {
+    display: block;
+    margin: 4px 0 8px;
+}
+
+/* The headings borrow the combat module's class; this keeps them right if that module is missing. */
+.sillynpc-scene-intro ~ .sillynpc-combat-heading {
+    margin: 14px 0 6px;
+}
+
+.sillynpc-scene-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    cursor: pointer;
+}
+
+.sillynpc-scene-row select {
+    max-width: 260px;
+}
+
+.sillynpc-scene-status {
+    padding: 6px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.3));
+    border-radius: 6px;
+    overflow-wrap: anywhere;
+}
+
+.sillynpc-scene-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.sillynpc-scene-actions:empty {
+    display: none;
+}
+
+.sillynpc-scene-test {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.sillynpc-scene-explain {
+    margin: 4px 0 8px;
+    padding-left: 8px;
+    border-left: 2px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.3));
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+.sillynpc-scene-explain[data-kind="match"] {
+    border-left-color: var(--SmartThemeQuoteColor, currentColor);
+}
+
+.sillynpc-scene-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0;
+}
+
+.sillynpc-scene-filter select {
+    max-width: 200px;
+    margin: 0;
+}
+
+.sillynpc-scene-said:empty {
+    display: none;
+}
+
+.sillynpc-scene-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.sillynpc-scene-place {
+    margin-left: calc(var(--depth, 0) * 14px);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.3));
+    border-radius: 6px;
+}
+
+.sillynpc-scene-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sillynpc-scene-name {
+    font-weight: bold;
+    overflow-wrap: anywhere;
+}
+
+.sillynpc-scene-meta {
+    margin-left: auto;
+    opacity: 0.7;
+    font-size: 0.85em;
+    text-align: right;
+}
+
+.sillynpc-scene-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 8px 8px;
+}
+
+.sillynpc-scene-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sillynpc-scene-field > .text_pole {
+    margin: 0;
+}
+
+.sillynpc-scene-label {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.sillynpc-scene-thumb {
+    max-width: 160px;
+    max-height: 90px;
+    margin-top: 4px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+@media (max-width: 600px) {
+    .sillynpc-scene-place {
+        margin-left: calc(var(--depth, 0) * 8px);
+    }
+
+    .sillynpc-scene-row select,
+    .sillynpc-scene-filter select {
+        max-width: 100%;
+    }
+
+    .sillynpc-scene-meta {
+        display: none;
+    }
+}

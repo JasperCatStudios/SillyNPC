@@ -365,6 +365,12 @@ export const defaultSettings = {
      * default - which is off. What is in each chat's collections is in the chat's metadata.
      */
     vectors: {},
+    /**
+     * The Scene module: where and when the story is (read from the scene header), the global location map
+     * ({ id, name, world, parentId, aliases, background }) and background switching. Repaired in place on read by
+     * repairSceneSettings in scene-locations.js, so an empty object is every default - which is off.
+     */
+    scene: {},
     /** Which connection proposes bond changes after a reply. Empty means your main API. */
     bondProfileId: '',
     /**

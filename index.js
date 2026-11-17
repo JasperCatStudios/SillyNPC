@@ -318,7 +318,7 @@ jQuery(async () => {
             // failing, or one folder missing, takes nothing else with it.
             // A failure is said out loud (console and one toast) and kept, so the Modules tab can
             // show the real error where the module's pane should be.
-            for (const name of ['phone', 'games', 'combat']) {
+            for (const name of ['phone', 'games', 'combat', 'scene']) {
                 recordModuleLoad(name, 'loading');
                 import(`./modules/${name}/${name}.js`)
                     .then(() => {

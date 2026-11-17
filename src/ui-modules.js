@@ -46,6 +46,15 @@ export const MODULES = [
         // Drawn by modules/combat/combat.js through registerModulePane, not borrowed from a drawer.
         render: true,
     },
+    {
+        id: 'scene',
+        name: 'Scene',
+        icon: 'fa-map-location-dot',
+        blurb: 'Where and when the story is, read from the scene header: a map of places with other names, and a background for each.',
+        // Drawn by modules/scene/scene.js. It sends nothing to a model, so there is nothing to choose to send.
+        render: true,
+        noContext: true,
+    },
 ];
 
 /** Combat and Games send their result to the story like the phone sends its texts; the settings sit on their tab. */
