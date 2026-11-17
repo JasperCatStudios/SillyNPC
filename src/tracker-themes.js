@@ -20,7 +20,7 @@ export const THEME_PARCHMENT = 'parchment';
 export const THEME_PERSONA = 'persona';
 export const THEME_TACTICAL = 'tactical';
 export const TRACKER_THEMES = Object.freeze({
-    [THEME_PLAIN]: 'Default (my own regexes)',
+    [THEME_PLAIN]: 'Default - Freaky Frankenstein',
     [THEME_PARCHMENT]: 'Cozy Parchment',
     [THEME_PERSONA]: 'Persona HUD',
     [THEME_TACTICAL]: 'Tactical Glass Telemetry',

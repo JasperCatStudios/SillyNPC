@@ -33,7 +33,8 @@ Worldkit is made of a few parts that work together:
 * **Bonds:** how close each person is to you, with levels, gates and milestones the model can only propose changes to.
 * **Vitals:** health, hunger, energy and mood for the people you choose, with bars.
 * **Inventory:** what you carry and your money (only you by default; other characters are optional), with a currency name of your choosing.
-* **Looks:** a **Look** choice at the top of the Internal States, Bonds, Vitals and Inventory menus: Default (your own regexes), Cozy Parchment, Persona HUD or Tactical Glass Telemetry. Picking one picks it for all four. The same looks are in the Worldkit-Content regex folder.
+* **Looks:** a **Look** choice at the top of the Internal States, Bonds, Vitals and Inventory menus: Default - Freaky Frankenstein (the regexes you have imported), Cozy Parchment, Persona HUD or Tactical Glass Telemetry. Picking one picks it for all four. The same looks are in the Worldkit-Content regex folder.
+* **Content Kit:** a tab in the Worldkit menu that fetches the [Worldkit-Content](https://github.com/JasperCatStudios/Worldkit-Content) repository with git (the way Extensions, Install extension works; the address is pre-filled) and imports its worlds, character packs, lorebook and regex scripts with one press each.
 * **Open Threads:** promises, threats, debts, secrets, deadlines and plans are caught as they are made and sent with each message until they are settled. Each thread keeps the line it came from.
 * **Their own connections and prompts:** every tracker has its own entry in Connections, and its instructions are in Prompts under Tracker prompts.
 

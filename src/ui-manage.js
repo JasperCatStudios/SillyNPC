@@ -35,6 +35,7 @@ import { renderConnectionsView } from './connections.js';
 import { renderBondsView } from './ui-bonds.js';
 import { renderVitalsView } from './ui-vitals.js';
 import { renderInventoryView } from './ui-inventory.js';
+import { renderContentKitView } from './ui-content-kit.js';
 import { renderVectorsView } from './ui-vectors.js';
 import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
@@ -330,6 +331,8 @@ function settingsTabs() {
           render: v => renderVectorsView(v) },
         { id: 'prompts', label: 'Prompts', container: 'sillynpc-prompts-view',
           render: v => renderPromptsView(v, reprocessAllMessages) },
+        { id: 'content', label: 'Content Kit', container: 'sillynpc-content-view',
+          render: v => renderContentKitView(v) },
         { id: 'advanced', label: 'Advanced', container: 'sillynpc-advanced-view',
           render: v => renderAdvancedView(v, {
               applyPopupSize,

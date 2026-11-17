@@ -410,6 +410,25 @@ export function deleteCustomType(id) {
     return true;
 }
 
+/**
+ * Adds the world types in some file text to the custom library and says what happened. Shared by the file picker below
+ * and the Content Kit, so both import the same way. Returns the names added.
+ */
+export async function importTypeText(text, onDone) {
+    const found = parseTypeFile(text);
+    for (const message of found.errors) toastr.error(message, PRODUCT_NAME);
+    if (!found.types.length) return [];
+    const settings = getSettings();
+    settings.combatTypes = settings.combatTypes && typeof settings.combatTypes === 'object' ? settings.combatTypes : {};
+    const replaced = found.types.filter(t => t.id in settings.combatTypes).map(t => t.name);
+    for (const t of found.types) settings.combatTypes[t.id] = t;
+    saveSettings();
+    toastr.success(`Imported ${found.types.map(t => t.name).join(', ')}.${replaced.length ? ` Replaced the existing ${replaced.join(', ')}.` : ''} Pick it under World type.`, PRODUCT_NAME);
+    for (const message of found.warnings) toastr.info(message, PRODUCT_NAME);
+    onDone?.();
+    return found.types.map(t => t.name);
+}
+
 /** Reads a world type file and adds what it holds to the custom library. */
 export function importTypeFile(onDone) {
     const picker = document.createElement('input');
@@ -419,17 +438,7 @@ export function importTypeFile(onDone) {
         const file = picker.files?.[0];
         if (!file) return;
         try {
-            const found = parseTypeFile(await file.text());
-            for (const message of found.errors) toastr.error(message, PRODUCT_NAME);
-            if (!found.types.length) return;
-            const settings = getSettings();
-            settings.combatTypes = settings.combatTypes && typeof settings.combatTypes === 'object' ? settings.combatTypes : {};
-            const replaced = found.types.filter(t => t.id in settings.combatTypes).map(t => t.name);
-            for (const t of found.types) settings.combatTypes[t.id] = t;
-            saveSettings();
-            toastr.success(`Imported ${found.types.map(t => t.name).join(', ')}.${replaced.length ? ` Replaced the existing ${replaced.join(', ')}.` : ''} Pick it under World type.`, PRODUCT_NAME);
-            for (const message of found.warnings) toastr.info(message, PRODUCT_NAME);
-            onDone?.();
+            await importTypeText(await file.text(), onDone);
         } catch (err) {
             console.error('[Worldkit] world type import failed', err);
             toastr.error(String(err.message || err), PRODUCT_NAME);

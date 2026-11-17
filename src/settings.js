@@ -62,6 +62,8 @@ export const defaultSettings = {
     activeSystem: '',
     /** The world opened each time SillyTavern starts. Empty: whichever was in use last. */
     defaultWorld: '',
+    /** Where the Content Kit is fetched from (git). Empty means the official Worldkit-Content repository. */
+    contentKitUrl: 'https://github.com/JasperCatStudios/Worldkit-Content.git',
     /** Each prompt's remembered template choice and the own-text kept aside: { [promptId]: { mode, custom } }. */
     promptPicks: {},
     /**

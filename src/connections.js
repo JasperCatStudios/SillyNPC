@@ -14,6 +14,8 @@ import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 /** @type {{ id: string, label: string, help: string, scope?: 'root'|'tracker', key?: string, dom?: string }[]} */
 /** The connections that belong to the Trackers group. */
 const TRACKER_CONNECTIONS = ['internal', 'bonds', 'vitals', 'inventory'];
+/** The connections that belong to the Modules group: the three windows with a connection of their own. */
+const MODULE_CONNECTIONS = ['combat', 'phone', 'games'];
 
 export const CONNECTION_USES = [
     { id: 'combat', label: 'Combat', scope: 'root', key: 'combatProfileId',
@@ -106,9 +108,19 @@ export function renderConnectionsView(view) {
     trackers.append(trackersTitle);
     view.append(trackers);
 
+    const modules = document.createElement('details');
+    modules.className = 'sillynpc-prompt-group';
+    modules.open = true;
+    const modulesTitle = document.createElement('summary');
+    modulesTitle.textContent = 'Modules';
+    modules.append(modulesTitle);
+    view.append(modules);
+
+    const groupFor = (use) => (TRACKER_CONNECTIONS.includes(use.id) ? trackers : MODULE_CONNECTIONS.includes(use.id) ? modules : view);
+
     for (const use of CONNECTION_USES) {
-        if (use.dom) { view.append(domPicker(use)); continue; }
-        (TRACKER_CONNECTIONS.includes(use.id) ? trackers : view).append(buildConnectionProfilePicker(null, {
+        if (use.dom) { groupFor(use).append(domPicker(use)); continue; }
+        groupFor(use).append(buildConnectionProfilePicker(null, {
             key: use.key,
             scope: use.scope,
             labelText: use.label,
