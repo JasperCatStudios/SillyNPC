@@ -23,7 +23,7 @@ export const CONNECTION_USES = [
       help: 'Reading each reply to update health, hunger and mood (Vitals Tracker).' },
     { id: 'threads', label: 'Threads', scope: 'root', key: 'threadsProfileId',
       help: 'Reading each reply for promises, debts, secrets and plans left open, and the catch-up scan. Empty means your main API.' },
-    { id: 'banscan', label: 'Ban scan', scope: 'tracker', key: 'extractionProfileId',
+    { id: 'banscan', label: 'Ban scan', scope: 'root', key: 'banScanProfileId',
       help: 'Reading the chat for phrases to ban (Writing Rules, Ban List). Empty means your main API.' },
     { id: 'phone', label: 'Phone', dom: '#rph-drawer .rph-profile-row select',
       help: 'The messages your characters text you.' },

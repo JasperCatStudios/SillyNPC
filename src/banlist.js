@@ -2,7 +2,8 @@ import { setExtensionPrompt, extension_prompt_types, extension_prompt_roles, mai
 import { textgenerationwebui_settings } from '../../../../textgen-settings.js';
 import { getContext } from '../../../../st-context.js';
 import { getSettings, saveSettings } from './settings.js';
-import { requestExtraction, coerceToUpdate } from './status-extractor.js';
+import { requestOnConnection } from './connections.js';
+import { extractJSON, safeJsonParse } from './utils.js';
 import { normaliseSpeakerLabel } from './speaker-labels.js';
 import { debugLog } from './constants.js';
 
@@ -175,9 +176,8 @@ export async function scanForBanCandidates() {
             + 'that are not characters.',
     ].join('\n');
 
-    const raw = await requestExtraction(
-        prompt, null, settings.statusTracker, BAN_SCAN_SYSTEM_PROMPT, { usageKind: 'banscan' });
-    const parsed = coerceToUpdate(raw);
+    const raw = await requestOnConnection('banScanProfileId', BAN_SCAN_SYSTEM_PROMPT, prompt, 3000);
+    const parsed = safeJsonParse(extractJSON(String(raw ?? '').replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '')));
 
     if (!parsed || typeof parsed !== 'object') {
         throw new Error('The reader replied with something that could not be read.');

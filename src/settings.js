@@ -105,6 +105,8 @@ export const defaultSettings = {
     banList: [],
     /** How far back the scan reads when it goes looking for them. */
     banScanDepth: 50,
+    /** The connection profile the ban scan reads the chat on. Empty is the main API. */
+    banScanProfileId: '',
     /** Colour a speaker who has no card, from their name. */
     autoColorUnknownSpeakers: true,
     hideSpeakerNames: false,
@@ -1249,6 +1251,15 @@ export function normalizeSettings(settings) {
             if (settings.statusTracker[key] !== undefined) settings[key] = settings.statusTracker[key];
         }
         settings.threadsMoved = true;
+    }
+
+    // The ban scan used the tracker's extraction connection; it has its own now. A connection somebody chose for the
+    // tracker is copied over once so the scan keeps running where it did.
+    if (!settings.banScanMoved) {
+        if (!settings.banScanProfileId && settings.statusTracker?.extractionProfileId) {
+            settings.banScanProfileId = settings.statusTracker.extractionProfileId;
+        }
+        settings.banScanMoved = true;
     }
 
     // The original SillyNPC default tracker (stat extraction on every message, the status box in the chat, its
