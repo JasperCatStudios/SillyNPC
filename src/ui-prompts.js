@@ -78,24 +78,26 @@ export function renderPromptsView(view, onApply) {
 
     const shown = availablePrompts();
     // The phone prompts are most of this page, so they sit in one collapsible group, closed by default.
-    const phoneEntries = shown.filter(e => e.home === 'Phone');
-    let phoneGroup = null;
+    // The tracker prompts are grouped the same way.
+    const GROUPS = { Phone: 'Phone prompts', Trackers: 'Tracker prompts' };
+    const groups = {};
     for (const entry of shown) {
         const section = document.createElement('div');
         section.className = 'sillynpc-prompt-section';
-        section.append(buildPromptEditor(entry, { onChange: onApply, showHome: true }));
+        section.append(buildPromptEditor(entry, { onChange: onApply, showHome: !GROUPS[entry.home] }));
         const budget = buildPromptBudget(entry, { onChange: onApply });
         if (budget) section.append(budget);
-        if (entry.home === 'Phone') {
-            if (!phoneGroup) {
-                phoneGroup = document.createElement('details');
-                phoneGroup.className = 'sillynpc-prompt-group';
+        if (GROUPS[entry.home]) {
+            if (!groups[entry.home]) {
+                const details = document.createElement('details');
+                details.className = 'sillynpc-prompt-group';
                 const summary = document.createElement('summary');
-                summary.textContent = `Phone prompts (${phoneEntries.length})`;
-                phoneGroup.append(summary);
-                view.append(phoneGroup);
+                summary.textContent = `${GROUPS[entry.home]} (${shown.filter(e => e.home === entry.home).length})`;
+                details.append(summary);
+                groups[entry.home] = details;
+                view.append(details);
             }
-            phoneGroup.append(section);
+            groups[entry.home].append(section);
         } else {
             view.append(section);
         }

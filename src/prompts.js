@@ -2,6 +2,9 @@ import { getSettings, defaultSettings } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
 import { SYSTEM_PROMPT, buildDialogueFormatPrompt, NARRATOR_RULES_PROMPT } from './constants.js';
 import { TIME_PERIODS } from './phone-image-requests.js';
+import { INTERNAL_STATES_SYSTEM } from './internal-states.js';
+import { BOND_SYSTEM } from './bonds-core.js';
+import { VITALS_SYSTEM } from './vitals-core.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -96,6 +99,37 @@ export const PROMPTS = [
             + '{{time}}, {{roll:d20}} and the rest. ',
         recommended: () => defaultSettings.statusTracker.systemRules,
         available: () => getSettings().statusTracker.extractionMode !== 'extract',
+    },
+    {
+        id: 'internalStates',
+        key: 'internalStatesPrompt',
+        label: 'Internal States: Instructions And Template',
+        home: 'Trackers',
+        help: 'What the writer is told when it writes the Internal States block. Empty uses the built-in, '
+            + 'which follows the Worldkit preset. Only used when Internal States writes the block after the reply.',
+        recommended: () => INTERNAL_STATES_SYSTEM,
+        emptyNote: 'The built-in instructions are sent.',
+        available: () => getSettings().internalStatesMode === 'after',
+    },
+    {
+        id: 'bondsReader',
+        key: 'bonds.prompt',
+        label: 'Bonds: Reader Instructions',
+        home: 'Trackers',
+        help: 'The system prompt of the separate request that reads each reply for bond changes. Empty uses '
+            + 'the built-in. The rules, levels and milestones are always added after it.',
+        recommended: () => BOND_SYSTEM,
+        emptyNote: 'The built-in instructions are sent.',
+    },
+    {
+        id: 'vitalsReader',
+        key: 'vitals.prompt',
+        label: 'Vitals: Reader Instructions',
+        home: 'Trackers',
+        help: 'The system prompt of the separate request that reads each reply for health, hunger, energy and '
+            + 'mood. Empty uses the built-in.',
+        recommended: () => VITALS_SYSTEM,
+        emptyNote: 'The built-in instructions are sent.',
     },
     {
         id: 'phoneSelfie',

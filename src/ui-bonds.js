@@ -214,16 +214,7 @@ function renderGeneral(view, rerender) {
             advanced: true,
             help: 'How many messages before the new reply the reader is shown, for context.',
         })));
-        view.append(namespaced(buildSettingTextArea({
-            store: STORE,
-            key: 'prompt',
-            advanced: true,
-            label: 'Reader Instructions',
-            help: 'The system prompt of the separate request. Empty uses the built-in. The rules, levels and milestones are always added after it.',
-            recommended: BOND_SYSTEM,
-            emptyNote: 'The built-in instructions are sent.',
-            showTokens: true,
-        })));
+        // The reader instructions moved to the Prompts tab, under Tracker prompts.
     }
     renderRomanceUnlock(view, rerender);
 }

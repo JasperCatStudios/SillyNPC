@@ -170,11 +170,7 @@ export function renderVitalsView(view) {
     view.append(el('h4', 'sillynpc-combat-heading', 'Reader and story prompt'));
     view.append(namespaced(buildSettingNumber({ store: STORE, key: 'maxTokens', label: 'Reply Budget', suffix: 'tokens', help: 'The answer is a small JSON object; 600 is plenty.', advanced: true })));
     view.append(namespaced(buildSettingNumber({ store: STORE, key: 'contextMessages', label: 'Earlier Messages Read', suffix: 'messages', advanced: true })));
-    view.append(namespaced(buildSettingTextArea({
-        store: STORE, key: 'prompt', advanced: true, label: 'Reader Instructions',
-        help: 'The system prompt of the separate request. Empty uses the built-in.', recommended: VITALS_SYSTEM,
-        emptyNote: 'The built-in instructions are sent.',
-    })));
+    // The reader instructions moved to the Prompts tab, under Tracker prompts.
     view.append(namespaced(buildSettingSelect({ store: { get: () => vitalsSettings().inject, save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS.inject }, key: 'trigger', label: 'Send To The Story For', options: options(VITALS_TRIGGERS), advanced: true, help: 'Whose vitals go into the story prompt each turn.' })));
     view.append(namespaced(buildSettingSelect({ store: { get: () => vitalsSettings().inject, save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS.inject }, key: 'position', label: 'Prompt Position', options: options(VITALS_POSITIONS), advanced: true })));
     view.append(namespaced(buildSettingSelect({ store: { get: () => vitalsSettings().inject, save: () => saveVitalsSettings(), defaults: VITALS_SETTINGS_DEFAULTS.inject }, key: 'role', label: 'Prompt Role', options: options(VITALS_ROLES), advanced: true })));

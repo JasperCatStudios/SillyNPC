@@ -263,18 +263,49 @@ export function renderInternalStatesSettings(container, rerender) {
 
     const redraw = () => document.querySelectorAll('#chat .mes').forEach(drawSection);
 
+    // An on/off switch like Bonds and Vitals. It is stored in internalStatesMode: off is "off", on is
+    // "after" (a second request writes the block) or "inline" (the story model writes it, see below).
+    const toggleWrap = document.createElement('div');
+    toggleWrap.className = 'sillynpc-setting';
+    toggleWrap.dataset.setting = 'internalStatesMode';
+    const toggleRow = document.createElement('label');
+    toggleRow.className = 'checkbox_label sillynpc-setting-row';
+    toggleRow.style.cursor = 'pointer';
+    const toggleLabel = document.createElement('span');
+    toggleLabel.className = 'sillynpc-setting-label';
+    toggleLabel.style.fontWeight = '500';
+    toggleLabel.textContent = 'Internal States';
+    const toggleBox = document.createElement('input');
+    toggleBox.type = 'checkbox';
+    toggleBox.checked = getSettings().internalStatesMode !== 'off';
+    toggleBox.addEventListener('change', () => {
+        getSettings().internalStatesMode = toggleBox.checked ? 'after' : 'off';
+        saveSettings();
+        redraw();
+        rerender();
+    });
+    toggleRow.append(toggleLabel, toggleBox);
+    const toggleHelp = document.createElement('small');
+    toggleHelp.className = 'notes';
+    toggleHelp.style.cssText = 'margin-top:4px; display:block;';
+    toggleHelp.textContent = 'A second request writes the state block (agendas, thoughts, body scale, Chekhov, GM '
+        + 'notebook, world sim; bonds live in the Bonds view) and it is shown in its own section under the message. '
+        + 'Its connection is chosen in Connections, and its instructions are in Prompts, under Tracker prompts.';
+    toggleWrap.append(toggleRow, toggleHelp);
+    container.append(toggleWrap);
+
+    if (getSettings().internalStatesMode === 'off') return;
+
     container.append(buildSettingSelect({
         key: 'internalStatesMode',
-        label: 'Internal States',
-        help: 'After The Reply: a second request writes the state block (agendas, '
-            + 'thoughts, body scale, Chekhov, GM notebook, world sim; bonds now live in the Bonds tab) and it is shown in '
-            + 'its own section under the message. In The Reply: the story model writes it itself, and '
-            + 'any regex scripts you have handle it - nothing happens here. '
-            + 'If a preset of yours also asks for a block, switch that off.',
+        advanced: true,
+        label: 'How It Is Written',
+        help: 'After The Reply: a separate request writes it. In The Reply: the story model writes it itself and '
+            + 'any regex scripts you have handle it - nothing happens here. If a preset of yours also asks for a '
+            + 'block, use In The Reply or switch the preset off.',
         options: [
             { value: 'after', label: 'After the reply (separate request)' },
             { value: 'inline', label: 'In the reply (preset writes it)' },
-            { value: 'off', label: 'Off' },
         ],
         onChange: () => { redraw(); rerender(); },
     }));
@@ -300,15 +331,7 @@ export function renderInternalStatesSettings(container, rerender) {
         help: 'Sends the last written state to the story model as plain text and asks it not to '
             + 'write a block of its own.',
     }));
-    container.append(buildSettingTextArea({
-        key: 'internalStatesPrompt',
-        advanced: true,
-        label: 'Instructions And Template',
-        help: 'What the writer is told. Empty uses the built-in, which follows the Worldkit preset.',
-        recommended: INTERNAL_STATES_SYSTEM,
-        emptyNote: 'The built-in instructions are sent.',
-        showTokens: true,
-    }));
+    // The instructions and template moved to the Prompts tab, under Tracker prompts.
 }
 
 /**
