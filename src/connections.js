@@ -6,15 +6,13 @@ import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
  * Which connection profile each part of Worldkit runs on (fork).
  *
  * One list for the whole extension, drawn as the Connections tab. Most rows are ordinary
- * settings that already existed (lore, portraits, the tracker...) and are simply gathered here;
+ * settings that already existed (combat, internal states, bonds, vitals) and are simply gathered here;
  * Phone and Games keep their own settings objects, so those rows drive the picker each of them
  * already has rather than writing behind their backs.
  */
 
 /** @type {{ id: string, label: string, help: string, scope?: 'root'|'tracker', key?: string, dom?: string }[]} */
 export const CONNECTION_USES = [
-    { id: 'lore', label: 'Lore', scope: 'root', key: 'loreProfileId',
-      help: 'Writing and updating lorebook entries.' },
     { id: 'combat', label: 'Combat', scope: 'root', key: 'combatProfileId',
       help: 'Generating combat stats from lore, and the table talk during a fight.' },
     { id: 'internal', label: 'Internal states', scope: 'root', key: 'internalStatesProfileId',
@@ -23,12 +21,6 @@ export const CONNECTION_USES = [
       help: 'Reading each reply to propose bond changes and milestones (Bond Tracker, after-the-reply timing).' },
     { id: 'vitals', label: 'Vitals', scope: 'root', key: 'vitalsProfileId',
       help: 'Reading each reply to update health, hunger and mood (Vitals Tracker).' },
-    { id: 'extraction', label: 'Tracker extraction', scope: 'tracker', key: 'extractionProfileId',
-      help: 'Reading the chat to update stats, items and relationships.' },
-    { id: 'scan', label: 'History scan', scope: 'tracker', key: 'scanProfileId',
-      help: 'Scanning old messages. Empty means the extraction connection.' },
-    { id: 'image', label: 'Portraits', scope: 'root', key: 'imageProfileId',
-      help: 'Writing the picture prompts for portraits.' },
     { id: 'phone', label: 'Phone', dom: '#rph-drawer .rph-profile-row select',
       help: 'The messages your characters text you.' },
     { id: 'games', label: 'Games', dom: '#rpg-game-profile',

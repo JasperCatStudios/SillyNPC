@@ -11,7 +11,7 @@ import { PRODUCT_NAME } from './constants.js';
 /**
  * System Manager: saving, restoring and swapping whole Systems.
  *
- * Split out of status-settings.js. What a System is made of is System Builder's job.
+ * Split out of status-settings.js. The Builder that defined what a world is made of has been removed.
  */
 
 function exportSystem(name) {
@@ -49,7 +49,7 @@ function buildCheckpointControls(onRefresh) {
     if (!active || !preset) {
         const none = document.createElement('small');
         none.className = 'notes';
-        none.textContent = 'No system is active, so there is nothing to save.';
+        none.textContent = 'No world is active, so there is nothing to save.';
         wrap.append(none);
         return wrap;
     }
@@ -141,7 +141,7 @@ function buildCheckpointControls(onRefresh) {
     const note = document.createElement('small');
     note.className = 'notes';
     note.style.marginTop = '6px';
-    note.textContent = 'Each state holds a full copy of this system: its characters, item '
+    note.textContent = 'Each state holds a full copy of this world: its characters, item '
         + 'library, persona records and settings. They are written to user/files/ rather '
         + 'than into your settings, so keeping several costs nothing on every save. '
         + 'Restoring saves the current one first, so nothing is a one-way door.';
@@ -164,7 +164,7 @@ export function buildSystemManager(onRefresh) {
     listWrap.style.borderRadius = '5px';
 
     if (presetNames.length === 0) {
-        listWrap.innerHTML = `<div style="padding:15px; text-align:center; opacity:0.5;">No systems in library.</div>`;
+        listWrap.innerHTML = `<div style="padding:15px; text-align:center; opacity:0.5;">No worlds saved yet.</div>`;
     } else {
         const table = document.createElement('table');
         table.style.width = '100%';
@@ -179,17 +179,32 @@ export function buildSystemManager(onRefresh) {
             nameCell.style.padding = '8px';
             // A system's cast is the thing you would most regret switching away from
             // without noticing, so the count is on the row rather than hidden inside it.
-            const cast = name === getActiveSystem()
+            const castCount = name === getActiveSystem()
                 ? (getSettings().characters || []).length
                 : (profile.world?.characters || []).length;
             const detail = [
                 profile.metadata?.description || '',
-                profile.world ? `${cast} character${cast === 1 ? '' : 's'}` : 'rules only',
+                profile.world ? `${castCount} character${castCount === 1 ? '' : 's'}` : 'rules only',
             ].filter(Boolean).join(' — ');
             nameCell.innerHTML = `<div style="font-weight:bold">${escapeHtml(name)}`
                 + (name === getActiveSystem() ? ' <small style="opacity:0.6">(in use)</small>' : '')
                 + `</div><small style="opacity:0.6">${escapeHtml(detail)}</small>`;
             
+            // The world's character profiles, listed by name under it. A world stores its own cast.
+            const cast = (name === getActiveSystem() ? (getSettings().characters || []) : (profile.world?.characters || []));
+            if (cast.length) {
+                const people = document.createElement('details');
+                people.style.cssText = 'margin-top:4px; font-size:0.9em;';
+                const sum = document.createElement('summary');
+                sum.style.cursor = 'pointer';
+                sum.textContent = `Characters (${cast.length})`;
+                const list = document.createElement('div');
+                list.style.cssText = 'opacity:0.85; padding:4px 0 0 12px;';
+                list.textContent = cast.map(ch => ch?.name).filter(Boolean).sort((a, b) => a.localeCompare(b)).join(', ');
+                people.append(sum, list);
+                nameCell.append(people);
+            }
+
             const actionsCell = document.createElement('td');
             actionsCell.style.padding = '8px';
             actionsCell.style.textAlign = 'right';
@@ -230,15 +245,15 @@ export function buildSystemManager(onRefresh) {
                 // Deleting the system in use would take the cast and item library with it
                 // and leave the configuration belonging to nothing.
                 if (name === getActiveSystem()) {
-                    toastr.info('Switch to another system before deleting this one.', PRODUCT_NAME);
+                    toastr.info('Switch to another world before deleting this one.', PRODUCT_NAME);
                     return;
                 }
                 const cast = (profile.world?.characters || []).length;
                 const warning = cast
                     ? `Delete "${name}"? Its ${cast} character${cast === 1 ? '' : 's'}, `
                       + 'item library and persona records go with it.'
-                    : `Delete the saved system "${name}"?`;
-                if (await Popup.show.confirm('Delete system', warning)) {
+                    : `Delete the saved world "${name}"?`;
+                if (await Popup.show.confirm('Delete world', warning)) {
                     deleteSystemPreset(name);
                     onRefresh();
                 }
@@ -263,14 +278,14 @@ export function buildSystemManager(onRefresh) {
     const newBtn = document.createElement('button');
     newBtn.className = 'menu_button';
     newBtn.style.flex = '1';
-    newBtn.innerHTML = '<i class="fa-solid fa-plus"></i> New System';
-    newBtn.title = 'Start a new system from the defaults, with no characters in it. '
+    newBtn.innerHTML = '<i class="fa-solid fa-plus"></i> New World';
+    newBtn.title = 'Start a new world from the defaults, with no characters in it. '
         + 'The one you are in now is saved first.';
     newBtn.addEventListener('click', async () => {
-        const name = (await Popup.show.input('New system', 'Name for this system:'))?.trim();
+        const name = (await Popup.show.input('New world', 'Name for this world:'))?.trim();
         if (!name) return;
         if (!createSystem(name)) {
-            toastr.error(`A system called "${name}" already exists.`, PRODUCT_NAME);
+            toastr.error(`A world called "${name}" already exists.`, PRODUCT_NAME);
             return;
         }
         updateAllExtensionThemes();
@@ -294,7 +309,7 @@ export function buildSystemManager(onRefresh) {
                     importSystemPreset(text);
                     onRefresh();
                 } catch (err) {
-                    toastr.error(`Failed to import system: ${err.message}`, PRODUCT_NAME);
+                    toastr.error(`Failed to import world: ${err.message}`, PRODUCT_NAME);
                 }
             }
         };

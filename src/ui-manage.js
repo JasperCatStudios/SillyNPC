@@ -39,7 +39,6 @@ import { renderStatusView } from './ui-tracker-settings.js';
 import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
 import { renderModulesView } from './ui-modules.js';
-import { buildSystemBuilder } from './ui-system-builder.js';
 import { buildSystemManager } from './ui-system-manager.js';
 import { syncOverrideToActiveState, loadStateFromMetadata, hasOpenChat } from './status-logic.js';
 import { renderCollectionUI, attachCollectionListeners, resolveCollectionTarget, persistCollectionEdit, updateExtensionTheme, repositionCloseButton, hideEmptySections } from './ui-shared.js';
@@ -321,7 +320,7 @@ function settingsTabs() {
               { sub: 'Bonds', hint: 'How the people in the story feel about you.', render: v => renderBondsView(v) },
               { sub: 'Vitals', hint: 'Health, hunger, energy and mood.', render: v => renderVitalsView(v) },
           ] },
-        { id: 'systems', label: 'Systems', container: 'sillynpc-systems-view',
+        { id: 'systems', label: 'World Management', container: 'sillynpc-systems-view',
           render: v => renderSystemsView(v) },
         { id: 'connections', label: 'Connections', container: 'sillynpc-connections-view',
           render: v => renderConnectionsView(v) },
@@ -383,53 +382,20 @@ function renderTrackerView(view) {
     }
 }
 
-/** Which half of the Systems tab is showing. */
-let systemsView = 'builder';
-
 /**
- * Building a System and managing your Systems, as two views of one tab.
+ * World Management: the worlds you have, the one in use, and the characters that belong to each.
  *
- * They were two tabs sitting next to each other, named so alike that telling them apart
- * meant opening both. They are the same subject seen twice - what a System is made of, and
- * which System you are in - so they read as one page with two views, the way a character's
- * Profile and Edit do.
+ * Was "Systems", which had a Builder (the stats, collections and fields a world is made of) and a
+ * Manager. The Builder is gone; what remains is the manager, and a world carries its cast.
  *
  * @param {HTMLElement} view
  */
 function renderSystemsView(view) {
     view.replaceChildren();
-
-    const tabs = document.createElement('div');
-    tabs.className = 'sillynpc-charview-tabs';
-
-    for (const [id, label, hint] of [
-        ['builder', 'Builder', 'The stats, collections and fields a System is made of.'],
-        ['manager', 'Manager', 'Saving, restoring and switching between whole Systems.'],
-    ]) {
-        const tab = document.createElement('button');
-        tab.type = 'button';
-        tab.className = 'sillynpc-charview-tab' + (systemsView === id ? ' active' : '');
-        tab.dataset.view = id;
-        tab.textContent = label;
-        tab.title = hint;
-        tab.addEventListener('click', () => {
-            if (systemsView === id) return;
-            systemsView = id;
-            renderSystemsView(view);
-        });
-        tabs.append(tab);
-    }
-    view.append(tabs);
-
-    const body = document.createElement('div');
-    view.append(body);
-
     try {
-        body.append(systemsView === 'builder'
-            ? buildSystemBuilder(() => renderManageView())
-            : buildSystemManager(() => renderManageView()));
+        view.append(buildSystemManager(() => renderManageView()));
     } catch (e) {
-        console.error(LOG_PREFIX, `System ${systemsView} failed`, e);
+        console.error(LOG_PREFIX, 'World Management failed', e);
     }
 }
 
