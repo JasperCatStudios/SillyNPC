@@ -514,7 +514,6 @@ export function syncPlayerToMaster(state, options = {}) {
 
 const STATE_KEY = 'sillynpc_status_state';
 const HISTORY_KEY = 'sillynpc_status_history';
-const SWIPE_BASE_KEY = 'sillynpc_swipe_base';
 
 /** @type {StatusState | null} */
 let committedState = null;
@@ -614,34 +613,6 @@ function getMetadata() {
 }
 
 
-/**
- * The remembered state for a message, or null when there is none.
- *
- * Missing after a reload, or for a message written before this existed. The caller has to
- * say so rather than guess: applying a swipe's changes on top of numbers that already
- * include a different swipe is the double-counting this exists to prevent.
- *
- * @param {string|number} messageId
- * @returns {StatusState | null}
- */
-export function getSwipeBase(messageId) {
-    const stored = getMetadata()?.[SWIPE_BASE_KEY];
-    if (!stored || stored.messageId !== String(messageId)) return null;
-    return structuredClone(stored.state);
-}
-
-/**
- * The stored base itself, not a copy.
- *
- * Every other reader gets a clone from getSwipeBase, which is what stops a caller
- * accidentally rewriting history. The aligner is the one caller whose whole job is to
- * rewrite it, so it needs the real thing.
- *
- * @returns {{ messageId: string, state: object, profiles: object }|null}
- */
-export function swipeBaseRecord() {
-    return getMetadata()?.[SWIPE_BASE_KEY] ?? null;
-}
 
 /**
  * Keeps the swipe base in step with changes nobody's message made.
@@ -1881,35 +1852,6 @@ export function getCastDecisions() {
     }
 }
 
-/**
- * Records, or clears, what somebody is.
- *
- * @param {string} name
- * @param {'persona'|'excluded'|null} reason Null lets them back into the scene.
- * @returns {boolean} True when anything changed.
- */
-export function setCastDecision(name, reason) {
-    const key = resolveCanonicalName(name).toLowerCase();
-    if (!key) return false;
-
-    const state = loadStateFromMetadata();
-    if (!state.castDecisions || typeof state.castDecisions !== 'object') state.castDecisions = {};
-
-    if (reason === null || reason === undefined) {
-        if (!(key in state.castDecisions)) return false;
-        delete state.castDecisions[key];
-    } else {
-        if (state.castDecisions[key] === reason) return false;
-        state.castDecisions[key] = reason;
-        // Out of the scene now as well as in future: a decision that only takes effect
-        // next time reads as having been ignored.
-        state.characters = (state.characters || [])
-            .filter(c => resolveCanonicalName(c.name).toLowerCase() !== key);
-    }
-
-    saveStateToMetadata(state, { label: reason ? 'Cast decision' : 'Cast decision cleared' });
-    return true;
-}
 
 /**
  * Your own portrait, for a speaker label you have said is you.
@@ -1926,7 +1868,7 @@ export function setCastDecision(name, reason) {
  * @returns {{ name: string, imageUrl: string } | null} Null when this is not you.
  */
 export function resolvePersonaSpeaker(name) {
-    // No blank-name guard: setCastDecision refuses to record one, so a nameless speaker
+    // No blank-name guard here: a nameless speaker
     // has no decision to find and falls out here like anybody else undecided.
     const canonical = resolveCanonicalName(name);
     if (getCastDecisions()[canonical.toLowerCase()] !== CAST_PERSONA) return null;
@@ -1970,7 +1912,7 @@ export function mayJoinScene(name) {
 
 /**
  * Builds a fresh character state seeded from the NPC schema and any card overrides.
- * Shared by presence reconciliation and registerActiveCharacter.
+ * Used by presence reconciliation.
  */
 /**
  * Brings a character's card up to date while they are elsewhere.
@@ -2047,42 +1989,6 @@ function buildCharacterState(charName, state, trackerSettings) {
         charData.collections = structuredClone(matchedChar.statusCollections);
     }
     return charData;
-}
-
-/**
- * Registers a character as active in the scene based on a matched setting character.
- */
-export function registerActiveCharacter(charName) {
-    if (!charName) return;
-    if (!mayJoinScene(charName)) return false;
-
-    const state = structuredClone(committedState || loadStateFromMetadata());
-    const settings = getSettings();
-    const trackerSettings = settings.statusTracker;
-    
-    const existingChar = state.characters.find(c => c.name.toLowerCase() === charName.toLowerCase());
-    if (existingChar) return false; // Already registered
-
-    const charData = { name: charName, stats: {}, collections: {} };
-    if (trackerSettings.sceneBindingStat) {
-        charData.boundTo = state.global[trackerSettings.sceneBindingStat] !== undefined ? state.global[trackerSettings.sceneBindingStat] : '';
-    }
-    
-    const settingsChars = settings.characters;
-    const matchedChar = settingsChars.find(c => c.name.toLowerCase() === charName.toLowerCase());
-
-    trackerSettings.npcStats.forEach(s => {
-        let value = s.defaultValue || '';
-        if (matchedChar && matchedChar.statusOverrides && matchedChar.statusOverrides[s.name] !== undefined && String(matchedChar.statusOverrides[s.name]).trim() !== '') {
-            value = matchedChar.statusOverrides[s.name];
-        }
-        charData.stats[s.name] = getInitialStatValue(value, s.maxStatValue);
-    });
-
-    state.characters.push(charData);
-    state.timestamp = Date.now();
-    saveStateToMetadata(state);
-    return true; // Indicates state changed
 }
 
 
@@ -2401,33 +2307,6 @@ function updateItem(actor, collectionId, itemName, updates) {
     }
 }
 
-/**
- * Synchronizes a manual override change immediately into the active chat metadata state.
- */
-export function syncOverrideToActiveState(charName, statName, newValue) {
-    if (!charName || !statName) return false;
-    
-    // Attempt to load current state; if we don't have one, we can't sync.
-    const state = loadStateFromMetadata();
-    if (!state) return false;
-    
-    const existingChar = state.characters.find(c => c.name.toLowerCase() === charName.toLowerCase());
-    if (existingChar) {
-        if (newValue === '') {
-            const settings = getSettings().statusTracker;
-            const statDef = settings.npcStats.find(s => s.name === statName);
-            existingChar.stats[statName] = statDef ? (statDef.defaultValue || '') : '';
-        } else {
-            existingChar.stats[statName] = newValue;
-        }
-        
-        state.timestamp = Date.now();
-        saveStateToMetadata(state);
-        return true;
-    }
-    
-    return false;
-}
 
 /**
  * Merges an AI-provided item with its Master Database entry if it exists.

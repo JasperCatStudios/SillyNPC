@@ -36,7 +36,6 @@ Worldkit is made of a few parts that work together:
 * **Looks:** a **Look** choice at the top of the Internal States, Bonds, Vitals and Inventory menus: Default (your own regexes), Cozy Parchment, Persona HUD or Tactical Glass Telemetry. Picking one picks it for all four. The same looks are in the Worldkit-Content regex folder.
 * **Open Threads:** promises, threats, debts, secrets, deadlines and plans are caught as they are made and sent with each message until they are settled. Each thread keeps the line it came from.
 * **Their own connections and prompts:** every tracker has its own entry in Connections, and its instructions are in Prompts under Tracker prompts.
-* **Inventory (planned):** a tracker of its own, per chat and per character.
 
 ### Character & World Management
 * **Roster Categories:** Organize characters into distinct worlds, factions, or scenes — and limit a chat to only the categories it needs.

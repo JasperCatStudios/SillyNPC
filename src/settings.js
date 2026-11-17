@@ -8,7 +8,6 @@ import {
     SPEAKER_PALETTE,
     PORTRAIT_SHAPES,
     DEFAULT_PORTRAIT_SHAPE,
-    SYSTEM_PROMPT,
     DIALOGUE_FORMAT_PROMPT,
     DEFAULT_MARKER_OPEN,
     DEFAULT_MARKER_CLOSE,
@@ -18,6 +17,15 @@ import {
 import { resolveImageFolder } from './utils.js';
 import { normalizeCombatPrefs, normalizeTypeLibrary } from './combat-types.js';
 import { normalizeCombatBlock } from './combat-store.js';
+
+/** statusTracker keys that nothing reads any more. See the migration that removes them from saved settings. */
+const OBSOLETE_TRACKER_KEYS = [
+    'showGlobalStats', 'summaryThreshold', 'showNpcPortraits', 'extractionContextMessages', 'reviewMode', 'maxChangePolicy',
+    'reviewSwingThreshold', 'recordMessageHistory', 'scanButtonEnabled', 'scanCharBudget', 'scanMaxChunks', 'clockStat',
+    'clockMaxElapsedMinutes', 'timeRules', 'extractionReasons', 'stripStatusFromHistory', 'sceneInjectionDepth', 'hudEnabled',
+    'hudPosition', 'hudLayout', 'hudMeterWidth', 'hudMeterHeight', 'hudRingThickness', 'extractionPrompt', 'hudPortraitSide',
+    'hudPortraitShape', 'hudPortraitBorder', 'customCSS', 'renderPosition',
+];
 
 export const defaultSettings = {
     version: EXTENSION_VERSION,
@@ -496,36 +504,10 @@ export const defaultSettings = {
     statusTracker: {
         enabled: false,
         showOnlyAtBottom: false,
-        globalStats: [
-            { name: 'Location', defaultValue: 'Unknown', format: '<b>{{name}}:</b> {{value}}', visible: true },
-            { name: 'Time', defaultValue: 'Morning', format: '<b>{{name}}:</b> {{value}}', visible: true },
-            { name: 'Quest', defaultValue: 'None', format: '<b>{{name}}:</b> {{value}}', visible: true }
-        ],
-        showGlobalStats: true,
-        npcStats: [
-            { name: 'HP', defaultValue: '10/10', format: '{{name}}: {{value}}', maxStatValue: '10', visible: true },
-            { name: 'Energy', defaultValue: '5/5', format: '{{name}}: {{value}}', maxStatValue: '5', visible: true },
-            { name: 'Condition', defaultValue: 'Healthy', format: '{{value}}', maxStatValue: '', visible: true }
-        ],
-        playerStats: [
-            { name: 'HP', defaultValue: '20/20', format: '{{name}}: {{value}}', maxStatValue: '20', visible: true, isPrimary: true, color: '#e03131' },
-            { name: 'Energy', defaultValue: '10/10', format: '{{name}}: {{value}}', maxStatValue: '10', visible: true, isPrimary: true, color: '#3b5bdb' },
-            { name: 'Level', defaultValue: '1', format: '{{name}}: {{value}}', maxStatValue: '', visible: true, isPrimary: false },
-            { name: 'XP', defaultValue: '0/100', format: '{{name}}: {{value}}', maxStatValue: '100', visible: true, isPrimary: false }
-        ],
-        collections: [
-            { 
-                id: 'inventory', 
-                name: 'Inventory', 
-                fields: [
-                    { name: 'name', label: 'Name', type: 'text', isPrimary: true, defaultValue: '' },
-                    { name: 'quantity', label: 'Quantity', type: 'number', isPrimary: false, defaultValue: '1' },
-                    { name: 'description', label: 'Description', type: 'text', isMultiline: true, isPrimary: false, defaultValue: '' }
-                ], 
-                target: 'all' // 'player', 'npc', or 'all'
-            }
-        ],
-        summaryThreshold: 5,
+        globalStats: [],
+        npcStats: [],
+        playerStats: [],
+        collections: [],
         /**
          * How many undo steps to keep per chat. Was a hardcoded 2, then 10.
          *
@@ -536,8 +518,6 @@ export const defaultSettings = {
          * a handful of messages rather than a handful of seconds.
          */
         historyDepth: 25,
-        /** Show each NPC's card portrait in the tracker box. */
-        showNpcPortraits: true,
         /**
          * Who decides which characters are in the scene.
          * 'speakers' - derived from who actually appears in the message (deterministic)
@@ -560,48 +540,11 @@ export const defaultSettings = {
         /** Token budget for the extraction reply. */
         extractionMaxTokens: 1200,
         /**
-         * How many preceding messages the extraction sees as context.
-         *
-         * Play often announces a cost, takes a roll, then resolves - three messages -
-         * and a card that forbids numbers in prose means the resolving message names no
-         * figure. One message at a time cannot join those up. 2 covers announce/roll.
-         */
-        extractionContextMessages: 2,
-        /**
-         * Which proposed changes wait for you.
-         * 'risky' - additions, removals and implausible jumps ask; the rest apply.
-         * 'all'   - nothing applies until you say so.
-         * 'off'   - everything applies; undo is the safety net.
-         */
-        reviewMode: 'risky',
-        /**
-         * Whether the reader may move a ceiling on its own.
-         * 'free'              - yes, shown but never blocking. Level-up rules vary too
-         *                       much between systems to gate by default.
-         * 'review-decreases'  - a ceiling going down asks; going up does not.
-         * 'review-all'        - any ceiling change asks.
-         */
-        maxChangePolicy: 'free',
-        /** A value moving more than this fraction of its range in one turn asks. */
-        reviewSwingThreshold: 0.6,
-        /**
-         * Record what each message changed, so the box under an older message can show
-         * the numbers of that moment instead of today's.
-         *
-         * Kept on message.extra, which is never read back into the prompt, so this costs
-         * nothing in tokens - only a few hundred bytes per message in the chat file.
-         */
-        recordMessageHistory: true,
-        /** Show the history-scan button on the send bar. */
-        scanButtonEnabled: true,
-        /**
          * How many recent messages a scan reads. 0 reads the whole chat.
          * Recent messages are what decide the final state, so the budget is spent there
          * first when both limits bite.
          */
         scanDepth: 50,
-        /** Hard ceiling on transcript size, so one enormous message cannot blow the context. */
-        scanCharBudget: 60000,
         /**
          * Reply budget for a scan, separate from the per-message one.
          *
@@ -611,16 +554,6 @@ export const defaultSettings = {
          */
         scanMaxTokens: 3000,
         /**
-         * How many passes a scan may make.
-         *
-         * A long story does not fit one request - 525 messages of a real chat are
-         * 426,000 characters - so it is read in several, and the findings pooled.
-         *
-         * 0 means as many as the history needs. A number caps what one scan may cost,
-         * at the price of leaving the oldest messages unread.
-         */
-        scanMaxChunks: 0,
-        /**
          * Connection for a scan. Empty means the extraction connection.
          *
          * A scan is a harder job than a per-message update - the whole history, every
@@ -628,29 +561,6 @@ export const defaultSettings = {
          * Scans are rare, which makes a stronger model affordable here and not there.
          */
         scanProfileId: '',
-        /**
-         * Which world stat is the clock. The narrator already keeps one - the tracker
-         * simply never read it.
-         */
-        clockStat: 'Time',
-        /**
-         * Most a single message may pay out, in minutes.
-         *
-         * A misread timestamp or a wild time skip would otherwise refill or drain
-         * everything at once. A day is generous for a normal turn and still bounds the
-         * damage; the limit is named in the change record when it bites.
-         */
-        clockMaxElapsedMinutes: 1440,
-        /**
-         * What elapsed time does on its own.
-         *
-         * { id, enabled, scope: 'player'|'characters'|'global', stat,
-         *   amount, perMinutes, conditionStat, conditionValue }
-         *
-         * Arithmetic, not a reading of the prose, so it applies without review and is
-         * recorded like any other change.
-         */
-        timeRules: [],
         /**
          * Send a JSON schema with the extraction request.
          *
@@ -661,72 +571,7 @@ export const defaultSettings = {
          * The system prompt pins the shape reliably on every backend without it.
          */
         extractionUseSchema: false,
-        /**
-         * Ask the reader to say why it changed each value.
-         *
-         * The reply says what it wants changed and never why, so a stat that moves for no
-         * reason anyone can see is indistinguishable from one that moved for a good one.
-         * The reasons are shown on the review rows rather than written into the chat:
-         * anything put in a message becomes part of the next turn's prompt, and the model
-         * would start reading its own past justifications as story.
-         *
-         * On by default, and a setting because it costs tokens and a weak extraction model
-         * can lose JSON quality when asked for prose alongside it.
-         */
-        extractionReasons: true,
-        /**
-         * Remove the tracker's own status block from a message once it has been read.
-         *
-         * Left in, every block is saved to the chat file and re-sent on every later
-         * turn - 71% of one real 317-message transcript - and teaches the model to keep
-         * emitting them. The removed text is preserved on message.extra, which is not
-         * part of the prompt.
-         */
-        stripStatusFromHistory: true,
-        /** How many messages from the end the read-only scene block is inserted. */
-        sceneInjectionDepth: 1,
-        hudEnabled: true,
-        hudPosition: 'top-right',
         hudScale: 1.0,
-    /**
-     * How the whole HUD is laid out. One of HUD_LAYOUTS in constants.js.
-     *
-     * Replaced hudMeterStyle, which offered bar, segmented, rings and text. The frame and
-     * the meter were never independent choices - see the note on HUD_LAYOUTS - so this is
-     * one setting where there were two, and old values migrate to their nearest layout.
-     */
-    hudLayout: 'plate',
-    /** Width of a bar or segmented meter, in pixels. */
-    hudMeterWidth: 92,
-    /** Height of a bar or segmented meter, in pixels. */
-    hudMeterHeight: 14,
-    /**
-     * Ring thickness in pixels, the ring equivalent of a bar's width.
-     *
-     * Its own setting rather than reusing hudMeterWidth: that runs 60-260px, which is a
-     * sensible bar but an absurd ring, and one control meaning two different things in
-     * two different ranges is worse than two controls.
-     */
-    hudRingThickness: 5,
-    /**
-     * Minutes between automatic system checkpoints. 0 turns them off.
-     *
-     * A system's snapshot is otherwise only rewritten when you switch away from it,
-     * so a system you never leave keeps whatever it held the last time you did.
-     */
-    /**
-     * Replaces the built-in extraction instructions when set. Empty uses the built-in.
-     *
-     * Stored empty rather than seeded with the text: the built-in runs to a couple of
-     * kilobytes, it changes between versions, and a copy in everyone's settings would
-     * freeze whatever shipped the day they installed it. Restore recommended fills the
-     * box with the current one to edit.
-     *
-     * The collection schema and the worked example are appended to the *user* message,
-     * not to this, so rewriting these instructions cannot delete the field list the
-     * reply depends on.
-     */
-    extractionPrompt: '',
     systemAutoSaveMinutes: 0,
     /**
      * How many checkpoints to keep per system.
@@ -735,15 +580,6 @@ export const defaultSettings = {
      * cost in settings.json - a world with inline images can be hundreds of KB.
      */
     systemCheckpointsKept: 5,
-    /**
-     * Which side the portrait sits on: 'auto' follows the corner the HUD is docked to,
-     * which is what it always did implicitly.
-     */
-    hudPortraitSide: 'auto',
-    /** 'circle' or 'square'. */
-    hudPortraitShape: 'circle',
-    /** Empty means the theme's accent, which is what the border has always used. */
-    hudPortraitBorder: '',
         hud: {
             position: { x: null, y: null },
         },
@@ -768,10 +604,8 @@ export const defaultSettings = {
         {{/characters}}
     </div>
 </div>`,
-        customCSS: '',
         systemRules: 'Update stats realistically based on events. HP and Energy should change according to combat or resting. Location and Time should progress logically. Avoid double-deducting spell or skill costs that were already paid in previous turns.',
         sceneBindingStat: '',
-        renderPosition: 'bottom', // 'top' or 'bottom' of message
     },
 };
 
@@ -914,9 +748,6 @@ export function normalizeSettings(settings) {
         settings.mimoMigrated = 1;
     }
 
-    if (!String(settings.statusTracker.extractionPrompt || '').trim()) {
-        settings.statusTracker.extractionPrompt = SYSTEM_PROMPT;
-    }
     if (settings.imageBackend !== 'gemini') settings.imageBackend = 'sd';
     if (!GEMINI_IMAGE_MODELS.includes(settings.geminiImageModel)) {
         settings.geminiImageModel = defaultSettings.geminiImageModel;
@@ -1075,23 +906,6 @@ export function normalizeSettings(settings) {
     if (settings.statusTracker?.historyDepth === 10) settings.statusTracker.historyDepth = 25;
 
     debugLog('Status tracker migration');
-
-    // hudMeterStyle became hudLayout: the meter's shape and the frame's shape turned out
-    // to be one decision rather than two. Each old value keeps whichever new layout draws
-    // its meters the same way, so nobody's HUD changes shape without them asking.
-    if (settings.statusTracker && settings.statusTracker.hudMeterStyle) {
-        const toLayout = {
-            bar: 'plate',            // a panel with plain bars, which is what it was
-            segmented: 'pips',       // notches, under a new name
-            ring: 'splitring',       // the only ring layout that survived the gallery
-            text: 'underline',       // names and values, with a rule instead of a bar
-        };
-        if (!settings.statusTracker.hudLayout) {
-            settings.statusTracker.hudLayout =
-                toLayout[settings.statusTracker.hudMeterStyle] || 'plate';
-        }
-        delete settings.statusTracker.hudMeterStyle;
-    }
 
     // Schema Migration: Migrate old displayStyle to unified menuStyle
     if (settings.statusTracker && settings.statusTracker.displayStyle) {
@@ -1284,6 +1098,14 @@ export function normalizeSettings(settings) {
     // prompt injection) is switched off for good: it has no settings page any more. Its saved data is left alone.
     // Who is in the scene is still kept by speaker detection (castMode), which this switch does not touch.
     if (settings.statusTracker) settings.statusTracker.enabled = false;
+
+    // Settings of the old tracker that nothing reads any more (its HUD, review rules, scan limits, clock and
+    // extraction prompt). Dropped from what is saved so they stop travelling with every settings file; the worlds
+    // saved in presets keep whatever they hold.
+    if (settings.statusTracker) {
+        for (const key of OBSOLETE_TRACKER_KEYS) delete settings.statusTracker[key];
+        delete settings.statusTracker.hudMeterStyle;
+    }
 
     if (!settings.personaData) {
         settings.personaData = {};

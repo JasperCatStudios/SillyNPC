@@ -48,7 +48,4 @@ export function dressWithTheme(html, tracker, fallback) {
     return applyThemeRegexes(html, tracker, theme);
 }
 
-/** The Internal States template for the chosen look, or null for the original one. */
-export function statesTemplate() {
-    return internalStatesTemplate(getTrackerTheme('states'));
-}
+

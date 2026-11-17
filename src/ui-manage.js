@@ -40,7 +40,7 @@ import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from
 import { activeCombatType } from './combat-access.js';
 import { renderModulesView } from './ui-modules.js';
 import { buildSystemManager } from './ui-system-manager.js';
-import { syncOverrideToActiveState, loadStateFromMetadata, hasOpenChat } from './status-logic.js';
+import { loadStateFromMetadata, hasOpenChat } from './status-logic.js';
 import { renderCollectionUI, attachCollectionListeners, resolveCollectionTarget, persistCollectionEdit, updateExtensionTheme, repositionCloseButton, hideEmptySections } from './ui-shared.js';
 import { buildBulkBar, buildBulkCheckbox, spliceIndexes } from './ui-bulk-select.js';
 import { buildChoiceSelect, isChoiceField } from './ui-shared.js';

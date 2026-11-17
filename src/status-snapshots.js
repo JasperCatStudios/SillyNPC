@@ -3,7 +3,7 @@ import { getSettings } from './settings.js';
 import { debugLog } from './constants.js';
 import {
     loadStateFromMetadata, parseMessageForUpdates,
-    saveStateToMetadata, syncPlayerToMaster, getSwipeBase, swipeBaseRecord,
+    saveStateToMetadata, syncPlayerToMaster,
 } from './status-logic.js';
 import { eventSource } from '../../../../events.js';
 import { getPreservedStatusRaw } from './status-history.js';
@@ -44,8 +44,6 @@ export const APPLIED_KEY = 'sillynpc_applied';
  * with the reply it belongs to is what lets a reader tell it is looking at the wrong one.
  */
 export const APPLIED_SWIPE_KEY = 'sillynpc_applied_swipe';
-/** What a message opened or settled among the threads. See recordThreadChanges. */
-export const THREADS_KEY = 'sillynpc_threads';
 
 /**
  * The world's fields as they stood at this message.
@@ -71,24 +69,9 @@ function messageAt(messageId) {
     return getContext()?.chat?.[Number(messageId)] ?? null;
 }
 
-/**
- * Saving the chat is not cheap - the whole file is serialised and posted, and a long
- * chat is well over a megabyte. Writing it once per record, on top of the write the
- * review already asks for and SillyTavern's own, meant several full writes per message.
- *
- * These records are a convenience, so a short delay costs nothing if the page goes away
- * first; the flush on unload means it usually does not.
- */
-const SAVE_DELAY_MS = 1500;
+
 let saveTimer = null;
 
-export function saveChatSoon() {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-        saveTimer = null;
-        getContext()?.saveChat?.();
-    }, SAVE_DELAY_MS);
-}
 
 /** Writes immediately if a save is pending. */
 function flushPendingSave() {
@@ -141,51 +124,6 @@ export function appliedChangesForCurrentSwipe(messageId) {
     return recorded === currentSwipeOf(message) ? rows : null;
 }
 
-/**
- * What a message did to the threads, filed on the message itself.
- *
- * Everything else a message changes is already recorded here as rows, and rebaseToSwipe
- * rebuilds a swipe from the base plus those rows. Threads were not recorded anywhere per
- * message - they lived only in state.threads - so the rebuild's structuredClone dropped
- * them, and the extraction guard, keyed on message and swipe together, then refused to
- * read that swipe again. Swipe away and back and the promise was gone for good: the one
- * path where the numbers were safe and the threads were not.
- *
- * Both halves, not only the openings. A swipe that settled something has to settle it
- * again on the way back, or returning to it quietly reopens what it closed.
- *
- * @param {string|number} messageId
- * @param {{ opened?: object[], closed?: string[] }} changes
- */
-export function recordThreadChanges(messageId, { opened = [], closed = [] } = {}) {
-    if (!opened.length && !closed.length) return false;
-    if (getSettings().statusTracker?.recordMessageHistory === false) return false;
-
-    const message = messageAt(messageId);
-    if (!message) return false;
-    if (!message.extra || typeof message.extra !== 'object') message.extra = {};
-
-    const existing = message.extra[THREADS_KEY];
-    // Appended for the same reason the rows are: one message can write threads more than
-    // once, and replacing would forget the earlier half.
-    message.extra[THREADS_KEY] = {
-        opened: (existing?.opened || []).concat(opened),
-        closed: (existing?.closed || []).concat(closed),
-    };
-
-    saveChatSoon();
-    return true;
-}
-
-/** What a message did to the threads, or null when it did nothing. */
-export function getThreadChanges(messageId) {
-    const record = messageAt(messageId)?.extra?.[THREADS_KEY];
-    if (!record || typeof record !== 'object') return null;
-    return {
-        opened: Array.isArray(record.opened) ? record.opened : [],
-        closed: Array.isArray(record.closed) ? record.closed : [],
-    };
-}
 
 const INVERSE_KIND = {
     'item-add': 'item-remove',
@@ -327,10 +265,6 @@ function timelineKey(chat, current) {
     return `${chatId}|${chat.length}|${current?.timestamp ?? 0}`;
 }
 
-/** Throws the cached timeline away. */
-export function invalidateTimeline() {
-    timeline = null;
-}
 
 function buildTimeline(chat, current) {
     const states = new Map();
@@ -489,32 +423,4 @@ export function stateAtMessage(messageId) {
 }
 
 
-export function rebaseToSwipe(messageId) {
-    const base = getSwipeBase(messageId);
-    if (!base) {
-        // Missing after a reload, or for a message written before this existed. Applying
-        // the chosen swipe's changes on top of the state as it stands would double-count
-        // the swipe already in it, which is the fault this exists to prevent.
-        return { rebased: false, reason: 'no base' };
-    }
-
-    const rows = appliedChangesForCurrentSwipe(messageId) || [];
-    const state = structuredClone(base);
-    applyRows(state, rows);
-
-    // The threads this swipe opened and settled, put back the same way. Safe to replay:
-    // addThread refuses a quote it has already seen, and closeThread returns false on
-    // something already closed - so returning to a swipe twice changes nothing the second
-    // time.
-    const threadChanges = getThreadChanges(messageId);
-    if (threadChanges) {
-        for (const thread of threadChanges.opened) addThread(state, thread);
-        for (const id of threadChanges.closed) closeThread(state, id);
-    }
-
-    saveStateToMetadata(state, { recordHistory: false });
-    invalidateTimeline();
-    debugLog(`Rebased onto swipe of message ${messageId}: ${rows.length} change(s)`);
-    return { rebased: true, reason: rows.length ? 'restored' : 'back to the base' };
-}
 
