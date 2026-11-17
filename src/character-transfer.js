@@ -30,7 +30,9 @@ import { portableCombat, normalizeCombatBlock } from './combat-store.js';
  * back. Nothing in the reader assumes they are absent.
  */
 
-export const TRANSFER_FORMAT = 'sillynpc-characters';
+export const TRANSFER_FORMAT = 'worldkit-characters';
+/** Files written before the rename. Still read. */
+const LEGACY_TRANSFER_FORMATS = ['sillynpc-characters'];
 export const TRANSFER_VERSION = 1;
 
 /* ─── Out ─────────────────────────────────────────────────────────────────── */
@@ -133,7 +135,7 @@ export function parseTransferFile(text) {
 
     if (!data || typeof data !== 'object') throw new Error('That file is empty.');
 
-    if (data.format !== TRANSFER_FORMAT) {
+    if (data.format !== TRANSFER_FORMAT && !LEGACY_TRANSFER_FORMATS.includes(data.format)) {
         throw new Error(Array.isArray(data.characters)
             ? 'That looks like a full settings backup rather than a character file. '
               + 'Import it from Advanced, which replaces everything rather than adding to it.'

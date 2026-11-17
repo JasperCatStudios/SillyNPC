@@ -163,7 +163,7 @@ export function validateType(type) {
  */
 export function normalizeType(raw) {
     const t = structuredClone(raw && typeof raw === 'object' ? raw : {});
-    t.format = 'sillynpc-combat-type';
+    t.format = 'worldkit-combat-type';
     t.version = 2;
     t.roleSchema = Number(t.roleSchema) || ROLE_SCHEMA_VERSION;
     t.id = text(t.id).trim();
@@ -224,7 +224,7 @@ export function typeToFile(type) {
 }
 
 /**
- * Reads a world type file: one type, or { format: 'sillynpc-combat-types', types: [...] }.
+ * Reads a world type file: one type, or { format: 'worldkit-combat-types', types: [...] }.
  * Each type is repaired and checked; a type that cannot be used is reported, not imported.
  * A type whose id is a built-in's is refused rather than renamed, so an import never changes
  * which world a saved character belongs to.
@@ -241,9 +241,10 @@ export function parseTypeFile(source) {
         out.errors.push('That file is not JSON.');
         return out;
     }
-    const raws = data?.format === 'sillynpc-combat-types' ? list(data.types) : [data];
+    // The old sillynpc-* names are still read.
+    const raws = (data?.format === 'worldkit-combat-types' || data?.format === 'sillynpc-combat-types') ? list(data.types) : [data];
     for (const raw of raws) {
-        if (!raw || typeof raw !== 'object' || raw.format !== 'sillynpc-combat-type') {
+        if (!raw || typeof raw !== 'object' || (raw.format !== 'worldkit-combat-type' && raw.format !== 'sillynpc-combat-type')) {
             out.errors.push('That is not a Worldkit world type file.');
             continue;
         }

@@ -264,7 +264,7 @@ export function buildType(draft, ctx = {}) {
     const raw = {
         ...extra,
         ...(hasArt ? { art } : {}),
-        format: 'sillynpc-combat-type', version: 2, id, name, builtin: false, dataKey: id,
+        format: 'worldkit-combat-type', version: 2, id, name, builtin: false, dataKey: id,
         description: text(draft.description).trim(), stats, channels, roles, pools, modifier, resolution,
     };
     const type = normalizeType(raw);

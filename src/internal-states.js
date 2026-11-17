@@ -8,9 +8,9 @@ import { getSettings } from './settings.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
-import { getTrackerTheme } from './tracker-theme-setting.js';
+import { getTrackerTheme, dressDefault } from './tracker-theme-setting.js';
 import { textFromRaw } from './raw-text.js';
-import { THEME_PLAIN, internalStatesTemplate, INTERNAL_STATES_LINE_BREAK_RULE } from './tracker-themes.js';
+import { THEME_PLAIN, TRACKER_THEMES, internalStatesTemplate, INTERNAL_STATES_LINE_BREAK_RULE } from './tracker-themes.js';
 
 /**
  * The preset's Internal States, kept outside the story (fork).
@@ -108,13 +108,25 @@ export function internalStatesSystem(theme = THEME_PLAIN) {
     return `${INTERNAL_STATES_SYSTEM.slice(0, cut)}\n${INTERNAL_STATES_LINE_BREAK_RULE}\n\nTEMPLATE\n${template}`;
 }
 
+/** Every built-in version of the writer's instructions, one per look. */
+export function builtInStatesPrompts() {
+    return Object.keys(TRACKER_THEMES).map(theme => internalStatesSystem(theme));
+}
+
+/** Whether a saved prompt is just one of the built-in ones (so it should follow the look, not stay fixed). */
+export function isBuiltInStatesPrompt(text) {
+    const t = String(text ?? '').trim();
+    return Boolean(t) && builtInStatesPrompts().some(p => p.trim() === t);
+}
+
 function mode() {
     const m = getSettings().internalStatesMode;
     return m === 'inline' || m === 'off' ? m : 'after';
 }
 
 function systemPrompt() {
-    return substituteParams(String(getSettings().internalStatesPrompt ?? '').trim() || internalStatesSystem(getTrackerTheme('states')));
+    const own = String(getSettings().internalStatesPrompt ?? '').trim();
+    return substituteParams(own && !isBuiltInStatesPrompt(own) ? own : internalStatesSystem(getTrackerTheme('states')));
 }
 
 /** What is stored for this message's current swipe, or null. */
@@ -315,11 +327,14 @@ function dress(html) {
     let out = String(html ?? '').replace(/(?<!<br\s*\/?>|<\/summary>)[ \t]*\n[ \t]*-[ \t]*\[([RTD])\]/g, '<br>- [$1]');
     // A chosen look is already in the block's own styles, so the preset's regexes stay out of its way.
     if (getTrackerTheme('states') === THEME_PLAIN) {
-        try {
-            out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
-        } catch (err) {
-            debugLog('Preset regexes failed on the Internal States block', err);
-        }
+        out = dressDefault(out, 'states', (text) => {
+            try {
+                return getRegexedString(text, regex_placement.AI_OUTPUT, { isMarkdown: true });
+            } catch (err) {
+                debugLog('Preset regexes failed on the Internal States block', err);
+                return text;
+            }
+        });
     }
     // Whatever the regexes left as markup is used as it is; anything that is still
     // an HTML comment (the markers) goes, and the result is sanitised like a message is.

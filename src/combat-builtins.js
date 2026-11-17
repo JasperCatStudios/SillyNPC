@@ -31,7 +31,7 @@ function deepFreeze(obj) {
 /* ------------------------------------------------------------------ Fire Emblem */
 
 const FE = {
-    format: 'sillynpc-combat-type',
+    format: 'worldkit-combat-type',
     version: 2,
     roleSchema: ROLE_SCHEMA_VERSION,
     id: 'fe',
@@ -176,7 +176,7 @@ const BLEACH_PROFS = [
 const SHINIGAMI = ['bakudo', 'kido', 'hoho', 'hakuda', 'zanjutsu', 'healing_kido'];
 
 const BLEACH = {
-    format: 'sillynpc-combat-type',
+    format: 'worldkit-combat-type',
     version: 2,
     roleSchema: ROLE_SCHEMA_VERSION,
     id: 'bleach',
@@ -298,7 +298,7 @@ const BC_PROFS = [
 ];
 
 const BC = {
-    format: 'sillynpc-combat-type',
+    format: 'worldkit-combat-type',
     version: 2,
     roleSchema: ROLE_SCHEMA_VERSION,
     id: 'bc',

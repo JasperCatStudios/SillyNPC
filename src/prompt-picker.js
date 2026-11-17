@@ -30,10 +30,10 @@ const same = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
  * there was a picker) it is worked out from the stored text: empty or equal to the default is
  * Default, equal to a template is that template, anything else is the person's own.
  */
-export function currentMode({ stored, mode, defaultText, presets = [] }) {
+export function currentMode({ stored, mode, defaultText, presets = [], alsoDefault = [] }) {
     const ids = modeChoices(presets).map(c => c.id);
     if (mode && ids.includes(mode)) return mode;
-    if (!String(stored ?? '').trim() || same(stored, defaultText)) return MODE_DEFAULT;
+    if (!String(stored ?? '').trim() || same(stored, defaultText) || alsoDefault.some(d => same(stored, d))) return MODE_DEFAULT;
     const hit = presets.find(p => same(p.text, stored));
     return hit ? hit.id : MODE_CUSTOM;
 }

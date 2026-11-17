@@ -15,7 +15,6 @@ export const CONTEXT_SAVERS = Object.freeze([
     { key: 'bonds', label: 'Bonds', names: ['Worldkit - Bond Tracker Context Saver', 'SillyNPC - Bond Tracker Context Saver'] },
     { key: 'vitals', label: 'Vitals', names: ['Worldkit - Vitals Context Saver'] },
     { key: 'inventory', label: 'Inventory', names: ['Worldkit - Inventory Context Saver'] },
-    { key: 'states-ff5', label: 'Internal States (Freaky Frankenstein preset)', names: ['FF5 - Context Saver'] },
 ]);
 
 /** The script for a saver, or null when it has not been imported. */

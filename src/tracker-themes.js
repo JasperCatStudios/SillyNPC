@@ -15,6 +15,8 @@
  * row. Lines that match nothing are left alone, so a block that does not fit still reads.
  */
 
+import { DEFAULT_REGEXES } from './default-regexes.js';
+
 export const THEME_PLAIN = 'plain';
 export const THEME_PARCHMENT = 'parchment';
 export const THEME_PERSONA = 'persona';
@@ -221,6 +223,22 @@ export function toRegExp(find) {
 export function applyThemeRegexes(html, tracker, theme) {
     let out = String(html ?? '');
     for (const r of themeRegexes(tracker, theme)) {
+        try { out = out.replace(toRegExp(r.find), r.replace); } catch { /* a bad pattern leaves the block as it was */ }
+    }
+    return out;
+}
+
+/**
+ * The default look (Default - Freaky Frankenstein): the scripts in regex/<tracker>/, applied by the extension itself. Used when no
+ * look is chosen and SillyTavern's own regexes left the block untouched, so a person who has imported a set of their own keeps
+ * exactly that, and a person who has imported nothing still sees a styled block.
+ *
+ * @param {string} html
+ * @param {'states'|'bonds'|'vitals'|'inventory'} tracker
+ */
+export function applyDefaultRegexes(html, tracker) {
+    let out = String(html ?? '');
+    for (const r of DEFAULT_REGEXES[tracker] || []) {
         try { out = out.replace(toRegExp(r.find), r.replace); } catch { /* a bad pattern leaves the block as it was */ }
     }
     return out;
