@@ -60,12 +60,5 @@ for (const theme of [THEME_PARCHMENT, THEME_PERSONA, THEME_TACTICAL]) {
     }
 }
 
-// The default look for Inventory, in the same dark palette as the Vitals and Bond bars.
-const INV_HEAD = '/-?[ \\t]{0,8}(?:<b[^>]{0,120}>)?\\s{0,8}([^<|\\n]{1,80}?)\\s{0,8}(?:<\\/b>)?\\s{0,8}\\|\\s{0,8}MONEY:\\s{0,8}(\\d{1,9}|--)\\s{0,8}\\|\\s{0,8}UNIT:\\s{0,8}([^|\\n<]{0,30}?)\\s{0,8}\\|\\s{0,8}ITEMS:\\s{0,8}(\\d{1,4})(?:\\s{0,8}\\|\\s{0,8}NOTE:\\s{0,8}([^\\n<]{0,160}?))?\\s{0,8}(?=\\n|$|<)/gi';
-const INV_ITEM = '/-?[ \\t]{0,8}ITEM:\\s{0,8}([^|\\n<]{1,80}?)\\s{0,8}\\|\\s{0,8}QTY:\\s{0,8}(\\d{1,6})\\s{0,8}\\|\\s{0,8}KIND:\\s{0,8}([^|\\n<]{0,40}?)\\s{0,8}\\|\\s{0,8}NOTE:\\s{0,8}([^\\n<]{0,160}?)\\s{0,8}(?=\\n|$|<)/gi';
-const head = '<div style="background:rgba(24,24,37,0.8);border:1px solid #45475a;border-radius:6px 6px 0 0;padding:12px 14px;margin-top:12px;box-shadow:0 4px 10px rgba(0,0,0,0.3);display:flex;justify-content:space-between;align-items:baseline;gap:10px;"><span style="font-weight:bold;color:#cdd6f4;text-transform:uppercase;letter-spacing:1px;">$1 <span style="font-weight:normal;font-size:0.8em;color:#a6adc8;text-transform:none;letter-spacing:0;">$5</span></span><span style="font-size:0.85em;"><span style="color:#a6adc8;">ITEMS $4</span> <span style="color:#f9e2af;font-weight:bold;margin-left:10px;text-shadow:1px 1px 2px #000;">$2 $3</span></span></div>';
-const item = '<div style="background:rgba(24,24,37,0.8);border:1px solid #45475a;border-top:none;padding:6px 14px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:0.9em;"><span><b style="color:#cdd6f4;">$1</b> <span style="color:#89b4fa;">x$2</span> <span style="font-size:0.8em;color:#fab387;">$3</span></span><span style="color:#a6adc8;font-style:italic;font-size:0.85em;text-align:right;">$4</span></div>';
-write(path.join(out, 'Worldkit-Inventory-Person.json'), script('Worldkit - Inventory Person', INV_HEAD, head));
-write(path.join(out, 'Worldkit-Inventory-Item.json'), script('Worldkit - Inventory Item', INV_ITEM, item));
 
 console.log(`Wrote ${count + 2} regex files to ${out}`);
