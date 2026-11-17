@@ -5,10 +5,11 @@ import { findCharacter, getActiveCharacters, getChatCast } from './characters.js
 import { escapeRegExp, personaFileFromAvatar } from './utils.js';
 import { processStatusUpdate, renderStatusTrackerBox, redrawStatusBoxes } from './status-ui.js';
 import {
-    registerActiveCharacter, reconcileScenePresence, resolvePersonaSpeaker,
+    resolvePersonaSpeaker,
     getPlayerImageUrl, getCurrentPersonaKey,
 } from './status-logic.js';
 import { faceFor, faceAssignmentVersion } from './default-portraits.js';
+import { noteSpeakers } from './scene-cast.js';
 // Re-exported from their new home: status-logic.js needs them and cannot import this
 // file, because this file imports status-logic.js. Every existing caller already asks
 // chat.js for them.
@@ -325,13 +326,8 @@ function injectCharacterImages(mesEl) {
         const names = pendingActiveCharacters;
         pendingActiveCharacters = null;
 
-        if (getSettings().statusTracker?.castMode === 'speakers') {
-            // Who appeared in this message is the authority for who is in the scene.
-            // Idempotent per message id, so re-rendering does not advance the clock.
-            if (isLastMessage) reconcileScenePresence([...names], messageId);
-        } else {
-            for (const name of names) registerActiveCharacter(name);
-        }
+        // Who appeared in the latest message is who is in the scene (src/scene-cast.js). Idempotent per message id.
+        if (isLastMessage) noteSpeakers([...names], messageId);
     }
 
     // After all avatars are placed, decorate each speaker's containing paragraph.

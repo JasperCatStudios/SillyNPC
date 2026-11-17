@@ -20,7 +20,7 @@ import { sidesText, winnerText, sideNames } from './rivalry-core.js';
 import { listTalk, removeTalk, TALK_CHANGED_EVENT } from './talk-store.js';
 import { talkEmbedText, talkImportance, buildTalkInjectionReport, TALK_KINDS } from './talk-log.js';
 import { charactersMentionedIn, mentionsName } from './mentions.js';
-import { loadStateFromMetadata } from './status-logic.js';
+import { sceneNames, sceneSet } from './scene-cast.js';
 
 /**
  * Vectors for SillyNPC's histories (fork): SillyTavern wiring.
@@ -511,7 +511,7 @@ const PHONE_MAX_THREADS = 4;
 /** Whether a person matters to the scene now, for the phone recall. */
 function sceneRelevance(chat, scanDepth) {
     let here = new Set();
-    try { here = new Set((loadStateFromMetadata()?.characters || []).map(c => String(c?.name || '').trim().toLowerCase())); } catch { /* no tracker */ }
+    try { here = sceneSet(); } catch { /* no chat open */ }
     const text = (chat || []).filter(m => m && !m.is_system).slice(-scanDepth).map(m => String(m?.mes || '')).join('\n');
     const known = getSettings().characters || [];
     return (name) => {

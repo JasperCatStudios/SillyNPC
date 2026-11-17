@@ -6,7 +6,7 @@ import {
 } from '../../../../../script.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestOnConnection } from './connections.js';
-import { loadStateFromMetadata } from './status-logic.js';
+import { sceneNames, sceneSet } from './scene-cast.js';
 import { charactersMentionedIn } from './mentions.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import {
@@ -61,7 +61,7 @@ function saveStore() {
 function knownNames() {
     const names = (getSettings().characters || []).map(c => c?.name).filter(Boolean);
     try {
-        for (const c of loadStateFromMetadata()?.characters || []) if (c?.name) names.push(c.name);
+        for (const n of sceneNames()) names.push(n);
     } catch { /* tracker not available */ }
     return names;
 }
@@ -207,7 +207,7 @@ function appliesFor(opts) {
     };
     if (opts.trigger === 'scene') {
         let here = new Set();
-        try { here = new Set((loadStateFromMetadata()?.characters || []).map(c => String(c?.name || '').trim().toLowerCase())); } catch { /* no tracker */ }
+        try { here = sceneSet(); } catch { /* no chat open */ }
         const player = playerName().toLowerCase();
         if (!here.size) return (name) => String(name).toLowerCase() === player || mentioned(name);
         return (name) => String(name).toLowerCase() === player || here.has(String(name).trim().toLowerCase());

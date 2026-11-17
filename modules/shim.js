@@ -3,7 +3,7 @@ import { getActiveCharacters, getAllCategories } from '../src/characters.js';
 import { charactersMentionedIn } from '../src/mentions.js';
 import { parseMarkedLines } from '../src/speaker-marker.js';
 import { primeLore, profileText } from '../src/profile-text.js';
-import { loadStateFromMetadata } from '../src/status-logic.js';
+import { sceneSet } from '../src/scene-cast.js';
 import { getContext } from '../../../../st-context.js';
 import { world_names, loadWorldInfo } from '../../../../world-info.js';
 
@@ -94,18 +94,12 @@ export function isUserName(name) {
 }
 
 /**
- * Who is in the scene right now, according to the tracker. Empty when it is off or has
- * nothing yet - which makes everybody "away", the only answer that is not a guess.
+ * Who is in the scene right now (src/scene-cast.js). Empty when there is no chat or nothing yet - which makes everybody "away", the only answer that is not a guess.
  *
  * @returns {Set<string>} Lowercased names.
  */
 export function sceneNames() {
-    try {
-        const state = loadStateFromMetadata();
-        return new Set((state?.characters || []).map(c => String(c?.name || '').trim().toLowerCase()).filter(Boolean));
-    } catch {
-        return new Set();
-    }
+    return sceneSet();
 }
 
 /** Whether a line of the main story names this person, by name or alias. */

@@ -7,7 +7,7 @@ import {
 } from '../../../../../script.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestOnConnection } from './connections.js';
-import { loadStateFromMetadata } from './status-logic.js';
+import { sceneNames, sceneSet } from './scene-cast.js';
 import { charactersMentionedIn } from './mentions.js';
 import { latestInternalStatesHtml } from './internal-states.js';
 import { sceneClock } from '../modules/shim.js';
@@ -99,7 +99,7 @@ export function saveStore() {
 function knownNames() {
     const names = (getSettings().characters || []).map(c => c?.name).filter(Boolean);
     try {
-        for (const c of loadStateFromMetadata()?.characters || []) if (c?.name) names.push(c.name);
+        for (const n of sceneNames()) names.push(n);
     } catch { /* tracker not available */ }
     return names;
 }
@@ -357,7 +357,7 @@ function appliesFor(opts) {
     };
     if (opts.trigger === 'scene') {
         let here = new Set();
-        try { here = new Set((loadStateFromMetadata()?.characters || []).map(c => String(c?.name || '').trim().toLowerCase())); } catch { /* no tracker */ }
+        try { here = sceneSet(); } catch { /* no chat open */ }
         // With the tracker off nobody is "in the scene", which would silence the bonds
         // entirely; who was recently named is the nearest honest answer.
         if (!here.size) return mentioned;

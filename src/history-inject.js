@@ -2,7 +2,7 @@ import { setExtensionPrompt, extension_prompt_types, extension_prompt_roles, nam
 import { getContext } from '../../../../st-context.js';
 import { getSettings, saveSettings } from './settings.js';
 import { listRecords } from './rivalry.js';
-import { loadStateFromMetadata } from './status-logic.js';
+import { sceneNames, sceneSet } from './scene-cast.js';
 import { charactersMentionedIn } from './mentions.js';
 import { normalizeInject, selectOpponents, buildInjection, buildInjectionWithin, recordsSentAsTalk } from './rivalry-inject-core.js';
 import { currentPicks, currentSentTalk, vectorSettings, currentRivalryRoom, setRecallStats } from './vector-service.js';
@@ -52,7 +52,7 @@ function clear() {
 function appliesFor(opts) {
     if (opts.trigger === 'scene') {
         let here = new Set();
-        try { here = new Set((loadStateFromMetadata()?.characters || []).map(c => String(c?.name || '').trim().toLowerCase())); } catch { /* no tracker */ }
+        try { here = sceneSet(); } catch { /* no chat open */ }
         return (name) => here.has(String(name).trim().toLowerCase());
     }
     if (opts.trigger === 'mentioned') {
