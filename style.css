@@ -3842,3 +3842,5 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .snpc-inv-item-kind { opacity: .7; }
 .snpc-inv-btn { padding: 4px 10px; min-height: 32px; }
 .sillynpc-cv-voiceline { margin: 6px 0; }
+.sillynpc-combat-persona { display: inline-flex; align-items: center; gap: 8px; width: auto; margin: 4px 0; cursor: pointer; }
+.sillynpc-combat-persona input[type="checkbox"] { width: auto; flex: 0 0 auto; margin: 0; }
