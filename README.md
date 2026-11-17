@@ -49,6 +49,20 @@ Worldkit is made of a few parts that work together:
 * **Faction Colours:** characters take their faction's colours, grouped by world.
 * **Recommended for Better Visuals:** the [Moonlit Echoes](https://github.com/RivelleDays/SillyTavern-MoonlitEchoesTheme) theme.
 
+### Modules
+* **Phone:** a messenger where characters text you and start conversations on their own.
+* **Games:** chess, cards, dice and more, played against your characters in character.
+* **Combat:** duels and sparring by the rules of a world type (Fire Emblem, Bleach, Black Clover, or your own from the world editor). One fighter against several, with allies at your side who act on their own; weapons, abilities, a tool belt, crowding, running away, and levelling. On your turn you can attack, Defend, Evade, Heal, use a tool, Run, or **Guard an ally**: blows aimed at them are rolled against you instead, using your defense. The result can be sent to the story.
+* **Scene:** where and when the story is, read from a header the model writes: a map of places with other names, a background for each, and weather effects.
+
+### Writing & Sound
+* **Dialogue format, ban list, hidden identities** and the **scene header** prompt.
+* **Delivery tags:** the model marks how a line is spoken; each tag has its own style and can drive ElevenLabs voices. **Speak buttons** read messages aloud, and lines already saved are marked.
+* **Sound effects:** `[sfx:name]` in a reply becomes a tappable chip; optional auto-play.
+
+### Content Kit
+* **Download, import, remove:** worlds, character packs, a lorebook, item lists, scene maps, a sound pack, regex looks and workflows. Every import has a **Remove** button, and the download can be deleted.
+
 ---
 
 ## Screenshots
@@ -115,7 +129,7 @@ Advanced settings and fine-tuning parameters remain hidden until **Show Every Se
 | Tab | Contents |
 | :--- | :--- |
 | **Characters** | Character cards, profiles, portraits, colours and gradients, and roster factions (with a panel to turn factions on or off per chat) |
-| **Modules** | Phone, Games and Combat |
+| **Modules** | Phone, Games, Combat and Scene |
 | **Appearance** | Faction themes, speech dividers, spacing, avatar shapes, and fallback faces |
 | **Writing Rules** | Dialogue format, ban list, and how replies are parsed |
 | **Threads** | Active plotlines, promises, debts, secrets, and deadlines |
@@ -124,7 +138,8 @@ Advanced settings and fine-tuning parameters remain hidden until **Show Every Se
 | **Connections** | The connection profile each part of Worldkit uses |
 | **Vectors** | Optional vector search over the story |
 | **Prompts** | Every prompt Worldkit sends, with token budgets (Phone prompts and Tracker prompts are grouped) |
-| **Advanced** | Master switches, console logging, backups, and UI sizing |
+| **Content Kit** | Download the Worldkit-Content repository, import pieces of it, and remove them again |
+| **Advanced** | Master switches, console logging, backups, deleting all portraits, and UI sizing |
 
 ---
 

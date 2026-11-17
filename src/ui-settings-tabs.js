@@ -17,7 +17,7 @@ import { world_names } from '../../../../world-info.js';
 import { extension_settings } from '../../../../extensions.js';
 import { Popup, POPUP_TYPE, POPUP_RESULT } from '../../../../popup.js';
 import { LOG_PREFIX, GEMINI_IMAGE_MODELS, PORTRAIT_SHAPES, debugLog, setDebugLogging, PRODUCT_NAME } from './constants.js';
-import { buildLoreExcerpt, resolvePortraitShape, getLastLoreConnection, resolveImageSecretId, scanFolderForCharacterImages, persistGeneratedImage, findOrphanedImages, deleteImageFiles } from './api.js';
+import { buildLoreExcerpt, resolvePortraitShape, getLastLoreConnection, resolveImageSecretId, scanFolderForCharacterImages, persistGeneratedImage, findOrphanedImages, deleteImageFiles, findAllPortraits, deleteAllPortraits } from './api.js';
 import { getSecretLabelById } from '../../../../secrets.js';
 import { getRequestHeaders } from '../../../../../script.js';
 import { getContext } from '../../../../extensions.js';
@@ -422,6 +422,44 @@ export function renderAdvancedView(view, handlers = {}) {
 
     backupRow.append(exportBtn, importBtn);
     view.append(backupRow);
+
+    const portraitHeading = document.createElement('h3');
+    portraitHeading.className = 'sillynpc-section-title';
+    portraitHeading.style.marginTop = '20px';
+    portraitHeading.textContent = 'Portraits';
+    view.append(portraitHeading);
+
+    const portraitNote = document.createElement('p');
+    portraitNote.className = 'notes sillynpc-tab-intro';
+    portraitNote.textContent = 'New portraits are saved in user/images/world-kit. This clears the picture lists of every '
+        + 'character and of you, and deletes the files (the older user/images/sillynpc folder too). The cards themselves, '
+        + 'and the faces for strangers, stay.';
+    view.append(portraitNote);
+
+    const wipeBtn = document.createElement('button');
+    wipeBtn.type = 'button';
+    wipeBtn.className = 'menu_button';
+    wipeBtn.innerHTML = '<i class="fa-solid fa-trash"></i> <span>Delete all character portraits</span>';
+    wipeBtn.addEventListener('click', async () => {
+        wipeBtn.disabled = true;
+        try {
+            const found = await findAllPortraits();
+            if (!found.files.length) {
+                toastr.info('There are no portrait files to delete.', PRODUCT_NAME);
+                return;
+            }
+            const ok = await Popup.show.confirm('Delete all character portraits?', `${found.files.length} picture file${found.files.length === 1 ? '' : 's'} will be deleted and every character's portrait list emptied. This cannot be undone.`);
+            if (!ok) return;
+            const { deleted, failed } = await deleteAllPortraits(found.files);
+            toastr[failed ? 'warning' : 'success'](`${deleted} deleted${failed ? `, ${failed} could not be deleted` : ''}.`, PRODUCT_NAME);
+        } catch (err) {
+            console.error(LOG_PREFIX, 'Could not delete portraits', err);
+            toastr.error(String(err.message || err), PRODUCT_NAME);
+        } finally {
+            wipeBtn.disabled = false;
+        }
+    });
+    view.append(wipeBtn);
 
     const troubleshooting = document.createElement('h3');
     troubleshooting.className = 'sillynpc-section-title';

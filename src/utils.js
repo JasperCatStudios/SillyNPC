@@ -262,7 +262,18 @@ export async function pickAndProcessImages({ fullSize = false, multiple = true }
  * @returns {string}
  */
 export function resolveImageFolder(configured) {
-    return String(configured || '').split(/[\\/]/).map(part => part.trim()).filter(Boolean).pop() || 'sillynpc';
+    return String(configured || '').split(/[\\/]/).map(part => part.trim()).filter(Boolean).pop() || DEFAULT_IMAGE_FOLDER;
+}
+
+/** Where portraits are saved unless told otherwise. */
+export const DEFAULT_IMAGE_FOLDER = 'world-kit';
+/** Where they were saved before the rename. Still read from, never written to. */
+export const LEGACY_IMAGE_FOLDERS = Object.freeze(['sillynpc', 'worldkit']);
+
+/** The folders portraits can be in: the current one, then the old ones. */
+export function imageFolders(configured) {
+    const now = resolveImageFolder(configured);
+    return [now, ...LEGACY_IMAGE_FOLDERS.filter(f => f !== now)];
 }
 
 /**

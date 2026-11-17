@@ -3,7 +3,7 @@ import { eventSource, event_types } from '../../../events.js';
 import { renderExtensionTemplateAsync } from '../../../extensions.js';
 import { LOG_PREFIX, extensionName, debugLog, PRODUCT_NAME } from './src/constants.js';
 import { getContext } from '../../../st-context.js';
-import { initSettings, saveSettings, getSettings } from './src/settings.js';
+import { initSettings, loadCharacters, saveSettings, getSettings } from './src/settings.js';
 import { repairDefaultImages } from './src/default-portraits.js';
 import { 
     openManagePopup
@@ -268,6 +268,8 @@ async function askAboutUnknownSpeaker(speakerName) {
 jQuery(async () => {
     try {
         initSettings();
+        // The characters live in their own file: read it before anything looks at them.
+        await loadCharacters();
         // Before the first request, so a saved choice is in force for it.
         setDebugLogging(getSettings().debugLogging);
         // Before anything draws a portrait. The stylesheet falls back to `top` on its own,

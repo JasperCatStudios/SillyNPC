@@ -1,4 +1,5 @@
 import { saveSettingsDebounced } from '../../../../../script.js';
+import { loadCharacterStore, scheduleCharacterSave } from './character-store.js';
 import { normalizeGradient, legacyGradient } from './gradient-style.js';
 import { extension_settings } from '../../../../extensions.js';
 import {
@@ -473,7 +474,7 @@ export const defaultSettings = {
     ].join('\n'),
     imgGenContextMessages: 10,
     /** Folder name under user/images/ for generated portraits. */
-    imageSaveRoute: 'sillynpc',
+    imageSaveRoute: 'world-kit',
     /** Picture content key to the file already written for it, so one picture is saved once. */
     imageHashes: {},
     /**
@@ -812,6 +813,8 @@ export function normalizeSettings(settings) {
     // No guard for an absent one: resolveImageFolder answers with the default, which is
     // what the defaults loop above would have filled in anyway.
     settings.imageSaveRoute = resolveImageFolder(settings.imageSaveRoute);
+    // The old default folder name carried the old product name. New pictures go to the new one; the old folder is still read.
+    if (settings.imageSaveRoute === 'sillynpc' || settings.imageSaveRoute === 'worldkit') settings.imageSaveRoute = 'world-kit';
 
     // The fal.ai test engine was removed. Its key was pasted into these settings, so it is deleted from the saved
     // file rather than left behind, and the file is rewritten at once so the key does not wait for the next change.
@@ -1204,13 +1207,28 @@ export function getSettings() {
 
 export function saveSettings() {
     saveSettingsDebounced();
+    // The characters are kept in their own file, not in settings.json (see character-store.js).
+    scheduleCharacterSave();
 }
 
 /**
- * Returns a JSON string of all settings for export.
+ * Reads the characters file into the settings (moving a profile's characters out of settings.json the first time),
+ * then runs the repair pass over them. Call once at start-up, straight after initSettings().
+ */
+export async function loadCharacters() {
+    const settings = getSettings();
+    const kept = await loadCharacterStore(settings);
+    normalizeSettings(settings);
+    return kept;
+}
+
+/**
+ * Returns a JSON string of all settings for export. The characters are put back in: they are not part of what
+ * SillyTavern saves in settings.json, but a backup has to hold them.
  */
 export function exportSettingsData() {
-    return JSON.stringify(getSettings(), null, 4);
+    const settings = getSettings();
+    return JSON.stringify({ ...settings, characters: settings.characters }, null, 4);
 }
 
 /**

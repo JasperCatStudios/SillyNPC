@@ -548,6 +548,8 @@ function advance(state) {
 
 /** The current fighter's turn is over: their effects count down and the next one is up. */
 function endTurn(state, actor) {
+    // A guard holds until its owner next acts: it is "fresh" through the turn it was declared, and lapses at the end of the next.
+    if (actor?.guarding) { if (actor.guarding.fresh) actor.guarding.fresh = false; else actor.guarding = null; }
     if (actor) tickEffects(state, actor);
     state.turnNo = (state.turnNo || 0) + 1;
     advance(state);
@@ -680,6 +682,7 @@ export function takeTurn(type, state, actionKey, targetId) {
     const actor = currentActor(state);
     if (!actor) return { ok: false, reason: 'Nobody is left to act.' };
     if (String(actionKey).startsWith('tool:')) return useTool(type, state, actor, String(actionKey).slice(5), targetId);
+    if (actionKey === 'guard') return guardAlly(state, actor, targetId);
     const action = actor.gearActions?.byKey.get(actionKey)
         || [...(type.actions || []), ...abilityActions(activeAbilities(actor), state.mode)].find(a => a.key === actionKey)
         || (actionKey === 'unarmed' ? unarmedAction(type, actor.view) : null)
@@ -746,7 +749,11 @@ export function takeTurn(type, state, actionKey, targetId) {
 
     const followMult = Number(type.resolution?.followUpMult) || 1;
     // hand: 'off' is the second blade of a pair (or a separate off-hand weapon): a lesser strike.
+    const aimed = target;
     const strike = (follow, hand = 'main') => {
+        // A friend standing guard steps in: the blow is rolled against them (their defense, their brace, their
+        // defending abilities) and lands on them. Looked at again for every strike, so a follow-up finds them gone if they fell.
+        const target = guardianOf(state, aimed) || aimed;
         const off = hand === 'off' ? actor.gearActions?.off : null;
         const edge = teamEdge(type, state, actor);
         // Crowding and lasting effects: both 0 in a fight that has neither, so the roll is as it was.
@@ -813,6 +820,7 @@ export function takeTurn(type, state, actionKey, targetId) {
             passives: notes, blocked: Math.round(blocked * 100), healed, drained,
             ...(opening ? { opening: true } : {}),
             ...(dodgedBlow ? { evaded: true } : {}),
+            ...(target !== aimed ? { guarded: aimed.id } : {}),
         });
         // A brace that turned a blow aside is answered at once: a riposte at the defender's own best free attack.
         if (braceUsed && result.damage > 0 && !target.down && !actor.down) {
@@ -857,6 +865,47 @@ export function takeTurn(type, state, actionKey, targetId) {
     if (action.weapon && actor.gearActions?.off && !target.down && !actor.down) strike(false, 'off');
     if (!target.down && !actor.down && grantsFollowUp(type, actor.view, target.view, state.rng)) strike(true);
     engage(state, actor, target);
+    state.log.push(...events);
+    endTurn(state, actor);
+    return { ok: true, events };
+}
+
+/** Who is standing guard over this fighter right now, or null. */
+export function guardianOf(state, fighter) {
+    if (!fighter) return null;
+    for (const id of state.order) {
+        const f = state.fighters[id];
+        if (f && f.id !== fighter.id && f.side === fighter.side && !f.down && !f.fled && f.guarding?.id === fighter.id) return f;
+    }
+    return null;
+}
+
+/**
+ * Guard a friend: a turn spent standing in front of them. Until the guard next acts, every blow aimed at the friend is
+ * rolled against the guard instead - the same roll as any attack, the attacker against the one who chose to guard, with
+ * their defense and their defending abilities - and the first of them meets a brace as well. The lock on braces and
+ * dodges applies, because this is one.
+ *
+ * @returns {{ ok: boolean, reason?: string, events?: object[] }}
+ */
+function guardAlly(state, actor, allyId) {
+    const ally = state.fighters[allyId];
+    if (!ally || ally.id === actor.id || ally.side !== actor.side || ally.down || ally.fled) {
+        return { ok: false, reason: 'Pick a friend who is still standing.' };
+    }
+    const lock = defensiveLocked(actor);
+    if (lock) return { ok: false, reason: lock };
+    actor.evade = 0;
+    const turnIndex = actor.turns || 0;
+    actor.turns = turnIndex + 1;
+    (actor.defHistory ||= []).push(turnIndex);
+    const block = defendShare(actor.view);
+    actor.shield = Math.max(actor.shield || 0, block);
+    actor.guarding = { id: ally.id, fresh: true };
+    const events = [{
+        actor: actor.id, target: ally.id, action: 'guard', label: 'Guard', guard: true, braced: block,
+        pool: 'health', band: '', taken: 0, down: false,
+    }];
     state.log.push(...events);
     endTurn(state, actor);
     return { ok: true, events };

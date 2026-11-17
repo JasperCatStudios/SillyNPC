@@ -13,7 +13,7 @@ import { getSettings, saveSettings, defaultSettings, resolveImagePrompt } from '
 import { recordUsage } from './usage.js';
 import { contentKey, findStoredCopy } from './image-dedupe.js';
 import { syncEntryIdentity, mergeKeywords } from './lorebook.js';
-import { escapeRegExp, describeConnection, resolveImageFolder } from './utils.js';
+import { escapeRegExp, describeConnection, resolveImageFolder, imageFolders } from './utils.js';
 import { loadStateFromMetadata } from './status-logic.js';
 
 /**
@@ -576,27 +576,37 @@ export function characterImagePrefix(name) {
  *
  * @returns {Promise<{ scanned: number, added: number, characters: number }>}
  */
-export async function scanFolderForCharacterImages() {
-    const folder = resolveImageFolder(getSettings().imageSaveRoute);
-
-    let files = [];
-    try {
-        const response = await fetch('/api/images/list', {
-            method: 'POST',
-            headers: getRequestHeaders(),
-            body: JSON.stringify({ folder, sortField: 'date', sortOrder: 'asc' }),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        files = await response.json();
-    } catch (err) {
-        debugLog('Could not list the save folder', err);
-        throw new Error(
-            `Could not read user/images/${folder}. The folder may not exist yet, or no `
-            + 'images have been generated into it.',
-        );
+/**
+ * The files in the portrait folder and in the old one it replaced, each with the folder it is in.
+ * A folder that cannot be read is skipped; it throws only when none could be.
+ *
+ * @returns {Promise<{ folder: string, file: string }[]>}
+ */
+async function listPortraitFiles() {
+    const folders = imageFolders(getSettings().imageSaveRoute);
+    const out = [];
+    let readable = 0;
+    for (const folder of folders) {
+        try {
+            const response = await fetch('/api/images/list', {
+                method: 'POST',
+                headers: getRequestHeaders(),
+                body: JSON.stringify({ folder, sortField: 'date', sortOrder: 'asc' }),
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const files = await response.json();
+            readable++;
+            if (Array.isArray(files)) for (const file of files) if (typeof file === 'string') out.push({ folder, file });
+        } catch (err) {
+            debugLog('Could not list the save folder', folder, err);
+        }
     }
+    if (!readable) throw new Error(`Could not read user/images/${folders[0]}. The folder may not exist yet, or no images have been generated into it.`);
+    return out;
+}
 
-    if (!Array.isArray(files)) return { scanned: 0, added: 0, characters: 0 };
+export async function scanFolderForCharacterImages() {
+    const files = await listPortraitFiles();
 
     const characters = getSettings().characters || [];
     // Longest prefix first, so "The Fae" cannot swallow a file belonging to "The Fae Queen".
@@ -608,8 +618,7 @@ export async function scanFolderForCharacterImages() {
     let added = 0;
     const touched = new Set();
 
-    for (const file of files) {
-        if (typeof file !== 'string') continue;
+    for (const { folder, file } of files) {
         const match = byPrefix.find(entry => file.startsWith(entry.prefix));
         if (!match) continue;
 
@@ -749,29 +758,65 @@ export function referencedImagePaths(settings = getSettings()) {
  */
 export async function findOrphanedImages() {
     const folder = resolveImageFolder(getSettings().imageSaveRoute);
-
-    let files = [];
-    try {
-        const response = await fetch('/api/images/list', {
-            method: 'POST',
-            headers: getRequestHeaders(),
-            body: JSON.stringify({ folder, sortField: 'date', sortOrder: 'asc' }),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        files = await response.json();
-    } catch (err) {
-        debugLog('Could not list the save folder', err);
-        throw new Error(`Could not read user/images/${folder}.`);
-    }
-    if (!Array.isArray(files)) return { folder, files: [], scanned: 0 };
+    const files = await listPortraitFiles();
 
     const keep = referencedImagePaths();
     const orphans = files
-        .filter(file => typeof file === 'string')
-        .map(file => `/user/images/${folder}/${file}`)
+        .map(f => `/user/images/${f.folder}/${f.file}`)
         .filter(path => !keep.has(path));
 
     return { folder, files: orphans, scanned: files.length };
+}
+
+/**
+ * Every character portrait there is, for the "delete them all" button to show before it deletes anything:
+ * the files characters and the persona point at, plus loose files in the portrait folders that nothing points at.
+ * The pool of faces for strangers is not touched, and neither is a picture it shares with a character.
+ *
+ * @returns {Promise<{ files: string[], holders: number }>}
+ */
+export async function findAllPortraits() {
+    const settings = getSettings();
+    const holders = [...(settings.characters || []), ...Object.values(settings.personaData || {})];
+    const pool = new Set((settings.defaultImages || []).map(e => String(e?.src ?? '').trim()).filter(Boolean));
+    const paths = new Set();
+    for (const h of holders) {
+        for (const p of [h?.imageUrl, h?.defaultPortrait, ...(h?.images || [])]) {
+            const path = String(p ?? '').trim();
+            if (path.startsWith('/user/images/') && !pool.has(path)) paths.add(path);
+        }
+    }
+    try {
+        for (const f of await listPortraitFiles()) {
+            const path = `/user/images/${f.folder}/${f.file}`;
+            if (!pool.has(path)) paths.add(path);
+        }
+    } catch (err) {
+        debugLog('No portrait folder to sweep', err);
+    }
+    return { files: [...paths], holders: holders.length };
+}
+
+/**
+ * Empties every character's and the persona's portraits and deletes the files in the list (from findAllPortraits).
+ * The cards, their text and everything else about them stay.
+ *
+ * @param {string[]} files
+ * @returns {Promise<{ deleted: number, failed: number }>}
+ */
+export async function deleteAllPortraits(files) {
+    const settings = getSettings();
+    for (const h of [...(settings.characters || []), ...Object.values(settings.personaData || {})]) {
+        if (!h || typeof h !== 'object') continue;
+        h.imageUrl = '';
+        h.defaultPortrait = '';
+        h.images = [];
+    }
+    settings.imageHashes = {};
+    saveSettings();
+    const result = await deleteImageFiles(files);
+    triggerReprocess();
+    return result;
 }
 
 /**

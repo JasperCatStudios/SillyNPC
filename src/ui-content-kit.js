@@ -1,11 +1,13 @@
 import { getRequestHeaders, saveSettingsDebounced } from '../../../../../script.js';
 import { extension_settings } from '../../../../extensions.js';
-import { importWorldInfo } from '../../../../world-info.js';
+import { importWorldInfo, deleteWorldInfo, world_names } from '../../../../world-info.js';
+import { Popup } from '../../../../popup.js';
 import { getSettings, saveSettings } from './settings.js';
 import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { parseTransferFile, importCharacters } from './character-transfer.js';
-import { mergeItemFile } from './item-database.js';
-import { parseLocationFile, mergeLocations } from './scene-locations.js';
+import { deleteCharacter } from './characters.js';
+import { mergeItemFile, normalizeItemDatabase } from './item-database.js';
+import { parseLocationFile, mergeLocations, removeLocation } from './scene-locations.js';
 import { sceneSettings, saveSceneSettings, notifyLocationsChanged } from './scene-state.js';
 import { saveItemDatabase } from './inventory.js';
 import { parseSoundMap } from './sound-core.js';
@@ -32,7 +34,7 @@ const el = (tag, className, text) => {
 };
 
 /** 'unknown' until checked, then 'missing' (not installed), 'ready' (catalog read) or 'broken' (installed, no catalog). */
-const state = { status: 'unknown', catalog: null, busy: '', message: '', open: new Set(['world']), remote: null };
+const state = { status: 'unknown', catalog: null, busy: '', message: '', open: new Set(['world']), remote: null, found: new Map(), scanned: false, scanning: false };
 
 /**
  * What the kit weighs before it is downloaded: GitHub says how big the repository is, and the catalog file in it lists
@@ -122,6 +124,7 @@ async function install() {
     const result = await post('/api/extensions/install', { url, global: false });
     if (result.status === 409) return 'It is already installed. Press Update to get the newest version.';
     if (!result.ok) throw new Error(`The download failed (${result.status}). ${result.text || 'Check the SillyTavern console for the reason.'}`);
+    state.scanned = false;
     return 'Downloaded.';
 }
 
@@ -130,6 +133,9 @@ async function update() {
     if (!result.ok) throw new Error(`The update failed (${result.status}). ${result.text || 'Check the SillyTavern console for the reason.'}`);
     let upToDate = false;
     try { upToDate = Boolean(JSON.parse(result.text).isUpToDate); } catch { /* not JSON */ }
+    // The pull is done, so SillyTavern's own list must stop saying there is something to pull.
+    clearStUpdateBadge();
+    state.scanned = false;
     return upToDate ? 'Already up to date.' : 'Updated.';
 }
 
@@ -208,6 +214,164 @@ async function importItem(item) {
     }
 }
 
+/* ---- removing what an import added ---------------------------------------------------- */
+
+/**
+ * What one kit item has put into your settings, found by reading its file again and looking for the same names or ids.
+ * Null when none of it is there. `remove` takes it out again and returns a sentence for the toast.
+ *
+ * Matching is by name or id, so a thing of yours that happens to share one is found too; Remove always asks first and
+ * lists what it will take.
+ */
+async function footprint(item) {
+    if (item.type === 'regex') {
+        if (!isRegexInstalled(item)) return null;
+        const name = String(item.name || '').trim().toLowerCase();
+        return {
+            names: [item.name],
+            remove: async () => {
+                extension_settings.regex = (extension_settings.regex || []).filter(s => String(s?.scriptName ?? '').trim().toLowerCase() !== name);
+                saveSettingsDebounced();
+                return 'Removed. Reload SillyTavern to see the Regex list without it.';
+            },
+        };
+    }
+    if (item.type === 'sounds') {
+        if (soundSettings().mapUrl !== kitFileUrl(folder(), item.file)) return null;
+        return {
+            names: ['Sound Effects map'],
+            remove: async () => {
+                Object.assign(soundSettings(), { enabled: false, mapUrl: '' });
+                saveSoundSettings();
+                await loadSoundMap(true);
+                return 'Sound Effects is switched off and no longer points at the kit.';
+            },
+        };
+    }
+    if (item.type === 'lorebook') {
+        const name = baseName(item.file).replace(/\.json$/i, '');
+        if (!Array.isArray(world_names) || !world_names.includes(name)) return null;
+        return { names: [name], remove: async () => { await deleteWorldInfo(name); return 'Lorebook deleted.'; } };
+    }
+    if (!['world', 'characters', 'items', 'scenes'].includes(item.type)) return null;
+    const text = await fetchKitText(item.file);
+    if (item.type === 'world') {
+        const { parseTypeFile } = await import('./combat-types.js');
+        const library = getSettings().combatTypes || {};
+        const mine = parseTypeFile(text).types.filter(t => t.id in library);
+        if (!mine.length) return null;
+        return {
+            names: mine.map(t => t.name),
+            remove: async () => {
+                const { deleteCustomType } = await import('../modules/combat/type-editor.js');
+                for (const t of mine) deleteCustomType(t.id);
+                return `Removed ${mine.length} world type${mine.length === 1 ? '' : 's'}. Characters keep their combat numbers in case you bring it back.`;
+            },
+        };
+    }
+    if (item.type === 'characters') {
+        const wanted = new Set(parseTransferFile(text).characters.map(c => String(c?.name || '').trim().toLowerCase()).filter(Boolean));
+        const mine = (getSettings().characters || []).filter(c => wanted.has(String(c.name || '').trim().toLowerCase()));
+        if (!mine.length) return null;
+        return {
+            names: mine.map(c => c.name),
+            remove: async () => {
+                for (const c of mine) deleteCharacter(c.id);
+                return `Removed ${mine.length} character${mine.length === 1 ? '' : 's'}. Their portrait files stay on disk until you clear portraits (Advanced).`;
+            },
+        };
+    }
+    if (item.type === 'items') {
+        const file = normalizeItemDatabase(JSON.parse(text));
+        const have = normalizeItemDatabase(getSettings().itemDatabase);
+        const itemIds = new Set(file.items.map(i => i.id));
+        const presetIds = new Set(file.presets.map(p => p.id));
+        const items = have.items.filter(i => itemIds.has(i.id));
+        const presets = have.presets.filter(p => presetIds.has(p.id));
+        if (!items.length && !presets.length) return null;
+        return {
+            names: [`${items.length} items and ${presets.length} presets`],
+            remove: async () => {
+                getSettings().itemDatabase = { items: have.items.filter(i => !itemIds.has(i.id)), presets: have.presets.filter(p => !presetIds.has(p.id)) };
+                saveItemDatabase();
+                return `Removed ${items.length} items and ${presets.length} presets from the Item Database.`;
+            },
+        };
+    }
+    // scenes
+    const places = parseLocationFile(text) || [];
+    const ids = new Set(places.map(p => p.id));
+    const s = sceneSettings();
+    const mine = s.locations.filter(e => ids.has(e.id));
+    if (!mine.length) return null;
+    return {
+        names: [`${mine.length} places`],
+        remove: async () => {
+            for (const e of mine) removeLocation(s.locations, e.id);
+            saveSceneSettings();
+            notifyLocationsChanged();
+            return `Removed ${mine.length} places from the Scene map.`;
+        },
+    };
+}
+
+/** Looks at every importable item once and remembers which ones are in your settings; redrawn when it is done. */
+async function scanInstalled() {
+    state.scanning = true;
+    const found = new Map();
+    for (const item of state.catalog?.items || []) {
+        if (item.type === 'art' || item.type === 'workflow') continue;
+        try {
+            const f = await footprint(item);
+            if (f) found.set(item.file, f);
+        } catch (err) {
+            console.warn(LOG_PREFIX, `Content Kit could not check ${item.file}`, err);
+        }
+    }
+    state.found = found;
+    state.scanned = true;
+    state.scanning = false;
+}
+
+/** Takes one item's import back out, after saying exactly what goes. */
+async function removeItem(item) {
+    const f = state.found.get(item.file) || await footprint(item);
+    if (!f) { toastr.info('Nothing from this is in your settings.', `${PRODUCT_NAME}: ${item.name}`); return ''; }
+    const list = f.names.slice(0, 12).join(', ') + (f.names.length > 12 ? `, and ${f.names.length - 12} more` : '');
+    const ok = await Popup.show.confirm(`Remove ${item.name}?`, `This takes out: ${list}. Anything of yours with the same name or id goes too, and edits you made to it are lost.`);
+    if (!ok) return '';
+    return f.remove();
+}
+
+/** Deletes the downloaded repository itself (the folder SillyTavern's own Extensions list shows). Imports stay where they are. */
+async function uninstall() {
+    const ok = await Popup.show.confirm('Delete the downloaded Content Kit?', 'The folder is removed from this computer. Whatever you imported from it stays in Worldkit; use Remove on each item first if you want that gone too.');
+    if (!ok) return '';
+    const result = await post('/api/extensions/delete', { extensionName: folder(), global: false });
+    if (!result.ok) throw new Error(`The delete failed (${result.status}). ${result.text || 'Check the SillyTavern console for the reason.'}`);
+    state.remote = null;
+    state.found = new Map();
+    state.scanned = false;
+    dropStExtensionRow();
+    return 'Deleted.';
+}
+
+/** SillyTavern's own extension list is not redrawn when we pull, so its "update available" marks are cleared here. */
+function clearStUpdateBadge() {
+    try {
+        for (const block of document.querySelectorAll(`.extension_block[data-name="${CSS.escape(folder())}"]`)) {
+            block.querySelector('.btn_update')?.classList.add('displayNone');
+            block.querySelector('.extension_name')?.classList.remove('update_available');
+        }
+    } catch { /* the list is not open; it checks fresh when it is */ }
+}
+
+function dropStExtensionRow() {
+    try {
+        for (const block of document.querySelectorAll(`.extension_block[data-name="${CSS.escape(folder())}"]`)) block.remove();
+    } catch { /* not open */ }
+}
+
 /* ---- the screen ----------------------------------------------------------------------- */
 
 function button(label, icon, onClick, { title = '', disabled = false } = {}) {
@@ -232,10 +396,13 @@ function itemRow(item, rerender) {
     row.append(text);
     if (item.type === 'art') return row;   // copied by hand; the description says where
     const copies = item.type === 'workflow';
-    const installed = isRegexInstalled(item);
+    const mark = state.found.get(item.file) || (isRegexInstalled(item) ? {} : null);
+    const installed = Boolean(mark);
     if (installed) text.append(document.createElement('br'), el('small', 'notes', 'Installed. Pressing Update refreshes it in place; it is never added twice.'));
     const verb = copies ? 'Copy' : (installed ? 'Update' : 'Import');
-    row.append(button(verb, copies ? 'fa-copy' : (installed ? 'fa-rotate' : 'fa-file-import'), async () => {
+    const buttons = el('div');
+    buttons.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap;';
+    buttons.append(button(verb, copies ? 'fa-copy' : (installed ? 'fa-rotate' : 'fa-file-import'), async () => {
         state.busy = item.file;
         try {
             const sentence = await importItem(item);
@@ -246,9 +413,27 @@ function itemRow(item, rerender) {
             toastr.error(String(err.message || err), `${PRODUCT_NAME}: ${item.name}`);
         } finally {
             state.busy = '';
+            state.scanned = false;
             rerender();
         }
     }, { disabled: state.busy === item.file }));
+    if (installed) {
+        buttons.append(button('Remove', 'fa-trash', async () => {
+            state.busy = item.file;
+            try {
+                const sentence = await removeItem(item);
+                if (sentence) toastr.success(sentence, `${PRODUCT_NAME}: ${item.name}`);
+            } catch (err) {
+                console.error(LOG_PREFIX, 'Content Kit remove failed', err);
+                toastr.error(String(err.message || err), `${PRODUCT_NAME}: ${item.name}`);
+            } finally {
+                state.busy = '';
+                state.scanned = false;
+                rerender();
+            }
+        }, { title: 'Take what this import added back out of Worldkit', disabled: state.busy === item.file }));
+    }
+    row.append(buttons);
     return row;
 }
 
@@ -302,7 +487,7 @@ export function renderContentKitView(view) {
     view.append(el('p', 'notes sillynpc-tab-intro',
         'Optional extras made for Worldkit: a sample world, character packs, a lorebook, regex scripts that dress the trackers, '
         + 'and workflows for the Phone\'s pictures. Press Download and SillyTavern fetches them with git, the same way Extensions, '
-        + 'Install extension does. Nothing is imported until you press Import on it, and nothing is ever deleted.'));
+        + 'Install extension does. Nothing is imported until you press Import on it, and nothing is removed until you press Remove on it.'));
 
     // The address, saved as it is typed.
     const wrap = el('div', 'sillynpc-setting');
@@ -360,14 +545,21 @@ export function renderContentKitView(view) {
     if (state.status === 'ready' || state.status === 'broken') {
         actions.append(button('Update', 'fa-rotate', run('update', update), { disabled: working, title: 'Pull the newest version' }));
     }
-    actions.append(button('Check again', 'fa-magnifying-glass', async () => { await check(); rerender(); }, { disabled: working }));
+    actions.append(button('Check again', 'fa-magnifying-glass', async () => { state.scanned = false; await check(); rerender(); }, { disabled: working }));
+    if (state.status === 'ready' || state.status === 'broken') {
+        actions.append(button('Delete download', 'fa-trash', run('delete', uninstall), { disabled: working, title: 'Remove the downloaded folder from this computer. Imports stay until you Remove them.' }));
+    }
     view.append(actions);
 
     if (state.status === 'missing') {
         if (!state.remote || state.remote.url !== savedUrl()) loadRemote().finally(() => { if (view.isConnected) rerender(); });
         renderRemotePreview(view);
     }
-    if (state.status === 'ready' && state.catalog) renderCatalog(view, rerender);
+    if (state.status === 'ready' && state.catalog) {
+        renderCatalog(view, rerender);
+        // Which items are already in your settings is read in the background, then the list is drawn again with Remove buttons.
+        if (!state.scanned && !state.scanning) scanInstalled().finally(() => { if (view.isConnected) rerender(); });
+    }
 
     const panel = view.closest('.sillynpc-tab-panel');
     if (panel) panel.scrollTop = scroll;

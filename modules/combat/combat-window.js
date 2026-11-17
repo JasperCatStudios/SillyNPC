@@ -28,7 +28,7 @@ import { groupInstruction, parseGroupReply } from '../../src/group-talk.js';
 import { newTalkId } from '../../src/talk-log.js';
 import {
     startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, autoTurn,
-    activeAbilities, toolActions, fleeChance, attemptFlee,
+    activeAbilities, toolActions, fleeChance, attemptFlee, defensiveLocked,
 } from '../../src/combat-fight.js';
 
 import { PRODUCT_NAME } from '../../src/constants.js';
@@ -281,6 +281,7 @@ function fighterCard(fighter) {
     }
     if (fighter.down) info.append(el('small', 'snpc-fight-downtag', fighter.fled ? 'Fled' : session.state.mode === 'spar' ? 'Yielded' : 'Down'));
     else if (fighter.stun > 0) info.append(el('small', 'snpc-fight-downtag', 'Stunned'));
+    else if (fighter.guarding) info.append(el('small', 'snpc-fight-downtag', `Guarding ${session.state.fighters[fighter.guarding.id]?.name || ''}`.trim()));
     card.append(info);
     return card;
 }
@@ -308,6 +309,9 @@ function describe(event) {
         const hurt = event.taken > 0 ? `${BANDS[event.band] || event.band}, ${share(target, event.taken)} to ${event.pool}` : (BANDS[event.band] || event.band || 'no harm');
         return `${lead} at ${target.name}: ${hurt}${event.slowed ? ', slowed' : ''}.${event.down ? ` ${target.name} falls.` : ''}`;
     }
+    if (event.guard) {
+        return `${actor.name} stands guard over ${target.name}: blows aimed at ${target.name} go to ${actor.name} instead${event.braced > 0 ? `, and the first is braced (${Math.round(event.braced * 100)}% off)` : ''}.`;
+    }
     if (event.ability && event.target === event.actor) {
         const bits = [];
         if (event.form) bits.push(`takes up ${event.form}`);
@@ -326,6 +330,7 @@ function describe(event) {
     if (event.passives?.length) extras.push(event.passives.join(', '));
     if (event.gearCrit) extras.push('finds a weak point');
     if (event.opening) extras.push('seizes the opening from the dodge');
+    if (event.guarded) extras.push(`${target.name} steps in for ${session.state.fighters[event.guarded]?.name || 'a friend'}`);
     if (event.evaded) extras.push(`dodged: ${target.name} gains an opening`);
     if (event.blocked > 0) extras.push(`${event.blocked}% blocked`);
     if (event.healed > 0) extras.push(`recovers ${Math.max(1, Math.round((event.healed / target.view.pools.health.max) * 100))}% health`);
@@ -533,6 +538,22 @@ function drawBattle(body) {
         });
         row.append(button);
     }
+    // Guarding a friend: one button for each ally still standing. Same lock as a brace or a dodge.
+    const lock = defensiveLocked(actor);
+    for (const friend of living(state, 'player').filter(f => f.id !== actor.id && !f.fled)) {
+        const button = el('button', 'menu_button is-guard', `Guard ${friend.name}`);
+        button.type = 'button';
+        button.disabled = Boolean(lock);
+        button.title = lock || `Stand in front of ${friend.name}. Until your next turn, blows aimed at them are rolled against you instead (your defense and defending abilities), and the first is braced.`;
+        button.addEventListener('click', () => {
+            const result = takeTurn(type, state, 'guard', friend.id);
+            if (!result.ok) { toastr.warning(result.reason, PRODUCT_NAME); return; }
+            persistAll();
+            draw();
+            watcherLine({ actor, events: result.events || [] });
+        });
+        row.append(button);
+    }
     // The tool belt (fork): one use per turn, in place of an attack. Uses come back after the fight.
     for (const tool of toolActions(state, actor)) {
         const button = el('button', 'menu_button is-tool', `${tool.name} ×${tool.uses}`);
@@ -607,7 +628,9 @@ function drawSetup(body) {
     body.append(modes);
     if (setupMode === 'watch') { drawWatchSetup(body, type, player, foes); return; }
 
-    const who = el('label', 'snpc-fight-field', 'Against');
+    // One box for the other side: the first opponent, any more of them, and the button that adds one.
+    const foeBox = el('div', 'snpc-fight-team-box is-b');
+    foeBox.append(el('div', 'snpc-fight-team-title', 'Against'));
     const select = el('select', 'text_pole');
     for (const foe of foes) {
         const option = el('option', '', foe.name + (hasTypeData(foe, type.dataKey) ? '' : ' (defaults)'));
@@ -618,25 +641,35 @@ function drawSetup(body) {
     if (suggestedFoe) select.value = suggestedFoe.id;
     // Coming back from the equipment screen: the same first foe as before.
     if (playPick.first && foes.some(f => f.id === playPick.first)) select.value = playPick.first;
-    who.append(select);
-    body.append(who);
+    const firstRow = el('div', 'snpc-fight-team-row');
+    firstRow.append(select);
+    foeBox.append(firstRow);
+    const foeRows = el('div', 'snpc-fight-team-rows');
+    foeBox.append(foeRows);
+    body.append(foeBox);
 
     // Fighting with a team (fork): more foes, and allies at your side, who act on their own.
     const byId = new Map(foes.map(r => [r.id, r]));
     const teamBox = el('div', 'snpc-fight-teams-setup snpc-fight-playteams');
     const drawTeams = () => {
         teamBox.replaceChildren();
+        foeRows.replaceChildren();
+        foeBox.querySelector('.snpc-fight-add-foe')?.remove();
         const tidy = (list, banned) => list.filter((id, i) => byId.has(id) && !banned.has(id) && list.indexOf(id) === i).slice(0, MAX_TEAM - 1);
         playPick.foes = tidy(playPick.foes, new Set([select.value]));
         playPick.allies = tidy(playPick.allies, new Set([select.value, ...playPick.foes]));
         const taken = () => new Set([select.value, ...playPick.foes, ...playPick.allies]);
         for (const [key, title, tip] of [
-            ['foes', 'More foes (optional)', 'Up to three more on their side.'],
-            ['allies', 'Allies (optional)', 'Up to three at your side. They take their own turns: press Continue when it is theirs.'],
+            ['foes', '', 'Up to three more on their side.'],
+            ['allies', 'With you (optional)', 'Up to three at your side. They take their own turns: press Continue when it is theirs.'],
         ]) {
-            const box = el('div', `snpc-fight-team-box is-${key === 'allies' ? 'a' : 'b'}`);
-            box.append(el('div', 'snpc-fight-team-title', title));
-            box.append(el('small', 'notes', tip));
+            // More foes join the Against box above; allies get a box of their own.
+            const box = key === 'foes' ? foeBox : el('div', 'snpc-fight-team-box is-a');
+            const rows = key === 'foes' ? foeRows : box;
+            if (key === 'allies') {
+                box.append(el('div', 'snpc-fight-team-title', title));
+                box.append(el('small', 'notes', tip));
+            }
             playPick[key].forEach((id, slot) => {
                 const row = el('div', 'snpc-fight-team-row');
                 const pick = el('select', 'text_pole');
@@ -653,16 +686,16 @@ function drawSetup(body) {
                 del.title = 'Take them out';
                 del.addEventListener('click', () => { playPick[key].splice(slot, 1); drawTeams(); showPace(); });
                 row.append(pick, del);
-                box.append(row);
+                rows.append(row);
             });
             const free = foes.find(r => !taken().has(r.id));
             if (playPick[key].length < MAX_TEAM - 1 && free) {
-                const add = el('button', 'menu_button', key === 'allies' ? '+ Add an ally' : '+ Add a foe');
+                const add = el('button', `menu_button${key === 'foes' ? ' snpc-fight-add-foe' : ''}`, key === 'allies' ? '+ Add an ally' : '+ Add another opponent');
                 add.type = 'button';
                 add.addEventListener('click', () => { playPick[key].push(free.id); drawTeams(); showPace(); });
                 box.append(add);
             }
-            teamBox.append(box);
+            if (key === 'allies') teamBox.append(box);
         }
         if (playPick.allies.length || playPick.foes.length) {
             const n = 1 + playPick.allies.length;
