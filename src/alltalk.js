@@ -4,6 +4,7 @@ import { applyPhonetics, speechFor, cleanToneTable, inlineNames, DEFAULT_TONE_TA
 import { engineOf, engineReadsAudioTags, engineFingerprint, generateEleven } from './tts-engines.js';
 import { getCached, putCached } from './tts-cache.js';
 import { contentKey } from './image-dedupe.js';
+import { ELEVEN_TAGS } from './eleven-tags.js';
 
 /** The delivery tags in force: the owner's table when they have edited it, else the starting one. */
 export function toneTable(settings = getSettings()) {
@@ -12,6 +13,21 @@ export function toneTable(settings = getSettings()) {
 }
 
 /** The standalone (inline) delivery tags in force: pacing and reaction tags that have no closing tag. */
+/**
+ * The table used to read a line aloud: the saved list on top of every tag Worldkit knows, so a known tag that is not in the
+ * saved list is still understood (turned into the engine's audio tag, or dropped) instead of being spoken as a word.
+ */
+export function speechTable(settings = getSettings()) {
+    const known = {};
+    for (const t of ELEVEN_TAGS) known[t.name] = t.word;
+    return { ...DEFAULT_TONE_TAGS, ...known, ...toneTable(settings) };
+}
+
+/** The standalone tag names for reading aloud (the same wider list). */
+export function speechInline(settings = getSettings()) {
+    return inlineNames(speechTable(settings), settings.deliveryInline);
+}
+
 export function toneInline(settings = getSettings()) {
     return inlineNames(toneTable(settings), settings.deliveryInline);
 }
@@ -164,8 +180,8 @@ export function speakWith(voice, text, { tone = '' } = {}) {
     const said = applyPhonetics(String(text ?? ''), settings.characters || []);
     const spoken = speechFor(said, {
         tone,
-        table: toneTable(settings),
-        inline: toneInline(settings),
+        table: speechTable(settings),
+        inline: speechInline(settings),
         audioTags: settings.ttsToneTags !== false && engineReadsAudioTags(settings),
     }).trim();
     if (!spoken || !voice) return false;

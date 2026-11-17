@@ -179,11 +179,14 @@ export const DELIVERY_SCRIPT_IDS = Object.freeze({
  * @param {{ enabled?: boolean, saverOn?: boolean, saverDepth?: number, inline?: Set<string>|string[] }} [options]
  * @returns {object[]} Regex script objects in SillyTavern's own format: display, saver, inline display, in that order.
  */
-export function deliveryScripts(table, { enabled = true, saverOn = false, saverDepth = 2, inline } = {}) {
+export function deliveryScripts(table, { enabled = true, saverOn = false, saverDepth = 2, inline, extraNames = [] } = {}) {
     const split = splitDeliveryNames(table, inline);
     const alt = split.wrappers.map(escapeRe).join('|') || '(?!)';
     const both = [...split.wrappers, ...split.inline].map(escapeRe).join('|');
-    const soloAlt = split.inline.map(escapeRe).join('|');
+    // The third script hides every delivery tag still showing after the pairs were turned into spans: standalone tags, an
+    // opening tag the model never closed, a stray closing tag, and any known tag name that is not in the saved list.
+    const strayAlt = [...new Set([...split.wrappers, ...split.inline, ...extraNames.map(n => String(n).toLowerCase())])]
+        .sort((a, b) => b.length - a.length).map(escapeRe).join('|');
     // An opening tag may carry extra words ([whisper, soft]); the closing tag must match the opening one.
     const open = `\\[(${alt})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]`;
     return [
@@ -220,8 +223,8 @@ export function deliveryScripts(table, { enabled = true, saverOn = false, saverD
         {
             id: DELIVERY_SCRIPT_IDS.inline,
             scriptName: 'Worldkit - Delivery Tags (inline)',
-            // With no standalone tags, a pattern that can never match.
-            findRegex: soloAlt ? `/\\[(${soloAlt})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]/gi` : '/(?!)/g',
+            // Hides what the display script left: a single bracket pair only, so a double bracket ([[Name]], a speaker marker) is never touched.
+            findRegex: strayAlt ? `/(?<!\\[)\\[\\/?(${strayAlt})(?:\\s{0,3},[^\\]\\[]{0,40})?\\](?!\\])/gi` : '/(?!)/g',
             replaceString: '<span class="wk-inline" data-tone="$1"></span>',
             trimStrings: [],
             placement: [2],

@@ -3,6 +3,7 @@ import { extension_settings } from '../../../../extensions.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { getSettings } from './settings.js';
 import { mergeRegexScripts } from './content-kit.js';
+import { KNOWN_TAG_NAMES } from './eleven-tags.js';
 import { buildDeliveryPrompt, deliveryScripts, deliveryNames, normalizeDeliveryInject, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
 import { deliveryCss, fontsUrl } from './delivery-style.js';
 import { toneTable, toneInline } from './alltalk.js';
@@ -89,6 +90,7 @@ export function syncDeliveryScripts() {
         saverOn: settings.deliverySaverOn === true,
         saverDepth: settings.deliverySaverDepth ?? 2,
         inline: toneInline(settings),
+        extraNames: KNOWN_TAG_NAMES,
     });
     // Nothing to write while the feature has never been on and the scripts are not there yet.
     if (!deliveryEnabled() && !list.some(s => s?.id === DELIVERY_SCRIPT_IDS.display)) return;

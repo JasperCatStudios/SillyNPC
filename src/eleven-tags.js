@@ -1,4 +1,5 @@
 import { ELEVEN_EMOTION_GROUPS } from './eleven-emotions.js';
+import { DEFAULT_TONE_TAGS } from './tts-text.js';
 
 /**
  * Every ElevenLabs audio tag Worldkit can add (fork), as one catalog of groups. Each group has a KIND:
@@ -64,6 +65,9 @@ export const ELEVEN_TAGS = Object.freeze(ELEVEN_TAG_GROUPS.flatMap(([group, kind
 }))));
 
 /** The tags whose name is not in the table yet. A name already there is never touched. */
+/** Every tag name Worldkit knows (the starting list and the whole catalog), whether or not it is in the saved list. The chat hides any of them that is left showing. */
+export const KNOWN_TAG_NAMES = Object.freeze([...new Set([...Object.keys(DEFAULT_TONE_TAGS), ...ELEVEN_TAGS.map(t => t.name)])]);
+
 export function missingTags(table) {
     const have = new Set(Object.keys(table && typeof table === 'object' ? table : {}));
     return ELEVEN_TAGS.filter(t => !have.has(t.name));
