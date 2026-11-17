@@ -64,7 +64,6 @@ function overwriteOption(items) {
 async function confirmAndRun(type, wrap, ok, items, label, chosen, overwrite, rerender) {
     if (!(await new Popup(wrap, POPUP_TYPE.CONFIRM, '', { okButton: ok, cancelButton: 'Cancel' }).show())) return;
     const picked = chosen();
-    toastr.info('Saving a backup, then copying...', PRODUCT_NAME);
     const result = await runMigration(type, picked, { label, overwrite: overwrite.get() });
     if (!result.ok) {
         toastr.error(result.reason, PRODUCT_NAME);
@@ -169,7 +168,6 @@ export async function openLoreImport(type, rerender) {
     const picked = ticked();
     if (!plan || !picked.length) { toastr.info('Nothing was chosen.', PRODUCT_NAME); return; }
 
-    toastr.info('Saving a backup, then copying...', PRODUCT_NAME);
     const label = `Lorebook import: ${entries[entrySelect.value]?.comment || worldSelect.value}`;
     const done = await runMigration(type, picked, { label, overwrite: overwrite.get() });
     if (!done.ok) toastr.error(done.reason, PRODUCT_NAME);

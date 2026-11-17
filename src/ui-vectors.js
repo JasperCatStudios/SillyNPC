@@ -223,7 +223,6 @@ function turnMasterOn() {
     vectorSettings().enabled = true;
     saveSettings();
     announce();
-    try { toastr.success('Vectors are on. Each kind of history still has its own switch.', 'Worldkit vectors'); } catch { /* no toastr */ }
 }
 
 /** A "Turn Vectors on" button; safe inside a <summary> (it does not open or close the box). */
@@ -445,7 +444,6 @@ function renderPanel(p) {
             if (!ok) return;
             const res = await purgeModule(moduleId, p.scope);
             if (res.error) toastr.warning(res.error, 'Worldkit vectors');
-            else toastr.success('Forgotten.', 'Worldkit vectors');
         }, 'snpc-vec-danger'),
         progress,
     );
@@ -693,7 +691,7 @@ async function runVectorize() {
         const warned = va.lines.filter(l => l.level === 'warn');
         if (warned.length) toastr.warning(warned.map(l => l.text).join('\n'), 'Worldkit vectors: nothing remembered');
         else toastr.info(va.lines.map(l => l.text).join('\n') || 'Nothing to remember.', 'Worldkit vectors');
-    } else toastr.success(`Remembered ${inserted}.`, 'Worldkit vectors');
+    }
     refreshVectorizeBox();
 }
 

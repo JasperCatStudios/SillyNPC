@@ -1,6 +1,6 @@
 import { world_names, loadWorldInfo, saveWorldInfo, deleteWorldInfoEntry, METADATA_KEY } from '../../../../world-info.js';
 import { getContext } from '../../../../st-context.js';
-import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
+import { LOG_PREFIX, debugLog } from './constants.js';
 import { getSettings, saveSettings } from './settings.js';
 import { getActiveCharacters, getChatCast, isCharacterInChat } from './characters.js';
 
@@ -228,9 +228,6 @@ export async function tryAutoSyncLorebook(char, { silent = false } = {}) {
             if (match) {
                 char.lorebook = { world: worldName, uid: match.uid };
                 saveSettings();
-                if (!silent) {
-                    toastr.info(`Auto-linked Lorebook entry: "${match.comment || match.uid}" from "${worldName}"`, PRODUCT_NAME);
-                }
                 return true;
             }
         } catch (err) {

@@ -72,7 +72,6 @@ function buildCheckpointControls(onRefresh) {
             toastr.error('Could not write the saved state.', PRODUCT_NAME);
             return;
         }
-        toastr.success(`Saved. ${kept} state${kept === 1 ? '' : 's'} kept.`, PRODUCT_NAME);
         onRefresh();
     });
     buttons.append(saveBtn);
@@ -114,7 +113,6 @@ function buildCheckpointControls(onRefresh) {
             );
             if (!ok) return;
             if (await restoreCheckpoint(index)) {
-                toastr.success('Restored.', PRODUCT_NAME);
                 triggerReprocess();
                 onRefresh();
             } else {

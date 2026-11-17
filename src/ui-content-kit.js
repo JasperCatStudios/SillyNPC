@@ -169,8 +169,7 @@ function itemRow(item, rerender) {
     row.append(button(verb, copies ? 'fa-copy' : (installed ? 'fa-rotate' : 'fa-file-import'), async () => {
         state.busy = item.file;
         try {
-            const sentence = await importItem(item);
-            if (sentence) toastr.success(sentence, `${PRODUCT_NAME}: ${item.name}`);
+            await importItem(item);
         } catch (err) {
             console.error(LOG_PREFIX, 'Content Kit import failed', err);
             toastr.error(String(err.message || err), `${PRODUCT_NAME}: ${item.name}`);

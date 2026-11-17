@@ -204,7 +204,6 @@ export async function generateLoreEntry(char, { onSave } = {}) {
             createdWorld = targetWorld;
             
             statusBox.innerHTML = `<span style="color:var(--SmartThemeGreenColor)">✓ Entry "${entryName}" created (UID: ${uid}) in "${targetWorld}"</span>`;
-            toastr.success('Lorebook entry created!');
             
             resultsContainer.style.display = 'flex';
             genBtn.style.display = '';
@@ -223,7 +222,6 @@ export async function generateLoreEntry(char, { onSave } = {}) {
         isGenerating = true;
 
         try {
-            toastr.info('Generating tags and description...');
             
             const { tags, content, followedFormat, excerpt } =
                 await generateLoreContent(char, createdWorld, createdUid);
@@ -247,7 +245,6 @@ export async function generateLoreEntry(char, { onSave } = {}) {
                     `Read ${excerpt.used} of ${excerpt.available} messages (excerpt size limit).`,
                     PRODUCT_NAME);
             }
-            toastr.success('Generation complete.');
         } catch (err) {
             console.error(LOG_PREFIX, 'Lore generation failed', err);
             toastr.error(String(err?.message || err), PRODUCT_NAME);
@@ -265,7 +262,6 @@ export async function generateLoreEntry(char, { onSave } = {}) {
 
             await saveLoreContent(char, createdWorld, createdUid, tagsInput.value, descText.value);
             
-            toastr.success('Lorebook entry updated and linked!');
             popup.completeCancelled();
             onSave?.();
         } catch (err) {
@@ -491,7 +487,6 @@ export async function generateCharacterImage(char, { onSave } = {}) {
 
     let imageUrl;
     try {
-        toastr.info('Requesting image generation...', PRODUCT_NAME);
         imageUrl = await generateCharacterImageLogic(char, { referenceImages: choice.references });
     } catch (err) {
         toastr.error(`Generation failed: ${err.message}`, PRODUCT_NAME);
@@ -502,7 +497,6 @@ export async function generateCharacterImage(char, { onSave } = {}) {
 
     if (action === 'discard') {
         await deleteGeneratedImage(imageUrl);
-        toastr.info('Generated image discarded.', PRODUCT_NAME);
         return;
     }
 
@@ -512,9 +506,5 @@ export async function generateCharacterImage(char, { onSave } = {}) {
     saveSettings();
     if (action === 'use') triggerReprocess();
 
-    toastr.success(
-        action === 'use' ? 'Character image updated.' : 'Image saved to this character.',
-        PRODUCT_NAME,
-    );
     onSave?.();
 }

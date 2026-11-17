@@ -351,7 +351,6 @@ export function renderAbilityEditor(host, rerender) {
         saveUserAbility(type.id, ability);
         selected = ability.id;
         draft = null;
-        toastr.success(`${ability.label} saved.`, PRODUCT_NAME);
         rerender();
     });
     buttons.append(save);

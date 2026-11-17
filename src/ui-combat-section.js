@@ -95,7 +95,7 @@ export function renderCombatSection(record, container, options = {}) {
                 const out = await generateCombatSheet(record, genType);
                 if (out.reason === 'no-lore') toastr.info('Their lorebook entry is empty or missing, so there is nothing to base stats on.', PRODUCT_NAME);
                 else if (!out.ok) toastr.warning(out.reason, PRODUCT_NAME);
-                else { saveSettings(); toastr.success(`Filled ${out.applied} values from their lore.`, PRODUCT_NAME); options.onChange?.(); }
+                else { saveSettings(); options.onChange?.(); }
             } catch (err) {
                 console.error('[Worldkit] combat generation failed', err);
                 toastr.error('Could not generate combat stats.', PRODUCT_NAME);

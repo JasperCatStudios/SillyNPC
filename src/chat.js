@@ -1,5 +1,5 @@
 import { normalizeGradient, gradientCss, gradientFallback } from './gradient-style.js';
-import { LOG_PREFIX, BUILT_IN_DEFAULT_AVATAR, paletteColorFor, debugLog, PRODUCT_NAME } from './constants.js';
+import { LOG_PREFIX, BUILT_IN_DEFAULT_AVATAR, paletteColorFor, debugLog } from './constants.js';
 import { getSettings } from './settings.js';
 import { getContext } from '../../../../st-context.js';
 import { findCharacter, getActiveCharacters, getChatCast } from './characters.js';
@@ -906,9 +906,6 @@ function addRefreshButtonToMessage(mesEl) {
         // only ever worked in inline mode, and nothing writes those blocks any more, so the
         // button now does what its name says: draw the tracker and the chat decorations again.
         reprocessAllMessages();
-        if (typeof toastr !== 'undefined') {
-            toastr.info('Tracker and chat redrawn.', PRODUCT_NAME);
-        }
     });
     toolbar.insertBefore(btn, toolbar.firstChild);
 }

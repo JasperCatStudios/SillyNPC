@@ -88,15 +88,17 @@ export function readLevel(type, data) {
 }
 
 /**
- * The report that goes to the story when characters level up after a fight, one line each.
- * Text only: the wording around it is the owner's instruction (see result-injection.js).
+ * The report that goes to the story when characters level up after a fight, one sentence each. It never names a
+ * level or a number: the story model is told in plain words that someone grew stronger and more experienced (more
+ * so when several levels came at once), so the narrative cannot repeat "level 5". The wording around it is the
+ * owner's instruction (see result-injection.js).
  *
  * @param {{ name: string, from: number, level: number }[]} ups
  */
 export function levelUpReport(ups) {
     const lines = (Array.isArray(ups) ? ups : []).filter(u => u && u.name && u.level > u.from).map(u => (
         u.level - u.from === 1
-            ? `${u.name} reached level ${u.level}.`
-            : `${u.name} rose from level ${u.from} to level ${u.level}.`));
-    return lines.length ? `Level up: ${lines.join(' ')}` : '';
+            ? `${u.name} has grown stronger and more experienced.`
+            : `${u.name} has grown a great deal stronger and more experienced.`));
+    return lines.join(' ');
 }

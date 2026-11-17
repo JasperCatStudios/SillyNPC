@@ -82,10 +82,7 @@ export function chatStore() {
             store.migrated = true;
             debugLog('Bond migration from Internal States failed', err);
         }
-        if (count) {
-            saveStore();
-            toastr.info(`Brought ${count} bond${count === 1 ? '' : 's'} over from Internal States.`, PRODUCT_NAME);
-        }
+        if (count) saveStore();
     }
     return store;
 }

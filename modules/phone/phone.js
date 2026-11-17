@@ -1016,7 +1016,6 @@ function cancelRequest() {
     if (currentAbort) { try { currentAbort.abort(); } catch (e) { } }
     reqSeq++;                      // whatever is in flight is stale from now on
     finishRequest();
-    toastr.info(t('cancelled'));
     renderBubbles();
 }
 // BUG FIX (1.9.0): the watchdog's abort looked exactly like a press on ✕, so a hung
@@ -1024,7 +1023,7 @@ function cancelRequest() {
 function requestFailed(e, rq, tag) {
     if (!isCurrent(rq)) return;    // cancelled — already reported by cancelRequest
     if (e && e.name === 'TimeoutError') toastr.warning(t('timeout'));
-    else if (e && e.name === 'AbortError') toastr.info(t('cancelled'));
+    else if (e && e.name === 'AbortError') { /* cancelled on purpose: nothing to report */ }
     else {
         console.error('[Phone] ' + tag + ' error', e);
         // Fork: say what actually went wrong, not just that something did.
@@ -2005,7 +2004,7 @@ async function runGenQueue() {
                     if (!sw.includes('%image%') && !sw.includes('%sheet%')) toastr.warning("The selfie workflow in use has no image input, so the character's picture is not sent to it. Pick your selfie workflow in the Selfie drop-down.", '', { preventDuplicates: true });
                 }
                 console.info('[Phone] picture drawn by', extras.selfie ? 'the selfie workflow' : (String(imgConn().comfy?.workflow || '').trim() ? 'the general workflow' : 'the built-in graph'), '| request:', m.req ? m.req.mode : 'none');
-                const data = await drawWithRetry(promptUsed, (a, b) => toastr.info(t('img_retrying', { a, b })), ref, extras);
+                const data = await drawWithRetry(promptUsed, null, ref, extras);
                 const key = newImgKey();
                 let stored = false;
                 try { stored = await putImage(key, data); } catch (e) { stored = false; }
@@ -2415,7 +2414,6 @@ async function callAIComplete(system, user, imageUrls) {
         if (lastFinish === 'length') toastr.info(t('truncated'));
     } catch (e) {
         if (e && e.name === 'AbortError') throw e;   // ✕ pressed: not a truncation
-        toastr.info(t('truncated'));
     }
     return out;
 }
@@ -2693,7 +2691,6 @@ function phoneTextsCommand(_args, value) {
     }
     if (word === 'cancel' || word === 'off' || word === 'no') {
         setBridgeArmed(false);
-        toastr.info(t('br_cancelled'));
         return '';
     }
     if (b.mode !== 'manual') {
@@ -2701,7 +2698,6 @@ function phoneTextsCommand(_args, value) {
         return '';
     }
     setBridgeArmed(true);
-    toastr.info(t('br_asked'));
     return '';
 }
 
@@ -2714,7 +2710,6 @@ function phoneArrivalCommand(_args, value) {
     }
     if (word === 'cancel' || word === 'off' || word === 'no') {
         setArrivalArmed(false);
-        toastr.info(t('br_cancelled'));
         return '';
     }
     if (a.mode !== 'manual') {
@@ -2722,7 +2717,6 @@ function phoneArrivalCommand(_args, value) {
         return '';
     }
     setArrivalArmed(true);
-    toastr.info(t('ar_asked'));
     return '';
 }
 
@@ -2767,10 +2761,6 @@ function bridgeApply(text, key = BRIDGE_KEY, name = BRIDGE_NAME, orderOffset = 0
     setExtensionPrompt(key, text, extension_prompt_types.IN_CHAT, b.depth, false, role);
 }
 
-function bridgeNotice(names) {
-    if (bridgeBox().notify && names.length && typeof toastr !== 'undefined') toastr.info(t('br_notice', { names: names.join(', ') }));
-}
-
 function onBridgeGeneration(type, _options, dryRun) {
     if (dryRun || type === 'quiet' || type === 'impersonate') return;
     try {
@@ -2803,7 +2793,6 @@ function onBridgeGeneration(type, _options, dryRun) {
         if (armed) settings.bridgeArmed = false;
         bridgeTurn = key ? { key, text, names } : null;
         saveSettings();
-        bridgeNotice(names);
         try { $('#rph-br-ask').text(t('br_ask')); } catch (e) { /* drawer not open */ }
     } catch (e) {
         console.warn('[Phone] story bridge failed', e);
@@ -2883,7 +2872,6 @@ function onArrivalGeneration(type, _options, dryRun) {
         if (armed) settings.arrivalArmed = false;
         arrivalTurn = key ? { key, text, names } : null;
         saveSettings();
-        if (a.notify && names.length && typeof toastr !== 'undefined') toastr.info(t('ar_notice', { names: names.join(', ') }));
         try { $('#rph-ar-ask').text(t('ar_ask')); } catch (e) { /* drawer not open */ }
     } catch (e) {
         console.warn('[Phone] arrival failed', e);
@@ -2935,8 +2923,8 @@ function setupArrivalUI() {
         $(this).val(a[key]); save();
     });
     const setArChance = (v) => { a.chance = v; $('#rph-ar-chance').val(v); save(); };
-    $('#rph-ar-chance-100').on('click', () => { setArChance(100); toastr.info(t('br_chance_set', { n: 100 })); });
-    $('#rph-ar-chance-25').on('click', () => { setArChance(25); toastr.info(t('br_chance_set', { n: 25 })); });
+    $('#rph-ar-chance-100').on('click', () => { setArChance(100); });
+    $('#rph-ar-chance-25').on('click', () => { setArChance(25); });
     $('#rph-ar-mode').val(ARRIVAL_MODES.includes(a.mode) ? a.mode : 'off').on('change', function () {
         a.mode = ARRIVAL_MODES.includes(this.value) ? this.value : 'off';
         if (a.mode !== 'manual') settings.arrivalArmed = false;
@@ -2954,7 +2942,6 @@ function setupArrivalUI() {
     $('#rph-ar-ask').on('click', () => {
         setArrivalArmed(!settings.arrivalArmed);
         askLabel();
-        toastr.info(settings.arrivalArmed ? t('ar_asked') : t('br_cancelled'));
     });
     $('#rph-ar-preview').on('click', () => openArrivalPreview());
     showFor(); askLabel();
@@ -2980,8 +2967,8 @@ function setupBridgeUI() {
         $(this).val(b[key]); save();
     });
     const setChance = (v) => { b.chance = v; $('#rph-br-chance').val(v); save(); };
-    $('#rph-br-chance-100').on('click', () => { setChance(100); toastr.info(t('br_chance_set', { n: 100 })); });
-    $('#rph-br-chance-5').on('click', () => { setChance(5); toastr.info(t('br_chance_set', { n: 5 })); });
+    $('#rph-br-chance-100').on('click', () => { setChance(100); });
+    $('#rph-br-chance-5').on('click', () => { setChance(5); });
     const bcheck = (sel, key) => $(sel).prop('checked', !!b[key]).on('change', function () { b[key] = this.checked; save(); });
     $('#rph-br-mode').val(BRIDGE_MODES.includes(b.mode) ? b.mode : 'off').on('change', function () {
         b.mode = BRIDGE_MODES.includes(this.value) ? this.value : 'off';
@@ -3007,7 +2994,6 @@ function setupBridgeUI() {
     $('#rph-br-ask').on('click', () => {
         setBridgeArmed(!settings.bridgeArmed);
         askLabel();
-        toastr.info(settings.bridgeArmed ? t('br_asked') : t('br_cancelled'));
     });
     $('#rph-br-preview').on('click', () => openBridgePreview());
     showFor(); askLabel();
@@ -4752,7 +4738,6 @@ function renderRoster() {
         settings.state[cur] = { lastInitiative: 0, todayCount: 0, dayStamp: '', ignored: 0 };
         delete settings.unread[cur];
         saveSettings(); scrollOffset = 0; renderBubbles(true);
-        toastr.info(t('cleared'));
     });
 }
 
@@ -5423,7 +5408,7 @@ function setupImageUI() {
             const file = wfFileName(name);
             if (!file) return;
             if (wfFiles.includes(file) && file !== cc[s.fileKey] && !window.confirm(`"${file}" already exists. Replace it?`)) return;
-            if (await keepAs(s, file)) toastr.success(`Saved "${file.replace(/\.json$/i, '')}" to SillyTavern's workflow folder.`);
+            await keepAs(s, file);
         });
         $(s.del).on('click', async () => {
             const v = $(s.pick).val();
@@ -5441,7 +5426,7 @@ function setupImageUI() {
     const keepLoaded = async (slotKey, fileName) => {
         const s = SLOTS.find(x => x.key === slotKey);
         const file = wfFileName(fileName);
-        if (s && file && await keepAs(s, file)) toastr.success(`Kept "${file.replace(/\.json$/i, '')}" in SillyTavern's workflow folder.`);
+        if (s && file) await keepAs(s, file);
     };
     // once at start: the folder's list; a slot's file read again (so an edit made elsewhere, or on the computer, is picked up);
     // and a workflow loaded before the folder was used is kept there under a name

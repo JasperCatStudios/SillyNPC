@@ -191,7 +191,6 @@ async function buildLorebookView(char) {
                     await deleteLorebookEntry(char.lorebook.world, char.lorebook.uid);
                     char.lorebook = null;
                     saveSettings();
-                    toastr.success(`Deleted "${name}".`, PRODUCT_NAME);
                 } catch (err) {
                     console.error(LOG_PREFIX, 'Failed to delete lorebook entry', err);
                     toastr.error(`Could not delete the entry: ${err.message || err}`, PRODUCT_NAME);
@@ -259,7 +258,6 @@ function buildLorebookEditor(char) {
                 comment: lorebookDraft.comment,
                 content: lorebookDraft.content
             });
-            toastr.success('Saved.');
             resetLorebookState();
             onChange();
         } catch (err) {

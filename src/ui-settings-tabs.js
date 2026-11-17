@@ -561,7 +561,6 @@ export function renderDefaultView(view, rerender) {
                 settings.defaultImages.push({ src: stored, tags: [], gender: '' });
             }
             saveSettings();
-            toastr.success(`Added ${picked.length} face${picked.length === 1 ? '' : 's'}.`, PRODUCT_NAME);
         } catch (err) {
             console.error(LOG_PREFIX, 'Could not add fallback portraits', err);
             toastr.error(String(err.message || err), PRODUCT_NAME);

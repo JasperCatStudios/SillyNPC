@@ -1,5 +1,5 @@
 import { getSettings, saveSettings, defaultSettings } from './settings.js';
-import { isStaticField, PRODUCT_NAME } from './constants.js';
+import { isStaticField } from './constants.js';
 import {
     loadStateFromMetadata,
     findMatchingStatKey,
@@ -136,7 +136,6 @@ export function buildSettingTextArea(options) {
         restore.title = 'Replace this with the recommended template.';
         restore.addEventListener('click', async () => {
             if (textarea.value.trim() === String(recommended).trim()) {
-                toastr.info('This is already the recommended template.', PRODUCT_NAME);
                 return;
             }
             // It replaces work someone may have spent time on, so it asks.

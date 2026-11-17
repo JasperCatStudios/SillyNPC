@@ -684,7 +684,6 @@ function ensureGridBulk() {
         allIds: () => (getSettings().characters || []).map(c => c.id),
         onDelete: (ids) => {
             for (const id of ids) deleteCharacter(id);
-            toastr.success(`Deleted ${ids.length} character(s).`, PRODUCT_NAME);
         },
         onRefresh: () => renderCardGrid(),
         extra: [
@@ -1395,7 +1394,6 @@ async function importData() {
 
             importSettingsData(text);
             renderManageView();
-            toastr.success('Imported successfully.');
         } catch (err) {
             console.error(LOG_PREFIX, 'Import failed', err);
             toastr.error(`Import failed: ${err.message}`);

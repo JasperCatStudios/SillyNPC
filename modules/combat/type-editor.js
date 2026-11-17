@@ -383,7 +383,6 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
         settings.combatTypes = settings.combatTypes && typeof settings.combatTypes === 'object' ? settings.combatTypes : {};
         settings.combatTypes[out.type.id] = out.type;
         saveSettings();
-        toastr.success(`${out.type.name} saved. Pick it under World type.`, PRODUCT_NAME);
         onDone();
     });
     const cancel = el('button', 'menu_button', 'Cancel');
@@ -423,7 +422,6 @@ export async function importTypeText(text, onDone) {
     const replaced = found.types.filter(t => t.id in settings.combatTypes).map(t => t.name);
     for (const t of found.types) settings.combatTypes[t.id] = t;
     saveSettings();
-    toastr.success(`Imported ${found.types.map(t => t.name).join(', ')}.${replaced.length ? ` Replaced the existing ${replaced.join(', ')}.` : ''} Pick it under World type.`, PRODUCT_NAME);
     for (const message of found.warnings) toastr.info(message, PRODUCT_NAME);
     onDone?.();
     return found.types.map(t => t.name);

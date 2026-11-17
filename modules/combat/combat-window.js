@@ -360,7 +360,7 @@ function reportText() {
         }
         lines.push(`${f.name}${f.weaponName ? ` (${f.weaponName})` : ''}: ${parts.join(', ')}.`);
     }
-    for (const line of xpLines()) lines.push(line);
+    // No XP or level lines here: the story is never told numbers or levels. Level-ups go on their own, in plain words (see awardXp).
     lines.push('Blow by blow:');
     for (const event of state.log) lines.push(`- ${describe(event)}`);
     return lines.join('\n');
@@ -705,7 +705,6 @@ function drawSetup(body) {
     reset.addEventListener('click', () => {
         const foe = foes.find(f => f.id === select.value) || foes[0];
         const n = resetStatus(type, [player, foe, ...teamRecords()]);
-        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: neither has a combat sheet yet.', PRODUCT_NAME);
         check.click();
     });
     body.append(check, reset, statusBox);
@@ -979,7 +978,6 @@ function drawWatchSetup(body, type, player, foes) {
     watchReset.title = 'Puts everyone picked back to full health (S+). For when you are testing.';
     watchReset.addEventListener('click', () => {
         const n = resetStatus(type, picked());
-        toastr.success(n ? `Reset ${n} to full health.` : 'Nothing to reset: none of them has a combat sheet yet.', PRODUCT_NAME);
         watchCheck.click();
     });
     body.append(watchCheck, watchReset, watchStatus);
@@ -1472,7 +1470,7 @@ async function sendTalk(text) {
     const to = session.talkTo || chatCast()[0];
     if (!to) { toastr.info('Nobody to talk to.', PRODUCT_NAME); return; }
     const targets = talkTargets(to).slice(0, GROUP_TALK_MAX);
-    if (!targets.length) { toastr.info('Nobody to talk to.', PRODUCT_NAME); return; }
+    if (!targets.length) return;
     const me = session.state.fighters.player?.name || 'You';
     session.chat.push({ who: me, text: text.trim(), mine: true });
     session.talking = true;

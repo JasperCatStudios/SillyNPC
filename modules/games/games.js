@@ -1435,7 +1435,6 @@ function bottleInsertScene() {
     if (b.reaction && b.reaction.text) line += `\n${b.reaction.who}: «${b.reaction.text}»`;
     const cur = $('#send_textarea').val();
     $('#send_textarea').val((cur ? cur + '\n\n' : '') + line).trigger('input');
-    toastr.success(t('bt_inserted'));
 }
 
 function bottleNext() {
