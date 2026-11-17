@@ -72,6 +72,7 @@ export function normalizeCatalog(raw) {
             file: String(it.file),
             description: String(it.description ?? '').trim().slice(0, 300),
             group: String(it.group ?? '').trim().slice(0, 80),
+            size: Number.isFinite(Number(it.size)) && Number(it.size) >= 0 ? Math.round(Number(it.size)) : 0,
         });
     }
     return { version: Number(raw?.version) || 1, items };
@@ -88,9 +89,35 @@ export function groupCatalog(catalog) {
             if (!groups.has(item.group)) groups.set(item.group, []);
             groups.get(item.group).push(item);
         }
-        sections.push({ type, label: KIT_TYPES[type], groups: [...groups.entries()].map(([name, list]) => ({ name, items: list })) });
+        const made = [...groups.entries()].map(([name, list]) => ({ name, items: list, bytes: list.reduce((n, i) => n + (i.size || 0), 0) }));
+        sections.push({ type, label: KIT_TYPES[type], groups: made, bytes: made.reduce((n, g) => n + g.bytes, 0) });
     }
     return sections;
+}
+
+/** A size in bytes as people read it: 0 or unknown is empty text, then B, KB, MB or GB with one decimal where it helps. */
+export function formatBytes(bytes) {
+    const n = Number(bytes);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    if (n < 1024) return `${Math.round(n)} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let v = n / 1024;
+    let u = 0;
+    while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
+    return `${v >= 100 ? Math.round(v) : Math.round(v * 10) / 10} ${units[u]}`;
+}
+
+/** The owner and repository of a github.com address, or null for any other host. */
+export function githubRepoOf(address) {
+    try {
+        const url = new URL(String(address ?? '').trim());
+        if (url.hostname.toLowerCase() !== 'github.com') return null;
+        const [owner, repo] = url.pathname.split('/').filter(Boolean);
+        if (!owner || !repo) return null;
+        return { owner, repo: repo.replace(/.git$/i, '') };
+    } catch {
+        return null;
+    }
 }
 
 /** A regex file may hold one script or a list of them. */

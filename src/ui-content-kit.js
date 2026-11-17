@@ -7,6 +7,7 @@ import { parseTransferFile, importCharacters } from './character-transfer.js';
 import { mergeItemFile } from './item-database.js';
 import {
     DEFAULT_KIT_URL, isKitUrl, kitFolderName, kitFileUrl, normalizeCatalog, groupCatalog, scriptsFromFile, mergeRegexScripts,
+    formatBytes, githubRepoOf,
 } from './content-kit.js';
 
 /**
@@ -26,7 +27,50 @@ const el = (tag, className, text) => {
 };
 
 /** 'unknown' until checked, then 'missing' (not installed), 'ready' (catalog read) or 'broken' (installed, no catalog). */
-const state = { status: 'unknown', catalog: null, busy: '', message: '', open: new Set(['world']) };
+const state = { status: 'unknown', catalog: null, busy: '', message: '', open: new Set(['world']), remote: null };
+
+/**
+ * What the kit weighs before it is downloaded: GitHub says how big the repository is, and the catalog file in it lists
+ * every item with its size. Both are plain reads of public files; a failure only means no preview (Download still works).
+ */
+async function loadRemote() {
+    const url = savedUrl();
+    if (state.remote && state.remote.url === url) return;
+    const repo = githubRepoOf(url);
+    state.remote = { url, status: repo ? 'loading' : 'failed', bytes: 0, catalog: null };
+    if (!repo) return;
+    try {
+        const info = await (await fetch(`https://api.github.com/repos/${repo.owner}/${repo.repo}`)).json();
+        state.remote.bytes = Number(info?.size) > 0 ? Number(info.size) * 1024 : 0;
+        const branch = String(info?.default_branch || 'main').replace(/[^A-Za-z0-9._/-]/g, '');
+        const raw = await fetch(`https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${branch}/catalog.json`, { cache: 'no-store' });
+        if (raw.ok) state.remote.catalog = normalizeCatalog(await raw.json());
+        state.remote.status = 'ready';
+    } catch (err) {
+        console.warn(LOG_PREFIX, 'Content Kit size preview failed', err);
+        state.remote.status = 'failed';
+    }
+}
+
+/** The not-yet-downloaded preview: the download size and what is inside, by type, each with its size. */
+function renderRemotePreview(view) {
+    const r = state.remote;
+    if (!r) return;
+    if (r.status === 'loading') { view.append(el('p', 'notes', 'Checking how big the download is...')); return; }
+    if (r.status !== 'ready') { view.append(el('p', 'notes', 'The download size could not be checked from here. Download still works.')); return; }
+    const total = formatBytes(r.bytes);
+    view.append(el('p', 'notes', total
+        ? `Download size: about ${total}. Download fetches the whole repository with git; the sizes below are what each part weighs.`
+        : 'Download fetches the whole repository with git.'));
+    if (!r.catalog) return;
+    const list = el('ul', 'notes');
+    for (const section of groupCatalog(r.catalog)) {
+        const count = section.groups.reduce((n, g) => n + g.items.length, 0);
+        const size = formatBytes(section.bytes);
+        list.append(el('li', '', `${section.label} (${count})${size ? `: ${size}` : ''}`));
+    }
+    view.append(list);
+}
 
 const savedUrl = () => {
     const url = String(getSettings().contentKitUrl || '').trim();
@@ -159,6 +203,7 @@ function itemRow(item, rerender) {
     const text = el('div');
     text.style.flex = '1';
     text.append(el('b', '', item.name));
+    if (item.size) text.append(el('small', 'notes', ` (${formatBytes(item.size)})`));
     if (item.description) text.append(document.createElement('br'), el('small', 'notes', item.description));
     row.append(text);
     if (item.type === 'art') return row;   // copied by hand; the description says where
@@ -190,12 +235,13 @@ function renderCatalog(view, rerender) {
         details.open = state.open.has(section.type);
         details.addEventListener('toggle', () => { if (details.open) state.open.add(section.type); else state.open.delete(section.type); });
         const count = section.groups.reduce((n, g) => n + g.items.length, 0);
-        details.append(el('summary', '', `${section.label} (${count})`));
+        details.append(el('summary', '', `${section.label} (${count})${section.bytes ? ' - ' + formatBytes(section.bytes) : ''}`));
         for (const group of section.groups) {
             if (group.name) {
                 const head = el('div', 'sillynpc-setting-row');
                 head.style.cssText = 'margin-top:8px; align-items:center;';
                 head.append(el('b', '', group.name));
+                if (group.bytes) head.append(el('small', 'notes', ` (${formatBytes(group.bytes)})`));
                 if (section.type === 'regex' && group.items.length > 1) {
                     const allIn = group.items.every(isRegexInstalled);
                     head.append(button(allIn ? `Update all ${group.items.length}` : `Import all ${group.items.length}`, allIn ? 'fa-rotate' : 'fa-file-import', async () => {
@@ -290,6 +336,10 @@ export function renderContentKitView(view) {
     actions.append(button('Check again', 'fa-magnifying-glass', async () => { await check(); rerender(); }, { disabled: working }));
     view.append(actions);
 
+    if (state.status === 'missing') {
+        if (!state.remote || state.remote.url !== savedUrl()) loadRemote().finally(() => { if (view.isConnected) rerender(); });
+        renderRemotePreview(view);
+    }
     if (state.status === 'ready' && state.catalog) renderCatalog(view, rerender);
 
     const panel = view.closest('.sillynpc-tab-panel');
