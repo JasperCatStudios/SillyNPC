@@ -10,6 +10,7 @@ import {
     canParent, pathLabel, badRegex, backgroundFor,
 } from './scene-locations.js';
 import { describeScene } from './scene-core.js';
+import { renderWeatherSection } from './ui-scene-weather.js';
 
 /**
  * The Scene pane on the Modules tab (fork). Draws only: the rules are in scene-locations.js and scene-core.js, the
@@ -93,6 +94,13 @@ export function renderScenePane(pane, { live = true, head, makeSwitch } = {}) {
         matchHost.replaceChildren(select);
     };
     pane.append(bgRow, matchRow);
+
+    /* ---- weather effects ---- */
+    if (typeof makeSwitch === 'function') {
+        try { renderWeatherSection(pane, { makeSwitch }); } catch (err) {
+            pane.append(el('p', 'notes', `The weather section failed to draw: ${err?.message || err}`));
+        }
+    }
 
     /* ---- status ---- */
     pane.append(el('h4', 'sillynpc-combat-heading', 'Status'));

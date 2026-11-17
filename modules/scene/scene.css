@@ -157,3 +157,18 @@
         display: none;
     }
 }
+
+/* Weather section */
+.sillynpc-weather-status { margin: 4px 0 8px; }
+.sillynpc-weather-density { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sillynpc-weather-density input[type="range"] { flex: 1 1 140px; min-width: 120px; }
+.sillynpc-weather-density-value { min-width: 3em; text-align: right; }
+.sillynpc-weather-list { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
+.sillynpc-weather-effect { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 4px; min-height: 36px; cursor: pointer; }
+.sillynpc-weather-name { flex: 1 1 160px; }
+.sillynpc-weather-cost { font-size: 0.75em; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; text-transform: capitalize; }
+.sillynpc-weather-cost-light { color: #5cb85c; }
+.sillynpc-weather-cost-medium { color: #e0a030; }
+.sillynpc-weather-cost-heavy { color: #e05555; }
+.sillynpc-weather-cap { font-size: 0.8em; opacity: 0.75; }
+.sillynpc-weather-applied:empty { display: none; }

@@ -5,6 +5,7 @@ import { getSettings, saveSettings } from './settings.js';
 import { LOG_PREFIX, debugLog } from './constants.js';
 import { sceneFromChat, deviceScene } from './scene-header.js';
 import { repairSceneSettings, backgroundFor } from './scene-locations.js';
+import { repairWeatherSettings, isTouchDevice } from './weather-settings.js';
 import {
     SCENE_META_KEY, BG_MARK_KEY, SCENE_CHANGED_EVENT, backgroundCss, standAside, resolveLocation, sceneChanges, sceneKey,
 } from './scene-core.js';
@@ -38,7 +39,9 @@ const statusListeners = new Set();
 export function sceneSettings() {
     const settings = getSettings();
     if (!settings.scene || typeof settings.scene !== 'object' || Array.isArray(settings.scene)) settings.scene = {};
-    return repairSceneSettings(settings.scene);
+    const s = repairSceneSettings(settings.scene);
+    s.weather = repairWeatherSettings(s.weather, { touch: isTouchDevice() });
+    return s;
 }
 
 export function saveSceneSettings() {

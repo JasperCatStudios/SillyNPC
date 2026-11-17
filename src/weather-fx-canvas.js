@@ -24,7 +24,9 @@
  */
 
 /*
- * HOW THE SCENE MODULE SHOULD CALL THIS (wiring is a later step; nothing here runs on import)
+ * HOW THE SCENE MODULE CALLS THIS (nothing here runs on import). The real wiring is src/scene-weather.js, with
+ * the settings under settings.scene.weather (src/weather-settings.js); it also passes setDisabledEffects,
+ * setDensityCaps and setAutoLowPower. The sketch below is the minimum.
  *
  *   import { createWeatherFx } from './weather-fx-canvas.js';
  *   const fx = createWeatherFx({ layer: settings.scene.weatherFx.layer });   // 'behind' (default) | 'front'
@@ -59,7 +61,7 @@
  */
 
 import {
-    planWeather, planTransition, nextThunder, thunderPayload, boltPath, deviceScale,
+    planWeather, planTransition, nextThunder, thunderPayload, boltPath, deviceScale, applyEffectChoices,
     RAIN_REF_SPEED, WIND_MAX_PUSH, DEFAULT_FADE_MS,
 } from './weather-fx-core.js';
 
@@ -986,9 +988,17 @@ const DRAWERS = {
 class WorldkitWeatherFx {
     constructor(options = {}) {
         this.layerMode = options.layer === 'front' ? 'front' : 'behind';
+        this.zIndex = Number.isFinite(Number(options.zIndex)) ? String(Math.round(Number(options.zIndex))) : '';
+        this.fadeMs = Number.isFinite(Number(options.fadeMs)) ? Math.max(0, Number(options.fadeMs)) : DEFAULT_FADE_MS;
         this.enabled = false;
         this.desc = null;
         this.density = 100;
+        /** Weathers switched off (drawn as their fallback) and per-weather density caps. */
+        this.disabled = new Set();
+        this.caps = {};
+        /** What the last plan drew, for a status line. */
+        this.choice = { kind: 'none', from: '', density: 100 };
+        this.autoLowPower = true;
         this.lowPowerManual = false;
         this.batteryLow = false;
         this.canvas = null;
@@ -1037,7 +1047,7 @@ class WorldkitWeatherFx {
     }
 
     lowPower() {
-        return this.lowPowerManual || this.batteryLow || !!navigator.connection?.saveData;
+        return this.lowPowerManual || (this.autoLowPower && (this.batteryLow || !!navigator.connection?.saveData));
     }
 
     settings() {
@@ -1065,7 +1075,7 @@ class WorldkitWeatherFx {
             width: '100vw',
             height: '100vh',
             pointerEvents: 'none',
-            zIndex: this.layerMode === 'front' ? '9998' : '1',
+            zIndex: this.zIndex || (this.layerMode === 'front' ? '9998' : '1'),
         });
         c.style.height = '100dvh';
         if (!c.style.height) c.style.height = '100vh';
@@ -1122,7 +1132,11 @@ class WorldkitWeatherFx {
     /** Re-plan from the current description and settings and cross-fade to it. */
     apply(fadeMs = DEFAULT_FADE_MS) {
         if (!this.enabled || !this.canvas) return;
-        const plan = this.desc ? planWeather(this.desc, this.settings()) : { layers: [], thunder: { enabled: false }, frameMs: 0 };
+        const choice = applyEffectChoices(this.desc, { density: this.density, disabled: this.disabled, caps: this.caps });
+        this.choice = { kind: choice.kind, from: choice.from, density: choice.density };
+        const plan = choice.desc
+            ? planWeather(choice.desc, { ...this.settings(), density: choice.density })
+            : { layers: [], thunder: { enabled: false }, frameMs: 0 };
         const prev = [...this.layers.entries()].filter(([, l]) => !l.removing)
             .map(([id, l]) => ({ id, count: l.targetCount, alpha: l.target, opts: l.cfg }));
         const trans = planTransition(prev, plan.layers, this.reducedMotion() ? 0 : fadeMs);
@@ -1273,7 +1287,48 @@ class WorldkitWeatherFx {
 
     setWeather(desc) {
         this.desc = desc && typeof desc === 'object' ? { ...desc } : null;
-        this.apply(DEFAULT_FADE_MS);
+        this.apply(this.fadeMs);
+    }
+
+    /** Weathers to draw as their fallback instead (see WEATHER_EFFECTS in weather-fx-core.js). */
+    setDisabledEffects(ids) {
+        this.disabled = new Set((Array.isArray(ids) ? ids : []).map(String));
+        this.apply(800);
+    }
+
+    /** Per-weather density caps, { kind: 0-100 }. */
+    setDensityCaps(map) {
+        const caps = {};
+        for (const [k, v] of Object.entries(map && typeof map === 'object' ? map : {})) {
+            const n = Number(v);
+            if (Number.isFinite(n) && n > 0) caps[k] = Math.min(100, n);
+        }
+        this.caps = caps;
+        this.apply(800);
+    }
+
+    /** Whether battery saver and data saver turn low-power mode on by themselves (on by default). */
+    setAutoLowPower(on) {
+        this.autoLowPower = !!on;
+        if (this.canvas) this.resize(true);
+        this.apply(800);
+    }
+
+    /** What is drawn now, for a status line. */
+    getState() {
+        const p = this.plan;
+        return {
+            enabled: this.enabled,
+            kind: this.enabled && this.desc ? this.choice.kind : 'none',
+            from: this.choice.from,
+            density: this.choice.density,
+            intensity: p?.intensity ?? 0,
+            timeOfDay: p?.timeOfDay || '',
+            indoor: !!p?.indoor,
+            lowPower: this.lowPower(),
+            reducedMotion: this.reducedMotion(),
+            layers: (p?.layers || []).length,
+        };
     }
 
     setEnabled(on) {
@@ -1283,7 +1338,7 @@ class WorldkitWeatherFx {
         if (on) {
             this.mount();
             this.listen(true);
-            this.apply(DEFAULT_FADE_MS);
+            this.apply(this.fadeMs);
             return;
         }
         clearTimeout(this.thunderTimer);
@@ -1332,9 +1387,12 @@ class WorldkitWeatherFx {
 
 /**
  * A weather effects canvas. Nothing is added to the page until setEnabled(true).
- * @param {{ layer?: 'behind'|'front' }} [options] behind the chat (default) or in front of it, dimmed
+ * @param {{ layer?: 'behind'|'front', zIndex?: number, fadeMs?: number }} [options] behind the chat (default) or in
+ *   front of it, dimmed; zIndex overrides the canvas's stacking (the performance test); fadeMs is the cross-fade
+ *   on a weather change (0: a hard cut)
  * @returns {{ setWeather(desc:object):void, setEnabled(on:boolean):void, setDensity(n:number):void,
- *   setLowPower(on:boolean):void, onThunder(cb:function):function, destroy():void }}
+ *   setLowPower(on:boolean):void, setAutoLowPower(on:boolean):void, setDisabledEffects(ids:string[]):void,
+ *   setDensityCaps(map:object):void, getState():object, onThunder(cb:function):function, destroy():void }}
  */
 export function createWeatherFx(options = {}) {
     const fx = new WorldkitWeatherFx(options);
@@ -1343,6 +1401,10 @@ export function createWeatherFx(options = {}) {
         setEnabled: on => fx.setEnabled(on),
         setDensity: n => fx.setDensity(n),
         setLowPower: on => fx.setLowPower(on),
+        setAutoLowPower: on => fx.setAutoLowPower(on),
+        setDisabledEffects: ids => fx.setDisabledEffects(ids),
+        setDensityCaps: map => fx.setDensityCaps(map),
+        getState: () => fx.getState(),
         onThunder: cb => fx.onThunder(cb),
         destroy: () => fx.destroy(),
     };

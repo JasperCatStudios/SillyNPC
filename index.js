@@ -133,6 +133,23 @@ function addWandMenuEntry() {
             });
             menu.append(entry);
         }
+        if (!document.getElementById('sillynpc_wand_weatherperf')) {
+            const entry = document.createElement('div');
+            entry.id = 'sillynpc_wand_weatherperf';
+            entry.classList.add('list-group-item', 'flex-container', 'flexGap5');
+            entry.title = 'Test how smoothly the weather effects run on this device';
+            const glyph = document.createElement('div');
+            glyph.classList.add('fa-solid', 'fa-gauge-high', 'extensionsMenuExtensionButton');
+            const text = document.createElement('span');
+            text.textContent = 'Weather performance test';
+            entry.append(glyph, text);
+            entry.addEventListener('click', () => {
+                import('./src/ui-weather-perf.js')
+                    .then(m => m.openWeatherPerfTest())
+                    .catch(err => console.warn(LOG_PREFIX, 'Weather performance test failed to open', err));
+            });
+            menu.append(entry);
+        }
     } catch (err) {
         console.error(LOG_PREFIX, 'failed to add the wand menu entry', err);
     }

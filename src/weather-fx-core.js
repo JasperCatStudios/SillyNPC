@@ -167,6 +167,84 @@ export function normalizeSeason(value) {
     return SEASONS.includes(k) ? k : '';
 }
 
+/** The first word of a weather text that names a finer kind ("Light drizzle" -> "drizzle"), or ''. */
+export function refineWord(text) {
+    for (const token of fold(text).split(/[^a-z]+/)) if (token && WORD_KINDS[token]) return token;
+    return '';
+}
+
+/* ------------------------------------------------------------------------------------------------ */
+/* The weathers the owner can switch on and off                                                      */
+/* ------------------------------------------------------------------------------------------------ */
+
+/**
+ * Every weather the engine draws, as the settings list shows it: a label, how hard it is on the device
+ * ('light' | 'medium' | 'heavy', from what its layers draw: particle counts, full-screen gradients, glows),
+ * and the weather drawn instead when it is switched off. Heavy ones start switched off.
+ */
+export const WEATHER_EFFECTS = Object.freeze([
+    { id: 'clear', label: 'Clear sky (sun, moon, stars)', cost: 'medium', fallback: 'none' },
+    { id: 'cloudy', label: 'Clouds', cost: 'light', fallback: 'none' },
+    { id: 'drizzle', label: 'Drizzle', cost: 'light', fallback: 'cloudy' },
+    { id: 'rain', label: 'Rain', cost: 'medium', fallback: 'drizzle' },
+    { id: 'downpour', label: 'Downpour', cost: 'heavy', fallback: 'rain' },
+    { id: 'storm', label: 'Thunderstorm', cost: 'medium', fallback: 'rain' },
+    { id: 'hail', label: 'Hail', cost: 'medium', fallback: 'rain' },
+    { id: 'sleet', label: 'Sleet', cost: 'medium', fallback: 'drizzle' },
+    { id: 'snow', label: 'Snow', cost: 'medium', fallback: 'cloudy' },
+    { id: 'blizzard', label: 'Blizzard', cost: 'heavy', fallback: 'snow' },
+    { id: 'mist', label: 'Mist', cost: 'medium', fallback: 'cloudy' },
+    { id: 'fog', label: 'Fog', cost: 'heavy', fallback: 'mist' },
+    { id: 'wind', label: 'Wind', cost: 'light', fallback: 'none' },
+    { id: 'leaves', label: 'Falling leaves', cost: 'light', fallback: 'wind' },
+    { id: 'petals', label: 'Falling petals', cost: 'light', fallback: 'wind' },
+    { id: 'duststorm', label: 'Dust storm', cost: 'heavy', fallback: 'wind' },
+    { id: 'sandstorm', label: 'Sandstorm', cost: 'heavy', fallback: 'duststorm' },
+    { id: 'heat', label: 'Heat haze', cost: 'heavy', fallback: 'clear' },
+    { id: 'ash', label: 'Falling ash', cost: 'medium', fallback: 'cloudy' },
+    { id: 'embers', label: 'Embers', cost: 'medium', fallback: 'ash' },
+    { id: 'aurora', label: 'Aurora', cost: 'heavy', fallback: 'clear' },
+].map(Object.freeze));
+
+const EFFECT_BY_ID = new Map(WEATHER_EFFECTS.map(e => [e.id, e]));
+
+/** The registry entry of a weather, or null. */
+export function weatherEffect(id) {
+    return EFFECT_BY_ID.get(id) || null;
+}
+
+/**
+ * The weather actually drawn for `kind` when the weathers in `disabled` are switched off: the kind itself, or the
+ * nearest one down its fallback chain that is on (storm -> rain -> drizzle -> cloudy -> none). Never loops.
+ */
+export function effectFallback(kind, disabled) {
+    const off = disabled instanceof Set ? disabled : new Set(disabled || []);
+    const seen = new Set();
+    let k = kind;
+    while (k && k !== 'none' && off.has(k) && !seen.has(k)) {
+        seen.add(k);
+        k = EFFECT_BY_ID.get(k)?.fallback || 'none';
+    }
+    return k && !seen.has(k) ? k : 'none';
+}
+
+/**
+ * The owner's choices applied to a weather description: a switched-off kind becomes its fallback (no heavier than
+ * moderate, since the fallback stands in for something the device could not draw), and the density is held under
+ * the kind's cap. `from` is the kind asked for when a fallback was used, else ''.
+ * @returns {{ desc: object|null, kind: string, from: string, density: number }}
+ */
+export function applyEffectChoices(desc, { density = 100, disabled = [], caps = {} } = {}) {
+    const d = Number.isFinite(Number(density)) ? clamp(Number(density), 0, 100) : 100;
+    if (!desc || typeof desc !== 'object') return { desc: null, kind: 'none', from: '', density: d };
+    const asked = normalizeKind(desc.kind, desc.word);
+    const kind = effectFallback(asked, disabled);
+    const out = { ...desc, kind, word: '' };
+    if (kind !== asked) out.intensity = Math.min(normalizeDesc(desc).intensity, 3);
+    const cap = Number(caps?.[kind]);
+    return { desc: out, kind, from: kind !== asked ? asked : '', density: Number.isFinite(cap) && cap > 0 ? Math.min(d, cap) : d };
+}
+
 /* ------------------------------------------------------------------------------------------------ */
 /* Wind                                                                                              */
 /* ------------------------------------------------------------------------------------------------ */
