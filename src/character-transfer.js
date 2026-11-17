@@ -77,7 +77,7 @@ export async function serialiseCharacter(char) {
         imagePrompt: String(char.imagePrompt || ''),
         imageNegative: String(char.imageNegative || ''),
         // A secret identity travels by the other card's name (ids are not the same on another install).
-        identity: char.identity ? { withName: String(char.identity.withName || ''), prompt: String(char.identity.prompt || '') } : null,
+        identity: char.identity ? { withName: String(char.identity.withName || ''), prompt: String(char.identity.prompt || ''), knownBy: (Array.isArray(char.identity.knownBy) ? char.identity.knownBy : []).map(k => String(k?.name || '')).filter(Boolean) } : null,
         statusOverrides: char.statusOverrides && typeof char.statusOverrides === 'object'
             ? structuredClone(char.statusOverrides)
             : {},
@@ -175,7 +175,9 @@ function applyRecord(char, record, name) {
     char.imageFit = String(record.imageFit || '');
     char.imagePrompt = String(record.imagePrompt || '');
     char.imageNegative = String(record.imageNegative || '');
-    char.identity = record.identity && typeof record.identity === 'object' ? { withId: '', withName: String(record.identity.withName || ''), prompt: String(record.identity.prompt || '') } : null;
+    char.identity = record.identity && typeof record.identity === 'object'
+        ? { withId: '', withName: String(record.identity.withName || ''), prompt: String(record.identity.prompt || ''), knownBy: (Array.isArray(record.identity.knownBy) ? record.identity.knownBy : []).map(n => ({ id: '', name: String(n || '') })).filter(k => k.name) }
+        : null;
     char.aliases = Array.isArray(record.aliases) ? structuredClone(record.aliases) : [];
     char.statusOverrides = record.statusOverrides && typeof record.statusOverrides === 'object'
         ? structuredClone(record.statusOverrides)

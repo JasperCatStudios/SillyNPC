@@ -78,8 +78,10 @@ export function buildIdentityCard(char) {
         pick.value = other?.id || '';
         pick.addEventListener('change', () => {
             const chosen = everyone.find(c => c.id === pick.value);
-            const prompt = normalizeLink(char.identity)?.prompt || '';
-            char.identity = chosen ? { withId: chosen.id, withName: chosen.name, prompt } : (prompt ? { withId: '', withName: '', prompt } : null);
+            const cur = normalizeLink(char.identity);
+            const prompt = cur?.prompt || '';
+            const knownBy = cur?.knownBy || [];
+            char.identity = normalizeLink(chosen ? { withId: chosen.id, withName: chosen.name, prompt, knownBy } : { withId: '', withName: '', prompt, knownBy });
             saveSettings();
             draw();
         });
@@ -99,8 +101,8 @@ export function buildIdentityCard(char) {
                 const make = el('button', 'menu_button', `Link ${other.name} back`);
                 make.type = 'button';
                 make.addEventListener('click', () => {
-                    const prompt = normalizeLink(other.identity)?.prompt || '';
-                    other.identity = { withId: char.id, withName: char.name, prompt };
+                    const cur = normalizeLink(other.identity);
+                    other.identity = normalizeLink({ withId: char.id, withName: char.name, prompt: cur?.prompt || '', knownBy: cur?.knownBy || [] });
                     saveSettings();
                     draw();
                 });
@@ -125,6 +127,44 @@ export function buildIdentityCard(char) {
         });
         body.append(el('label', 'sillynpc-setting-label', `Prompt for ${char.name || 'this identity'}`), prompt);
         body.append(el('small', 'notes', 'Sent only while this card is in the scene, after the general instruction in Writing Rules > Hidden Identities.'));
+
+        // Who has been told: they are named to the story model as knowing the truth (the pair is one secret, so a name on either card counts).
+        body.append(el('div', 'sillynpc-combat-group', 'Revealed to'));
+        const knownBy = link?.knownBy || [];
+        const chips = el('div');
+        chips.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin:4px 0;';
+        if (!knownBy.length) chips.append(el('small', 'notes', 'No one. The secret is kept from every character.'));
+        for (const k of knownBy) {
+            const chip = el('span', 'menu_button');
+            chip.style.cssText = 'display:inline-flex; align-items:center; gap:6px; padding:2px 8px; cursor:default;';
+            chip.append(document.createTextNode((everyone.find(c => c.id === k.id)?.name) || k.name));
+            const x = el('button', 'menu_button', 'x');
+            x.type = 'button';
+            x.title = 'They no longer know';
+            x.style.cssText = 'padding:0 6px;';
+            x.addEventListener('click', () => {
+                const cur = normalizeLink(char.identity);
+                char.identity = normalizeLink({ ...cur, knownBy: (cur?.knownBy || []).filter(o => !(o.id === k.id && o.name === k.name)) });
+                saveSettings();
+                draw();
+            });
+            chip.append(x);
+            chips.append(chip);
+        }
+        body.append(chips);
+        const addKnower = el('select', 'text_pole');
+        addKnower.append(new Option('Add someone who knows...', ''));
+        const taken = new Set(knownBy.map(k => k.id).filter(Boolean));
+        for (const c of everyone.filter(c => c !== char && c.id !== char.id && c.id !== other?.id && c.name && !taken.has(c.id)).sort((a, b) => a.name.localeCompare(b.name))) addKnower.append(new Option(c.name, c.id));
+        addKnower.addEventListener('change', () => {
+            const chosen = everyone.find(c => c.id === addKnower.value);
+            if (!chosen) return;
+            const cur = normalizeLink(char.identity) || { withId: '', withName: '', prompt: '', knownBy: [] };
+            char.identity = normalizeLink({ ...cur, knownBy: [...(cur.knownBy || []), { id: chosen.id, name: chosen.name }] });
+            saveSettings();
+            draw();
+        });
+        body.append(addKnower, el('small', 'notes', 'Sent to the story model as the characters who know the truth and keep it from everyone else. Names on either card of the pair count, since it is one secret.'));
 
         // Preview of what would go for this card alone.
         const preview = el('button', 'menu_button', 'Preview what is sent for this card');

@@ -15,7 +15,7 @@ export const IDENTITY_POSITIONS = Object.freeze({ before: 'Before the story prom
 export const IDENTITY_ROLES = Object.freeze({ system: 'System', user: 'User', assistant: 'Assistant' });
 
 /** Said before the character's own prompt. <<name>> is the one in the scene, <<other>> the one they secretly are. */
-export const DEFAULT_IDENTITY_INSTRUCTION = '<<name>> and <<other>> are secretly the same person, and no one in the story knows it. '
+export const DEFAULT_IDENTITY_INSTRUCTION = '<<name>> and <<other>> are secretly the same person. Unless it says otherwise below, no one in the story knows it. '
     + 'Never reveal it, confirm it, name the connection or hint at it, and never let <<name>> slip, unless the story has already revealed it. '
     + 'Write <<name>> only as the identity they are showing now, and treat <<other>> as someone else. '
     + 'Use the details below for how <<name>> carries this identity.';
@@ -34,6 +34,7 @@ export const IDENTITY_DEFAULTS = Object.freeze({
 
 const clamp = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
 const pick = (v, table, d) => (Object.prototype.hasOwnProperty.call(table, v) ? v : d);
+const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 const line = (v, max) => String(v ?? '').replace(/\r/g, '').trim().slice(0, max);
 
 /** The global settings with every field in range. */
@@ -53,17 +54,30 @@ export function normalizeIdentitySettings(raw) {
     };
 }
 
-/** A character's link: who they secretly are (by card id and name) and the prompt for this identity. Null for none. */
+/** Who knows the secret: a list of { id, name } (card id and name), without repeats. */
+function normalizeKnownBy(raw) {
+    const out = [];
+    for (const k of Array.isArray(raw) ? raw : []) {
+        const id = line(k?.id, 80);
+        const name = line(k?.name, 80);
+        if (!id && !name) continue;
+        if (out.some(o => (id && o.id === id) || (name && same(o.name, name)))) continue;
+        out.push({ id, name });
+        if (out.length >= 30) break;
+    }
+    return out;
+}
+
+/** A character's link: who they secretly are (by card id and name), the prompt for this identity, and who knows. Null for none. */
 export function normalizeLink(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const withName = line(raw.withName, 80);
     const withId = line(raw.withId, 80);
     const prompt = line(raw.prompt, 2000);
-    if (!withName && !withId) return prompt ? { withId: '', withName: '', prompt } : null;
-    return { withId, withName, prompt };
+    const knownBy = normalizeKnownBy(raw.knownBy);
+    if (!withName && !withId) return prompt || knownBy.length ? { withId: '', withName: '', prompt, knownBy } : null;
+    return { withId, withName, prompt, knownBy };
 }
-
-const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 
 /** The card a link points at: by id first, else by name. Never the character themselves. */
 export function linkedCard(char, characters) {
@@ -71,6 +85,23 @@ export function linkedCard(char, characters) {
     if (!link) return null;
     const others = (characters || []).filter(c => c && c !== char && c.id !== char.id);
     return (link.withId && others.find(c => c.id === link.withId)) || (link.withName && others.find(c => same(c.name, link.withName))) || null;
+}
+
+/**
+ * The names of the characters who know the secret: the ones listed on either card of the pair (it is one secret),
+ * by card where the card still exists, never the two of them, without repeats.
+ */
+export function whoKnows(char, other, characters) {
+    const cards = characters || [];
+    const skip = (c) => c && (c === char || c === other || c.id === char?.id || c.id === other?.id);
+    const names = [];
+    for (const k of [...(normalizeLink(char?.identity)?.knownBy || []), ...(normalizeLink(other?.identity)?.knownBy || [])]) {
+        const card = (k.id && cards.find(c => c.id === k.id)) || (k.name && cards.find(c => same(c.name, k.name))) || null;
+        if (skip(card)) continue;
+        const name = card?.name || k.name;
+        if (name && !same(name, char?.name) && !same(name, other?.name) && !names.some(n => same(n, name))) names.push(name);
+    }
+    return names;
 }
 
 const fill = (text, name, other) => String(text).replace(/<<name>>/gi, name).replace(/<<other>>/gi, other);
@@ -91,7 +122,11 @@ export function buildIdentityBlock(characters, present, settings = {}) {
         const other = linkedCard(char, characters);
         if (!other?.name) continue;
         const own = normalizeLink(char.identity)?.prompt || '';
-        parts.push(`${fill(how, char.name, other.name)}${own ? `\n${fill(own, char.name, other.name)}` : ''}`);
+        const knowers = whoKnows(char, other, characters);
+        const knownLine = knowers.length
+            ? `\nThese characters do know the truth about ${char.name}: ${knowers.join(', ')}. They keep it secret from everyone else, and speak of it only privately or among themselves.`
+            : '';
+        parts.push(`${fill(how, char.name, other.name)}${knownLine}${own ? `\n${fill(own, char.name, other.name)}` : ''}`);
     }
     return parts.join('\n\n');
 }
