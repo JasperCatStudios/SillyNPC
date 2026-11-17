@@ -425,6 +425,8 @@ export const defaultSettings = {
     imgGenContextMessages: 10,
     /** Folder name under user/images/ for generated portraits. */
     imageSaveRoute: 'sillynpc',
+    /** Picture content key to the file already written for it, so one picture is saved once. */
+    imageHashes: {},
     /**
      * Where portraits come from.
      * 'sd'     - SillyTavern's /sd command (Stable Diffusion extension, any source).

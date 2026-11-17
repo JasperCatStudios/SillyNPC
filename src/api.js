@@ -11,6 +11,7 @@ import { triggerReprocess } from './reprocess.js';
 import { applyMacros, fillTemplate, modernisePlaceholders } from './macros.js';
 import { getSettings, saveSettings, defaultSettings, resolveImagePrompt } from './settings.js';
 import { recordUsage } from './usage.js';
+import { contentKey, findStoredCopy } from './image-dedupe.js';
 import { syncEntryIdentity, mergeKeywords } from './lorebook.js';
 import { escapeRegExp, describeConnection, resolveImageFolder } from './utils.js';
 import { loadStateFromMetadata } from './status-logic.js';
@@ -527,8 +528,18 @@ export async function persistGeneratedImage(dataUri, charName) {
     const folder = resolveImageFolder(getSettings().imageSaveRoute);
     const fileName = `${characterImagePrefix(charName)}${Date.now()}`;
 
+    // The same picture twice is one file: reuse the copy already on disk.
+    const settings = getSettings();
+    const key = contentKey(base64);
+    const known = settings.imageHashes && typeof settings.imageHashes === 'object' ? settings.imageHashes : {};
+    const existing = await findStoredCopy(known, key, async (path) => (await fetch(path, { method: 'HEAD' })).ok);
+    if (existing) return existing;
+
     try {
-        return await saveBase64AsFile(base64, folder, fileName, format);
+        const saved = await saveBase64AsFile(base64, folder, fileName, format);
+        if (!settings.imageHashes || typeof settings.imageHashes !== 'object') settings.imageHashes = {};
+        settings.imageHashes[key] = saved;
+        return saved;
     } catch (err) {
         console.warn(LOG_PREFIX, 'Could not write generated image to disk; keeping inline data URI', err);
         return dataUri;
