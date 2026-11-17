@@ -16,8 +16,11 @@
 export const XP_PER_LEVEL = 200;
 export const XP_PER_ENEMY = 15;
 
-/** The starting rules: 200 XP a level, no extra per level, 15 XP per enemy, no highest level. */
-export const LEVELING_DEFAULTS = Object.freeze({ xpBase: XP_PER_LEVEL, xpStep: 0, xpPerEnemy: XP_PER_ENEMY, maxLevel: 0 });
+/** Percent of a fight's XP by the difficulty chosen for it (1 easy to 5 hard). The even level, 2, gives the plain amount. */
+export const DIFFICULTY_XP_DEFAULTS = Object.freeze({ 1: 50, 2: 100, 3: 125, 4: 150, 5: 200 });
+
+/** The starting rules: 200 XP a level, no extra per level, 15 XP per enemy, no highest level, more XP for harder fights. */
+export const LEVELING_DEFAULTS = Object.freeze({ xpBase: XP_PER_LEVEL, xpStep: 0, xpPerEnemy: XP_PER_ENEMY, maxLevel: 0, difficultyXp: DIFFICULTY_XP_DEFAULTS });
 
 const whole = (v, min) => Math.max(min, Math.floor(Number(v)) || min);
 const within = (v, lo, hi, d) => (Number.isFinite(Number(v)) && String(v ?? '').trim() !== '' ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : d);
@@ -31,6 +34,7 @@ export function normalizeLeveling(raw) {
         xpStep: within(r.xpStep, 0, 1000000, d.xpStep),
         xpPerEnemy: within(r.xpPerEnemy, 0, 1000000, d.xpPerEnemy),
         maxLevel: within(r.maxLevel, 0, 999, d.maxLevel),
+        difficultyXp: Object.fromEntries([1, 2, 3, 4, 5].map(n => [n, within(r.difficultyXp?.[n], 0, 1000, d.difficultyXp[n])])),
     };
 }
 
@@ -64,8 +68,14 @@ export function applyXp(level, xp, gain, cfg) {
     return { level: l, xp: x, levelsGained };
 }
 
-/** XP for a fight against this many enemies. */
-export const xpForFight = (enemies = 1, cfg) => normalizeLeveling(cfg).xpPerEnemy * whole(enemies, 0);
+/** The percent of a fight's XP a difficulty gives. A difficulty with no setting (a world with other levels, or none chosen) gives 100. */
+export function difficultyShare(difficulty, cfg) {
+    const share = normalizeLeveling(cfg).difficultyXp[Math.round(Number(difficulty))];
+    return share === undefined ? 100 : share;
+}
+
+/** XP for a fight against this many enemies, at the difficulty the fight was set to (none: the plain amount). */
+export const xpForFight = (enemies = 1, cfg, difficulty) => Math.round(normalizeLeveling(cfg).xpPerEnemy * whole(enemies, 0) * difficultyShare(difficulty, cfg) / 100);
 
 /** Whether the type keeps a level among its details. */
 export const hasLevelMeta = (type) => (type?.meta || []).some(m => m.id === 'level');

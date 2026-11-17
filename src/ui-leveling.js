@@ -1,4 +1,4 @@
-import { LEVELING_DEFAULTS, xpToNext, normalizeLeveling } from './combat-level.js';
+import { LEVELING_DEFAULTS, DIFFICULTY_XP_DEFAULTS, xpToNext, normalizeLeveling } from './combat-level.js';
 import { levelingSettings, saveLevelingSettings } from './leveling.js';
 
 /**
@@ -26,8 +26,9 @@ export function buildLevelingPanel() {
         const c = normalizeLeveling(cfg);
         const at = (l) => `level ${l} to ${l + 1}: ${xpToNext(l, c)} XP`;
         const fights = Math.ceil(xpToNext(1, c) / Math.max(1, c.xpPerEnemy));
+        const harder = c.difficultyXp[5];
         preview.textContent = `${at(1)}; ${at(10)}; ${at(50)}. `
-            + (c.xpPerEnemy > 0 ? `One enemy per fight gives ${c.xpPerEnemy} XP, so level 2 takes about ${fights} fights. ` : 'Fights give no XP. ')
+            + (c.xpPerEnemy > 0 ? `One enemy per fight gives ${c.xpPerEnemy} XP, so level 2 takes about ${fights} fights at the plain amount (a difficulty 5 fight gives ${Math.round(c.xpPerEnemy * harder / 100)}). ` : 'Fights give no XP. ')
             + (c.maxLevel > 0 ? `Nobody goes past level ${c.maxLevel}.` : 'There is no highest level.');
     };
 
@@ -60,14 +61,41 @@ export function buildLevelingPanel() {
         numberRow('XP per enemy', 'xpPerEnemy', 0, 'What a fight gives for each enemy on the other side. 0 turns XP from fights off.'),
         numberRow('Highest level', 'maxLevel', 0, 'Nobody levels past this. 0 means there is no highest level.'),
     );
+    // XP by the difficulty chosen on the fight's setup screen (1 easy, 5 hard).
+    const diffBox = el('div', 'sillynpc-setting-row');
+    const diffLabel = el('label', 'sillynpc-setting-label', 'XP by difficulty, % ⓘ');
+    diffLabel.title = 'How much of a fight\'s XP each difficulty gives, in percent. Difficulty 1 is the easiest on the setup screen and 5 the hardest. 100 is the plain amount; 0 gives none. A fight set to a difficulty a world does not use gives the plain amount.';
+    diffBox.append(diffLabel);
+    [1, 2, 3, 4, 5].forEach((n) => {
+        const input = el('input', 'text_pole');
+        input.type = 'number';
+        input.min = '0';
+        input.max = '1000';
+        input.style.width = '5em';
+        input.title = `Difficulty ${n}`;
+        input.value = String(cfg.difficultyXp[n]);
+        input.addEventListener('input', () => {
+            if (input.value === '') return;
+            levelingSettings().difficultyXp[n] = Number(input.value);
+            saveLevelingSettings();
+            refresh();
+        });
+        input.addEventListener('change', () => { input.value = String(levelingSettings().difficultyXp[n]); });
+        const cell = el('span');
+        cell.style.cssText = 'display:inline-flex; align-items:center; gap:2px; margin-right:6px;';
+        cell.append(el('small', 'notes', String(n)), input);
+        diffBox.append(cell);
+    });
+    wrap.append(diffBox);
     wrap.append(preview);
 
     const reset = el('button', 'menu_button', 'Back to the starting numbers');
     reset.type = 'button';
     reset.addEventListener('click', () => {
-        Object.assign(cfg, LEVELING_DEFAULTS);
+        Object.assign(cfg, LEVELING_DEFAULTS, { difficultyXp: { ...DIFFICULTY_XP_DEFAULTS } });
         saveLevelingSettings();
-        wrap.querySelectorAll('input').forEach((input, i) => { input.value = String(Object.values(LEVELING_DEFAULTS)[i]); });
+        const plain = [LEVELING_DEFAULTS.xpBase, LEVELING_DEFAULTS.xpStep, LEVELING_DEFAULTS.xpPerEnemy, LEVELING_DEFAULTS.maxLevel];
+        wrap.querySelectorAll('input').forEach((input, i) => { input.value = String(i < 4 ? plain[i] : DIFFICULTY_XP_DEFAULTS[i - 3]); });
         refresh();
     });
     wrap.append(reset);

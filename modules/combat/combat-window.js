@@ -6,7 +6,7 @@ import { getPlayerCard } from '../../src/status-logic.js';
 import { hasTypeData, getTypeData } from '../../src/combat-store.js';
 import { setStatus, addXp } from '../../src/combat-edit.js';
 import { renderLoadoutPicker } from '../../src/ui-gear.js';
-import { levelUpReport } from '../../src/combat-level.js';
+import { levelUpReport, xpForFight } from '../../src/combat-level.js';
 import { levelingSettings } from '../../src/leveling.js';
 import { fractionFromStatus, statusFromFraction, STATUS_DEFAULT } from '../../src/combat-status.js';
 import { project } from '../../src/combat-roles.js';
@@ -151,7 +151,7 @@ function awardXp() {
             session.xp.push({ name: fighter.name, none: true });
             continue;
         }
-        const out = addXp(record, type, rules.xpPerEnemy * enemies, Date.now(), rules);
+        const out = addXp(record, type, xpForFight(enemies, rules, session.diffLevel), Date.now(), rules);
         session.xp.push({ name: fighter.name, gained: out.gained, level: out.level, levelsGained: out.levelsGained });
         if (out.levelsGained) ups.push({ name: fighter.name, from: out.level - out.levelsGained, level: out.level });
     }
@@ -751,7 +751,7 @@ function drawSetup(body) {
         const more = playPick.foes.map(id => byId.get(id)).filter(Boolean);
         playPick.first = foe.id;
         ready = {
-            type, player, foe, allies, more, mode: modeSelect.value, diffMod: Number(diffSelect.selectedOptions[0]?.dataset.mod) || 0,
+            type, player, foe, allies, more, mode: modeSelect.value, diffMod: Number(diffSelect.selectedOptions[0]?.dataset.mod) || 0, diffLevel: Number(diffSelect.value) || 0,
             crowding: playPick.crowding, aiFlee: playPick.aiFlee,
             spectators: chosenSpectators(foes, [player, foe, ...allies, ...more]),
         };
@@ -839,7 +839,7 @@ function drawReady(body) {
 /** Starts the fight set up on the equipment screen. */
 function beginFight() {
     if (!ready || ready.talking) return;
-    const { type, player, foe, mode, diffMod } = ready;
+    const { type, player, foe, mode, diffMod, diffLevel } = ready;
     const allies = ready.allies || [];
     const more = ready.more || [];
     const watchers = (ready.spectators || []).map(r => r.name);
@@ -857,6 +857,7 @@ function beginFight() {
         records: new Map([['player', player], [foe.id, foe], ...[...allies, ...more].map(r => [r.id, r])]),
         targetId: foe.id,
         spectators: watchers,
+        diffLevel,
         chat: openingChat,
         talkTo: foe.name,
         talking: false,

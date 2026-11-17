@@ -122,7 +122,7 @@ export const defaultSettings = {
     /** The connection profile Threads reads replies on. Empty is the main API. */
     /** Combat and Games send their result to the story through the prompt (see src/result-injection.js): { combat: {...}, games: {...}, levelup: {...} }. */
     resultInjection: {},
-    /** Leveling rules (see combat-level.js): { xpBase, xpStep, xpPerEnemy, maxLevel }. An empty object is the starting rules. */
+    /** Leveling rules (see combat-level.js): { xpBase, xpStep, xpPerEnemy, maxLevel, difficultyXp }. An empty object is the starting rules. */
     leveling: {},
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
