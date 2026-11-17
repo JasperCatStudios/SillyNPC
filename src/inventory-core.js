@@ -135,6 +135,28 @@ export function giveItem(person, raw, { now = Date.now(), why = 'edited' } = {})
     return item;
 }
 
+/**
+ * Replaces one stack's name, quantity, kind and note. Renaming onto another stack merges the two.
+ * Returns the stack, or null when the old one is not there or the new one is not valid.
+ */
+export function editItem(person, oldName, raw, { now = Date.now(), why = 'edited' } = {}) {
+    const have = findItem(person, oldName);
+    const next = normalizeItem(raw);
+    if (!have || !next) return null;
+    const other = findItem(person, next.name);
+    if (other && other !== have) {
+        other.qty = clamp(other.qty + next.qty, 1, 999999);
+        if (next.kind) other.kind = next.kind;
+        if (next.note) other.note = next.note;
+        person.items.splice(person.items.indexOf(have), 1);
+        note(person, `merged ${have.name} into ${other.name}`, why, now);
+        return other;
+    }
+    Object.assign(have, next);
+    note(person, `edited ${next.name}`, why, now);
+    return have;
+}
+
 /** Takes some or all of a stack away. `qty` of null or Infinity removes the whole stack. */
 export function takeItem(person, name, qty = 1, { now = Date.now(), why = 'edited' } = {}) {
     const have = findItem(person, name);

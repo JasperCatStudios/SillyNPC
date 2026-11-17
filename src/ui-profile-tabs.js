@@ -1,7 +1,7 @@
 import { renderCombatSection } from './ui-combat-section.js';
 import { renderCharacterExtras } from './ui-character-extras.js';
 import { pickLorebookInto } from './ui-lorebook-section.js';
-import { buildInventoryCard } from './ui-inventory-card.js';
+import { buildInventoryCard, inventoryAvailable, NO_CHAT_HINT } from './ui-inventory-card.js';
 
 /**
  * The profile page's tab row (fork): Combat, Equipment, Voice and Visual Prompt, and above it
@@ -83,6 +83,7 @@ export function buildProfileTabs(char, options = {}) {
 
     const key = char.id || char.name || 'player';
     let current = lastTab.get(key) || 'combat';
+    if (current === 'inventory' && !inventoryAvailable()) current = 'combat';
 
     const draw = () => {
         bar.replaceChildren();
@@ -92,7 +93,14 @@ export function buildProfileTabs(char, options = {}) {
             tab.dataset.tab = id;
             tab.title = hint;
             tab.append(el('i', `fa-solid ${icon}`), document.createTextNode(` ${label}`));
-            tab.addEventListener('click', () => { current = id; lastTab.set(key, id); draw(); });
+            if (id === 'inventory' && !inventoryAvailable()) {
+                // An inventory belongs to a chat: with none open the tab is greyed out and says why on hover.
+                tab.disabled = true;
+                tab.title = NO_CHAT_HINT;
+                tab.style.opacity = '0.5';
+                tab.style.cursor = 'not-allowed';
+            }
+            tab.addEventListener('click', () => { if (tab.disabled) return; current = id; lastTab.set(key, id); draw(); });
             bar.append(tab);
         }
         body.replaceChildren();
