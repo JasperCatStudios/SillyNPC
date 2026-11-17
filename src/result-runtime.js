@@ -28,7 +28,10 @@ function box(id) {
     const root = getSettings();
     if (!root.resultInjection || typeof root.resultInjection !== 'object' || Array.isArray(root.resultInjection)) root.resultInjection = {};
     const b = root.resultInjection[id] && typeof root.resultInjection[id] === 'object' ? root.resultInjection[id] : (root.resultInjection[id] = {});
-    b.cfg = normalizeResultInjection(b.cfg);
+    // Repaired in place, so the object the settings panel holds is always the saved one. Replacing it with a copy
+    // left the panel editing a stale object, and every change was lost the next time the settings were read.
+    if (!b.cfg || typeof b.cfg !== 'object') b.cfg = {};
+    Object.assign(b.cfg, normalizeResultInjection(b.cfg));
     b.pending = normalizePending(b.pending);
     b.armed = b.armed === true;
     return b;
@@ -44,12 +47,13 @@ export function resultStatus(id) {
 }
 
 /**
- * Keeps a finished fight or game's report for the story. Nothing is kept when the mode is off.
+ * Keeps a finished fight or game's report for the story. Nothing is kept when the mode is off, unless forced: the
+ * button in the fight or game window forces it, and the result then goes with the next reply on the default placement.
  * @returns {boolean} Whether it was kept.
  */
-export function queueResult(id, text) {
+export function queueResult(id, text, { force = false } = {}) {
     const b = box(id);
-    if (b.cfg.mode === 'off') return false;
+    if (b.cfg.mode === 'off' && !force) return false;
     const pending = normalizePending({ text, at: Date.now() });
     if (!pending) return false;
     b.pending = pending;
@@ -110,7 +114,8 @@ function onGeneration(id, type, _options, dryRun) {
     if (dryRun || type === 'quiet' || type === 'impersonate') return;
     try {
         const b = box(id);
-        if (!getSettings().enabled || b.cfg.mode === 'off') {
+        // Off still delivers a result somebody asked for with the button.
+        if (!getSettings().enabled || (b.cfg.mode === 'off' && !b.armed)) {
             placeWritingPrompt(KEYS[id], '', { inList: false });
             setExtensionPrompt(KEYS[id], '', extension_prompt_types.IN_CHAT, 0, false);
             return;

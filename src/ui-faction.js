@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from './settings.js';
 import {
-    NEUTRAL_ICON, normalizeFactionSettings, paletteFor, themeStyle, artworkUrl, iconFor, crestPicture, BUILTIN_FACTIONS, foldFaction,
+    NEUTRAL_ICON, normalizeFactionSettings, paletteFor, themeStyle, artworkUrl, iconFor, abilityPicture, BUILTIN_FACTIONS, foldFaction,
     FACTION_WORLDS, worldGroupOf,
 } from './faction-theme.js';
 import { Popup } from '../../../../popup.js';
@@ -112,18 +112,19 @@ export function buildArtIcon(worldId, id, { kind = 'prof', title = '', quiet = f
     return wrap;
 }
 
-/** A crest's picture, or a built-in icon when the world has none. */
-export function buildCrestIcon(worldId, name) {
-    const wrap = el('span', 'sillynpc-art-icon sillynpc-art-crest');
-    wrap.title = name;
-    const fallback = el('i', 'fa-solid fa-shield');
-    wrap.append(fallback);
-    const url = artworkUrl(crestPicture(worldId, name), factionSettings());
-    if (url) {
-        const img = pictureOrNothing(url, 'sillynpc-art-icon-img');
-        img.addEventListener('load', () => fallback.remove(), { once: true });
-        wrap.append(img);
-    }
+/**
+ * An ability's icon: its picture when it has one, and nothing at all when it has not (no placeholder). A picture that
+ * cannot be loaded removes itself, so a missing file leaves no gap either.
+ * @returns {HTMLElement|null}
+ */
+export function buildAbilityIcon(world, ability) {
+    const url = artworkUrl(abilityPicture(world, ability), factionSettings());
+    if (!url) return null;
+    const wrap = el('span', 'sillynpc-art-icon sillynpc-art-ability');
+    wrap.title = ability?.label || '';
+    const img = pictureOrNothing(url, 'sillynpc-art-icon-img');
+    img.addEventListener('error', () => wrap.remove(), { once: true });
+    wrap.append(img);
     return wrap;
 }
 

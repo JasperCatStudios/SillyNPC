@@ -216,12 +216,16 @@ export function normalizeWorldArt(raw) {
             factions[id] = { ...normalizePalette({ ...value, banner: cleanPath(value.banner), emblem: cleanPath(value.emblem) }), label: String(value.label || name) };
         }
     }
-    const crests = cleanPath(r.crestsDir);
+    // The folder of ability pictures. It used to be called the crest folder, and a world saved that way still reads.
+    const icons = cleanPath(r.abilityIconsDir || r.crestsDir);
+    const iconsDir = icons ? (icons.endsWith('/') ? icons : `${icons}/`) : '';
     return {
         banner: cleanPath(r.banner),
-        crestsDir: crests ? (crests.endsWith('/') ? crests : `${crests}/`) : '',
+        crestsDir: iconsDir,
+        abilityIconsDir: iconsDir,
         kinds: map(r.kinds),
         profs: map(r.profs),
+        abilities: map(r.abilities),
         factions,
     };
 }
@@ -236,7 +240,7 @@ const worldIdOf = (world) => (world && typeof world === 'object' ? String(world.
 /** Whether a world carries any art of its own. */
 export const hasWorldArt = (world) => {
     const a = artOf(world);
-    return Boolean(a.banner || a.crestsDir || Object.keys(a.kinds).length || Object.keys(a.profs).length || Object.keys(a.factions).length);
+    return Boolean(a.banner || a.crestsDir || Object.keys(a.kinds).length || Object.keys(a.profs).length || Object.keys(a.abilities).length || Object.keys(a.factions).length);
 };
 
 /* ------------------------------------------------------------------------ icons by world */
@@ -297,6 +301,19 @@ export function iconFor(world, id, { kind = 'prof' } = {}) {
 }
 
 /** The picture for a crest by name ("Crest of Macuil" or "macuil"), or '' when the world has none. */
+/**
+ * The picture for one ability: the one assigned to it in the world editor, or, for a crest, the one filed under the
+ * ability icons folder by the crest's name. Empty when the ability has none, and then nothing is shown for it.
+ * @param {object|string} world the combat world type (or its id)
+ * @param {{ id?: string, label?: string }} ability
+ */
+export function abilityPicture(world, ability) {
+    const own = artOf(world).abilities[String(ability?.id ?? '').toLowerCase()];
+    if (own) return own;
+    if (/^(major |minor )?crest of /i.test(String(ability?.label ?? ''))) return crestPicture(world, ability.label);
+    return '';
+}
+
 /** Crest names whose picture is filed under another spelling. */
 const CREST_FILES = Object.freeze({ ernest: 'earnest', beast: 'thebeast', flame: 'flames' });
 

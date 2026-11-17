@@ -4530,3 +4530,14 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-gradient-panel > summary { cursor: pointer; font-weight: bold; padding: 6px 0; }
 .sillynpc-gradient-preview { height: 28px; border-radius: 6px; border: 1px solid var(--sillynpc-border); margin: 8px 0; display: flex; align-items: center; justify-content: center; font-size: .8em; opacity: .9; }
 .sillynpc-gradient-panel .sillynpc-color-row { flex-wrap: wrap; margin: 6px 0; }
+
+/* World type editor: record lists (sheet fields, ranks, proficiencies, abilities, gear ...). */
+.sillynpc-te-list { margin: 10px 0; }
+.sillynpc-te-subtitle { margin: 12px 0 4px; font-size: 1em; }
+.sillynpc-te-items { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.sillynpc-te-item { border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: 6px; background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
+.sillynpc-te-item-head { cursor: pointer; padding: 6px 10px; font-weight: 600; }
+.sillynpc-te-item-body { padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.sillynpc-te-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; }
+.sillynpc-te-thumb { width: 36px; height: 36px; object-fit: contain; border-radius: 4px; flex: none; }
+.sillynpc-te-item .sillynpc-te-row { display: flex; gap: 8px; align-items: center; }

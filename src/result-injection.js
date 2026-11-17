@@ -4,7 +4,7 @@
  * as a visible system message. This is the decision and the wording; result-runtime.js is the SillyTavern side.
  *
  * A finished fight or game leaves one report. What happens to it depends on the mode:
- *   off     - nothing is kept or sent.
+ *   off     - nothing is kept or sent, except a result you ask for with the button in the fight or game window.
  *   always  - the report goes into the next reply.
  *   random  - after that, each reply has a chance (with a cooldown) to carry it.
  *   manual  - it waits until you ask (a button, or the in-window button), then goes into the next reply.
@@ -72,9 +72,10 @@ export function normalizePending(raw) {
  */
 export function chooseResult({ cfg, pending, armed = false, since = Infinity, rng = Math.random }) {
     const c = normalizeResultInjection(cfg);
-    if (c.mode === 'off') return { fire: false, reason: 'off' };
-    if (!pending || !pending.text) return { fire: false, reason: 'no result is waiting' };
+    if (!pending || !pending.text) return { fire: false, reason: c.mode === 'off' && !armed ? 'off' : 'no result is waiting' };
+    // Asked for with a button: it goes with the next reply in every mode, even off (on the default placement).
     if (armed) return { fire: true, reason: 'asked for' };
+    if (c.mode === 'off') return { fire: false, reason: 'off' };
     if (c.mode === 'manual') return { fire: false, reason: 'not asked for' };
     if (c.mode === 'always') return { fire: true, reason: 'always' };
     // random

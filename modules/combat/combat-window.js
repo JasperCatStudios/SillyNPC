@@ -374,12 +374,12 @@ async function postReport({ force = false } = {}) {
         .replace(/\{\{/g, '{ {')
         .replace(/\}\}/g, '} }');
     try {
-        const kept = queueResult('combat', text);
+        const kept = queueResult('combat', text, { force });
         session.reported = true;
         session.kept = kept;
         if (force) {
             if (kept) { armResult('combat', true); toastr.info('The next story reply will carry the combat result.', PRODUCT_NAME); }
-            else toastr.warning('Sending the combat result to the story is off. Turn it on in Modules, Combat.', PRODUCT_NAME);
+            else toastr.warning('Could not keep the combat result for the story.', PRODUCT_NAME);
         }
     } catch (err) {
         console.error('[Worldkit] combat result failed', err);
@@ -442,7 +442,7 @@ function drawBattle(body) {
         if (!session.posting) {
             const post = el('button', 'menu_button', 'Send result to the story');
             post.type = 'button';
-            post.title = 'Put the result in the prompt of the next story reply, whatever the mode is (unless sending is off).';
+            post.title = 'Put the result in the prompt of the next story reply now, whatever the mode is.';
             post.addEventListener('click', () => { session.failed = false; postReport({ force: true }); });
             row.append(post);
         }
@@ -1127,7 +1127,7 @@ function drawWatch(body) {
         if (!session.posting) {
             const post = el('button', 'menu_button', 'Send result to the story');
             post.type = 'button';
-            post.title = 'Put the result in the prompt of the next story reply, whatever the mode is (unless sending is off).';
+            post.title = 'Put the result in the prompt of the next story reply now, whatever the mode is.';
             post.addEventListener('click', () => { session.failed = false; postReport({ force: true }); });
             row.append(post);
         }

@@ -7,13 +7,15 @@ import { BUILTIN_IDS } from '../../src/combat-builtins.js';
 import {
     blankDraft, draftFromType, buildType, parseExtra, POOL_KEYS, ROLE_KEYS,
 } from '../../src/combat-type-draft.js';
+import { buildDataSections, COVERED_KEYS } from './type-editor-sections.js';
 
 /**
  * The world type editor (fork): a guided form for making your own combat world, or copying a
  * built-in or custom one and changing it. Every field has a plain-words note and a placeholder
- * that shows what to type. The form covers stats, damage channels, roles, pools, the modifier and
- * the roll and damage formulas; the rest of a type (ladders, proficiencies, abilities, gear,
- * elements) stays in an advanced JSON box, so a copy of a rich world keeps everything.
+ * that shows what to type. The form covers everything a type holds: stats, damage channels, roles, pools,
+ * the modifier, the roll and damage formulas, sheet fields, ranks, proficiencies, moves, advantage rules,
+ * abilities, weapons, tiers, tools, elements, the roll extras and the artwork. Only data a pasted file adds
+ * beyond those goes in a small "Other data" box, so a copy of a rich world keeps everything.
  *
  * Saves into settings.combatTypes. Never touches built-ins or any character.
  */
@@ -71,7 +73,12 @@ const statNames = (draft) => draft.stats.map(s => s.id || s.label).filter(Boolea
  */
 export function renderTypeEditor(host, { start, editing, onDone }) {
     const draft = start;
-    let extraText = JSON.stringify(draft.extra, null, 2);
+    // The form edits draft.extra in place; only keys it does not cover live in this box.
+    const leftover = {};
+    for (const key of Object.keys(draft.extra || {})) {
+        if (!COVERED_KEYS.includes(key)) { leftover[key] = draft.extra[key]; delete draft.extra[key]; }
+    }
+    let extraText = Object.keys(leftover).length ? JSON.stringify(leftover, null, 2) : '';
     let extraError = '';
     host.replaceChildren();
 
@@ -82,10 +89,10 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     const take = () => {
         const parsed = parseExtra(extraText);
         extraError = parsed.ok ? '' : parsed.reason;
-        if (parsed.ok) draft.extra = parsed.value;
+        const merged = { ...draft, extra: { ...draft.extra, ...(parsed.ok ? parsed.value : leftover) } };
         const all = listTypes(getSettings().combatTypes);
         const takenIds = all.map(t => t.id).filter(id => !(editing && id === draft.id));
-        const out = buildType(draft, {
+        const out = buildType(merged, {
             takenIds, builtinIds: BUILTIN_IDS, editingId: editing ? draft.id : '',
         });
         if (extraError) out.errors.unshift(extraError);
@@ -268,7 +275,7 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     resBox.append(field('Roll style', 'Opposed: both fighters roll and the gap decides the band (0 or less is a stalemate or miss). Threshold: one roll, and the band is picked from its total.', mode));
     resBox.append(field('Attack roll', 'Names you can use: d20, d10, d6; diff (difficulty bonus); a.mod.roll (the attacker\'s stat bonus); a.prof.bonus (the attacker\'s skill grade bonus); d.* for the defender. ' + FORMULA_NOTE,
         input(r.roll, 'd20 + diff + a.mod.roll + a.prof.bonus', (v) => { r.roll = v; touch(); })));
-    resBox.append(field('Damage', 'band.base is the damage of the result band (set band bases in the advanced box); act.power is the move\'s power; a.attack and d.defense are your Attack and Defense roles. Always at least 1 with max(1, ...).',
+    resBox.append(field('Damage', 'band.base is the damage of the result band; act.power is the move\'s power; a.attack and d.defense are your Attack and Defense roles. Always at least 1 with max(1, ...).',
         input(r.damage, 'max(1, round(band.base + act.power + a.attack*0.25 - d.defense*0.15))', (v) => { r.damage = v; touch(); })));
     resBox.append(field('Who acts first', 'Optional. Roll for initiative. a.initiative is your Initiative role.',
         input(r.initiative, 'a.initiative + d10', (v) => { r.initiative = v; touch(); })));
@@ -300,10 +307,13 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     resBox.append(bandsField);
     host.append(resBox);
 
+    /* ------------------------------------------- everything else, as forms */
+    for (const sectionBox of buildDataSections(draft, touch)) host.append(sectionBox);
+
     /* ---------------------------------------------- colours and artwork */
-    const artBox = section('8. Factions, colours and artwork (optional)',
+    const artBox = section('16. Factions, colours and artwork (optional)',
         'Everything here is presentation only: it never changes how a fight is rolled. A faction is a group of characters (their category). '
-        + 'Give each faction its own colours and banner, and assign a picture to each weapon or skill. Picture paths are relative to the artwork folder set in '
+        + 'Give each faction its own colours and banner. Pictures for weapons, skills and abilities are set inside their own forms above. Picture paths are relative to the artwork folder set in '
         + 'Appearance (for example fire-emblem/banners/golden-deer.png); that folder lives at data/<your user>/user/images/worldkit-art/. Leave any field empty to use the built-in look, and turn "Use world artwork" off in Appearance to hide every picture.');
     const art = draft.art;
     art.kinds = art.kinds || {};
@@ -311,26 +321,9 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     art.factions = art.factions || {};
     artBox.append(field('Default banner', 'Used at the top of a character whose faction has no banner of its own.',
         input(art.banner, 'e.g. my-world/banner.png', (v) => { art.banner = v; touch(); })));
-    artBox.append(field('Crest pictures folder', 'Optional. Crest or emblem pictures named after the crest, lower case (macuil.png).',
-        input(art.crestsDir, 'e.g. my-world/crests/', (v) => { art.crestsDir = v; touch(); })));
-
-    const iconRows = (title, help, items, table) => {
-        const rows = el('div', 'sillynpc-te-rows');
-        if (!items.length) {
-            rows.append(el('small', 'notes', 'None defined yet. Add them in the advanced box below (gear kinds or proficiencies), then reopen this editor.'));
-        }
-        for (const item of items) {
-            const row = el('div', 'sillynpc-te-row');
-            row.append(el('span', '', item.label || item.id),
-                input(table[String(item.id).toLowerCase()] || '', 'weapon-icons/axe.png', (v) => { table[String(item.id).toLowerCase()] = v; touch(); }));
-            rows.append(row);
-        }
-        return field(title, help, rows);
-    };
-    const kinds = Array.isArray(draft.extra?.gear?.kinds) ? draft.extra.gear.kinds : [];
-    const profs = Array.isArray(draft.extra?.proficiencies) ? draft.extra.proficiencies : [];
-    artBox.append(iconRows('Weapon and equipment icons', 'One picture per kind of weapon or tool.', kinds, art.kinds));
-    artBox.append(iconRows('Skill icons', 'One picture per skill or proficiency (shown beside its rank).', profs, art.profs));
+    artBox.append(field('Ability icons folder', 'Optional. A folder of pictures named after the ability, lower case (for example macuil.png for Crest of Macuil). An ability with no picture shows nothing. '
+        + 'You can also give any ability, weapon kind or proficiency its own picture inside its form above.',
+        input(art.abilityIconsDir || art.crestsDir, 'e.g. my-world/ability-icons/', (v) => { art.abilityIconsDir = v; art.crestsDir = v; touch(); })));
 
     // Factions: a colour theme per group of characters.
     const factionRows = el('div', 'sillynpc-te-rows');
@@ -384,21 +377,13 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     artBox.append(field('Factions and colour themes', 'The colours of a character\'s page follow their faction. A faction with no entry here uses the shipped look or Neutral.', factionRows), addFaction);
     host.append(artBox);
 
-    /* ------------------------------------------------------------ advanced */
-    const adv = section('9. Advanced (optional)',
-        'Everything the form does not cover, as JSON. A copy of a built-in world fills this with its skills, ladders, abilities and gear, so you can keep or trim them. Leave it as it is if unsure.');
-    const advHelp = [
-        'meta: extra sheet fields such as a class or grade ("choice" or "number").',
-        'ladders and proficiencies: ranked skills (E to S, or your own rungs).',
-        'actions: the moves a fighter can pick (key, label, prof, power).',
-        'abilities: named techniques with a cost, power and optional needs.',
-        'gear: weapon kinds, tiers and tools.',
-        'elements: an elemental wheel read from both fighters.',
-        'advantage: if-conditions that grant bonuses (a weapon triangle).',
-        'resolution: extra rules merged into the roll above, such as natural, bandBase, bandMult.',
-    ];
-    adv.append(el('small', 'notes', advHelp.join(' ')));
-    adv.append(area(extraText, '{\n  "meta": [],\n  "proficiencies": [],\n  "actions": [ { "key": "strike", "label": "Strike" } ]\n}', (v) => { extraText = v; touch(); }, 12));
+    /* ------------------------------------------------------------ other data */
+    const adv = el('details', 'sillynpc-te-section');
+    adv.append(el('summary', 'sillynpc-combat-heading', '17. Other data (only for files from elsewhere)'));
+    adv.append(el('small', 'notes',
+        'Everything above is a form. This box only holds data a pasted or imported world file carries that no form covers, as JSON. It is empty for worlds made here. Leave it as it is if unsure.'));
+    adv.append(area(extraText, '{ }', (v) => { extraText = v; touch(); }, 6));
+    if (extraText) adv.open = true;
     host.append(adv);
 
     /* ------------------------------------------------------------- footer */

@@ -2773,18 +2773,18 @@ function gameReportText() {
 /**
  * Keeps the game's report for the story, to go into the prompt of a story reply the way the phone's texts do (see
  * src/result-runtime.js and the Games tab in Modules). It is not posted in the chat. The button asks for it to go
- * with the next reply, whatever the mode is (unless sending is off).
+ * with the next reply, whatever the mode is, on the default placement.
  */
 async function injectGameSummaryToChat() {
     const text = gameReportText()
         .replace(/\|/g, '/')
         .replace(/\{\{/g, '{ {')
         .replace(/\}\}/g, '} }');
-    if (queueResult('games', text)) {
+    if (queueResult('games', text, { force: true })) {
         armResult('games', true);
         toastr.success('The next story reply will carry the game result.');
     } else {
-        toastr.warning('Sending the game result to the story is off. Turn it on in Modules, Games.');
+        toastr.warning('Could not keep the game result for the story.');
     }
     $('#rpg-game-modal').removeClass('visible');
     keepTalk({ leaving: true, final: true });

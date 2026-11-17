@@ -19,6 +19,9 @@ const num = (v, d) => (Number.isFinite(Number(v)) && String(v).trim() !== '' ? N
 /** Keys the form owns; every other key of a type is carried in `extra`. */
 const FORM_KEYS = ['id', 'name', 'description', 'stats', 'channels', 'roles', 'pools', 'modifier', 'format', 'version',
     'roleSchema', 'builtin', 'dataKey', 'art'];
+/** Top-level keys of a type that the editor's forms cover (sheet fields, ranks, moves, abilities, gear, elements ...). Anything else a file carries goes in the editor's "Other data" box. */
+export const COVERED_EXTRA_KEYS = Object.freeze(['meta', 'ladders', 'proficiencies', 'actions', 'advantage', 'abilities', 'gear', 'elements', 'skillCards', 'stakes', 'resolution', 'loreImport']);
+
 /** Parts of `resolution` the form owns. */
 const RES_FORM_KEYS = ['mode', 'roll', 'damage', 'initiative', 'followUpChance', 'bands'];
 
@@ -92,7 +95,7 @@ export function blankDraft() {
         },
         baseId: '',
         // Optional pictures and faction colours (faction-theme.js normalizeWorldArt). Empty means none.
-        art: { banner: '', crestsDir: '', kinds: {}, profs: {}, factions: {} },
+        art: { banner: '', abilityIconsDir: '', crestsDir: '', kinds: {}, profs: {}, abilities: {}, factions: {} },
     };
 }
 
@@ -257,7 +260,7 @@ export function buildType(draft, ctx = {}) {
     if (text(r.followUpChance).trim()) resolution.followUpChance = text(r.followUpChance).trim();
 
     const art = normalizeWorldArt(draft.art);
-    const hasArt = art.banner || art.crestsDir || Object.keys(art.kinds).length || Object.keys(art.profs).length || Object.keys(art.factions).length;
+    const hasArt = art.banner || art.crestsDir || Object.keys(art.kinds).length || Object.keys(art.profs).length || Object.keys(art.abilities).length || Object.keys(art.factions).length;
     const raw = {
         ...extra,
         ...(hasArt ? { art } : {}),
