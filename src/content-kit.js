@@ -14,6 +14,7 @@ export const KIT_TYPES = Object.freeze({
     characters: 'Character packs',
     lorebook: 'Lorebooks',
     items: 'Item databases',
+    scenes: 'Scene maps (places and backgrounds)',
     regex: 'Regex scripts',
     workflow: 'Workflows (Phone pictures)',
     art: 'Artwork',

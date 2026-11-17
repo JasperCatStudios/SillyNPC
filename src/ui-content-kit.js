@@ -5,6 +5,8 @@ import { getSettings, saveSettings } from './settings.js';
 import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { parseTransferFile, importCharacters } from './character-transfer.js';
 import { mergeItemFile } from './item-database.js';
+import { parseLocationFile, mergeLocations } from './scene-locations.js';
+import { sceneSettings, saveSceneSettings } from './scene-state.js';
 import {
     DEFAULT_KIT_URL, isKitUrl, kitFolderName, kitFileUrl, normalizeCatalog, groupCatalog, scriptsFromFile, mergeRegexScripts,
     formatBytes, githubRepoOf,
@@ -171,6 +173,15 @@ async function importItem(item) {
             getSettings().itemDatabase = database;
             saveSettings();
             return `${added} added, ${replaced} updated. Find them in the Inventory tab, under Item Database.`;
+        }
+        case 'scenes': {
+            // Places go into the one global map; a place already there is kept, so importing twice never makes a copy.
+            const places = parseLocationFile(text);
+            if (!places) throw new Error(`${item.name} is not a Worldkit location map.`);
+            const s = sceneSettings();
+            const { added, skipped } = mergeLocations(s.locations, places);
+            saveSceneSettings();
+            return `${added} added, ${skipped} already in the map. Find them on the Modules tab, under Scene.`;
         }
         case 'workflow':
             await navigator.clipboard.writeText(text);
