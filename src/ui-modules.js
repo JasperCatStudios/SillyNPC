@@ -54,6 +54,8 @@ function addResultPanel(pane, mod) {
     try { pane.append(buildResultInjectionPanel(mod.id)); } catch (err) { console.warn('[Worldkit] result injection settings failed', err); }
     if (mod.id === 'combat') {
         try { pane.append(buildLevelingPanel(), buildResultInjectionPanel('levelup')); } catch (err) { console.warn('[Worldkit] leveling settings failed', err); }
+        // Knives (story twists kept on each character) have no pane of their own; their trigger sits here, last.
+        try { pane.append(buildResultInjectionPanel('knives')); } catch (err) { console.warn('[Worldkit] knives settings failed', err); }
     }
 }
 

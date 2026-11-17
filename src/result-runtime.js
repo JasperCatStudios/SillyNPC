@@ -9,6 +9,7 @@ import { debugLog, PRODUCT_NAME } from './constants.js';
 import {
     normalizeResultInjection, normalizePending, chooseResult, resultBlockText,
 } from './result-injection.js';
+import { drawKnife, spendKnife } from './knives-runtime.js';
 
 /**
  * The SillyTavern side of result injection (fork): where the waiting report of a fight or a game is kept, how
@@ -17,12 +18,13 @@ import {
  * result-injection.js.
  */
 
-export const RESULT_IDS = Object.freeze(['combat', 'games', 'levelup']);
-const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result', levelup: 'sillynpc_levelup_result' };
-const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result', levelup: 'Worldkit - Level Up' };
-const NOTICES = { combat: 'The combat result', games: 'The game result', levelup: 'The level-up' };
+// 'knives' has no stored report: a knife is drawn from the characters in the scene at the moment it fires.
+export const RESULT_IDS = Object.freeze(['combat', 'games', 'levelup', 'knives']);
+const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result', levelup: 'sillynpc_levelup_result', knives: 'sillynpc_knives_result' };
+const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result', levelup: 'Worldkit - Level Up', knives: 'Worldkit - Twist' };
+const NOTICES = { combat: 'The combat result', games: 'The game result', levelup: 'The level-up', knives: 'A twist' };
 
-const since = { combat: Infinity, games: Infinity, levelup: Infinity };   // replies since it last went; not saved
+const since = { combat: Infinity, games: Infinity, levelup: Infinity, knives: Infinity };   // replies since it last went; not saved
 const turns = {};                                      // id -> { key, text } the decision made for the current turn
 
 function box(id) {
@@ -45,7 +47,9 @@ export function resultSettings(id) { return box(id).cfg; }
 /** The waiting report, whether the next reply was asked for, and the mode. */
 export function resultStatus(id) {
     const b = box(id);
-    return { pending: b.pending, armed: b.armed, mode: b.cfg.mode };
+    // For knives, "waiting" means somebody in the scene has an unused knife.
+    const pending = id === 'knives' ? normalizePending({ text: drawKnife()?.report }) : b.pending;
+    return { pending, armed: b.armed, mode: b.cfg.mode };
 }
 
 /**
@@ -102,16 +106,17 @@ function place(id, text) {
     setExtensionPrompt(KEYS[id], text, extension_prompt_types.IN_CHAT, cfg.depth, false, role);
 }
 
-function blockFor(id) {
+function blockFor(id, report) {
     const b = box(id);
-    return resultBlockText({ id, report: b.pending?.text, user: name1 || 'the player', instruction: b.cfg.instruction });
+    return resultBlockText({ id, report: report ?? b.pending?.text, user: name1 || 'the player', instruction: b.cfg.instruction });
 }
 
-/** What would go now, without spending the waiting report. */
+/** What would go now, without spending the waiting report (or a knife). */
 export function previewResult(id) {
     const b = box(id);
-    const res = chooseResult({ cfg: { ...b.cfg, chance: 100 }, pending: b.pending, armed: b.cfg.mode !== 'off', since: Infinity });
-    return { fire: res.fire, reason: res.reason, text: res.fire ? blockFor(id) : '' };
+    const pending = id === 'knives' ? normalizePending({ text: drawKnife()?.report }) : b.pending;
+    const res = chooseResult({ cfg: { ...b.cfg, chance: 100 }, pending, armed: b.cfg.mode !== 'off', since: Infinity });
+    return { fire: res.fire, reason: res.reason, text: res.fire ? blockFor(id, pending?.text) : '' };
 }
 
 function onGeneration(id, type, _options, dryRun) {
@@ -131,14 +136,17 @@ function onGeneration(id, type, _options, dryRun) {
             if (turns[id].text) place(id, turns[id].text);
             return;
         }
-        const res = chooseResult({ cfg: b.cfg, pending: b.pending, armed: b.armed, since: since[id] });
+        const drawn = id === 'knives' ? drawKnife() : null;
+        const pending = id === 'knives' ? normalizePending({ text: drawn?.report }) : b.pending;
+        const res = chooseResult({ cfg: b.cfg, pending, armed: b.armed, since: since[id] });
         if (!res.fire) {
             since[id] += 1;
             turns[id] = key ? { key, text: '' } : null;
             return;
         }
-        const text = blockFor(id);
+        const text = blockFor(id, pending?.text);
         place(id, text);
+        if (drawn) spendKnife(drawn);   // a knife goes once
         b.pending = null;       // told to the story once
         b.armed = false;
         since[id] = 0;

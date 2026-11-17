@@ -6,6 +6,7 @@ import { tryAutoSyncLorebook, getChatLorebookName } from './lorebook.js';
 import { loadWorldInfo } from '../../../../world-info.js';
 import { debugLog } from './constants.js';
 import { portableCombat, normalizeCombatBlock } from './combat-store.js';
+import { normalizeKnives } from './knives-core.js';
 
 /**
  * Sending one character to somebody else, and taking one in.
@@ -91,6 +92,8 @@ export async function serialiseCharacter(char) {
         //
         // So the file is words, and the picture is the recipient's to supply. Anything
         // exported before this still imports with its portraits: see restoreImages.
+        // Knives: plain story-twist text, with the used flags left behind (a pack starts fresh).
+        knives: normalizeKnives(char.knives).map(k => ({ text: k.text, ...(k.theme ? { theme: k.theme } : {}) })),
         // The combat sheets under every world type, so a shared cast can fight at once.
         combat: portableCombat(char.combat),
         lore: await readLoreEntry(char),
@@ -187,6 +190,10 @@ function applyRecord(char, record, name) {
     // import runs at the end. It already adopts any category a card names but the register
     // does not list, so creating it here would be the same work done twice.
     char.category = String(record.category || '');
+
+    // Knives, when the file has them (an overwrite replaces the card's list; a file without them leaves it alone).
+    if (Array.isArray(record.knives)) char.knives = normalizeKnives(record.knives.map(k => ({ text: k?.text, theme: k?.theme, used: false })));
+    else if (!Array.isArray(char.knives)) char.knives = [];
 
     // Combat sheets, when the file has them. A file without them leaves the card as it was.
     if (record.combat && typeof record.combat === 'object') char.combat = normalizeCombatBlock(record.combat);

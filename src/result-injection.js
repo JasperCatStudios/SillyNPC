@@ -13,12 +13,15 @@
  * Pure: no DOM, no SillyTavern imports, so node can test it.
  */
 
+import { DEFAULT_KNIVES_INSTRUCTION } from './knives-core.js';
+
 export const RESULT_MODES = Object.freeze(['off', 'always', 'random', 'manual']);
 export const RESULT_ROLES = Object.freeze(['system', 'user', 'assistant']);
 
 export const DEFAULT_RESULT_INSTRUCTIONS = Object.freeze({
     combat: 'A fight has just ended between characters in this story. Let it matter if it fits: <<user>> and the others may remember it, react to it, tend to injuries, or deal with what it changed. Do not replay it blow by blow unless asked.',
     levelup: 'Someone in this story has grown stronger and more experienced from what they have been through. Show it only through the story itself, if it fits: a new steadiness, skill, confidence or ease in how they move and fight, and they or the others may notice it or reflect on how far they have come. Never mention levels, ranks, points, experience numbers or game mechanics, and never say they "levelled up". <<user>> may notice it too.',
+    knives: DEFAULT_KNIVES_INSTRUCTION,
     games: 'A game has just been played at the table in this story. Let it colour the scene if it fits: <<user>> and the others may bring it up, tease about who won, or move on. Do not replay it move by move unless asked.',
 });
 

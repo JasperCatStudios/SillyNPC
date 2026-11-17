@@ -9,11 +9,11 @@ import { resultSettings, resultStatus, armResult, clearResult, previewResult } f
  * sending its texts: a mode (off, always, random, manual), a chance and cooldown, where the block sits in the
  * prompt, a notice, the wording, and a preview. They apply to the report a finished fight or game leaves.
  *
- * @param {'combat'|'games'|'levelup'} id
+ * @param {'combat'|'games'|'levelup'|'knives'} id
  * @returns {HTMLElement}
  */
 export function buildResultInjectionPanel(id) {
-    const what = { combat: 'fight', games: 'game', levelup: 'level-up' }[id] || 'result';
+    const what = { combat: 'fight', games: 'game', levelup: 'level-up', knives: 'twist' }[id] || 'result';
     const cfg = resultSettings(id);
     const save = () => saveSettings();
 
@@ -58,12 +58,14 @@ export function buildResultInjectionPanel(id) {
         return label;
     };
 
-    wrap.append(el('h4', 'sillynpc-combat-heading', id === 'levelup' ? 'Send level-ups to the story' : `Send the ${what} result to the story`));
+    wrap.append(el('h4', 'sillynpc-combat-heading', id === 'levelup' ? 'Send level-ups to the story' : id === 'knives' ? 'Knives: twists for the story' : `Send the ${what} result to the story`));
     wrap.append(el('small', 'notes',
         (id === 'levelup'
             ? 'When someone levels up after a fight, a line saying who and to what level goes into the prompt of the next story reply, with the instruction below. '
-            : `When a ${what} ends, its result goes into the prompt of the next story reply, the way the phone sends its texts. `)
-        + 'It is never posted in the chat. Once a reply has carried it, it is cleared.'));
+            : id === 'knives'
+                ? 'Each character can keep prepared story twists (their Knives tab). When this fires, one random character who is in the scene and has an unused twist has one offered to the story model, hidden, with the instruction below, and it is marked used. '
+                : `When a ${what} ends, its result goes into the prompt of the next story reply, the way the phone sends its texts. `)
+        + (id === 'knives' ? 'It is never posted in the chat.' : 'It is never posted in the chat. Once a reply has carried it, it is cleared.')));
 
     // Mode.
     const mode = el('select', 'text_pole');
@@ -95,6 +97,7 @@ export function buildResultInjectionPanel(id) {
     const ask = el('button', 'menu_button');
     ask.type = 'button';
     const clear = el('button', 'menu_button', 'Forget the waiting result');
+    const isKnives = id === 'knives';
     clear.type = 'button';
     const buttons = el('div');
     buttons.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;';
@@ -104,15 +107,17 @@ export function buildResultInjectionPanel(id) {
 
     const refreshStatus = () => {
         const s = resultStatus(id);
-        status.textContent = s.pending
-            ? `A ${what} ${id === 'levelup' ? 'report' : 'result'} is waiting${s.armed ? ' and will go with the next reply.' : '.'}`
-            : `No ${what} result is waiting.`;
-        ask.textContent = s.armed ? 'Cancel' : 'Bring the result into the next reply';
-        clear.style.display = s.pending ? '' : 'none';
+        status.textContent = isKnives
+            ? (s.pending ? 'Somebody in the scene has an unused twist ready.' : 'Nobody in the scene has an unused twist.') + (s.armed ? ' One will go with the next reply.' : '')
+            : s.pending
+                ? `A ${what} ${id === 'levelup' ? 'report' : 'result'} is waiting${s.armed ? ' and will go with the next reply.' : '.'}`
+                : `No ${what} result is waiting.`;
+        ask.textContent = s.armed ? 'Cancel' : isKnives ? 'Offer a twist with the next reply' : 'Bring the result into the next reply';
+        clear.style.display = s.pending && !isKnives ? '' : 'none';
     };
     ask.addEventListener('click', () => {
         const s = resultStatus(id);
-        if (!s.armed && !s.pending) { toastr.info(`There is no ${what} result waiting yet.`); return; }
+        if (!s.armed && !s.pending) { toastr.info(isKnives ? 'Nobody in the scene has an unused twist.' : `There is no ${what} result waiting yet.`); return; }
         armResult(id, !s.armed);
         refreshStatus();
     });
@@ -124,7 +129,7 @@ export function buildResultInjectionPanel(id) {
         const { fire, reason, text } = previewResult(id);
         const box = el('div');
         box.style.textAlign = 'left';
-        box.append(el('b', '', `${({ combat: 'Combat result', games: 'Game result', levelup: 'Level-up' })[id]}: preview (nothing was sent)`));
+        box.append(el('b', '', `${({ combat: 'Combat result', games: 'Game result', levelup: 'Level-up', knives: 'Knives' })[id]}: preview (nothing was sent)`));
         const info = el('small', '', `${fire ? 'Would fire: yes' : 'Would fire: no'} - Reason: ${reason}`);
         info.style.display = 'block';
         const pre = el('pre', '', text || '(nothing to send)');
@@ -164,7 +169,7 @@ export function buildResultInjectionPanel(id) {
     const reset = el('button', 'menu_button', 'Reset the wording');
     reset.type = 'button';
     reset.addEventListener('click', () => { cfg.instruction = ''; instr.value = DEFAULT_RESULT_INSTRUCTIONS[id]; save(); });
-    wrap.append(el('label', 'sillynpc-setting-label', 'Instruction'), instr, el('small', 'notes', '<<user>> is replaced by your name. The report itself is always sent first.'), reset);
+    wrap.append(el('label', 'sillynpc-setting-label', 'Instruction'), instr, el('small', 'notes', (isKnives ? '<<user>> is replaced by your name. The twist itself is always sent first.' : '<<user>> is replaced by your name. The report itself is always sent first.')), reset);
 
     const showFor = () => {
         random.style.display = cfg.mode === 'random' ? '' : 'none';

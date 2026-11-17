@@ -8,6 +8,7 @@ import { BOND_SYSTEM } from './bonds-core.js';
 import { VITALS_SYSTEM } from './vitals-core.js';
 import { DEFAULT_PROMPT, PROMPT_SHORT } from './phone-prompts.js';
 import { buildDeliveryPrompt } from './delivery-core.js';
+import { KNIVES_SYSTEM } from './knives-core.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -99,6 +100,18 @@ export const PROMPTS = [
         help: 'The system prompt of the separate request that reads each reply for items picked up, used, lost and for '
             + 'money. Empty uses the built-in.',
         recommended: () => INVENTORY_SYSTEM,
+        emptyNote: 'The built-in instructions are sent.',
+    },
+    {
+        id: 'knives',
+        key: 'knivesPrompt',
+        label: 'Knives: Suggestion Instructions',
+        home: 'Modules',
+        help: 'The system prompt of the request behind "Suggest knives" on a character\'s Knives tab. The character\'s name, '
+            + 'your theme, their profile text and the twists they already have are added after it. Keep the numbered-list '
+            + 'reply format, which is how the answer is read. Empty uses the built-in. (How the twists reach the story is set '
+            + 'under Modules, Combat.)',
+        recommended: () => KNIVES_SYSTEM,
         emptyNote: 'The built-in instructions are sent.',
     },
     {

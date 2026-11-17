@@ -126,6 +126,9 @@ export const defaultSettings = {
     leveling: {},
     /** Hidden identities (see identity-core.js): when to send the secret-identity prompt of a linked character, and where. An empty object is off. */
     identity: {},
+    /** Knives (see knives-core.js): the connection profile "Suggest knives" asks on (empty is the main API), and its own prompt (empty is the built-in). The trigger options are resultInjection.knives. */
+    knivesProfileId: '',
+    knivesPrompt: '',
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
     threadsEnabled: false,
@@ -840,6 +843,8 @@ export function normalizeSettings(settings) {
         if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
         if (typeof char.imageNegative !== 'string') char.imageNegative = '';
         if (typeof char.ttsVoice !== 'string') char.ttsVoice = '';
+        // Knives: saved story twists, [{ id, text, used, theme? }] (see knives-core.js).
+        if (!Array.isArray(char.knives)) char.knives = [];
     }
 
     // The register, seeded from whoever is already carrying a category name. An existing
