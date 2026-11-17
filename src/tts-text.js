@@ -17,14 +17,20 @@ export const DEFAULT_TONE_TAGS = Object.freeze({
     sigh: 'sighs',
     laugh: 'laughs',
     cry: 'crying',
-    sarcastic: 'sarcastic',
     excited: 'excited',
+    playful: 'playful',
     curious: 'curious',
-    nervous: 'nervous',
+    nervous: 'anxious',
+    scared: 'scared',
+    angry: 'mad',
+    tired: 'tired',
 });
 
-/** ElevenLabs models that read audio tags as direction rather than as words. */
-export const TAG_MODELS = Object.freeze(['eleven_v3', 'eleven_ttv_v3']);
+/**
+ * ElevenLabs models that read audio tags as direction rather than as words. Per ElevenLabs'
+ * audio tags page: Eleven v4, v4 Turbo and v3. Any other model says the tag out loud.
+ */
+export const TAG_MODELS = Object.freeze(['eleven_v4', 'eleven_v4_turbo', 'eleven_v3', 'eleven_ttv_v3']);
 
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

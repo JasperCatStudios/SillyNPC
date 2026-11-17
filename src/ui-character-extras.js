@@ -240,11 +240,11 @@ function buildCloudEngineSettings(engine) {
             buildSettingSelect({
                 key: 'elevenModel',
                 label: 'Model',
-                help: 'Only Eleven v3 reads delivery tags such as [whispers]. Every other model gets the plain words.',
+                help: 'Eleven v4, v4 Turbo and v3 read delivery tags such as [whispers]. Every other model gets the plain words.',
                 options: Object.entries(ELEVEN_MODELS).map(([value, text]) => ({ value, label: text })),
             }),
             decimalField({ key: 'elevenStability', label: 'Stability', help: '0 to 1.', min: 0, max: 1, step: 0.05 }),
-            decimalField({ key: 'elevenSimilarity', label: 'Similarity', help: '0 to 1. Not used by Eleven v3.', min: 0, max: 1, step: 0.05 }),
+            decimalField({ key: 'elevenSimilarity', label: 'Similarity', help: '0 to 1. May not apply to Eleven v3.', min: 0, max: 1, step: 0.05 }),
             decimalField({ key: 'elevenSpeed', label: 'Speed', help: '0.7 to 1.2.', min: 0.7, max: 1.2, step: 0.05 }),
             test, status,
         );
@@ -368,7 +368,7 @@ export function renderVoiceSettings(container) {
     container.append(buildSettingToggle({
         key: 'ttsToneTags',
         label: 'Send Delivery To The Voice',
-        help: 'A line marked [whisper]...[/whisper] is sent to Eleven v3 as [whispers] and the closing tag is dropped. '
+        help: 'A line marked [whisper]...[/whisper] is sent to Eleven v4 or v3 as [whispers] and the closing tag is dropped. '
             + 'Off, or on any other model or engine, the tags are removed and only the words are read.',
     }));
 }

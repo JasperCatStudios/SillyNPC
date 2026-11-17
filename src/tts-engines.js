@@ -23,13 +23,15 @@ export const ENGINES = Object.freeze({
 });
 
 export const ELEVEN_MODELS = Object.freeze({
+    eleven_v4: 'Eleven v4 (understands delivery tags)',
+    eleven_v4_turbo: 'Eleven v4 Turbo (understands delivery tags)',
     eleven_v3: 'Eleven v3 (understands delivery tags)',
     eleven_flash_v2_5: 'Flash v2.5',
     eleven_turbo_v2_5: 'Turbo v2.5',
     eleven_multilingual_v2: 'Multilingual v2',
 });
 
-export const FAL_DEFAULT_ENDPOINT = 'fal-ai/elevenlabs/tts/eleven-v3';
+export const FAL_DEFAULT_ENDPOINT = 'elevenlabs/tts/eleven-v4';
 
 /** Voice names the fal ElevenLabs endpoint lists as examples; any other name can be typed in. */
 export const FAL_VOICES = Object.freeze([
@@ -44,8 +46,8 @@ export function engineOf(settings = getSettings()) {
 /** Whether the model behind the chosen engine reads [whispers]-style tags instead of speaking them. */
 export function engineReadsAudioTags(settings = getSettings()) {
     const engine = engineOf(settings);
-    if (engine === 'elevenlabs') return TAG_MODELS.includes(String(settings.elevenModel || 'eleven_v3'));
-    if (engine === 'fal') return /eleven-v3/i.test(String(settings.falEndpoint || FAL_DEFAULT_ENDPOINT));
+    if (engine === 'elevenlabs') return TAG_MODELS.includes(String(settings.elevenModel || 'eleven_v4'));
+    if (engine === 'fal') return /eleven-v[34]/i.test(String(settings.falEndpoint || FAL_DEFAULT_ENDPOINT));
     return false;
 }
 
@@ -75,7 +77,7 @@ export async function elevenReady() {
 /** Generates one piece of speech and returns a playable URL. */
 export async function generateEleven(text, voiceId) {
     const s = getSettings();
-    const model = String(s.elevenModel || 'eleven_v3');
+    const model = String(s.elevenModel || 'eleven_v4');
     const request = {
         model_id: model,
         text,
@@ -113,7 +115,13 @@ export async function generateFal(text, voice) {
     const response = await fetch(`https://fal.run/${endpoint}`, {
         method: 'POST',
         headers: { 'Authorization': `Key ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice: voice || 'Rachel', stability: Number(s.elevenStability ?? 0.5) }),
+        // v4 takes similarity_boost; the older v3 endpoint does not list it, so it is only sent to v4.
+        body: JSON.stringify({
+            text,
+            voice: voice || 'Rachel',
+            stability: Number(s.elevenStability ?? 0.5),
+            ...(/eleven-v4/i.test(endpoint) ? { similarity_boost: Number(s.elevenSimilarity ?? 0.75) } : {}),
+        }),
     });
     if (!response.ok) {
         const detail = (await response.text().catch(() => '')).slice(0, 160);
