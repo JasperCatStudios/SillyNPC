@@ -313,6 +313,11 @@ export function renderDeliveryStyles(container, rerender) {
                 rerender();
             });
             buttons.append(fill);
+        } else {
+            // Said out loud, so a missing button is not a mystery: nothing is missing.
+            const all = el('small', 'notes', `Your list already has all ${Object.keys(DEFAULT_TONE_TAGS).length} starting tags, so there is nothing to add back. (A button to add the missing ones appears here only if an older saved list lacks some.)`);
+            all.style.flexBasis = '100%';
+            buttons.append(all);
         }
         // Every ElevenLabs audio tag: emotions, delivery, accents, and the standalone pacing and reaction tags. Not in the
         // starting list: every tag is described to the story model on every message, so they are added when you want them.

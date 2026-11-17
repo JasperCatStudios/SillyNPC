@@ -13,7 +13,7 @@ import { normalizeIdentitySettings, buildIdentityBlock, chooseIdentity } from '.
  * identity-core.js; this finds who is in the scene, decides whether this reply carries the block (always, or a
  * chance), and places it the way the other injections are placed (SillyTavern's prompt list, or in the chat).
  *
- * A swipe or a regenerate of the same turn gets the same decision again, so a random chance is not re-rolled.
+ * A swipe or a regenerate of the same turn rolls again (a random chance can come out differently), and the cooldown is wound back so the replaced roll does not count.
  */
 
 const KEY = 'sillynpc_identity';
@@ -30,7 +30,7 @@ const ROLES = {
 };
 
 let since = Infinity;   // replies since it last went; not saved
-let turn = null;        // { key, text } the decision made for the current turn
+let turn = null;        // { key, sinceBefore } the turn being generated, and the cooldown count before its roll
 
 /** The saved settings, repaired in place so the object a screen holds is the saved one. */
 export function identitySettings() {
@@ -75,20 +75,21 @@ function onGeneration(type, _options, dryRun) {
     try {
         const cfg = identitySettings();
         if (!getSettings().enabled || cfg.mode === 'off') { place(''); return; }
+        // A swipe or a regenerate of the same turn is a NEW roll (a random chance is rolled again). The cooldown count is
+        // wound back to where it stood before this turn's first roll, so the roll being replaced does not count against it.
         const key = turnKey(type);
-        if (key && turn && turn.key === key) { place(turn.text); return; }   // a swipe or regenerate: the same again
+        if (key && turn && turn.key === key) since = turn.sinceBefore;
+        else turn = key ? { key, sinceBefore: since } : null;
         const text = currentIdentityText();
-        if (!text) { place(''); turn = key ? { key, text: '' } : null; return; }
+        if (!text) { place(''); return; }
         const res = chooseIdentity({ cfg, since });
         if (!res.fire) {
             since += 1;
             place('');
-            turn = key ? { key, text: '' } : null;
             return;
         }
         since = 0;
         place(text);
-        turn = key ? { key, text } : null;
         debugLog(`Hidden identity block sent (${res.reason})`);
     } catch (err) {
         console.warn('[Worldkit] hidden identities failed', err);

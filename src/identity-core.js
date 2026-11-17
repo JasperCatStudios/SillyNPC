@@ -145,6 +145,20 @@ export function chooseIdentity({ cfg, since = Infinity, rng = Math.random }) {
     return { fire: true, reason: 'random' };
 }
 
+/**
+ * The cards to put in an export: the ones chosen, plus the card each of them is secretly linked to, so the link survives the
+ * trip (a link only works when both cards exist). Returns the full list and the names that were added.
+ */
+export function withLinkedCards(selected, everyone) {
+    const list = [...(selected || [])];
+    const added = [];
+    for (const card of selected || []) {
+        const other = linkedCard(card, everyone);
+        if (other && !list.some(c => c === other || (c.id && c.id === other.id))) { list.push(other); added.push(other.name); }
+    }
+    return { list, added };
+}
+
 /** Links must be mutual to read well: this lists the cards a given card is linked to or from, for the editor. */
 export function linkedFrom(char, characters) {
     return (characters || []).filter(c => c && c !== char && c.id !== char.id && linkedCard(c, characters)?.id === char.id);

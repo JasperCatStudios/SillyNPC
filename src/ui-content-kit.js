@@ -6,7 +6,8 @@ import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { parseTransferFile, importCharacters } from './character-transfer.js';
 import { mergeItemFile } from './item-database.js';
 import { parseLocationFile, mergeLocations } from './scene-locations.js';
-import { sceneSettings, saveSceneSettings } from './scene-state.js';
+import { sceneSettings, saveSceneSettings, notifyLocationsChanged } from './scene-state.js';
+import { saveItemDatabase } from './inventory.js';
 import {
     DEFAULT_KIT_URL, isKitUrl, kitFolderName, kitFileUrl, normalizeCatalog, groupCatalog, scriptsFromFile, mergeRegexScripts,
     formatBytes, githubRepoOf,
@@ -171,7 +172,7 @@ async function importItem(item) {
             // Items and presets go into your own part of the Item Database; importing again replaces them in place.
             const { database, added, replaced } = mergeItemFile(getSettings().itemDatabase, JSON.parse(text));
             getSettings().itemDatabase = database;
-            saveSettings();
+            saveItemDatabase();                       // saves and tells the Inventory screens to redraw
             return `${added} added, ${replaced} updated. Find them in the Inventory tab, under Item Database.`;
         }
         case 'scenes': {
@@ -181,6 +182,7 @@ async function importItem(item) {
             const s = sceneSettings();
             const { added, skipped } = mergeLocations(s.locations, places);
             saveSceneSettings();
+            notifyLocationsChanged();
             return `${added} added, ${skipped} already in the map. Find them on the Modules tab, under Scene.`;
         }
         case 'workflow':

@@ -127,7 +127,10 @@ function presetCommand(args, value) {
 
 function presetListCommand() {
     const list = databasePresets();
-    return list.length ? list.map(p => `${p.name} (${p.items.length} item${p.items.length === 1 ? '' : 's'}${p.gold ? `, ${p.gold} gold` : ''})`).join('; ') : 'No presets yet.';
+    const text = list.length ? list.map(p => `${p.name} (${p.items.length} item${p.items.length === 1 ? '' : 's'}${p.gold ? `, ${p.gold} gold` : ''})`).join('; ') : 'No presets yet.';
+    // A value a command returns is only used when it is piped on; typed alone it shows nothing. The list is the whole point of this command, so it is shown.
+    try { toastr.info(text, 'Item presets', { timeOut: 15000, extendedTimeOut: 15000 }); } catch { /* no toasts here */ }
+    return text;
 }
 
 /** Registers the commands. Called once at startup; a failure only costs the commands. */

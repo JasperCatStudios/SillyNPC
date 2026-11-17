@@ -1,6 +1,7 @@
 import { getSettings } from './settings.js';
 import { offerDownload } from './utils.js';
 import { exportCharacters, importCharacters, parseTransferFile } from './character-transfer.js';
+import { withLinkedCards } from './identity-core.js';
 import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { POPUP_TYPE, Popup } from '../../../../popup.js';
 
@@ -22,18 +23,23 @@ function safeFileName(text) {
  * @param {object[]} chars
  */
 export async function exportCharacterFile(chars) {
-    const list = (chars || []).filter(Boolean);
-    if (!list.length) return;
+    const chosen = (chars || []).filter(Boolean);
+    if (!chosen.length) return;
+    // A card secretly linked to another one (Identity tab) goes with it: the link only works when both cards exist.
+    const { list, added } = withLinkedCards(chosen, getSettings().characters || []);
 
     try {
         const payload = await exportCharacters(list);
         const fileName = list.length === 1
             ? `sillynpc-${safeFileName(list[0].name)}.json`
-            : `sillynpc-${list.length}-characters.json`;
+            : added.length && chosen.length === 1
+                ? `sillynpc-${safeFileName(chosen[0].name)}-and-linked.json`
+                : `sillynpc-${list.length}-characters.json`;
         offerDownload(payload, fileName);
 
+        const extra = added.length ? ` Also included, because ${added.length === 1 ? 'it is' : 'they are'} secretly linked: ${added.join(', ')}.` : '';
         toastr.success(
-            list.length === 1 ? `Exported ${list[0].name || 'the character'}.` : `Exported ${list.length} characters.`,
+            (list.length === 1 ? `Exported ${list[0].name || 'the character'}.` : `Exported ${list.length} characters.`) + extra,
             PRODUCT_NAME);
     } catch (err) {
         console.error(LOG_PREFIX, 'Character export failed', err);

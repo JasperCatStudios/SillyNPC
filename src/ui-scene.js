@@ -2,7 +2,7 @@ import { redrawWhenIdle } from './ui-edit-guard.js';
 import { offerDownload } from './utils.js';
 import { PRODUCT_NAME } from './constants.js';
 import {
-    sceneSettings, saveSceneSettings, getScene, backgroundStatus, onSceneStatus, setSceneEnabled, setBackgroundsEnabled,
+    sceneSettings, saveSceneSettings, getScene, backgroundStatus, onSceneStatus, onLocationsChanged, setSceneEnabled, setBackgroundsEnabled,
     rematchScene, syncBackground, listBackgrounds,
 } from './scene-state.js';
 import {
@@ -450,6 +450,12 @@ export function renderScenePane(pane, { live = true, head, makeSwitch } = {}) {
         if (list.isConnected) redrawWhenIdle(list, drawList);
     };
     refresh.addEventListener('click', () => { backgroundFiles = null; loadPictures(); });
+
+    // A map imported from the Content Kit while this pane is open: draw it without reopening the menu.
+    const offLocations = onLocationsChanged(() => {
+        if (!list.isConnected) { offLocations(); return; }
+        redrawWhenIdle(list, drawList);
+    });
 
     drawList();
     runTest();

@@ -77,6 +77,16 @@ export function backgroundStatus() {
 }
 
 /** Called whenever the scene or the background status changes. Returns an unsubscribe. */
+/** The places in the map changed from outside the Scene pane (a Content Kit import): screens showing the map redraw. */
+const locationListeners = new Set();
+export function onLocationsChanged(fn) {
+    locationListeners.add(fn);
+    return () => locationListeners.delete(fn);
+}
+export function notifyLocationsChanged() {
+    for (const fn of [...locationListeners]) { try { fn(); } catch (err) { console.warn('[Worldkit] map listener failed', err); } }
+}
+
 export function onSceneStatus(fn) {
     statusListeners.add(fn);
     return () => statusListeners.delete(fn);
