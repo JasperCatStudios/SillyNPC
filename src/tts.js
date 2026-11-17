@@ -4,7 +4,9 @@ import { getSettings } from './settings.js';
 import { beatsOfMessage, MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { genderOfFace, genderOfName } from './default-portraits.js';
-import { alltalkReady, alltalkVoices, speakWith, stopSpeech } from './alltalk.js';
+import { alltalkReady, alltalkVoices, speakWith, stopSpeech, toneTable } from './alltalk.js';
+import { toneAt } from './tts-text.js';
+import { engineOf, elevenReady, elevenVoices, falConfigured, falVoices } from './tts-engines.js';
 
 /**
  * A voice per character (fork), spoken through AllTalk directly.
@@ -33,15 +35,29 @@ export function ttsEnabled() {
 
 /** Whether AllTalk answers, and if not, why in one sentence. */
 export async function ttsStatus() {
+    const engine = engineOf();
+    if (engine === 'elevenlabs') {
+        return await elevenReady()
+            ? { ready: true, reason: '' }
+            : { ready: false, reason: 'ElevenLabs gave no voices. Set the key in SillyTavern (API Connections, ElevenLabs) and check the server console.' };
+    }
+    if (engine === 'fal') {
+        return falConfigured()
+            ? { ready: true, reason: '' }
+            : { ready: false, reason: 'No fal key yet. Paste it under Voices in the Worldkit settings.' };
+    }
     if (!await alltalkReady()) {
         return { ready: false, reason: 'AllTalk is not answering. Check its address under Voices in the Modules or Writing Rules settings, and that it is running.' };
     }
     return { ready: true, reason: '' };
 }
 
-/** The voice files AllTalk offers. */
-export function voiceChoices() {
-    return alltalkVoices();
+/** The voices the chosen engine offers, as { value, label }. */
+export async function voiceChoices() {
+    const engine = engineOf();
+    if (engine === 'elevenlabs') return elevenVoices();
+    if (engine === 'fal') return falVoices();
+    return (await alltalkVoices()).map(v => ({ value: v, label: v }));
 }
 
 /**
@@ -56,11 +72,19 @@ export function voiceChoices() {
 export function spokenSegments(beat) {
     const text = String(beat.text ?? '');
     const out = [];
+    const table = toneTable();
+    // Delivery marked in the page itself: the display regexes leave data-tone on what they restyle.
+    const marked = [...(beat.element?.querySelectorAll?.('[data-tone]') || [])]
+        .map(node => ({ tone: String(node.getAttribute('data-tone') || '').toLowerCase(), text: String(node.textContent ?? '') }))
+        .filter(node => node.tone && node.text);
     const regex = /"([^"]+)"|“([^”]+)”|«([^»]+)»|\(([^)]+)\)/g;
     for (const m of text.matchAll(regex)) {
         const thought = m[4] !== undefined;
         const spoken = String(m[1] ?? m[2] ?? m[3] ?? m[4]).trim();
-        if (spoken) out.push({ text: spoken, thought });
+        if (!spoken) continue;
+        // Tags still in the text (no display regex), else the page's marks.
+        const tone = toneAt(text, m.index, table) || (marked.find(node => node.text.includes(spoken))?.tone ?? '');
+        out.push({ text: spoken, thought, tone });
     }
     // Some renderers drop the quote marks and keep only a <q> element.
     if (!out.length && beat.element?.querySelectorAll) {
@@ -115,7 +139,7 @@ export async function speakMessage(mesEl) {
         if (!voice) continue;
         for (const segment of spokenSegments(beat)) {
             if (segment.thought && !settings.ttsSpeakThoughts) continue;
-            if (speakWith(voice, segment.text)) queued++;
+            if (speakWith(voice, segment.text, { tone: segment.tone })) queued++;
         }
     }
     if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) with a voice set.', PRODUCT_NAME);

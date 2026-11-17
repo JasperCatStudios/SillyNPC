@@ -4,6 +4,7 @@ import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './
 import { previewVoice, voiceChoices, ttsStatus, VOICE_KEYS } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 import { buildSettingSelect } from './ui-shared.js';
+import { engineOf, ENGINES, ELEVEN_MODELS, FAL_DEFAULT_ENDPOINT } from './tts-engines.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 import { buildThemePicker } from './ui-tracker-theme.js';
 
@@ -117,6 +118,24 @@ export function renderCharacterExtras(char, container, options = {}) {
         set: (voice) => { char.ttsVoice = voice; saveSettings(); },
         sample: `${char.name}. This is what I sound like.`,
     }));
+    container.append(buildPhoneticField(char));
+}
+
+/** How the name is said: sent to the voice engine in place of the name wherever it appears in a line. */
+export function buildPhoneticField(char) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'text_pole';
+    input.style.cssText = 'flex:1; min-width:12em;';
+    input.placeholder = 'e.g. VEH-tah';
+    input.title = 'Said in place of the name whenever it is read aloud. The written name is not changed. For a name with several parts, give the same number of parts and each is also said that way alone.';
+    input.value = char.phonetic || '';
+    input.addEventListener('input', () => { char.phonetic = input.value; saveSettings(); });
+    row.append(label('Name said as'), input);
+    row.append(button('fa-volume-high', 'Test', () => previewVoice(char.ttsVoice || '', `${char.phonetic || char.name}. This is how my name sounds.`)));
+    return row;
 }
 
 /**
@@ -140,13 +159,14 @@ export function buildVoicePicker({ label: labelText, get, set, sample = 'This is
         const voices = await voiceChoices();
         select.replaceChildren();
         if (!voices.length) {
-            select.append(new Option('No voices - is AllTalk running?', ''));
+            select.append(new Option('No voices - is the voice engine ready?', ''));
             return;
         }
         select.append(new Option('- none -', ''));
         const current = String(get() || '');
         // A voice that has since left the server stays selectable rather than being lost silently.
-        for (const v of (current && !voices.includes(current)) ? [current, ...voices] : voices) select.append(new Option(v, v));
+        const known = voices.some(v => v.value === current);
+        for (const v of (current && !known) ? [{ value: current, label: current }, ...voices] : voices) select.append(new Option(v.label, v.value));
         select.value = current;
         select.disabled = false;
     })();
@@ -175,6 +195,93 @@ export function buildStrangerVoices() {
     return wrap;
 }
 
+/** A number field that takes decimals, bound to a settings key and kept inside its range. */
+function decimalField({ key, label: text, help, min, max, step }) {
+    const settings = getSettings();
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'text_pole';
+    input.style.width = '6em';
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.title = help || '';
+    input.value = String(settings[key] ?? '');
+    input.addEventListener('change', () => {
+        const n = Number(input.value);
+        const next = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+        settings[key] = next;
+        input.value = String(next);
+        saveSettings();
+    });
+    row.append(label(text), input);
+    if (help) row.append(note(help));
+    return row;
+}
+
+/** The settings of the two cloud engines: ElevenLabs through SillyTavern, and fal.ai for testing. */
+function buildCloudEngineSettings(engine) {
+    const settings = getSettings();
+    const wrap = document.createElement('div');
+    wrap.className = 'sillynpc-setting';
+    const status = document.createElement('small');
+    status.className = 'notes';
+    const test = button('fa-plug', 'Test', async () => {
+        status.textContent = 'Checking...';
+        const result = await ttsStatus();
+        status.textContent = result.ready ? 'Ready.' : result.reason;
+    });
+
+    if (engine === 'elevenlabs') {
+        wrap.append(
+            note('The key lives in SillyTavern (API Connections, ElevenLabs), the same one its own TTS uses. A voice is an ElevenLabs voice id, picked below from your account.'),
+            buildSettingSelect({
+                key: 'elevenModel',
+                label: 'Model',
+                help: 'Only Eleven v3 reads delivery tags such as [whispers]. Every other model gets the plain words.',
+                options: Object.entries(ELEVEN_MODELS).map(([value, text]) => ({ value, label: text })),
+            }),
+            decimalField({ key: 'elevenStability', label: 'Stability', help: '0 to 1.', min: 0, max: 1, step: 0.05 }),
+            decimalField({ key: 'elevenSimilarity', label: 'Similarity', help: '0 to 1. Not used by Eleven v3.', min: 0, max: 1, step: 0.05 }),
+            decimalField({ key: 'elevenSpeed', label: 'Speed', help: '0.7 to 1.2.', min: 0.7, max: 1.2, step: 0.05 }),
+            test, status,
+        );
+        return wrap;
+    }
+
+    // fal.ai: testing only
+    const key = document.createElement('input');
+    key.type = 'password';
+    key.autocomplete = 'off';
+    key.className = 'text_pole';
+    key.style.cssText = 'flex:1; min-width:14em;';
+    key.placeholder = 'fal key';
+    key.value = settings.falKey || '';
+    key.addEventListener('change', () => { settings.falKey = key.value.trim(); saveSettings(); });
+    const endpoint = document.createElement('input');
+    endpoint.type = 'text';
+    endpoint.className = 'text_pole';
+    endpoint.style.cssText = 'flex:1; min-width:14em;';
+    endpoint.value = settings.falEndpoint || FAL_DEFAULT_ENDPOINT;
+    endpoint.addEventListener('change', () => { settings.falEndpoint = endpoint.value.trim() || FAL_DEFAULT_ENDPOINT; saveSettings(); });
+    const keyRow = document.createElement('div');
+    keyRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;';
+    keyRow.append(label('fal key'), key);
+    const endpointRow = document.createElement('div');
+    endpointRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;';
+    endpointRow.append(label('Endpoint'), endpoint);
+    wrap.append(
+        note('For testing. The key is kept in your SillyTavern settings in this browser only; it is never part of the extension or its repository. '
+            + 'Each line spoken is a paid request to fal. A voice is a name such as Rachel; any name the endpoint accepts can be typed into a card.'),
+        keyRow, endpointRow,
+        decimalField({ key: 'elevenStability', label: 'Stability', help: '0 to 1.', min: 0, max: 1, step: 0.05 }),
+        test, status,
+    );
+    return wrap;
+}
+
 /**
  * The Voices settings: where AllTalk is, who reads what, and what is read.
  *
@@ -185,9 +292,18 @@ export function renderVoiceSettings(container) {
 
     const intro = document.createElement('p');
     intro.className = 'notes sillynpc-tab-intro';
-    intro.textContent = 'Characters are read through AllTalk directly. Pick each character\'s voice on their '
+    intro.textContent = 'Characters are read by the engine chosen below. Pick each character\'s voice on their '
         + 'page; the rest are chosen here. SillyTavern\'s own TTS is not used, so it can stay off.';
     container.append(intro);
+
+    const engine = engineOf(settings);
+    container.append(buildSettingSelect({
+        key: 'ttsEngine',
+        label: 'Voice Engine',
+        help: 'Voices are per engine: a voice picked under one is not valid under another, so change engines before picking voices.',
+        options: Object.entries(ENGINES).map(([value, text]) => ({ value, label: text })),
+        onChange: () => { container.replaceChildren(); renderVoiceSettings(container); },
+    }));
 
     // connection
     const connection = document.createElement('div');
@@ -216,7 +332,8 @@ export function renderVoiceSettings(container) {
         status.textContent = result.ready ? 'Connected.' : result.reason;
     }));
     connection.append(urlRow, status, note('On a phone, use the address of the computer running AllTalk (for example http://192.168.1.20:7851), not localhost.'));
-    container.append(connection);
+    if (engine === 'alltalk') container.append(connection);
+    else container.append(buildCloudEngineSettings(engine));
 
     // who reads whom
     const bind = (key) => ({
@@ -247,6 +364,12 @@ export function renderVoiceSettings(container) {
         key: 'ttsSpeakNarration',
         label: 'Read Quoted Speech With No Speaker',
         help: 'A "quote" in a paragraph with no speaker tag, in the default voice. Actions and description are never read.',
+    }));
+    container.append(buildSettingToggle({
+        key: 'ttsToneTags',
+        label: 'Send Delivery To The Voice',
+        help: 'A line marked [whisper]...[/whisper] is sent to Eleven v3 as [whispers] and the closing tag is dropped. '
+            + 'Off, or on any other model or engine, the tags are removed and only the words are read.',
     }));
 }
 

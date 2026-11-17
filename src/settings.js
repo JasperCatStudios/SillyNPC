@@ -162,6 +162,19 @@ export const defaultSettings = {
     /** AllTalk, spoken to directly. */
     alltalkUrl: 'http://localhost:7851',
     alltalkLanguage: 'en',
+    /** Which engine speaks: 'alltalk', 'elevenlabs' (through SillyTavern) or 'fal' (testing). */
+    ttsEngine: 'alltalk',
+    elevenModel: 'eleven_v3',
+    elevenStability: 0.5,
+    elevenSimilarity: 0.75,
+    elevenSpeed: 1,
+    /** fal.ai, for testing: the key stays in this browser's settings and is never part of the extension. */
+    falKey: '',
+    falEndpoint: 'fal-ai/elevenlabs/tts/eleven-v3',
+    /** Send a line's delivery (whisper, shout...) to engines that understand audio tags. Closing tags are always dropped. */
+    ttsToneTags: true,
+    /** Delivery tag to ElevenLabs audio tag, as edited by the owner. Empty: the built-in table. */
+    ttsToneTable: {},
     /** Voice files for people with no card of their own. */
     ttsVoiceDefault: '',
     ttsVoicePlayer: '',

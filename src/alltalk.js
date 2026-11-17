@@ -1,5 +1,13 @@
 import { getSettings } from './settings.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
+import { applyPhonetics, speechFor, cleanToneTable, DEFAULT_TONE_TAGS } from './tts-text.js';
+import { engineOf, engineReadsAudioTags, generateEleven, generateFal } from './tts-engines.js';
+
+/** The delivery tags in force: the owner's table when they have edited it, else the starting one. */
+export function toneTable(settings = getSettings()) {
+    const own = cleanToneTable(settings.ttsToneTable);
+    return Object.keys(own).length ? own : DEFAULT_TONE_TAGS;
+}
 
 /**
  * A small AllTalk client (fork).
@@ -40,8 +48,16 @@ export async function alltalkVoices() {
     }
 }
 
-/** Generates one piece of speech and returns it as a playable URL. */
+/** Generates one piece of speech with whichever engine is chosen, as a playable URL. */
 async function generate(text, voice) {
+    const engine = engineOf();
+    if (engine === 'elevenlabs') return generateEleven(text, voice);
+    if (engine === 'fal') return generateFal(text, voice);
+    return generateAlltalk(text, voice);
+}
+
+/** Generates one piece of speech through AllTalk and returns it as a playable URL. */
+async function generateAlltalk(text, voice) {
     const settings = getSettings();
     const body = new URLSearchParams({
         text_input: text,
@@ -122,9 +138,17 @@ async function pump() {
 }
 
 /** Queues text to be read in a voice file. Returns false when there is nothing to read. */
-export function speakWith(voice, text) {
-    if (!getSettings().ttsEnabled) return false;
-    const spoken = String(text ?? '').trim();
+export function speakWith(voice, text, { tone = '' } = {}) {
+    const settings = getSettings();
+    if (!settings.ttsEnabled) return false;
+    // Names are said the way their cards spell them out; delivery tags become the engine's audio
+    // tag (Eleven v3) or vanish (everything else). Closing tags never reach an engine.
+    const said = applyPhonetics(String(text ?? ''), settings.characters || []);
+    const spoken = speechFor(said, {
+        tone,
+        table: toneTable(settings),
+        audioTags: settings.ttsToneTags !== false && engineReadsAudioTags(settings),
+    }).trim();
     if (!spoken || !voice) return false;
     queue.push({ text: spoken, voice, ready: null });
     debugLog(`AllTalk queued ${spoken.length} characters in ${voice}`);
