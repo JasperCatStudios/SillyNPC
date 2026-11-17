@@ -26,6 +26,29 @@ const csvToList = (text) => String(text ?? '').split(',').map(s => s.trim()).fil
 
 /* ---- one field --------------------------------------------------------------------------------------- */
 
+/**
+ * What to type, shown in an empty field, by the field's key. Taken from the built-in worlds (Fire Emblem, Bleach,
+ * Black Clover). A field can give its own placeholder, which wins.
+ */
+const EXAMPLES = {
+    id: 'made from the name, e.g. iron_sword', key: 'made from the name, e.g. iron_sword', label: 'e.g. Iron Sword', name: 'e.g. Iron Sword',
+    category: 'e.g. Crests', desc: 'One sentence on what it does', verb: 'e.g. slashes', prefix: 'e.g. Steel', color: 'e.g. #9e9e9e',
+    icon: 'e.g. fa-solid fa-circle', rarity: 'e.g. Uncommon', tier: 'e.g. steel', element: 'e.g. fire', group: 'e.g. Fire', option: 'e.g. Fire Magic',
+    aliases: 'e.g. HP, Health', options: 'e.g. Mage, Knight, Rogue', rungs: 'e.g. E, D, C, B, A, S', tags: 'e.g. melee, red', roles: 'e.g. weapon, magic',
+    chance: 'e.g. 15, or a formula like 10 + a.luck/5', if: "e.g. has(a,'red') && has(d,'green')", meta: 'e.g. affinity', channels: 'e.g. magic',
+    min: 'e.g. 0', max: 'e.g. 100', default: 'e.g. 30', level: 'e.g. 1', mod: 'e.g. -1', uses: 'e.g. 3', turns: 'e.g. 2', weight: 'e.g. 5',
+    power: 'e.g. 5', hit: 'e.g. 2', crit: 'e.g. 5', mult: 'e.g. 1.1', dmgMult: 'e.g. 1.2', bonus: 'e.g. 2', share: 'e.g. 0.25', flee: 'e.g. 35', slow: 'e.g. 10',
+    bonusPerRung: 'e.g. 1', whenBelow: 'e.g. 0.5', maxPerSide: 'e.g. 4', burden: 'e.g. 10 + stat.strength/2', hands: 'e.g. 1',
+    'cost.amount': 'e.g. 10', 'effect.dmgMult': 'e.g. 1.3', 'effect.block': 'e.g. 0.5', 'effect.heal': 'e.g. 0.08', 'effect.counter': 'e.g. 0.3',
+    'effect.missingBonus': 'e.g. 0.5', 'effect.power': 'e.g. 3', 'effect.hit': 'e.g. -3', 'effect.turns': 'e.g. 2', 'effect.share': 'e.g. 0.25',
+    'effect.flee': 'e.g. 35', 'effect.slow': 'e.g. 10', 'effect.chance': 'e.g. 70, or a formula',
+    'grantsTag.tag': 'e.g. mounted', 'grantsTag.from': 'e.g. C', 'bonus.power': 'e.g. 1', 'bonus.hit': 'e.g. 0', 'bonus.crit': 'e.g. 5',
+    ladder: 'e.g. rank', channel: 'e.g. physical', prof: 'e.g. sword', rollRole: 'e.g. presence', 'cost.pool': 'e.g. guard',
+    kind: 'e.g. passive', trigger: 'e.g. attack', slot: 'e.g. hand', range: 'e.g. melee', unarmed: 'e.g. fists', type: 'e.g. number',
+    'effect.type': 'e.g. damage', 'effect.area': 'e.g. one', 'effect.range': 'e.g. ranged', zeroAt: 'e.g. E', defaultTier: 'e.g. common', result: 'e.g. crit',
+    stats: 'e.g. strength, defense', profs: 'e.g. sword, lance',
+};
+
 function buildInput(field, rec, onChange) {
     const read = () => (field.get ? field.get(rec) : getPath(rec, field.key));
     const write = (value) => { if (field.set) field.set(rec, value); else setPath(rec, field.key, value); onChange(); };
@@ -47,25 +70,32 @@ function buildInput(field, rec, onChange) {
 
     if (type === 'select') {
         const select = el('select', 'text_pole');
+        const hint = field.placeholder ?? EXAMPLES[field.key];
+        let shown = '';
+        const choices = () => {
+            const options = typeof field.options === 'function' ? field.options(rec) : (field.options || []);
+            return options.map(o => (typeof o === 'object' ? { value: String(o.value), text: String(o.label) } : { value: String(o), text: String(o) }));
+        };
+        // Rebuilt only when what it offers has changed. Rebuilding every time it was touched replaced the options under the
+        // open list, so what you clicked was lost and the field fell back to (none).
         const fill = () => {
             const current = String(read() ?? '');
-            select.replaceChildren(new Option('(none)', ''));
-            const options = typeof field.options === 'function' ? field.options(rec) : (field.options || []);
-            const seen = new Set();
-            for (const o of options) {
-                const value = typeof o === 'object' ? o.value : o;
-                const text = typeof o === 'object' ? o.label : o;
-                seen.add(String(value));
-                select.append(new Option(text, value));
-            }
+            const list = choices();
+            const signature = `${current}|${list.map(o => `${o.value}=${o.text}`).join(';')}`;
+            if (signature === shown) return;
+            shown = signature;
+            select.replaceChildren(new Option(hint ? `(none) - ${hint}` : '(none)', ''));
+            for (const o of list) select.append(new Option(o.text, o.value));
             // A value the list does not offer (from a pasted file) is kept and shown, not dropped.
-            if (current && !seen.has(current)) select.append(new Option(`${current} (not in the list)`, current));
+            if (current && !list.some(o => o.value === current)) select.append(new Option(`${current} (not in the list)`, current));
             select.value = current;
         };
         fill();
         select.addEventListener('focus', fill);
-        select.addEventListener('mousedown', fill);
-        select.addEventListener('change', () => write(select.value === '' ? undefined : select.value));
+        select.addEventListener('change', () => {
+            write(select.value === '' ? undefined : select.value);
+            shown = '';
+        });
         wrap.append(select);
         return wrap;
     }
@@ -74,7 +104,7 @@ function buildInput(field, rec, onChange) {
         const box = el('textarea', 'text_pole sillynpc-te-area');
         box.rows = field.rows || 3;
         box.value = read() ?? '';
-        box.placeholder = field.placeholder || '';
+        box.placeholder = field.placeholder ?? EXAMPLES[field.key] ?? '';
         box.addEventListener('input', () => write(box.value === '' ? undefined : box.value));
         wrap.append(box);
         return wrap;
@@ -83,7 +113,7 @@ function buildInput(field, rec, onChange) {
     const box = el('input', 'text_pole');
     box.type = type === 'number' ? 'number' : 'text';
     if (type === 'number' && field.step) box.step = String(field.step);
-    box.placeholder = field.placeholder || '';
+    box.placeholder = field.placeholder ?? EXAMPLES[field.key] ?? '';
     const value = read();
     box.value = type === 'csv' ? (Array.isArray(value) ? value.join(', ') : '') : (value ?? '');
     box.addEventListener('input', () => {

@@ -223,8 +223,8 @@ export function buildDataSections(draft, touch) {
         name: (r) => `${r.label || r.id}${Array.isArray(r.tiers) ? ` (${r.tiers.length} tiers)` : ''}`,
         make: (taken) => ({ id: uniqueKey('tiers')(taken), label: 'Tier', defaultTier: '', tiers: [] }),
         fields: [
-            { key: 'id', label: 'Id of the ladder', placeholder: 'default' },
-            { key: 'label', label: 'Name', placeholder: 'Tier' },
+            { key: 'id', label: 'Id of the ladder', placeholder: 'e.g. default' },
+            { key: 'label', label: 'Name', placeholder: 'e.g. Tier' },
             { key: 'defaultTier', label: 'Tier a plain weapon has', type: 'select', options: (rec) => (Array.isArray(rec.tiers) ? rec.tiers : []).map(t => ({ value: t.id, label: t.label || t.id })) },
         ],
         extra: (ladder, body, changed) => {
@@ -329,8 +329,8 @@ export function buildDataSections(draft, touch) {
             { key: 'group', label: 'Group', placeholder: 'optional' },
             { key: 'option', label: 'How a sheet writes it', placeholder: 'e.g. Fire Magic' },
             { key: 'aliases', label: 'Also called', type: 'csv' },
-            { label: 'Beats (element ids)', type: 'csv', get: (rec) => X.elements?.beats?.[rec.id], set: (rec, v) => setPath(E(), `beats.${rec.id}`, v) },
-            { label: 'Wards off (element ids)', type: 'csv', get: (rec) => X.elements?.wards?.[rec.id], set: (rec, v) => setPath(E(), `wards.${rec.id}`, v) },
+            { label: 'Beats (element ids)', type: 'csv', placeholder: 'e.g. wind, earth', get: (rec) => X.elements?.beats?.[rec.id], set: (rec, v) => setPath(E(), `beats.${rec.id}`, v) },
+            { label: 'Wards off (element ids)', type: 'csv', placeholder: 'e.g. * (every other element)', get: (rec) => X.elements?.wards?.[rec.id], set: (rec, v) => setPath(E(), `wards.${rec.id}`, v) },
         ],
     }));
     sections.push(elBox);
@@ -346,7 +346,7 @@ export function buildDataSections(draft, touch) {
         onChange: touch, addLabel: 'Add a natural roll', empty: 'None.',
         name: (r) => `${r.id} = ${r.result || '?'}`,
         make: (taken) => ({ id: uniqueKey('20')(taken), result: 'crit' }),
-        fields: [{ key: 'id', label: 'Die shows', placeholder: '20' }, { key: 'result', label: 'Result', type: 'select', options: RESULTS }],
+        fields: [{ key: 'id', label: 'Die shows', placeholder: 'e.g. 20' }, { key: 'result', label: 'Result', type: 'select', options: RESULTS }],
     }));
     extras.append(recordList({
         title: 'Damage by result', help: 'How much each result multiplies damage (a miss is 0).',
@@ -354,7 +354,7 @@ export function buildDataSections(draft, touch) {
         onChange: touch, addLabel: 'Add a result', empty: 'None.',
         name: (r) => `${r.id} x${r.mult ?? '?'}`,
         make: (taken) => ({ id: RESULTS.find(x => !taken.has(x)) || 'hit', mult: 1 }),
-        fields: [{ key: 'id', label: 'Result', type: 'select', options: RESULTS }, { key: 'mult', label: 'Multiplier', type: 'number', step: 0.1 }],
+        fields: [{ key: 'id', label: 'Result', type: 'select', options: RESULTS }, { key: 'mult', label: 'Multiplier', type: 'number', step: 0.1, placeholder: 'e.g. 1.5 (0 for a miss)' }],
     }));
     extras.append(recordList({
         title: 'Difficulty', help: 'How each difficulty level (1 easy to 5 hard) shifts the roll.',
@@ -362,7 +362,7 @@ export function buildDataSections(draft, touch) {
         onChange: () => { pruneResolution(); touch(); }, addLabel: 'Add a level', empty: 'None.',
         name: (r) => `Level ${r.level ?? '?'}: ${r.mod ?? 0}`,
         make: () => ({ level: 1, mod: 0 }),
-        fields: [{ key: 'level', label: 'Level', type: 'number' }, { key: 'mod', label: 'Roll change', type: 'number' }],
+        fields: [{ key: 'level', label: 'Level', type: 'number', placeholder: 'e.g. 1 (easy) to 5 (hard)' }, { key: 'mod', label: 'Roll change', type: 'number', placeholder: 'e.g. -1' }],
     }));
     extras.append(fieldGroup({
         title: 'What is at stake', source: () => X.stakes || {}, ensure: () => (X.stakes && typeof X.stakes === 'object' ? X.stakes : (X.stakes = {})),
@@ -375,7 +375,7 @@ export function buildDataSections(draft, touch) {
         onChange: touch, addLabel: 'Add a card', empty: 'None.',
         name: (r) => r.id,
         make: (taken) => ({ id: uniqueKey('card')(taken), profs: [] }),
-        fields: [{ key: 'id', label: 'Card name' }, { key: 'profs', label: 'Proficiency ids', type: 'csv' }],
+        fields: [{ key: 'id', label: 'Card name', placeholder: 'e.g. Martial arts' }, { key: 'profs', label: 'Proficiency ids', type: 'csv' }],
     }));
     sections.push(extras);
 
@@ -396,8 +396,8 @@ export function buildDataSections(draft, touch) {
             { key: 'stats', label: 'Feeds these stats', type: 'csv', placeholder: statChoices().slice(0, 3).join(', ') || 'strength', help: 'Use the stat ids of this world (the Stats section above).' },
         ],
     }));
-    const scaleField = (which, index, label) => ({
-        label, type: 'number',
+    const scaleField = (which, index, label, example) => ({
+        label, type: 'number', placeholder: `e.g. ${example}`,
         get: () => X.loreImport?.scale?.[which]?.[index],
         set: (_rec, v) => {
             const current = Array.isArray(X.loreImport?.scale?.[which]) ? [...X.loreImport.scale[which]] : [undefined, undefined];
@@ -410,7 +410,7 @@ export function buildDataSections(draft, touch) {
     loreBox.append(fieldGroup({
         title: 'Scale', help: 'The lorebook\'s own numbers run from one range and are stretched onto this world\'s stat range (for example 1 to 15 becomes 0 to 100).',
         source: () => X.loreImport?.scale || {}, ensure: () => {}, onChange: touch,
-        fields: [scaleField('from', 0, 'Lorebook lowest'), scaleField('from', 1, 'Lorebook highest'), scaleField('to', 0, 'This world lowest'), scaleField('to', 1, 'This world highest')],
+        fields: [scaleField('from', 0, 'Lorebook lowest', '1'), scaleField('from', 1, 'Lorebook highest', '15'), scaleField('to', 0, 'This world lowest', '0'), scaleField('to', 1, 'This world highest', '100')],
     }));
     sections.push(loreBox);
 
