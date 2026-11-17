@@ -1,4 +1,5 @@
 import { queueResult, armResult } from '../../src/result-runtime.js';
+import { buildPersonaWarning } from '../../src/ui-persona-warning.js';
 import { textFromRaw } from '../../src/raw-text.js';
 import { getContext, extension_settings } from '../../../../../extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '../../../../../../script.js';
@@ -1306,6 +1307,7 @@ function renderBottlePicker(cands) {
     $('#rpg-bt-back').on('click', () => { keepTalk({ final: true }); gameSession++; gameState.active = false; gameState.chatLog = []; renderGameArea(); });
     const wrap = $('<div class="rpg-menu-container"></div>');
     wrap.append(`<div class="rpg-menu-title">${t('bt_pick_title')}</div><div class="rpg-bt-hint">${t('bt_pick_hint')}</div>`);
+    { const warn = buildPersonaWarning(); if (warn) wrap.append(warn); }
     cands.forEach((n, i) => wrap.append(`<label class="rpg-bt-cand"><input type="checkbox" data-i="${i}" ${n === gameState.opponentName ? 'checked' : ''}> ${escapeHtml(n)}</label>`));
     wrap.append(`<button class="rpg-game-select-btn" id="rpg-bt-start"><i class="fa-solid fa-play"></i> ${t('bt_start')}</button>`);
     canvas.append(wrap);
@@ -2301,6 +2303,7 @@ function renderGameArea() {
                 <button class="rpg-game-select-btn" data-game="bottle"><i class="fa-solid fa-wine-bottle"></i> ${t('g_bottle')}</button>
             </div>
         `);
+        { const warn = buildPersonaWarning(); if (warn) canvas.find('.rpg-menu-container').first().prepend(warn); }
         $('.rpg-game-select-btn[data-game]').on('click', function () { startGame($(this).data('game')); });
         $('#rpg-history-btn').on('click', () => openRivalryEditor(gameState.opponentName));
         return;

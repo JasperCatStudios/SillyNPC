@@ -17,6 +17,7 @@ import { renderCombatButton } from './combat-window.js';
 import { renderTypeEditor, startDraft, deleteCustomType, importTypeFile, exportTypeFile, exportTemplateFile } from './type-editor.js';
 
 import { PRODUCT_NAME } from '../../src/constants.js';
+import { buildPersonaWarning } from '../../src/ui-persona-warning.js';
 /**
  * The Combat tab (fork), base module: pick a world type, see how it maps roles to its own
  * stats, and read every character's numbers under it. Read-only: nothing here writes to a
@@ -446,6 +447,7 @@ export function renderCombatPane(pane, { live, head, makeSwitch }) {
 
     const bar = el('div', 'sillynpc-combat-views');
     const body = el('div', 'sillynpc-combat-body');
+    { const warn = buildPersonaWarning(); if (warn) pane.append(warn); }
     pane.append(bar, body);
 
     if (!live) {

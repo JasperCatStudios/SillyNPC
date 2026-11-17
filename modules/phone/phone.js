@@ -21,6 +21,7 @@ import { detectImageRequest, needsContextResolution, llmResolveMessages, parseLl
 import { createGroup, addMember, removeMember, membersOf, addable, groupLabel, normalizeGroups, MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../../src/phone-groups.js';
 
 import { PRODUCT_NAME } from '../../src/constants.js';
+import { buildPersonaWarning } from '../../src/ui-persona-warning.js';
 const MODULE_NAME = 'sillynpc_phone';
 
 /* ============================================================
@@ -4548,6 +4549,7 @@ function renderRoster() {
     const scroller = document.getElementById('rph-roster');
     const keepTop = scroller ? scroller.scrollTop : 0;
     body.html(html);
+    { const warn = buildPersonaWarning(); if (warn) body.prepend(warn); }
     if (scroller) scroller.scrollTop = keepTop;
     body.off('.rph');
     bindOwnGroups(body);

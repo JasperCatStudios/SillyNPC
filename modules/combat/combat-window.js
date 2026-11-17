@@ -19,6 +19,7 @@ import { addRecord, tallyAgainst, rivalryBlock } from '../../src/rivalry.js';
 import { tallyText } from '../../src/rivalry-core.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
 import { rate, calibrate, SPAR_SHARE } from '../../src/combat-pace.js';
+import { buildPersonaWarning } from '../../src/ui-persona-warning.js';
 import { activeCombatType, combatPrefs, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
 import { lastTaggedSpeaker, sceneClock } from '../shim.js';
 import { recordTalk } from '../../src/talk-store.js';
@@ -581,6 +582,7 @@ function drawSetup(body) {
         return;
     }
 
+    { const warn = buildPersonaWarning(); if (warn) body.append(warn); }
     body.append(el('p', 'snpc-fight-type', type.name));
 
     const modes = el('div', 'snpc-fight-modes');

@@ -60,6 +60,9 @@ export function buildPersonaToggle(record) {
     box.checked = isPersonaChar(record);
     box.addEventListener('change', () => setPersonaChar(record, box.checked));
     wrap.append(el('span', '', 'Persona'), box);
+    const hint = el('small', 'notes sillynpc-persona-hint', 'Tick this on the card that is you. If a card has the same name as your persona and this is not ticked, you appear twice in combat, the games, the phone and the scene.');
+    hint.style.display = 'block';
+    wrap.append(hint);
     return wrap;
 }
 

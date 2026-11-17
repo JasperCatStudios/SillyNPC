@@ -3867,6 +3867,10 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-dstyle-check input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
 .sillynpc-dstyle-test { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; padding: 8px 10px; border-radius: var(--sillynpc-radius-md, 6px); background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
 .sillynpc-dstyle-hear { white-space: nowrap; }
+/* The persona warning: shown only when a character card has your persona's name but is not ticked as Persona. */
+.sillynpc-persona-warning { margin: 8px 0; padding: 8px 10px; border-left: 3px solid #d9a441; border-radius: 4px; background: rgba(217, 164, 65, .12); line-height: 1.4; }
+.sillynpc-persona-warning i { color: #d9a441; margin-right: 4px; }
+.sillynpc-persona-hint { margin-top: 2px; }
 .sillynpc-dstyle-hear:disabled { opacity: .5; cursor: not-allowed; }
 
 /* A speak button before each spoken line */
