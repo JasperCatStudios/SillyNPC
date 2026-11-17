@@ -3844,3 +3844,16 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-cv-voiceline { margin: 6px 0; }
 .sillynpc-combat-persona { display: inline-flex; align-items: center; gap: 8px; width: auto; margin: 4px 0; cursor: pointer; }
 .sillynpc-combat-persona input[type="checkbox"] { width: auto; flex: 0 0 auto; margin: 0; }
+
+/* Delivery Styles (Appearance): one card per delivery tag, with a live preview */
+.sillynpc-dstyle { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.sillynpc-dstyle-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: var(--sillynpc-radius-md, 6px); background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
+.sillynpc-dstyle-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sillynpc-dstyle-preview { flex: 1 1 14em; min-width: 0; padding: 6px 10px; border-radius: 4px; background: rgba(0,0,0,.18); overflow-wrap: anywhere; }
+.sillynpc-dstyle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9em, 1fr)); gap: 8px; }
+.sillynpc-dstyle-words { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: 8px; }
+.sillynpc-dstyle-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sillynpc-dstyle-label { font-size: .85em; opacity: .8; }
+.sillynpc-dstyle-field input[type="checkbox"] { width: auto; align-self: flex-start; }
+.sillynpc-dstyle-actions, .sillynpc-dstyle-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sillynpc-dstyle-add input { flex: 1 1 12em; min-width: 0; }

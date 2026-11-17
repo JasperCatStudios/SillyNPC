@@ -29,7 +29,7 @@ import { noteActivatedLore } from './src/activated-lore.js';
 import { setDebugLogging } from './src/constants.js';
 import { describeChatConnection } from './src/utils.js';
 import { applyDialogueFormatPrompt } from './src/dialogue-format.js';
-import { applyDeliveryPrompt, syncDeliveryScripts } from './src/delivery.js';
+import { applyDeliveryPrompt, syncDeliveryScripts, applyDeliveryStyle } from './src/delivery.js';
 import { placeWritingPrompt } from './src/prompt-slot.js';
 import { applyBanList } from './src/banlist.js';
 import { applyHistoryInjection } from './src/history-inject.js';
@@ -268,7 +268,7 @@ jQuery(async () => {
         wireAvatarClicks();
         try {
             initTts();
-            try { syncDeliveryScripts(); } catch (err) { debugLog('Delivery tag scripts not synced', err); }
+            try { syncDeliveryScripts(); applyDeliveryStyle(); } catch (err) { debugLog('Delivery tag scripts not synced', err); }
             initImagePromptInjection();
             initInternalStates();
             // Its own guard: a bonds fault must not stop the modules registered after it.

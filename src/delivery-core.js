@@ -41,11 +41,14 @@ export function deliveryNames(table) {
  * The instruction sent to the story model.
  *
  * @param {Record<string,string>} [table] Delivery tag to ElevenLabs word; only the names are used here.
+ * @param {Record<string,string>} [meanings] The owner's own wording per tag; the built-in one is used where there is none.
  * @returns {string}
  */
-export function buildDeliveryPrompt(table) {
+export function buildDeliveryPrompt(table, meanings) {
     const names = deliveryNames(table);
-    const lines = names.map(n => `  ${n}: ${DELIVERY_MEANINGS[n] || n}`);
+    const own = meanings && typeof meanings === 'object' ? meanings : {};
+    const said = (n) => String(own[n] ?? '').replace(/\s+/g, ' ').trim() || DELIVERY_MEANINGS[n] || n;
+    const lines = names.map(n => `  ${n}: ${said(n)}`);
     return [
         '### DELIVERY TAGS',
         '- When a line of speech is delivered in a clearly different way from normal talking, wrap its quoted words in a delivery tag:',

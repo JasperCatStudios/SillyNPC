@@ -86,6 +86,10 @@ export const defaultSettings = {
     /** Empty means the built-in instruction, built from the tag names. */
     deliveryTagsPrompt: '',
     deliveryTagsDepth: 0,
+    /** Per tag: how it looks (size, weight, case, spacing, opacity, font, effect). Empty: the starting looks. */
+    deliveryStyles: {},
+    /** Per tag: what it means, in the words the model is given. Empty: the built-in wording. */
+    deliveryMeanings: {},
     /** Take the tags out of what is sent back to the model (older messages), starting this many messages back. */
     deliverySaverOn: false,
     deliverySaverDepth: 2,

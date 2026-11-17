@@ -3,7 +3,8 @@ import { extension_settings } from '../../../../extensions.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { getSettings } from './settings.js';
 import { mergeRegexScripts } from './content-kit.js';
-import { buildDeliveryPrompt, deliveryScripts, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
+import { buildDeliveryPrompt, deliveryScripts, deliveryNames, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
+import { deliveryCss, fontsUrl } from './delivery-style.js';
 import { toneTable } from './alltalk.js';
 import { debugLog } from './constants.js';
 
@@ -23,7 +24,7 @@ export function deliveryEnabled() {
 
 /** The instruction text: the owner's if they have written their own, else built from the tag names. */
 export function deliveryPromptText() {
-    return String(getSettings().deliveryTagsPrompt ?? '').trim() || buildDeliveryPrompt(toneTable());
+    return String(getSettings().deliveryTagsPrompt ?? '').trim() || buildDeliveryPrompt(toneTable(), getSettings().deliveryMeanings);
 }
 
 /** Puts the instruction in front of the model, or takes it away. */
@@ -53,6 +54,31 @@ export function syncDeliveryScripts() {
     extension_settings.regex = mergeRegexScripts(list, scripts).merged;
     saveSettingsDebounced();
     debugLog('Delivery tag regex scripts brought up to date');
+}
+
+/** Puts the current styles on the page: one <style> for the looks and, when a font needs loading, one <link>. */
+export function applyDeliveryStyle() {
+    if (typeof document === 'undefined') return;
+    const settings = getSettings();
+    const names = deliveryNames(toneTable());
+    let style = document.getElementById('wk-delivery-style');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'wk-delivery-style';
+        document.head.append(style);
+    }
+    style.textContent = deliveryCss(settings.deliveryStyles, names);
+
+    const url = fontsUrl(settings.deliveryStyles, names);
+    let link = document.getElementById('wk-delivery-fonts');
+    if (!url) { link?.remove(); return; }
+    if (!link) {
+        link = document.createElement('link');
+        link.id = 'wk-delivery-fonts';
+        link.rel = 'stylesheet';
+        document.head.append(link);
+    }
+    if (link.getAttribute('href') !== url) link.setAttribute('href', url);
 }
 
 /** Both at once: what the toggle and a change to the tag table call. */

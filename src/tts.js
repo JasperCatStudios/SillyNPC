@@ -39,7 +39,7 @@ export async function ttsStatus() {
     if (engine === 'elevenlabs') {
         return await elevenReady()
             ? { ready: true, reason: '' }
-            : { ready: false, reason: 'ElevenLabs gave no voices. Set the key in SillyTavern (API Connections, ElevenLabs) and check the server console.' };
+            : { ready: false, reason: 'ElevenLabs gave no voices. The key is set in the SillyTavern TTS extension panel (choose ElevenLabs there once). Reload the page after adding it, and check the server console.' };
     }
     if (engine === 'fal') {
         return falConfigured()

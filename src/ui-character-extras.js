@@ -236,7 +236,7 @@ function buildCloudEngineSettings(engine) {
 
     if (engine === 'elevenlabs') {
         wrap.append(
-            note('The key lives in SillyTavern (API Connections, ElevenLabs), the same one its own TTS uses. A voice is an ElevenLabs voice id, picked below from your account.'),
+            note('This uses the ElevenLabs key SillyTavern already holds (set in its own TTS extension panel by choosing ElevenLabs there). Reload the page after the key is added. A voice is an ElevenLabs voice id, picked below from your account.'),
             buildSettingSelect({
                 key: 'elevenModel',
                 label: 'Model',

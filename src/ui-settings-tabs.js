@@ -20,6 +20,7 @@ import { clearRuns } from './default-portraits.js';
 import { triggerReprocess } from './chat.js';
 import { renderForkSettings, buildStrangerVoices } from './ui-character-extras.js';
 import { renderFactionSettings } from './ui-faction.js';
+import { renderDeliveryStyles } from './ui-delivery-styles.js';
 
 /**
  * How the chat and the menu look.
@@ -41,6 +42,7 @@ export function renderAppearanceView(view, onReprocessMessages, updateExtensionT
     title.textContent = 'Chat & Menu Styling';
     view.appendChild(title);
     try { renderFactionSettings(view, rerender); } catch (err) { console.warn('[Worldkit] faction settings failed', err); }
+    try { renderDeliveryStyles(view, rerender); } catch (err) { console.warn('[Worldkit] delivery styles failed', err); }
 
     view.append(buildSettingSlider({
         key: 'menuFontScale',
