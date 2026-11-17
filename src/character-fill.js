@@ -1,9 +1,6 @@
-import { getContext } from '../../../../st-context.js';
 import { loadWorldInfo } from '../../../../world-info.js';
 import { getSettings, saveSettings } from './settings.js';
 import { debugLog } from './constants.js';
-import { requestExtraction, coerceToUpdate, describeCollections } from './status-extractor.js';
-import { applyUpdate, resolveMaxValue, loadStateFromMetadata } from './status-logic.js';
 import { describeTrackedFacts, buildLoreExcerpt, createLoreEntry, generateLoreContent, saveLoreContent } from './api.js';
 import { tryAutoSyncLorebook, getChatLorebookName } from './lorebook.js';
 
@@ -15,62 +12,6 @@ import { tryAutoSyncLorebook, getChatLorebookName } from './lorebook.js';
  * portrait. Doing them one at a time meant three separate trips through three different
  * panels, and a character mentioned once in the story usually got none of them.
  */
-
-/**
- * The fields this card is supposed to have.
- *
- * The player and a character are configured from different lists - that is what the
- * Player and Character halves of System Builder are - so Fill has to ask which it is
- * filling before it can say what is missing.
- */
-export function requiredStatNames(char) {
-    const tracker = getSettings().statusTracker;
-    return ((char?.isPlayer ? tracker.playerStats : tracker.npcStats) || [])
-        .map(stat => stat?.name)
-        .filter(Boolean);
-}
-
-/**
- * Where this card's values actually are.
- *
- * A character's live on the card, which is what they walk back into a scene carrying.
- * The player's live in the chat: the card is only the seed a new chat starts from, so
- * reading it would report fields as empty that the player has had for fifty messages.
- */
-function storedFacts(char) {
-    if (!char?.isPlayer) {
-        return { stats: char?.statusOverrides || {}, collections: char?.statusCollections || {} };
-    }
-    let state = null;
-    try { state = loadStateFromMetadata(); } catch { /* no chat open */ }
-    return { stats: state?.player?.stats || {}, collections: state?.player?.collections || {} };
-}
-
-/** Which of those the card has nothing for. A blank string counts as nothing. */
-export function missingStats(char) {
-    const { stats } = storedFacts(char);
-    return requiredStatNames(char).filter(name => !String(stats[name] ?? '').trim());
-}
-
-/** The collections this card can hold anything in. */
-function fillableCollections(char) {
-    const wanted = char?.isPlayer ? 'player' : 'npc';
-    return (getSettings().statusTracker.collections || [])
-        .filter(col => col?.id && (col.target === 'all' || col.target === wanted));
-}
-
-/** What this card already carries, by item name, across every collection. */
-export function carriedItems(char) {
-    const stored = storedFacts(char).collections;
-    const names = [];
-    for (const col of fillableCollections(char)) {
-        for (const item of stored[col.id] || []) {
-            const name = String(item?.name ?? '').trim();
-            if (name) names.push(name);
-        }
-    }
-    return names;
-}
 
 /**
  * What this card is missing, and what filling it would do.
@@ -92,29 +33,14 @@ export function auditCharacter(char) {
         ? { done: true, summary: 'Already linked to a lorebook entry.' }
         : { done: false, summary: 'No lorebook entry. Will look for one, and write it if there is none.' };
 
-    const missing = missingStats(char);
-    const data = missing.length === 0
-        ? { done: true, missing: [], summary: 'Every tracker field already has a value.' }
-        : { done: false, missing, summary: `${missing.length} of ${requiredStatNames(char).length} fields are empty: ${missing.join(', ')}.` };
-
-    const carried = carriedItems(char);
-    const belongings = fillableCollections(char).length === 0
-        ? { done: true, summary: 'No collections are configured for characters.' }
-        : carried.length
-            // Offered, but not ticked. Nothing here is ever removed or duplicated, so the
-            // only thing at stake is an item arriving that you did not ask for.
-            ? { done: false, checked: false, summary: `Already carries ${carried.join(', ')}. Tick to let the story add more.` }
-            : { done: false, checked: true, summary: 'Nothing recorded. Will add what the story plainly gives them.' };
-
     const image = char?.imageUrl
         ? { done: true, summary: 'Already has a portrait.' }
         : { done: false, summary: 'No portrait. Will draw one.' };
 
     const wanted = (stage) => stage.checked ?? !stage.done;
     return {
-        lore, data, belongings, image,
-        anything: wanted(lore) || wanted(data)
-            || wanted(belongings) || wanted(image),
+        lore, image,
+        anything: wanted(lore) || wanted(image),
     };
 }
 
@@ -173,123 +99,4 @@ export async function fillLore(char) {
 
     await saveLoreContent(char, world, uid, tags, content);
     return { ok: true, action: `wrote a new entry in "${world}"` };
-}
-
-/** What the reader is told when filling one character's fields. */
-export const FILL_SYSTEM_PROMPT = [
-    'You are filling in a character sheet for one character in a roleplaying session.',
-    'Reply with a JSON object and nothing else. No prose, no markdown, no code fences.',
-    '',
-    'Shape:',
-    '  { "stats": { "<field>": "<value>" }, "collections": { "<id>": [ {...} ] } }',
-    '',
-    '- Fill only the fields you are asked for. Omit any field the material does not',
-    '  support - a blank is an honest answer, and a guess becomes a fact the moment it',
-    '  is written to the sheet.',
-    '- Write a value that has a maximum as "current/maximum", for example "8/10".',
-    '- Collections are optional. Include an item only where the material plainly says',
-    '  this character has it.',
-].join('\n');
-
-/**
- * The material the reader is given about one character.
- *
- * Belongings are described only when they are wanted. Naming the collections at all is an
- * invitation to fill them, and the point of the separate tick is that a curated inventory
- * is left alone unless it was asked about.
- */
-export function buildFillPrompt(char, missing, lore, trackerSettings, { collections = true } = {}) {
-    const defs = ((char?.isPlayer ? trackerSettings.playerStats : trackerSettings.npcStats) || [])
-        .filter(s => missing.includes(s?.name));
-    const describe = (stat) => {
-        const max = resolveMaxValue(stat);
-        const range = max ? ` (out of ${max})` : '';
-        const example = stat.defaultValue ? `, typically "${stat.defaultValue}"` : '';
-        return `- ${stat.name}${range}${example}`;
-    };
-
-    const facts = describeTrackedFacts(char);
-    const chat = getContext()?.chat || [];
-    const schema = collections ? describeCollections(trackerSettings) : '';
-
-    return [
-        '### CHARACTER',
-        char.name,
-        '',
-        '### FIELDS TO FILL',
-        defs.map(describe).join('\n') || '(none)',
-        schema ? '\n### BELONGINGS THEY MAY HAVE\n' + schema
-            + '\nOnly where the material plainly gives it to them.' : '',
-        facts ? '\n### ALREADY RECORDED ABOUT THEM\n' + facts : '',
-        lore ? '\n### THEIR LORE ENTRY\n' + lore : '',
-        '\n### RECENT MESSAGES',
-        buildLoreExcerpt(chat).text || '(no chat to read)',
-        '\n### TASK',
-        `Fill in what the material supports for ${char.name}, as JSON.`,
-    ].filter(Boolean).join('\n');
-}
-
-/**
- * Reads the story and the lore entry, and writes what it finds to the card.
- *
- * Only the fields that were empty. Filling a card is not licence to rewrite values
- * somebody set by hand, and the answer is a reading of prose either way.
- *
- * The two halves are chosen separately in the plan, and both travel in one request: a
- * character can need a field without wanting their inventory touched, and can want
- * belongings with every field already set.
- *
- * @param {object} char
- * @param {{ fields?: boolean, collections?: boolean }} [options]
- * @returns {Promise<{ ok: boolean, filled: string[], items: number, reason?: string }>}
- */
-export async function fillData(char, { fields = true, collections = true } = {}) {
-    const trackerSettings = getSettings().statusTracker;
-    const missing = fields ? missingStats(char) : [];
-    if (missing.length === 0 && !collections) return { ok: true, filled: [], items: 0 };
-
-    const lore = await readLoreEntry(char);
-    const prompt = buildFillPrompt(char, missing, lore, trackerSettings, { collections });
-    const raw = await requestExtraction(prompt, null, trackerSettings, FILL_SYSTEM_PROMPT, { usageKind: 'fill' });
-    const answer = coerceToUpdate(raw);
-
-    if (!answer || typeof answer !== 'object') {
-        return { ok: false, filled: [], items: 0, reason: 'The reader replied with something that could not be read.' };
-    }
-
-    // Only what was asked for. A model that answers about fields already filled in is
-    // answering a question nobody asked, and acting on it would overwrite a real value.
-    const stats = {};
-    for (const name of missing) {
-        const value = answer.stats?.[name];
-        if (value === undefined || value === null || String(value).trim() === '') continue;
-        stats[name] = String(value);
-    }
-
-    // Dropped rather than merely unasked for: a model that offers belongings anyway must
-    // not get them onto a card whose owner declined that tick.
-    const offered = (collections && answer.collections && typeof answer.collections === 'object')
-        ? answer.collections : {};
-    const items = Object.values(offered)
-        .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
-
-    if (!Object.keys(stats).length && !items) {
-        return { ok: true, filled: [], items: 0, reason: 'The material did not say enough to fill anything.' };
-    }
-
-    if (char.isPlayer) {
-        // Never through `characters`. That channel admits whoever it names into the scene
-        // cast, and putting the player there is the exact thing "this is me" exists to
-        // stop - it would give them a tracker row beside their own HUD.
-        applyUpdate({ player: { stats, collections: offered } }, { label: 'Filled in' });
-    } else {
-        // admitCharacters writes to the card for someone who is not in the scene, which is
-        // the usual case for a card being filled in, and to the scene for someone who is.
-        applyUpdate(
-            { characters: [{ name: char.name, stats, collections: offered }] },
-            { label: 'Filled in', admitCharacters: true },
-        );
-    }
-
-    return { ok: true, filled: Object.keys(stats), items };
 }

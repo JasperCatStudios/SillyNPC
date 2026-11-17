@@ -5,7 +5,6 @@ import { deleteSystemPreset, importSystemPreset, getActiveSystem, setActiveSyste
 import { Popup } from '../../../../popup.js';
 import { triggerReprocess } from './chat.js';
 import { escapeHtml } from './utils.js';
-import { openItemLibrary } from './ui-item-library.js';
 
 import { PRODUCT_NAME } from './constants.js';
 /**
@@ -316,14 +315,7 @@ export function buildSystemManager(onRefresh) {
         input.click();
     });
 
-    const libraryBtn = document.createElement('button');
-    libraryBtn.className = 'menu_button';
-    libraryBtn.style.flex = '1';
-    libraryBtn.innerHTML = '<i class="fa-solid fa-book"></i> Entry Library';
-    libraryBtn.title = 'View and clean up what the extension remembers between chats - items, skills, spells, whatever your collections hold';
-    libraryBtn.addEventListener('click', () => openItemLibrary());
-
-    globalActions.append(newBtn, importBtn, libraryBtn);
+    globalActions.append(newBtn, importBtn);
     wrap.append(listWrap, globalActions, buildCheckpointControls(onRefresh));
     return wrap;
 }

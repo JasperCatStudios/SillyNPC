@@ -21,6 +21,8 @@ export const CONNECTION_USES = [
       help: 'Reading each reply to propose bond changes and milestones (Bond Tracker, after-the-reply timing).' },
     { id: 'vitals', label: 'Vitals', scope: 'root', key: 'vitalsProfileId',
       help: 'Reading each reply to update health, hunger and mood (Vitals Tracker).' },
+    { id: 'banscan', label: 'Ban scan', scope: 'tracker', key: 'extractionProfileId',
+      help: 'Reading the chat for phrases to ban (Writing Rules, Ban List). Also what reads the chat for Threads. Empty means your main API.' },
     { id: 'phone', label: 'Phone', dom: '#rph-drawer .rph-profile-row select',
       help: 'The messages your characters text you.' },
     { id: 'games', label: 'Games', dom: '#rpg-game-profile',

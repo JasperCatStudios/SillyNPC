@@ -4,7 +4,7 @@ import { Popup, POPUP_TYPE } from '../../../../popup.js';
 import { triggerReprocess } from './reprocess.js';
 import { saveSettings } from './settings.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
-import { auditCharacter, fillLore, fillData } from './character-fill.js';
+import { auditCharacter, fillLore } from './character-fill.js';
 import { generateCharacterImageLogic } from './api.js';
 
 /**
@@ -44,7 +44,7 @@ function stageRow(id, label, stage) {
  * worth declining - the portrait, which costs real money, and belongings, which can add
  * an item to a list somebody curated - have to be declinable before they run, not after.
  *
- * @returns {Promise<{ lore: boolean, data: boolean, belongings: boolean, image: boolean } | null>}
+ * @returns {Promise<{ lore: boolean, image: boolean } | null>}
  *   Null on cancel.
  */
 async function askPlan(char, audit) {
@@ -57,17 +57,14 @@ async function askPlan(char, audit) {
 
     const intro = document.createElement('small');
     intro.className = 'notes';
-    intro.textContent = 'Each stage feeds the next: the lore entry and the story are what '
-        + 'the tracker fields are read from, and all of it describes the portrait. Nothing '
-        + 'already filled in is overwritten, and nothing you already carry is removed.';
+    intro.textContent = 'Each stage feeds the next: the lore entry describes the portrait. '
+        + 'Nothing already filled in is overwritten.';
     wrap.append(intro);
 
     // Numbered in the order they run, which is also the order they feed each other.
     wrap.append(
         stageRow('lore', '1. Lore entry', audit.lore),
-        stageRow('data', '2. Tracker fields', audit.data),
-        stageRow('belongings', '3. Belongings (optional)', audit.belongings),
-        stageRow('image', '4. Portrait', audit.image),
+        stageRow('image', '2. Portrait', audit.image),
     );
 
     const popup = new Popup(wrap, POPUP_TYPE.CONFIRM, '', {
@@ -84,7 +81,7 @@ async function askPlan(char, audit) {
 }
 
 /**
- * Fills in a character card: lore, then fields and belongings, then a portrait.
+ * Fills in a character card: lore, then a portrait.
  *
  * Stops at the first stage that fails and says which one. The stages are ordered because
  * each reads what the one before it wrote, so carrying on past a failure produces exactly
@@ -128,24 +125,6 @@ export async function fillCharacter(char, { onSave } = {}) {
 
     try {
         if (chosen.lore && !(await runLore())) return;
-
-        if (chosen.data || chosen.belongings) {
-            toastr.info('Reading the story for their details...', PRODUCT_NAME);
-            const result = await fillData(char, {
-                fields: chosen.data,
-                collections: chosen.belongings,
-            });
-            if (!result.ok) {
-                toastr.error(`Fields: ${result.reason}`, PRODUCT_NAME);
-                onSave?.();
-                return;
-            }
-            done.push(result.filled.length || result.items
-                ? `Fields: filled ${result.filled.join(', ') || 'none'}`
-                    + (result.items ? ` and ${result.items} item(s)` : '')
-                : `Fields: ${result.reason || 'nothing to fill'}`);
-            onSave?.();
-        }
 
         if (chosen.image) {
             toastr.info('Drawing a portrait...', PRODUCT_NAME);
