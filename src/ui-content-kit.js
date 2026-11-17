@@ -96,6 +96,14 @@ async function importRegex(item) {
     return { added, replaced };
 }
 
+/** True when a regex catalog entry's script (matched by name, as the merge does) is already in SillyTavern's list. */
+function isRegexInstalled(item) {
+    if (item.type !== 'regex') return false;
+    const name = String(item.name || '').trim().toLowerCase();
+    const list = Array.isArray(extension_settings.regex) ? extension_settings.regex : [];
+    return !!name && list.some(s => String(s?.scriptName ?? '').trim().toLowerCase() === name);
+}
+
 /** Imports one catalog entry. Returns a short sentence for the toast. */
 async function importItem(item) {
     const text = item.type === 'regex' ? '' : await fetchKitText(item.file);
@@ -147,8 +155,10 @@ function itemRow(item, rerender) {
     row.append(text);
     if (item.type === 'art') return row;   // copied by hand; the description says where
     const copies = item.type === 'workflow';
-    const verb = copies ? 'Copy' : 'Import';
-    row.append(button(verb, copies ? 'fa-copy' : 'fa-file-import', async () => {
+    const installed = isRegexInstalled(item);
+    if (installed) text.append(document.createElement('br'), el('small', 'notes', 'Installed. Pressing Update refreshes it in place; it is never added twice.'));
+    const verb = copies ? 'Copy' : (installed ? 'Update' : 'Import');
+    row.append(button(verb, copies ? 'fa-copy' : (installed ? 'fa-rotate' : 'fa-file-import'), async () => {
         state.busy = item.file;
         try {
             const sentence = await importItem(item);
@@ -180,13 +190,16 @@ function renderCatalog(view, rerender) {
                 head.style.cssText = 'margin-top:8px; align-items:center;';
                 head.append(el('b', '', group.name));
                 if (section.type === 'regex' && group.items.length > 1) {
-                    head.append(button(`Import all ${group.items.length}`, 'fa-file-import', async () => {
+                    const allIn = group.items.every(isRegexInstalled);
+                    head.append(button(allIn ? `Update all ${group.items.length}` : `Import all ${group.items.length}`, allIn ? 'fa-rotate' : 'fa-file-import', async () => {
                         let added = 0; let replaced = 0;
                         try {
                             for (const item of group.items) { const r = await importRegex(item); added += r.added; replaced += r.replaced; }
                             toastr.success(`${added} added, ${replaced} updated. They work now; reload SillyTavern to see them in the Regex list.`, `${PRODUCT_NAME}: ${group.name}`);
                         } catch (err) {
                             toastr.error(String(err.message || err), `${PRODUCT_NAME}: ${group.name}`);
+                        } finally {
+                            rerender();
                         }
                     }, { title: 'Import every script in this group' }));
                 }
