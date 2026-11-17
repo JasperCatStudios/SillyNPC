@@ -133,6 +133,8 @@ export const defaultSettings = {
     identity: {},
     /** The scene header instruction (see scene-header-prompt.js): off by default; the Scene module reads the header the story model writes. */
     sceneHeader: {},
+    /** Sound effects (see sound-core.js): [sfx:name] chips and the sound list sent to the story model. An empty object is off. */
+    sound: {},
     /** Knives (see knives-core.js): the connection profile "Suggest knives" asks on (empty is the main API), and its own prompt (empty is the built-in). The trigger options are resultInjection.knives. */
     knivesProfileId: '',
     knivesPrompt: '',

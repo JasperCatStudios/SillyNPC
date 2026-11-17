@@ -16,6 +16,7 @@ export const KIT_TYPES = Object.freeze({
     items: 'Item databases',
     scenes: 'Scene maps (places and backgrounds)',
     regex: 'Regex scripts',
+    sounds: 'Sound packs (sound effects)',
     workflow: 'Workflows (Phone pictures)',
     art: 'Artwork',
 });

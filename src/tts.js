@@ -4,7 +4,7 @@ import { getSettings } from './settings.js';
 import { beatsOfMessage, MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { genderOfFace, genderOfName } from './default-portraits.js';
-import { alltalkReady, alltalkVoices, speakWith, stopSpeech, speechTable, speechInline } from './alltalk.js';
+import { alltalkReady, alltalkVoices, speakWith, stopSpeech, speechTable, speechInline, isLineSaved } from './alltalk.js';
 import { toneAt } from './tts-text.js';
 import { engineOf, elevenReady, elevenVoices } from './tts-engines.js';
 
@@ -184,6 +184,44 @@ function ensureLineButtons(mesEl) {
         btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); });
         name.after(btn);
     }
+    markSavedLines(mesEl);
+}
+
+/**
+ * Marks the speak buttons whose line is already saved (a filled, accented icon with a different tooltip), so you can see
+ * which lines replay instantly. A line with several pieces counts as saved only when every piece is.
+ */
+async function markSavedLines(mesEl) {
+    try {
+        const buttons = [...(mesEl?.querySelectorAll?.('.sillynpc-speak-line') || [])];
+        if (!buttons.length) return;
+        const beats = beatsOfMessage(mesEl);
+        for (const btn of buttons) {
+            const beat = beats.find(b => b.element?.contains?.(btn));
+            const voice = beat ? voiceForBeat(beat) : '';
+            const pieces = beat && voice
+                ? spokenSegments(beat).filter(s => !s.thought || getSettings().ttsSpeakThoughts)
+                : [];
+            let saved = pieces.length > 0;
+            for (const piece of pieces) {
+                if (!await isLineSaved(voice, piece.text, piece.tone)) { saved = false; break; }
+            }
+            btn.classList.toggle('is-saved', saved);
+            btn.classList.toggle('fa-volume-high', saved);
+            btn.classList.toggle('fa-volume-low', !saved);
+            btn.title = saved
+                ? 'Saved: plays from the saved audio, free and instant'
+                : 'Read this line aloud (it is made now, then saved for next time)';
+        }
+    } catch (err) {
+        debugLog('Marking saved lines failed', err);
+    }
+}
+
+/** Re-marks every message on screen, after a line was saved or the voice settings changed. */
+function markAllSavedLines() {
+    if (!ttsEnabled()) return;
+    for (const mesEl of document.querySelectorAll('#chat .mes')) markSavedLines(mesEl);
 }
 
 /** Reads a line in somebody's voice, by name. For the phone and the games. */
@@ -264,5 +302,6 @@ export function initTts() {
     eventSource.on(event_types.GENERATION_ENDED, () => { generationEndedAt = Date.now(); });
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, () => { generationEndedAt = Date.now(); });
     eventSource.on(MESSAGE_RENDERED_EVENT, onMessageDecorated);
+    document.addEventListener('worldkit-tts-saved', markAllSavedLines);
     eventSource.on(event_types.CHAT_CHANGED, () => stopSpeech());
 }

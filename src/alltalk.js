@@ -2,7 +2,7 @@ import { getSettings } from './settings.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { applyPhonetics, speechFor, cleanToneTable, inlineNames, DEFAULT_TONE_TAGS } from './tts-text.js';
 import { engineOf, engineReadsAudioTags, engineFingerprint, generateEleven } from './tts-engines.js';
-import { getCached, putCached } from './tts-cache.js';
+import { getCached, putCached, hasCached } from './tts-cache.js';
 import { contentKey } from './image-dedupe.js';
 import { ELEVEN_TAGS } from './eleven-tags.js';
 
@@ -124,7 +124,7 @@ async function obtain(item) {
         return saved;
     }
     const blob = await generate(item.text, item.voice);
-    putCached(item.key, blob);
+    putCached(item.key, blob).then(() => document.dispatchEvent(new Event('worldkit-tts-saved')));
     return blob;
 }
 
@@ -171,12 +171,9 @@ async function pump() {
     }
 }
 
-/** Queues text to be read in a voice file. Returns false when there is nothing to read. */
-export function speakWith(voice, text, { tone = '' } = {}) {
+/** What would be sent to the engine for a line, and the key its audio is saved under; null when there is nothing to say. */
+function lineFor(voice, text, tone = '') {
     const settings = getSettings();
-    if (!settings.ttsEnabled) return false;
-    // Names are said the way their cards spell them out; delivery tags become the engine's audio
-    // tag (Eleven v3) or vanish (everything else). Closing tags never reach an engine.
     const said = applyPhonetics(String(text ?? ''), settings.characters || []);
     const spoken = speechFor(said, {
         tone,
@@ -184,8 +181,26 @@ export function speakWith(voice, text, { tone = '' } = {}) {
         inline: speechInline(settings),
         audioTags: settings.ttsToneTags !== false && engineReadsAudioTags(settings),
     }).trim();
-    if (!spoken || !voice) return false;
-    const key = contentKey(`${engineFingerprint(settings)}|${voice}|${spoken}`);
+    if (!spoken || !voice) return null;
+    return { spoken, key: contentKey(`${engineFingerprint(settings)}|${voice}|${spoken}`) };
+}
+
+/** Whether this line in this voice is already saved, so pressing its button plays it at no cost. */
+export async function isLineSaved(voice, text, tone = '') {
+    const line = lineFor(voice, text, tone);
+    return line ? hasCached(line.key) : false;
+}
+
+/** Queues text to be read in a voice file. Returns false when there is nothing to read. */
+export function speakWith(voice, text, { tone = '' } = {}) {
+    const settings = getSettings();
+    if (!settings.ttsEnabled) return false;
+    // Names are said the way their cards spell them out; delivery tags become the engine's audio
+    // tag (Eleven v3) or vanish (everything else). Closing tags never reach an engine.
+    const said = applyPhonetics(String(text ?? ''), settings.characters || []);
+    const line = lineFor(voice, text, tone);
+    if (!line) return false;
+    const { spoken, key } = line;
     queue.push({ text: spoken, voice, key, ready: null });
     debugLog(`AllTalk queued ${spoken.length} characters in ${voice}`);
     pump();

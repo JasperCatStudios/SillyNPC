@@ -44,6 +44,7 @@ import { initVitalsSection } from './src/vitals-section.js';
 import { initInventory } from './src/inventory.js';
 import { initIdentity } from './src/identity.js';
 import { initSceneHeaderPrompt } from './src/scene-header-inject.js';
+import { initSound } from './src/sound-runtime.js';
 import { initInventorySection } from './src/inventory-section.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
@@ -317,6 +318,11 @@ jQuery(async () => {
                 initSceneHeaderPrompt();
             } catch (headerErr) {
                 console.error(LOG_PREFIX, 'initSceneHeaderPrompt failed', headerErr);
+            }
+            try {
+                initSound();
+            } catch (soundErr) {
+                console.error(LOG_PREFIX, 'initSound failed', soundErr);
             }
             try {
                 initResultInjection();

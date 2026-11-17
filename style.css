@@ -3873,9 +3873,17 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-persona-hint { margin-top: 2px; }
 .sillynpc-dstyle-hear:disabled { opacity: .5; cursor: not-allowed; }
 
+/* [sfx:name] chips in a reply */
+.sillynpc-sfx-chip { display: inline-block; margin: 0 0.15em; padding: 0 0.55em; border: 1px solid var(--SmartThemeBorderColor, #888); border-radius: 999px; font-size: 0.8em; line-height: 1.7; white-space: nowrap; user-select: none; background: color-mix(in srgb, var(--SmartThemeBodyColor, #ccc) 8%, transparent); }
+.sillynpc-sfx-chip[role="button"] { cursor: pointer; }
+.sillynpc-sfx-chip[role="button"]:hover, .sillynpc-sfx-chip[role="button"]:focus-visible, .sillynpc-sfx-chip.is-playing { border-color: var(--SmartThemeQuoteColor, #6cc070); color: var(--SmartThemeQuoteColor, #6cc070); }
+.sillynpc-sfx-chip.is-missing { opacity: 0.5; font-style: italic; }
+
 /* A speak button before each spoken line */
 .sillynpc-speak-line { cursor: pointer; margin: 0 0.4em 0 0.2em; opacity: 0.65; font-size: 0.85em; user-select: none; }
 .sillynpc-speak-line:hover, .sillynpc-speak-line:focus-visible { opacity: 1; }
+/* A line already saved: plays from the saved audio */
+.sillynpc-speak-line.is-saved { opacity: 1; color: var(--SmartThemeQuoteColor, #6cc070); }
 .sillynpc-delivery-status { margin: 6px 0; padding-left: 1.2em; }
 .sillynpc-delivery-status li[data-ok="0"] { opacity: 0.75; }
 .sillynpc-delivery-block { margin-top: 8px; }

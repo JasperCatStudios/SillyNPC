@@ -8,6 +8,8 @@ import { mergeItemFile } from './item-database.js';
 import { parseLocationFile, mergeLocations } from './scene-locations.js';
 import { sceneSettings, saveSceneSettings, notifyLocationsChanged } from './scene-state.js';
 import { saveItemDatabase } from './inventory.js';
+import { parseSoundMap } from './sound-core.js';
+import { soundSettings, saveSoundSettings, loadSoundMap } from './sound-runtime.js';
 import {
     DEFAULT_KIT_URL, isKitUrl, kitFolderName, kitFileUrl, normalizeCatalog, groupCatalog, scriptsFromFile, mergeRegexScripts,
     formatBytes, githubRepoOf,
@@ -184,6 +186,15 @@ async function importItem(item) {
             saveSceneSettings();
             notifyLocationsChanged();
             return `${added} added, ${skipped} already in the map. Find them on the Modules tab, under Scene.`;
+        }
+        case 'sounds': {
+            // The audio stays in the downloaded kit and is played from there; this points the Sound Effects setting at its map.
+            const parsed = parseSoundMap(text);
+            if (!parsed) throw new Error(`${item.name} is not a Worldkit sound map.`);
+            Object.assign(soundSettings(), { enabled: true, mapUrl: kitFileUrl(folder(), item.file) });
+            saveSoundSettings();
+            await loadSoundMap(true);
+            return `${parsed.sounds.size} sounds ready. Sound Effects is switched on (Writing Rules, Sound Effects).`;
         }
         case 'workflow':
             await navigator.clipboard.writeText(text);
