@@ -74,24 +74,4 @@ export async function recordUsage(kindId, { prompt = '', reply = '' } = {}) {
     }
 }
 
-/** Averages for one generator. Zero runs means no average, not zero. */
-export function averageFor(kindId) {
-    const entry = getUsage()[kindId] || blank();
-    if (!entry.runs) return null;
-    return {
-        runs: entry.runs,
-        prompt: Math.round(entry.promptTokens / entry.runs),
-        reply: Math.round(entry.replyTokens / entry.runs),
-        total: Math.round((entry.promptTokens + entry.replyTokens) / entry.runs),
-        lastWhen: entry.lastWhen,
-        lastTotal: entry.lastTotal,
-    };
-}
 
-/** Starts every counter again from zero. */
-export function resetUsage() {
-    const settings = getSettings();
-    settings.usage = {};
-    getUsage();
-    saveSettings();
-}

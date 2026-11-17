@@ -12,10 +12,11 @@
 
 ## Overview
 
-SillyNPC operates across two core modules:
+Worldkit is made of a few parts that work together:
 
-1. **Character Stylist** — Detects speaker names in chat messages and automatically injects character portraits, customizable text/border accent colors, and speech dividers.
-2. **Status Tracker & HUD** — Maintains an RPG-style state (attributes, resource pools, inventory, conditions, and anything else you define) for the player and NPCs via an asynchronous background reading pass. Renders data inside chat messages, on full character sheets, or via a floating on-screen HUD.
+1. **Character Stylist** - detects speaker names in chat messages and injects character portraits, dialogue colours (solid or gradient) and speech dividers.
+2. **Trackers** - Internal States, Bonds, Vitals and Threads, each read from the story on a connection of your choosing and shown under each reply.
+3. **Phone, Games and Combat** - a phone for texting characters, table games, and a combat system, each with its own window.
 
 ---
 
@@ -27,28 +28,23 @@ SillyNPC operates across two core modules:
 * **Auto-Coloring for Minor NPCs:** Generates consistent, deterministic color shades for unrecognized or minor speakers without dedicated cards.
 * **Faces for Strangers:** Speakers without a card draw from a pool of fallback portraits, tagged so a guard draws from the guards. A stranger keeps the same face for as long as they keep appearing.
 
-### RPG Status Tracking & Character Sheets
-* **Comprehensive State Model:** Tracks attributes, resource pools (HP/Energy by default), conditions, inventory, and any collection you define.
-* **Dedicated Extraction Pass:** Processes state updates in a background pass to keep tracker logic from polluting the primary prompt context.
-* **Review Before Applying:** Risky changes — items gained or lost, implausible jumps — wait in a panel under the message that proposed them instead of applying silently.
-* **Interactive Sheets:** Detailed character sheet modal for inspecting and manually editing stats, appearance, and inventory.
-
-### Open Threads
-* **Nothing Gets Forgotten:** Promises, threats, debts, secrets, deadlines and plans are caught as they are made and sent with every message until they are settled.
-* **Kept With Their Source:** Each thread stores the line it came from, so one the reader invented is visible at a glance.
-
-### Floating HUD
-* **Four Meter Styles:** Bars, segmented bars, rings around the portrait, or text only.
-* **Real-Time Updates:** Syncs automatically as the background tracker extracts new values from the narrative.
+### Trackers
+* **Internal States:** what the characters think and feel, written after each reply and shown in its own section under the message.
+* **Bonds:** how close each person is to you, with levels, gates and milestones the model can only propose changes to.
+* **Vitals:** health, hunger, energy and mood for the people you choose, with bars.
+* **Open Threads:** promises, threats, debts, secrets, deadlines and plans are caught as they are made and sent with each message until they are settled. Each thread keeps the line it came from.
+* **Their own connections and prompts:** every tracker has its own entry in Connections, and its instructions are in Prompts under Tracker prompts.
+* **Inventory (planned):** a tracker of its own, per chat and per character.
 
 ### Character & World Management
 * **Roster Categories:** Organize characters into distinct worlds, factions, or scenes — and limit a chat to only the categories it needs.
 * **Import / Export:** Share individual character cards and system configurations between installs. Portraits and lorebook entries travel with the card.
-* **Integrated Generation:** Generates matching lorebook entries and portraits directly via connected APIs.
+* **Lorebook Links:** Link each character to a lorebook entry; the profile and everything else read who they are from it.
 
-### Theming & Analytics
-* **Built-in Themes:** Seamless Native, Terminal, Cyberpunk, Monochrome, Modern Dark, Fantasy HUD, Tabletop Parchment, Analog Horror, and Rosewater.
-* **Token Tracking:** Monitors token consumption, instruction costs, and average usage across tracker extractions, lore generation, and history scans.
+### Look
+* **One Look:** a dark frame shared by the menus, the Games window and the Combat window, with a gold accent.
+* **Dialogue Gradients:** a gradient editor per character (linear, radial or conic, 2 to 5 colour stops, 15 presets, optional slow drift) that paints their dialogue text. Gradients are adapted from the Dialogue Colors extension (MIT).
+* **Faction Colours:** characters take their faction's colours, grouped by world.
 * **Recommended for Better Visuals:** the [Moonlit Echoes](https://github.com/RivelleDays/SillyTavern-MoonlitEchoesTheme) theme.
 
 ---
@@ -58,10 +54,6 @@ SillyNPC operates across two core modules:
 | In-Chat Formatting | Character Profile |
 | :---: | :---: |
 | ![Chat Formatting](img/chatexmp.png) | ![Character Profile](img/charcterexmp.png) |
-
-| Radial Floating HUD | Linear Floating HUD |
-| :---: | :---: |
-| ![Radial HUD](img/floathudcircle.png) | ![Horizontal HUD](img/floathudbar.png) |
 
 | Character Roster / Worlds | Appearance & Themes |
 | :---: | :---: |
@@ -102,9 +94,9 @@ Reload SillyTavern.
 2. **Assigning Avatars:**
    * When a character speaks in chat, click their name or placeholder portrait to create/open their card.
    * Upload an image, assign an accent color, and save.
-3. **Enabling Tracker & HUD:**
-   * The tracker is **off by default**. Enable it under the **Tracker** tab to begin state extraction.
-   * The HUD appears once the tracker is running; choose a meter style under the **HUD** tab.
+3. **Enabling Trackers:**
+   * Internal States, Bonds, Vitals and Threads are each switched on under the **Trackers** and **Threads** tabs.
+   * Pick a connection for each one under **Connections**; left empty, they use your main API.
 
 ---
 
@@ -120,16 +112,16 @@ Advanced settings and fine-tuning parameters remain hidden until **Show Every Se
 
 | Tab | Contents |
 | :--- | :--- |
-| **Characters** | Character cards, profiles, portraits, and roster categories |
-| **Appearance** | Themes, speech dividers, spacing, avatar shapes, and fallback faces |
-| **Writing Rules** | Dialogue format, narrator rules, ban list, and how replies are parsed |
+| **Characters** | Character cards, profiles, portraits, colours and gradients, and roster factions (with a panel to turn factions on or off per chat) |
+| **Modules** | Phone, Games and Combat |
+| **Appearance** | Faction themes, speech dividers, spacing, avatar shapes, and fallback faces |
+| **Writing Rules** | Dialogue format, ban list, and how replies are parsed |
 | **Threads** | Active plotlines, promises, debts, secrets, and deadlines |
-| **Tracker** | Extraction passes, review settings, time rules, and history scans |
-| **HUD** | Floating on-screen widget configuration and display modes |
-| **Systems** | Custom attribute definitions, stat limits, and world presets |
-| **Generation** | Automated lorebook creation and portrait generation settings |
-| **Prompts** | Review prompt templates, token budgets, and injection depth |
-| **Stats** | Token analytics and cost tracking for background LLM passes |
+| **Trackers** | Internal States, Bonds and Vitals |
+| **World Management** | Your worlds, the characters each one holds, saved states and import/export |
+| **Connections** | The connection profile each part of Worldkit uses |
+| **Vectors** | Optional vector search over the story |
+| **Prompts** | Every prompt Worldkit sends, with token budgets (Phone prompts and Tracker prompts are grouped) |
 | **Advanced** | Master switches, console logging, backups, and UI sizing |
 
 ---
@@ -159,20 +151,17 @@ window.SILLYNPC_DEBUG = true;
 | `src/characters.js` | Character cards and categories |
 | `src/character-transfer.js` | Sending one character to somebody else, and taking one in |
 | `src/default-portraits.js` | Faces for speakers who have none |
-| `src/status-logic.js` | State, parsing, persona sync, collections, systems |
-| `src/status-extractor.js` | The separate reading pass |
-| `src/status-diff.js` · `src/status-review.js` | What an update changes, and what waits for you |
+| `src/status-logic.js` | Persona sync, worlds (systems) and saved states |
 | `src/status-snapshots.js` | Per-message records, and the state as of a message |
-| `src/status-clock.js` · `src/status-rules.js` | Reading the clock, and time rules |
-| `src/status-history.js` | Keeping old tracker blocks out of the prompt |
-| `src/history-scan.js` | Reading the whole story to catch collections up |
 | `src/threads.js` | What is not finished with |
 | `src/ui-grid-filter.js` · `src/ui-settings-search.js` | Finding a character, and finding a setting |
 | `src/banlist.js` · `src/dialogue-format.js` | Text placed into the prompt |
 | `src/lorebook.js` · `src/api.js` | Lorebook linking, generation, portraits |
 | `src/usage.js` | What each generator has cost |
-| `src/status-ui.js` | Rendering the status box |
-| `src/ui-*.js` | One module per page of the menu, plus the HUD, sheet and review panel |
+| `src/ui-*.js` | One module per page of the menu, plus the player sheet |
+| `src/scene-cast.js` | Who is in the scene |
+| `src/threads-runtime.js` | Threads: their store, reading and prompt |
+| `src/gradient-style.js` | Dialogue gradients (adapted from Dialogue Colors, MIT) |
 
 ---
 
