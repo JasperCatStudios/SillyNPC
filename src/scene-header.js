@@ -130,7 +130,8 @@ function blankScene(source) {
  *   weatherKind: string, weatherIntensity: string, tempText: string, messageId: null }}
  */
 export function readSceneHeader(text) {
-    const head = String(text ?? '').slice(0, HEAD_CHARS);
+    // A weather emoji written in its own brackets ("| [🌧️] Heavy rain") must not end the header early.
+    const head = String(text ?? '').slice(0, HEAD_CHARS).replace(/\[\s*([^\p{L}\d\s[\]|]{1,8})\s*\]/gu, '$1');
     if (!head.trim()) return null;
     const body = headerBody(head);
     if (body === null) return null;

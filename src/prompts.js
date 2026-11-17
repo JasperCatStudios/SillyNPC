@@ -10,7 +10,6 @@ import { DEFAULT_PROMPT, PROMPT_SHORT } from './phone-prompts.js';
 import { buildDeliveryPrompt } from './delivery-core.js';
 import { toneTable, toneInline } from './alltalk.js';
 import { KNIVES_SYSTEM } from './knives-core.js';
-import { DEFAULT_WEATHER_SYSTEM } from './weather-detect-core.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -114,17 +113,6 @@ export const PROMPTS = [
             + 'reply format, which is how the answer is read. Empty uses the built-in. (How the twists reach the story is set '
             + 'under Modules, Combat.)',
         recommended: () => KNIVES_SYSTEM,
-        emptyNote: 'The built-in instructions are sent.',
-    },
-    {
-        id: 'weather',
-        key: 'weatherPrompt',
-        label: 'Weather: Detection Instructions',
-        home: 'Modules',
-        help: 'The system prompt of the small request that reads each reply for the current weather, when the weather source '
-            + '(Scene, Weather effects) is "a model". The previous weather and the latest messages are added after it. Keep '
-            + 'the one-JSON-object reply, which is how the answer is read. Empty uses the built-in.',
-        recommended: () => DEFAULT_WEATHER_SYSTEM,
         emptyNote: 'The built-in instructions are sent.',
     },
     {

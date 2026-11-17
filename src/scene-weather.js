@@ -4,7 +4,6 @@ import { createWeatherFx } from './weather-fx-canvas.js';
 import { sceneSettings, getScene, SCENE_CHANGED_EVENT } from './scene-state.js';
 import { disabledEffects, sceneToWeatherDesc, describeShowing, isEffectEnabled, shownKind } from './weather-settings.js';
 import { weatherEffect } from './weather-fx-core.js';
-import { syncWeatherDetect } from './weather-detect.js';
 
 /**
  * Weather effects, SillyTavern side (fork, Scene module): draws the scene's weather with the canvas engine
@@ -39,19 +38,9 @@ function forwardThunder(payload) {
     }
 }
 
-/**
- * The engine's description of a scene: sceneToWeatherDesc, plus what a model or a report said that the header cannot
- * (a time of day when the story has no clock, and "indoors").
- */
+/** The engine's description of a scene (see sceneToWeatherDesc). */
 export function descForScene(scene, locations) {
-    const desc = sceneToWeatherDesc(scene, locations);
-    if (!desc || !scene) return desc;
-    if (scene.timeOfDay && (scene.source === 'device' || !Number.isFinite(scene.hour))) {
-        desc.timeOfDay = scene.timeOfDay;
-        delete desc.hour;
-    }
-    if (scene.weatherIndoor === true) desc.indoor = true;
-    return desc;
+    return sceneToWeatherDesc(scene, locations);
 }
 
 // A manual preview from the Weather section: forced on the engine until stopped. Never saved.
@@ -117,16 +106,10 @@ export function weatherDiagnostics() {
         if (preview) lines.push(`Previewing ${preview.kind}${preview.intensity ? ` (${preview.intensity})` : ''}, not the scene. Press "Stop previewing" to go back.`);
         const scene = getScene();
         if (!s.enabled) { lines.push('The Scene module is off, so there is no scene weather.'); return lines; }
-        const from = scene?.weatherSource;
-        const wanted = scene?.weatherWanted || w.source;
-        const sourceName = from === 'internal' ? 'the Internal States report' : from === 'model' ? 'the model' : 'the scene header';
         if (!scene || !scene.weatherText) {
-            let why = 'no weather text in the header';
-            if (wanted === 'internal') why = 'no Weather line in an Internal States report yet, and none in the header';
-            else if (wanted === 'model') why = 'the model has not given a weather yet, and there is none in the header';
-            lines.push(`Scene weather text: none (${why}).`);
+            lines.push('Scene weather text: none (the weather comes from the header the story model writes, and it has no weather in it).');
         } else {
-            lines.push(`Scene weather text: "${scene.weatherText}" (from ${sourceName}).`);
+            lines.push(`Scene weather text: "${scene.weatherText}" (from the header the story model writes).`);
             lines.push(`Read as: ${scene.weatherKind || 'none'}${scene.weatherIntensity ? `, ${scene.weatherIntensity}` : ''}${scene.windSpeed ? `, wind ${scene.windSpeed}` : ''}.`);
         }
         const kind = scene?.weatherKind || 'none';
@@ -161,7 +144,7 @@ function pushSettings() {
     notify();
 }
 
-const onSceneChanged = () => { syncWeatherDetect(); pushScene(); };
+const onSceneChanged = () => pushScene();
 // The scene module re-reads a new chat a moment later and announces it; this clears the old chat's weather now.
 const onChatChanged = () => pushScene();
 
@@ -218,7 +201,6 @@ export function weatherActive() {
  * either switch changes. Safe to call at any time and as often as wanted.
  */
 export function syncSceneWeather() {
-    syncWeatherDetect();
     try {
         if (!weatherActive()) {
             stop();

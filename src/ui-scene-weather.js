@@ -1,8 +1,7 @@
-import { sceneSettings, saveSceneSettings, rematchScene } from './scene-state.js';
+import { sceneSettings, saveSceneSettings } from './scene-state.js';
 import {
     syncSceneWeather, weatherStatusText, onWeatherStatus, previewWeather, stopPreview, isPreviewing, weatherDiagnostics,
 } from './scene-weather.js';
-import { weatherDetectStatus, onWeatherDetectStatus, askWeatherNow } from './weather-detect.js';
 import { classifyWeather } from './weather-kind.js';
 import { WEATHER_EFFECTS, weatherEffect, normalizeKind } from './weather-fx-core.js';
 import { isEffectEnabled, setEffectEnabled, applyPerfResults, describePerfChanges } from './weather-settings.js';
@@ -49,7 +48,7 @@ export function renderWeatherSection(pane, { makeSwitch }) {
     pane.append(el('h4', 'sillynpc-combat-heading', 'Weather effects'));
     pane.append(el('small', 'notes',
         'Draws the scene\'s weather (rain, snow, clouds, sun and more) over the chat. Off by default. It needs the Scene '
-        + 'module on. The weather comes from the scene header unless you choose another source below. Nothing runs while this is off.'));
+        + 'module on. The weather, date, time and place come from the header the story model writes at the top of each reply. Nothing runs while this is off.'));
 
     const opt = (label, checked, onChange, hint) => {
         const row = el('label', 'sillynpc-pane-opt sillynpc-scene-opt');
@@ -61,50 +60,12 @@ export function renderWeatherSection(pane, { makeSwitch }) {
     const status = el('div', 'notes sillynpc-weather-status');
     status.style.whiteSpace = 'pre-line';
     const drawStatus = () => {
-        status.textContent = [weatherStatusText(), ...weatherDiagnostics(), weatherDetectStatus()].filter(Boolean).join('\n');
+        status.textContent = [weatherStatusText(), ...weatherDiagnostics()].filter(Boolean).join('\n');
     };
 
     pane.append(opt('Show weather effects', w.enabled, (on) => { w.enabled = on; change(); drawStatus(); },
         'The master switch. Off removes the effect layer completely.'));
     pane.append(status);
-
-    /* ---- where the weather comes from ---- */
-    const SOURCE_HELP = {
-        header: 'The weather segment of the scene header at the top of a message (for example the last part of '
-            + '[ Time 07:24 AM | Friday, February 07 | Harbour Inn | light rain ]). Nothing extra is asked.',
-        internal: 'The Weather line of the Internal States report under each reply. When Internal States writes the report '
-            + 'as a separate request (the "after the reply" mode), that request is asked to add a Weather line, so there is '
-            + 'no extra call. If the report has no Weather line, its Env line is read instead. Until a report gives a weather, '
-            + 'the header\'s weather is used.',
-        model: 'A small separate request after each new reply asks a model for the current weather, on the Weather connection '
-            + '(Connections tab; empty uses your main API). The answer is kept on the message, so a swipe, a reload or a redraw '
-            + 'never asks twice for the same text, and it asks at most once every 20 seconds. Until it answers, the header\'s '
-            + 'weather is used. Edit the instructions under Prompts, Weather: Detection Instructions.',
-    };
-    const sourceRow = el('div', 'sillynpc-setting-row sillynpc-scene-row');
-    const sourceSelect = el('select', 'text_pole');
-    for (const [value, label] of [['header', 'The scene header'], ['internal', 'The Internal States report'], ['model', 'A model (separate request)']]) {
-        sourceSelect.append(new Option(label, value));
-    }
-    sourceSelect.value = w.source;
-    sourceRow.append(el('label', '', 'Weather comes from'), sourceSelect);
-    const sourceHelp = el('small', 'notes', SOURCE_HELP[w.source]);
-    const modelRow = el('div', 'sillynpc-scene-actions');
-    const checkNow = button('Ask the model now', 'Asks about the newest reply again, ignoring the 20 second wait and any saved answer.', 'fa-cloud-sun');
-    modelRow.append(checkNow);
-    modelRow.style.display = w.source === 'model' ? '' : 'none';
-    sourceSelect.addEventListener('change', () => {
-        w.source = sourceSelect.value;
-        sourceHelp.textContent = SOURCE_HELP[w.source] || '';
-        modelRow.style.display = w.source === 'model' ? '' : 'none';
-        change();
-        try { rematchScene(); } catch (err) { console.warn('[Worldkit] weather source', err); }
-        drawStatus();
-    });
-    checkNow.addEventListener('click', () => {
-        askWeatherNow().catch(err => console.warn('[Worldkit] weather ask', err)).finally(drawStatus);
-    });
-    pane.append(sourceRow, sourceHelp, modelRow);
 
     /* ---- try it by hand ---- */
     pane.append(el('h4', 'sillynpc-combat-heading', 'Try a weather'));
@@ -274,11 +235,7 @@ export function renderWeatherSection(pane, { makeSwitch }) {
 
     drawStatus();
     const off = onWeatherStatus(() => {
-        if (!pane.isConnected) { off(); offDetect(); return; }
-        drawStatus();
-    });
-    const offDetect = onWeatherDetectStatus(() => {
-        if (!pane.isConnected) { offDetect(); off(); return; }
+        if (!pane.isConnected) { off(); return; }
         drawStatus();
     });
 }

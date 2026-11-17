@@ -9,7 +9,6 @@
  *       lowPower: false,             // manual low-power mode
  *       autoLowPower: true,          // battery saver / data saver turn low power on by themselves
  *       disabled: { rain: true },    // per weather: true off, false on; missing = the default (heavy ones off)
- *       source: 'header',            // where the weather comes from: 'header' | 'internal' | 'model'
  *       caps: { snow: 60 },          // per weather: the highest density it is drawn at
  *       lastTest: { at, device, stoppedBecause, results: [{ kind, density, summary }] } | null,
  *   }
@@ -77,8 +76,8 @@ export function repairWeatherSettings(raw, { touch = false } = {}) {
         else s.caps[k] = clamp(Math.round(n), 5, 100);
     }
     s.lastTest = trimTestResult(s.lastTest);
-    // Where the weather comes from: the scene header (default), the Internal States report, or a model (weather-detect-core.js).
-    s.source = s.source === 'internal' || s.source === 'model' ? s.source : 'header';
+    // An old saved "source" (header / internal / model) is no longer used: the weather always comes from the scene header.
+    delete s.source;
     return s;
 }
 

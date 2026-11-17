@@ -68,6 +68,15 @@ export function renderScenePane(pane, { live = true, head, makeSwitch } = {}) {
         head.append(makeSwitch(s.enabled, (on) => { setSceneEnabled(on); syncSceneWeather(); drawStatus(); }));
     }
 
+    // Where the scene comes from, said first: nothing here is typed in, and nothing is asked in a separate request.
+    const source = el('div', 'sillynpc-scene-source notes');
+    source.style.cssText = 'margin: 0 0 8px; padding: 8px 10px; border-left: 3px solid var(--SmartThemeQuoteColor, #7aa7d9); border-radius: 4px; background: rgba(128, 128, 128, .1);';
+    source.append(el('b', '', 'Where this gets its information: '),
+        document.createTextNode('the main API call. The story model writes the scene header (date, time, place and weather) at the top of every reply, '
+            + 'and this module reads it, so you never enter any of it. If your preset does not already ask for that header, switch on '
+            + 'Writing Rules, Scene Header and Worldkit adds the instruction for you.'));
+    pane.append(source);
+
     pane.append(el('small', 'notes sillynpc-scene-intro',
         'Reads where and when the story is from the scene header at the top of each reply '
         + '([ Time 07:24 AM | Friday, May 01, 1180 | \u{1F4CD} Harbour Inn - Common Room | Drizzle ]). With no header the time '

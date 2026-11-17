@@ -131,12 +131,11 @@ export const defaultSettings = {
     leveling: {},
     /** Hidden identities (see identity-core.js): when to send the secret-identity prompt of a linked character, and where. An empty object is off. */
     identity: {},
+    /** The scene header instruction (see scene-header-prompt.js): off by default; the Scene module reads the header the story model writes. */
+    sceneHeader: {},
     /** Knives (see knives-core.js): the connection profile "Suggest knives" asks on (empty is the main API), and its own prompt (empty is the built-in). The trigger options are resultInjection.knives. */
     knivesProfileId: '',
     knivesPrompt: '',
-    /** Weather detection (see weather-detect-core.js): the connection the "model" weather source asks on (empty is the main API), and its own prompt (empty is the built-in). */
-    weatherProfileId: '',
-    weatherPrompt: '',
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
     threadsEnabled: false,
@@ -1132,6 +1131,13 @@ export function normalizeSettings(settings) {
     if (settings.statusTracker) {
         for (const key of OBSOLETE_TRACKER_KEYS) delete settings.statusTracker[key];
         delete settings.statusTracker.hudMeterStyle;
+    }
+
+    // The weather now comes only from the scene header: the model/Internal States weather sources were removed.
+    delete settings.weatherProfileId;
+    delete settings.weatherPrompt;
+    if (settings.scene && typeof settings.scene === 'object' && settings.scene.weather && typeof settings.scene.weather === 'object') {
+        delete settings.scene.weather.source;
     }
 
     if (!settings.personaData) {

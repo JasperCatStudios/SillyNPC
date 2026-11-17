@@ -5,6 +5,7 @@ import { applyDialogueFormatPrompt } from './dialogue-format.js';
 import { applyDelivery, syncDeliveryScripts } from './delivery.js';
 import { buildDeliveryPlacement, buildDeliveryChecker } from './ui-delivery-check.js';
 import { buildIdentitySettings } from './ui-identity.js';
+import { buildSceneHeaderSettings } from './ui-scene-header-prompt.js';
 import { buildResultInjectionPanel } from './ui-result-injection.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
@@ -243,6 +244,9 @@ export function renderWritingRulesView(view, onReprocessMessages) {
     }
 
     view.append(buildIdentitySettings(rerender));
+
+    // The scene header: the Scene module reads the date, time, place and weather from it.
+    try { view.append(buildSceneHeaderSettings(rerender)); } catch (err) { console.warn('[Worldkit] scene header settings failed', err); }
 
     // Knives (saved story twists kept on each character): when one is offered to the story. The twists themselves are on the profile.
     const knivesHeading = document.createElement('h4');
