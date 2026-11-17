@@ -259,6 +259,16 @@ function buildCloudEngineSettings(engine) {
  * @param {HTMLElement} container
  */
 export function renderVoiceSettings(container) {
+    // Draw into our own box, so a redraw (engine change) never removes what the caller put in the container, such as the on/off switch.
+    const body = document.createElement('div');
+    container.append(body);
+    drawVoiceSettings(body);
+}
+
+/**
+ * @param {HTMLElement} container The box this function owns and may clear.
+ */
+function drawVoiceSettings(container) {
     const settings = getSettings();
 
     const intro = document.createElement('p');
@@ -273,7 +283,7 @@ export function renderVoiceSettings(container) {
         label: 'Voice Engine',
         help: 'Voices are per engine: a voice picked under one is not valid under another, so change engines before picking voices.',
         options: Object.entries(ENGINES).map(([value, text]) => ({ value, label: text })),
-        onChange: () => { container.replaceChildren(); renderVoiceSettings(container); },
+        onChange: () => { container.replaceChildren(); drawVoiceSettings(container); },
     }));
 
     // connection
