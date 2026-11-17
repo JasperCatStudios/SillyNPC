@@ -197,8 +197,8 @@ export async function speakNamed(name, text) {
     return speakWith(voice, text);
 }
 
-/** Reads one line in a voice file. For the test buttons. */
-export async function previewVoice(voice, line = 'This is what I sound like.') {
+/** Reads one line in a voice file. For the test buttons. tone: a delivery tag to read it in (for engines that understand audio tags). */
+export async function previewVoice(voice, line = 'This is what I sound like.', { tone = '' } = {}) {
     if (!ttsEnabled()) {
         toastr.info('Voices are switched off. Turn them on at the top of this page first.', PRODUCT_NAME, { preventDuplicates: true });
         return false;
@@ -213,7 +213,7 @@ export async function previewVoice(voice, line = 'This is what I sound like.') {
         return false;
     }
     stopSpeech();
-    return speakWith(voice, line);
+    return speakWith(voice, line, { tone });
 }
 
 /** A speaker button in the message toolbar: read this message, a voice per speaker. */

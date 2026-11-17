@@ -4,7 +4,7 @@ import { buildSettingToggle, buildSettingSelect, buildSettingNumber } from './ui
 import { buildThemePicker } from './ui-tracker-theme.js';
 import { renderItemDatabase } from './ui-item-database.js';
 import {
-    inventorySettings, saveInventorySettings, inventoryStore, setGoldFor, giveItemFor, takeItemFor, ensurePlayerInventory,
+    inventorySettings, saveInventorySettings, inventoryStore, setGoldFor, removePersonFor, playerName, giveItemFor, takeItemFor, ensurePlayerInventory,
     runInventoryUpdate, latestReplyId, currentInventoryInjection, INVENTORY_CHANGED_EVENT,
 } from './inventory.js';
 import {
@@ -151,7 +151,17 @@ function renderPeople(view, rerender) {
         if (!settings.includeNpcs && !p.player) continue;
         const card = el('div', 'snpc-inv-person');
         card.style.cssText = 'margin:8px 0; padding:8px; border:1px solid var(--SmartThemeBorderColor, #444); border-radius:6px;';
-        card.append(el('b', '', `${p.name}${p.player ? ' (you)' : ''}`));
+        const head = el('div', 'sillynpc-setting-row');
+        head.append(el('b', '', `${p.name}${p.name.toLowerCase() === playerName().toLowerCase() ? ' (you)' : (p.player ? ' (an earlier persona)' : '')}`));
+        if (p.name.toLowerCase() !== playerName().toLowerCase()) {
+            const gone = el('button', 'menu_button', 'Remove');
+            gone.type = 'button';
+            gone.title = 'Delete this whole inventory record from this chat';
+            gone.style.marginLeft = 'auto';
+            gone.addEventListener('click', () => { removePersonFor(p.name); });
+            head.append(gone);
+        }
+        card.append(head);
         if (settings.trackGold) {
             const purse = el('div', 'sillynpc-setting-row');
             purse.append(el('span', 'notes', settings.currencyName), numberBox(p.gold, (n) => { setGoldFor(p.name, n); }));

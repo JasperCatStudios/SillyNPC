@@ -93,6 +93,9 @@ export const defaultSettings = {
     deliveryStyles: {},
     /** Per tag: what it means, in the words the model is given. Empty: the built-in wording. */
     deliveryMeanings: {},
+    /** The voice and the line the delivery-tag test buttons use (Appearance, Tonal Typography). */
+    deliveryTestVoice: '',
+    deliveryTestLine: '',
     /** Take the tags out of what is sent back to the model (older messages), starting this many messages back. */
     deliverySaverOn: false,
     deliverySaverDepth: 2,

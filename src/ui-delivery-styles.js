@@ -5,6 +5,15 @@ import {
     DELIVERY_FONTS, DELIVERY_EFFECTS, DELIVERY_CASES, DELIVERY_DECORATIONS, DEFAULT_DELIVERY_STYLES, styleFor, cleanStyle,
 } from './delivery-style.js';
 import { applyDelivery, applyDeliveryStyle } from './delivery.js';
+import { engineReadsAudioTags, ENGINES, engineOf } from './tts-engines.js';
+import { previewVoice } from './tts.js';
+import { buildVoicePicker } from './ui-character-extras.js';
+import { missingEmotions, withEmotions } from './eleven-emotions.js';
+
+/** The section is a collapsible menu. Whether it is open is kept here, so a redraw (adding a tag) does not fold it shut. */
+const view = { open: false };
+const DEFAULT_TEST_LINE = 'I know what you did.';
+const testLine = (settings) => String(settings.deliveryTestLine || '').trim() || DEFAULT_TEST_LINE;
 
 /**
  * Appearance, Delivery Styles (fork): the look of each delivery tag with a live preview, and the tag
@@ -55,12 +64,15 @@ function selectInput(options, value, onChange) {
     return select;
 }
 
-function checkInput(value, onChange) {
+/** A tick box with its words beside it, left-aligned like the other controls (a column of label over box looked adrift). */
+function checkField(labelText, value, onChange) {
+    const wrap = el('label', 'sillynpc-dstyle-check checkbox_label');
     const box = el('input');
     box.type = 'checkbox';
     box.checked = value;
     box.addEventListener('change', () => onChange(box.checked));
-    return box;
+    wrap.append(box, el('span', '', labelText));
+    return wrap;
 }
 
 function buildTagCard(name, table, settings, rerender) {
@@ -69,11 +81,29 @@ function buildTagCard(name, table, settings, rerender) {
     head.append(el('strong', 'sillynpc-dstyle-name', `[${name}]`));
 
     // Live preview: the page's own stylesheet styles this span.
-    const preview = el('span', 'wk-tone', '"I know what you did."');
+    const preview = el('span', 'wk-tone', `"${testLine(settings)}"`);
     preview.dataset.tone = name;
+    preview.dataset.dstylePreview = '1';
     const previewLine = el('div', 'sillynpc-dstyle-preview');
     previewLine.append(preview);
     head.append(previewLine);
+
+    // Hear it: reads the test line in the chosen voice in this delivery. Only a voice engine that understands audio
+    // tags (ElevenLabs v3 and v4) turns the tag into a performance; any other would read the plain words.
+    const hear = el('button', 'menu_button sillynpc-dstyle-hear');
+    hear.type = 'button';
+    hear.append(el('i', 'fa-solid fa-volume-high'), document.createTextNode(' Hear it'));
+    const canHear = engineReadsAudioTags();
+    hear.disabled = !canHear;
+    hear.title = canHear
+        ? 'Reads the test line in this delivery, in the test voice chosen above'
+        : `The voice engine (${ENGINES[engineOf()] || 'this one'}) does not read delivery tags, so this would only speak the plain words. Choose ElevenLabs with Eleven v3, v4 or v4 Turbo under Voices.`;
+    hear.addEventListener('click', () => {
+        const voice = String(settings.deliveryTestVoice || '').trim();
+        if (!voice) { toastr.info('Pick a test voice at the top of Tonal Typography first.', 'Worldkit'); return; }
+        previewVoice(voice, testLine(settings), { tone: name }).catch(err => console.warn('[Worldkit] test voice failed', err));
+    });
+    head.append(hear);
     card.append(head);
 
     const read = () => styleFor(settings.deliveryStyles, name);
@@ -95,8 +125,8 @@ function buildTagCard(name, table, settings, rerender) {
         field('Case', selectInput(Object.entries(DELIVERY_CASES), s.case, v => write({ case: v }))),
         field('Font', selectInput(Object.entries(DELIVERY_FONTS).map(([id, f]) => [id, f.label]), s.font, v => write({ font: v }))),
         field('Effect', selectInput(Object.entries(DELIVERY_EFFECTS), s.effect, v => write({ effect: v }))),
-        field('Bold', checkInput(s.bold, v => write({ bold: v }))),
-        field('Italic', checkInput(s.italic, v => write({ italic: v }))),
+        checkField('Bold', s.bold, v => write({ bold: v })),
+        checkField('Italic', s.italic, v => write({ italic: v })),
     );
     card.append(grid);
 
@@ -157,76 +187,143 @@ function buildTagCard(name, table, settings, rerender) {
 }
 
 /**
+ * The whole section is one collapsible menu, Tonal Typography: there are many tags. The cards are only built when it is
+ * opened, and whether it is open is remembered across redraws (adding a tag redraws the tab), so it never folds shut under you.
+ *
  * @param {HTMLElement} container
  * @param {() => void} rerender Redraws the whole tab.
  */
 export function renderDeliveryStyles(container, rerender) {
     const settings = getSettings();
-    const wrap = el('div', 'sillynpc-dstyle');
-    wrap.append(el('h4', 'sillynpc-subsection-title', 'Delivery Styles'));
-    wrap.append(el('p', 'notes sillynpc-tab-intro',
-        'How a line marked [whisper]...[/whisper] looks in the chat. Each tag is a delivery the story model can mark; the look is set here, '
-        + 'never by the model. A character\'s own colour is left alone, and nothing is tilted or rotated. Turn the tags on under Writing Rules, Delivery Tags. '
-        + 'Fonts other than the system ones are loaded from Google Fonts when a tag uses them.'));
-
     const table = editableTable(settings);
-    for (const name of Object.keys(table)) wrap.append(buildTagCard(name, table, settings, rerender));
+    const count = Object.keys(table).length;
 
-    // Add a tag
-    const add = el('div', 'sillynpc-dstyle-add');
-    const nameBox = el('input', 'text_pole');
-    nameBox.type = 'text';
-    nameBox.placeholder = 'new tag name, e.g. murmur';
-    const audioBox = el('input', 'text_pole');
-    audioBox.type = 'text';
-    audioBox.placeholder = 'ElevenLabs word, e.g. whispering';
-    const button = el('button', 'menu_button', 'Add tag');
-    button.type = 'button';
-    button.addEventListener('click', () => {
-        const name = nameBox.value.trim().toLowerCase();
-        const next = cleanToneTable({ ...editableTable(settings), [name]: audioBox.value || name });
-        if (!name || !next[name]) { toastr.info('A tag name is letters and digits only, 25 at most.', 'Worldkit'); return; }
-        settings.ttsToneTable = next;
-        saveSettings();
-        applyDelivery();
-        applyDeliveryStyle();
-        rerender();
-    });
-    add.append(nameBox, audioBox, button);
-    wrap.append(add);
+    const menu = el('details', 'sillynpc-dstyle-menu');
+    menu.open = view.open;
+    menu.append(el('summary', 'sillynpc-subsection-title', `Tonal Typography (${count} tags)`));
+    const wrap = el('div', 'sillynpc-dstyle');
+    menu.append(wrap);
+    let built = false;
 
-    // An older saved list lacks the tags added since; this puts the missing starting ones back without touching the rest.
-    const missing = Object.keys(DEFAULT_TONE_TAGS).filter(n => !(n in table));
-    if (missing.length) {
-        const fill = el('button', 'menu_button', `Add the ${missing.length} missing starting tags`);
-        fill.type = 'button';
-        fill.title = 'Keeps your own tags and looks; adds only the starting tags that are not in your list.';
-        fill.addEventListener('click', () => {
-            const next = editableTable(settings);
-            for (const n of missing) next[n] = DEFAULT_TONE_TAGS[n];
+    const build = () => {
+        if (built) return;
+        built = true;
+        wrap.append(el('p', 'notes sillynpc-tab-intro',
+            'How a line marked [whisper]...[/whisper] looks in the chat. Each tag is a delivery the story model can mark; the look is set here, '
+            + 'never by the model. A character\'s own colour is left alone, and nothing is tilted or rotated. Turn the tags on under Writing Rules, Delivery Tags. '
+            + 'Fonts other than the system ones are loaded from Google Fonts when a tag uses them.'));
+
+        // The test line and test voice, shared by every Hear it button below. Typing here only changes the previews;
+        // nothing is rebuilt, so typing is never interrupted.
+        const test = el('div', 'sillynpc-dstyle-test');
+        const lineBox = el('input', 'text_pole');
+        lineBox.type = 'text';
+        lineBox.maxLength = 200;
+        lineBox.placeholder = DEFAULT_TEST_LINE;
+        lineBox.value = String(settings.deliveryTestLine || '');
+        lineBox.title = 'The line used by every preview and every Hear it button';
+        lineBox.addEventListener('input', () => {
+            settings.deliveryTestLine = lineBox.value;
+            saveSettings();
+            for (const span of wrap.querySelectorAll('[data-dstyle-preview]')) span.textContent = `"${testLine(settings)}"`;
+        });
+        const lineRow = el('div', 'sillynpc-dstyle-field');
+        lineRow.append(el('span', 'sillynpc-dstyle-label', 'Test line'), lineBox);
+        test.append(lineRow);
+        test.append(buildVoicePicker({
+            label: 'Test voice',
+            get: () => settings.deliveryTestVoice || '',
+            set: (voice) => { settings.deliveryTestVoice = voice; saveSettings(); },
+            sample: testLine(settings),
+        }));
+        if (!engineReadsAudioTags()) {
+            test.append(el('small', 'notes', 'Hear it only works with ElevenLabs and Eleven v3, v4 or v4 Turbo (Voices tab): the other voice engines do not read delivery tags.'));
+        }
+        wrap.append(test);
+
+        for (const name of Object.keys(table)) wrap.append(buildTagCard(name, table, settings, rerender));
+
+        // Add a tag
+        const add = el('div', 'sillynpc-dstyle-add');
+        const nameBox = el('input', 'text_pole');
+        nameBox.type = 'text';
+        nameBox.placeholder = 'new tag name, e.g. murmur';
+        const audioBox = el('input', 'text_pole');
+        audioBox.type = 'text';
+        audioBox.placeholder = 'ElevenLabs word, e.g. whispering';
+        const button = el('button', 'menu_button', 'Add tag');
+        button.type = 'button';
+        button.addEventListener('click', () => {
+            const name = nameBox.value.trim().toLowerCase();
+            const next = cleanToneTable({ ...editableTable(settings), [name]: audioBox.value || name });
+            if (!name || !next[name]) { toastr.info('A tag name is letters and digits only, 25 at most.', 'Worldkit'); return; }
             settings.ttsToneTable = next;
             saveSettings();
             applyDelivery();
             applyDeliveryStyle();
             rerender();
         });
-        wrap.append(fill);
-    }
+        add.append(nameBox, audioBox, button);
+        wrap.append(add);
 
-    const reset = el('button', 'menu_button', 'Reset all tags and looks');
-    reset.type = 'button';
-    reset.addEventListener('click', () => {
-        if (!confirm('Put every delivery tag, look and meaning back to the starting ones?')) return;
-        settings.ttsToneTable = {};
-        settings.deliveryStyles = {};
-        settings.deliveryMeanings = {};
-        saveSettings();
-        applyDelivery();
-        applyDeliveryStyle();
-        rerender();
+        const buttons = el('div', 'sillynpc-dstyle-actions');
+        // An older saved list lacks the tags added since; this puts the missing starting ones back without touching the rest.
+        const missing = Object.keys(DEFAULT_TONE_TAGS).filter(n => !(n in table));
+        if (missing.length) {
+            const fill = el('button', 'menu_button', `Add the ${missing.length} missing starting tags`);
+            fill.type = 'button';
+            fill.title = 'Keeps your own tags and looks; adds only the starting tags that are not in your list.';
+            fill.addEventListener('click', () => {
+                const next = editableTable(settings);
+                for (const n of missing) next[n] = DEFAULT_TONE_TAGS[n];
+                settings.ttsToneTable = next;
+                saveSettings();
+                applyDelivery();
+                applyDeliveryStyle();
+                rerender();
+            });
+            buttons.append(fill);
+        }
+        // The Eleven v4 emotions from ElevenLabs' Audio Tags page. Not in the starting list: every tag is described to the
+        // story model on every message, so they are added when you want them.
+        const emotions = missingEmotions(table);
+        if (emotions.length) {
+            const pack = el('button', 'menu_button', `Add the Eleven v4 emotion tags (${emotions.length})`);
+            pack.type = 'button';
+            pack.title = 'Adds the emotion tags from ElevenLabs (high energy, heated, tense, low energy, calm) to your list, each with a meaning for the story model. They start plain; style them here. Every tag in the list is described to the story model on each message, so a long list costs tokens.';
+            pack.addEventListener('click', () => {
+                const out = withEmotions(editableTable(settings), settings.deliveryMeanings);
+                settings.ttsToneTable = out.table;
+                settings.deliveryMeanings = out.meanings;
+                saveSettings();
+                applyDelivery();
+                applyDeliveryStyle();
+                rerender();
+            });
+            buttons.append(pack);
+        }
+        const reset = el('button', 'menu_button', 'Reset all tags and looks');
+        reset.type = 'button';
+        reset.addEventListener('click', () => {
+            if (!confirm('Put every delivery tag, look and meaning back to the starting ones?')) return;
+            settings.ttsToneTable = {};
+            settings.deliveryStyles = {};
+            settings.deliveryMeanings = {};
+            saveSettings();
+            applyDelivery();
+            applyDeliveryStyle();
+            rerender();
+        });
+        buttons.append(reset);
+        wrap.append(buttons);
+    };
+
+    menu.addEventListener('toggle', () => {
+        view.open = menu.open;
+        if (menu.open) build();
     });
-    wrap.append(reset);
-    container.append(wrap);
+    if (menu.open) build();
+    container.append(menu);
     // The starting looks exist even when nothing has been saved.
     void DEFAULT_DELIVERY_STYLES;
 }

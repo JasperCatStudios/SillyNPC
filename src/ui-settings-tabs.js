@@ -206,6 +206,11 @@ export function renderWritingRulesView(view, onReprocessMessages) {
     deliveryHeading.className = 'sillynpc-subsection-title';
     deliveryHeading.textContent = 'Delivery Tags';
     view.append(deliveryHeading);
+    const appearanceNote = document.createElement('small');
+    appearanceNote.className = 'notes';
+    appearanceNote.textContent = 'How tagged lines look (size, weight, spacing, font, underline, effects) is set in the Appearance tab, under Tonal Typography. '
+        + 'The same place lets you hear each tag with an ElevenLabs voice. This page only decides whether the tags are used and what the model is told.';
+    view.append(appearanceNote);
     view.append(buildSettingToggle({
         key: 'deliveryTagsEnabled',
         label: 'Ask The Model To Mark How Lines Are Said',

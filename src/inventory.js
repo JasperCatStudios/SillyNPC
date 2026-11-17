@@ -13,7 +13,7 @@ import { registerInventoryCommands } from './inventory-commands.js';
 import { normalizeItemDatabase, allDbItems, allPresets, toInventoryItem, resolvePreset } from './item-database.js';
 import {
     normalizeInventorySettings, normalizeStore, findPerson, ensurePerson, applyTurn, revertTurn,
-    setGold, giveItem, takeItem, editItem, parseUpdate, buildMonitorPrompt, selectPeople, buildInjection,
+    setGold, giveItem, takeItem, editItem, removePerson, parseUpdate, buildMonitorPrompt, selectPeople, buildInjection,
     parseInventoryText, applyInventoryEdit,
 } from './inventory-core.js';
 
@@ -91,9 +91,17 @@ export function editInventory(name, change) {
 export function editInventoryText(text) {
     const store = inventoryStore();
     if (!store) return 0;
-    const changed = applyInventoryEdit(store, parseInventoryText(text), inventorySettings(), { now: Date.now() });
+    const changed = applyInventoryEdit(store, parseInventoryText(text), inventorySettings(), { now: Date.now(), removeMissing: true, keep: [playerName()] });
     if (changed) saveStore();
     return changed;
+}
+
+/** Removes one person's whole inventory record from this chat. */
+export function removePersonFor(name) {
+    const store = inventoryStore();
+    if (!store || !removePerson(store, name)) return false;
+    saveStore();
+    return true;
 }
 
 export const setGoldFor = (name, value) => editInventory(name, (p) => { setGold(p, value); });

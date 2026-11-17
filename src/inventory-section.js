@@ -111,7 +111,7 @@ export function drawInventorySection(mesEl) {
         const save = document.createElement('div');
         save.className = 'menu_button';
         save.textContent = 'Save';
-        save.title = 'Sets the recorded numbers to these. Only people already tracked can be changed.';
+        save.title = 'Sets the recorded numbers to these. Erase all of a person\'s lines to remove them. Only people already tracked can be changed.';
         save.addEventListener('click', (e) => {
             e.stopPropagation();
             drafts.delete(key);

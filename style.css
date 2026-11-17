@@ -3857,6 +3857,16 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-dstyle-field input[type="checkbox"] { width: auto; align-self: flex-start; }
 .sillynpc-dstyle-actions, .sillynpc-dstyle-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .sillynpc-dstyle-add input { flex: 1 1 12em; min-width: 0; }
+/* Tonal Typography: one collapsible menu; tick boxes sit beside their words, left-aligned, like the other controls. */
+.sillynpc-dstyle-menu { margin: 12px 0; border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: var(--sillynpc-radius-md, 6px); padding: 6px 10px; }
+.sillynpc-dstyle-menu > summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
+.sillynpc-dstyle-menu[open] > summary { margin-bottom: 6px; }
+.sillynpc-dstyle-label { text-align: left; }
+.sillynpc-dstyle-check { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; align-self: end; min-height: 2.2em; text-align: left; margin: 0; }
+.sillynpc-dstyle-check input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+.sillynpc-dstyle-test { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; padding: 8px 10px; border-radius: var(--sillynpc-radius-md, 6px); background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
+.sillynpc-dstyle-hear { white-space: nowrap; }
+.sillynpc-dstyle-hear:disabled { opacity: .5; cursor: not-allowed; }
 
 /* A speak button before each spoken line */
 .sillynpc-speak-line { cursor: pointer; margin: 0 0.4em 0 0.2em; opacity: 0.65; font-size: 0.85em; user-select: none; }

@@ -225,7 +225,9 @@ function itemRow(item, rerender) {
     row.append(button(verb, copies ? 'fa-copy' : (installed ? 'fa-rotate' : 'fa-file-import'), async () => {
         state.busy = item.file;
         try {
-            await importItem(item);
+            const sentence = await importItem(item);
+            // Said out loud on purpose: it is the only proof that the import went through.
+            if (sentence) toastr.success(sentence, `${PRODUCT_NAME}: ${item.name}`);
         } catch (err) {
             console.error(LOG_PREFIX, 'Content Kit import failed', err);
             toastr.error(String(err.message || err), `${PRODUCT_NAME}: ${item.name}`);
@@ -320,6 +322,7 @@ export function renderContentKitView(view) {
         try {
             state.message = await fn();
             await check();
+            if (state.message) toastr.success(state.message, PRODUCT_NAME);
         } catch (err) {
             console.error(LOG_PREFIX, `Content Kit ${label} failed`, err);
             state.message = String(err.message || err);

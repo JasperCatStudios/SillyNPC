@@ -332,7 +332,7 @@ export function inventoryLines(person, settings, changeNote = '') {
 
 /** The INVENTORY block shown under a reply: a <details> with a header and item lines per tracked person. */
 export function inventoryBlockHtml(store, record, settings) {
-    const people = (store?.people || []).filter(p => p.tracked).slice(0, 12);
+    const people = (store?.people || []).filter(p => p.tracked).slice(0, EDIT_LIST_LIMIT);
     if (!people.length) return '';
     const changes = record?.changes || [];
     const lines = people.flatMap((person) => {
@@ -381,13 +381,34 @@ export function parseInventoryText(text) {
     return out.filter(p => p.name);
 }
 
+/** How many people the hand-edit box lists (the first twelve tracked), so the same ones are the ones that can be removed. */
+export const EDIT_LIST_LIMIT = 12;
+
+/** Removes one person's whole record. Returns whether anyone was there. */
+export function removePerson(store, name) {
+    const at = (store?.people || []).findIndex(p => same(p.name, name));
+    if (at < 0) return false;
+    store.people.splice(at, 1);
+    return true;
+}
+
 /**
  * Sets what was edited: each named person who is already in the store gets that money and exactly
- * that list of items. People not mentioned are left as they are, and nobody new is created from
- * the edit, so a mistyped name cannot add a stranger. Returns how many people changed.
+ * that list of items. Nobody new is created from the edit, so a mistyped name cannot add a stranger.
+ * People who were listed in the box but whose lines were erased are REMOVED (removeMissing), except
+ * the names in keep (the current player); people the box never listed (untracked, or past the first
+ * twelve) are always left alone. Returns how many people changed or were removed.
  */
-export function applyInventoryEdit(store, parsed, settings, { now = Date.now() } = {}) {
+export function applyInventoryEdit(store, parsed, settings, { now = Date.now(), removeMissing = false, keep = [] } = {}) {
     let changed = 0;
+    if (removeMissing) {
+        const listed = (store?.people || []).filter(p => p.tracked).slice(0, EDIT_LIST_LIMIT);
+        const kept = new Set((parsed || []).map(r => String(r.name).trim().toLowerCase()));
+        for (const k of keep) kept.add(String(k).trim().toLowerCase());
+        for (const p of listed) {
+            if (!kept.has(String(p.name).trim().toLowerCase()) && removePerson(store, p.name)) changed++;
+        }
+    }
     for (const row of parsed || []) {
         const person = findPerson(store, row.name);
         if (!person) continue;
