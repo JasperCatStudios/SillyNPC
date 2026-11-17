@@ -55,7 +55,7 @@ export function buildKnivesCard(char) {
             const used = el('input');
             used.type = 'checkbox';
             used.checked = knife.used;
-            used.title = 'Used: it has already gone to the story. Untick to arm it again.';
+            used.title = 'Used: it has already gone to the story. Press Rearm (or untick) to arm it again.';
             used.style.marginTop = '8px';
             used.addEventListener('change', () => { commit(setKnifeUsed(char.knives, knife.id, used.checked)); summary(); });
 
@@ -73,7 +73,16 @@ export function buildKnivesCard(char) {
             del.append(el('i', 'fa-solid fa-trash'));
             del.addEventListener('click', () => { commit(removeKnife(char.knives, knife.id)); drawList(); summary(); });
 
-            line.append(used, text, del);
+            // A used twist is shown dimmed with a Rearm button: armed again, it can go to the story another time. Deleting is separate.
+            if (knife.used) text.style.opacity = '0.6';
+            const rearm = el('button', 'menu_button');
+            rearm.type = 'button';
+            rearm.title = 'Rearm: make this twist available to the story again';
+            rearm.append(el('i', 'fa-solid fa-rotate-left'), document.createTextNode(' Rearm'));
+            rearm.style.display = knife.used ? '' : 'none';
+            rearm.addEventListener('click', () => { commit(setKnifeUsed(char.knives, knife.id, false)); drawList(); summary(); });
+
+            line.append(used, text, rearm, del);
             listHost.append(line);
         }
     };
@@ -99,9 +108,9 @@ export function buildKnivesCard(char) {
     addText.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
     addRow.append(addText, addBtn);
 
-    const reset = el('button', 'menu_button', 'Reset used');
+    const reset = el('button', 'menu_button', 'Rearm all');
     reset.type = 'button';
-    reset.title = 'Make every twist unused again.';
+    reset.title = 'Rearm every twist: they can all go to the story again.';
     reset.addEventListener('click', () => { commit(resetKnives(char.knives)); drawList(); summary(); });
 
     // Suggest.

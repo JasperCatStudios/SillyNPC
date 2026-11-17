@@ -96,9 +96,18 @@ export function readLevel(type, data) {
  * @param {{ name: string, from: number, level: number }[]} ups
  */
 export function levelUpReport(ups) {
-    const lines = (Array.isArray(ups) ? ups : []).filter(u => u && u.name && u.level > u.from).map(u => (
-        u.level - u.from === 1
-            ? `${u.name} has grown stronger and more experienced.`
-            : `${u.name} has grown a great deal stronger and more experienced.`));
-    return lines.join(' ');
+    const list = (Array.isArray(ups) ? ups : []).filter(u => u && u.name && u.level > u.from);
+    // Everyone who grew is LISTED in one sentence ("Ana, Bo and Cy have grown..."), not one sentence each, so three people
+    // levelling together do not repeat the line three times. Those who rose by several levels at once get a stronger line.
+    const names = (people) => {
+        const n = [...new Set(people.map(u => u.name))];
+        return n.length <= 1 ? (n[0] || '') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+    };
+    const verb = (people) => (new Set(people.map(u => u.name)).size === 1 ? 'has' : 'have');
+    const one = list.filter(u => u.level - u.from === 1);
+    const many = list.filter(u => u.level - u.from > 1);
+    const parts = [];
+    if (one.length) parts.push(`${names(one)} ${verb(one)} grown stronger and more experienced.`);
+    if (many.length) parts.push(`${names(many)} ${verb(many)} grown a great deal stronger and more experienced.`);
+    return parts.join(' ');
 }

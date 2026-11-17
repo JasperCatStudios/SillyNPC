@@ -20,7 +20,7 @@ import { buildKnivesCard } from './ui-knives.js';
 export const PROFILE_TABS = Object.freeze([
     ['combat', 'Combat', 'fa-khanda', 'Stats, ranks, abilities and condition.'],
     ['equipment', 'Equipment', 'fa-shield-halved', 'Weapons and tools.'],
-    ['knives', 'Knives', 'fa-utensils', 'Story twists this character can bring into the story.'],
+    ['knives', 'Knives', 'sillynpc-icon-dagger', 'Story twists this character can bring into the story.'],
     ['inventory', 'Inventory', 'fa-bag-shopping', 'What they carry, and their money.'],
     ['identity', 'Identity', 'fa-mask', 'A secret identity: link this card to another one they secretly are.'],
     ['visual', 'Visual Prompt', 'fa-image', 'Picture prompts for this character.'],

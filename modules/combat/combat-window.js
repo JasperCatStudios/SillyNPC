@@ -1,4 +1,4 @@
-import { queueResult, armResult } from '../../src/result-runtime.js';
+import { queueResult, armResult, resultStatus } from '../../src/result-runtime.js';
 import { getContext } from '../../../../../extensions.js';
 import { eventSource, event_types } from '../../../../../../script.js';
 import { getSettings, saveSettings } from '../../src/settings.js';
@@ -162,10 +162,21 @@ function awardXp() {
         if (out.levelsGained) ups.push({ name: fighter.name, from: out.level - out.levelsGained, level: out.level });
     }
     saveSettings();
-    // The level-ups go to the story on their own, with their own wording and placement (Modules, Combat).
-    const report = levelUpReport(ups).replace(/\|/g, '/').replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }');
-    if (report) queueResult('levelup', report, { append: true });
+    // The level-ups go to the story on their own, with their own wording and placement (Modules, Combat). Several fights
+    // before one reply are merged into ONE listing (the same person growing twice is one name), not one sentence per fight.
+    if (ups.length) {
+        if (!resultStatus('levelup').pending) waitingUps = new Map();
+        for (const u of ups) {
+            const had = waitingUps.get(u.name);
+            waitingUps.set(u.name, had ? { name: u.name, from: Math.min(had.from, u.from), level: Math.max(had.level, u.level) } : { ...u });
+        }
+        const report = levelUpReport([...waitingUps.values()]).replace(/\|/g, '/').replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }');
+        if (report) queueResult('levelup', report);
+    }
 }
+
+/** Who has levelled since the last reply carried the level-up report (so several fights make one listing). */
+let waitingUps = new Map();
 
 function xpLines() {
     return (session?.xp || []).map(x => (x.none
