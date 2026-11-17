@@ -19,7 +19,7 @@ import { addRecord, tallyAgainst, rivalryBlock } from '../../src/rivalry.js';
 import { tallyText } from '../../src/rivalry-core.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
 import { rate, calibrate, SPAR_SHARE } from '../../src/combat-pace.js';
-import { activeCombatType, combatPrefs, personaRecordFor, isCombatDisabled } from '../../src/combat-access.js';
+import { activeCombatType, combatPrefs, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
 import { lastTaggedSpeaker, sceneClock } from '../shim.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { andList, sidesOfFight, talkEntry, fightRecord } from '../../src/combat-talk.js';
@@ -95,9 +95,14 @@ function characters() {
 function roster() {
     let player = null;
     try { player = getPlayerCard(); } catch { /* no persona yet */ }
-    // A persona character with the player's name is the player: one set of stats, shared.
-    if (player) player = personaRecordFor(player.name) || player;
-    const foes = characters().filter(f => f !== player);
+    // A persona character with the player's name is the player: one set of stats, shared. The name is tried as the
+    // player card has it and as SillyTavern's persona has it, and a persona-ticked character with either name is never
+    // also offered as an opponent (it used to appear twice when the two spellings differed).
+    const userNames = new Set();
+    try { if (player?.name) userNames.add(String(player.name).trim().toLowerCase()); } catch { /* none */ }
+    try { const n = getContext()?.name1; if (n) userNames.add(String(n).trim().toLowerCase()); } catch { /* none */ }
+    if (player) player = personaRecordFor(player.name) || [...userNames].map(personaRecordFor).find(Boolean) || player;
+    const foes = characters().filter(f => f !== player && !(isPersonaChar(f) && userNames.has(String(f.name).trim().toLowerCase())));
     let suggested = '';
     try {
         const last = lastTaggedSpeaker(getContext()?.chat);

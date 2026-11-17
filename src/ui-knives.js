@@ -29,7 +29,7 @@ export function buildKnivesCard(char) {
 
     card.append(el('p', 'notes',
         'Story twists this character can bring into the story: a secret, a debt, an old grudge. When the Knives trigger fires '
-        + '(Modules, Combat), one unused twist of somebody in the scene is offered to the story model, hidden, and then marked used. '
+        + '(Writing Rules, Knives), one unused twist of somebody in the scene is offered to the story model, hidden, and then marked used. '
         + 'The twist is told to the model as a hidden turn of events, never as a rule.'));
 
     const status = el('small', 'notes');

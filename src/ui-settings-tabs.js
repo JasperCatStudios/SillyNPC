@@ -5,6 +5,7 @@ import { applyDialogueFormatPrompt } from './dialogue-format.js';
 import { applyDelivery, syncDeliveryScripts } from './delivery.js';
 import { buildDeliveryPlacement, buildDeliveryChecker } from './ui-delivery-check.js';
 import { buildIdentitySettings } from './ui-identity.js';
+import { buildResultInjectionPanel } from './ui-result-injection.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
 import { buildContextSaverControls } from './ui-context-savers.js';
@@ -242,6 +243,13 @@ export function renderWritingRulesView(view, onReprocessMessages) {
     }
 
     view.append(buildIdentitySettings(rerender));
+
+    // Knives (saved story twists kept on each character): when one is offered to the story. The twists themselves are on the profile.
+    const knivesHeading = document.createElement('h4');
+    knivesHeading.className = 'sillynpc-subsection-title';
+    knivesHeading.textContent = 'Knives';
+    view.append(knivesHeading);
+    try { view.append(buildResultInjectionPanel('knives')); } catch (err) { console.warn('[Worldkit] knives settings failed', err); }
 
     const banHeading = document.createElement('h4');
     banHeading.className = 'sillynpc-subsection-title';
