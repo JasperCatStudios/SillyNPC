@@ -1377,7 +1377,7 @@ function buildAliasRow(char, index) {
 
 function exportData() {
     offerDownload(exportSettingsData(),
-        `sillynpc-export-${new Date().toISOString().slice(0, 10)}.json`);
+        `worldkit-export-${new Date().toISOString().slice(0, 10)}.json`);
 }
 
 async function importData() {

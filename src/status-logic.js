@@ -2283,7 +2283,7 @@ const SYSTEM_EXCLUDED_ROOT = new Set([
     'statusTracker', 'activeSystem', 'version', 'enabled',
     // Which provider makes images and where the files land: accounts and disk.
     'imageBackend', 'geminiImageModel', 'imageSaveRoute',
-    'loreProfileId', 'imageProfileId', 'combatProfileId', 'internalStatesProfileId', 'bondProfileId', 'vitalsProfileId', 'inventoryProfileId', 'knivesProfileId',
+    'loreProfileId', 'imageProfileId', 'combatProfileId', 'internalStatesProfileId', 'bondProfileId', 'vitalsProfileId', 'inventoryProfileId', 'knivesProfileId', 'weatherProfileId',
     // Custom combat world types are a library, like the systems themselves: shared by all of them.
     'combatTypes', 'combatAbilities',
     // Your window, not your world.
@@ -2621,7 +2621,7 @@ let checkpointSequence = 0;
 function checkpointFileName(system, savedAt) {
     const slug = String(system).replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40) || 'system';
     const unique = `${savedAt}-${(checkpointSequence++).toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    return `sillynpc-state-${slug}-${unique}.json`;
+    return `worldkit-state-${slug}-${unique}.json`;
 }
 
 /**

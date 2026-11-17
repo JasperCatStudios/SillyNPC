@@ -104,7 +104,7 @@ export function applyItem(record, type, item, { migrationId, at = Date.now(), ov
 export function buildBackup(records, items, type, { migrationId, at = Date.now() } = {}) {
     const wanted = new Set(items.map(i => i.recordId));
     return {
-        format: 'sillynpc-combat-backup',
+        format: 'worldkit-combat-backup',
         version: 1,
         migrationId,
         typeId: type.id,
@@ -201,7 +201,7 @@ export function buildTidyBackup(records, type, { migrationId, at = Date.now() } 
             removed: Object.fromEntries(keys.map(k => [k, record.statusOverrides[k]])),
         });
     }
-    return { format: 'sillynpc-combat-tidy-backup', version: 1, migrationId, typeId: type.id, at, records: out };
+    return { format: 'worldkit-combat-tidy-backup', version: 1, migrationId, typeId: type.id, at, records: out };
 }
 
 /** Puts removed keys back. Never overwrites a key that has been set again since. */

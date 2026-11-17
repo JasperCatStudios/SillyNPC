@@ -16,7 +16,8 @@ import { toBase64 } from './status-logic.js';
  * @throws {Error} When the upload fails.
  */
 export async function uploadBackup(backup) {
-    const name = `sillynpc-combat-${backup.format === 'sillynpc-combat-tidy-backup' ? 'tidy' : 'backup'}-${backup.at}.json`;
+    const tidy = backup.format === 'worldkit-combat-tidy-backup' || backup.format === 'sillynpc-combat-tidy-backup';   // either spelling: older files say sillynpc
+    const name = `worldkit-combat-${tidy ? 'tidy' : 'backup'}-${backup.at}.json`;
     const response = await fetch('/api/files/upload', {
         method: 'POST',
         headers: getRequestHeaders(),

@@ -443,7 +443,8 @@ export function matchPlace(list, text, { world = '' } = {}) {
     const score = (h) => [
         RANK[h.scope],
         ancestorIds.get(h.entry.id).some(id => hitIds.has(id)) ? 1 : 0,
-        ancestorIds.get(h.entry.id).length,
+        // Depth in the tree is NOT a tie-breaker: two unrelated places that match equally (the same name in two worlds) are a
+        // tie to be settled by the owner, never silently the deeper one. A place below a matched place already wins above.
         h.length,
     ];
     const cmp = (a, b) => {

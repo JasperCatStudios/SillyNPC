@@ -31,10 +31,10 @@ export async function exportCharacterFile(chars) {
     try {
         const payload = await exportCharacters(list);
         const fileName = list.length === 1
-            ? `sillynpc-${safeFileName(list[0].name)}.json`
+            ? `worldkit-${safeFileName(list[0].name)}.json`
             : added.length && chosen.length === 1
-                ? `sillynpc-${safeFileName(chosen[0].name)}-and-linked.json`
-                : `sillynpc-${list.length}-characters.json`;
+                ? `worldkit-${safeFileName(chosen[0].name)}-and-linked.json`
+                : `worldkit-${list.length}-characters.json`;
         offerDownload(payload, fileName);
 
         const extra = added.length ? ` Also included, because ${added.length === 1 ? 'it is' : 'they are'} secretly linked: ${added.join(', ')}.` : '';
