@@ -3052,7 +3052,7 @@ function registerPhoneTextsCommand() {
             callback: phoneTextsCommand,
             returns: 'a short status when asked for, otherwise nothing',
             unnamedArgumentList: arg('cancel (take the request back) or status (say where it stands); leave empty to send the recent phone texts with the next reply'),
-            helpString: 'Forces the texts of your recent phone conversations into the next story reply, once (Send phone texts to the main chat). Works when that setting is Manual, Random or Always. /phone-send-texts cancel takes it back; /phone-send-texts status says where it stands. This is separate from /phone-bring-contacts, which sends no texts.',
+            helpString: 'Manual only. Forces the texts of your recent phone conversations into the next story reply, once (Send phone texts to the main chat). Works when that setting is Manual, Random or Always. /phone-send-texts cancel takes it back; /phone-send-texts status says where it stands. This is separate from /phone-bring-contacts, which sends no texts.',
         }));
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'phone-bring-contacts',
@@ -3060,7 +3060,7 @@ function registerPhoneTextsCommand() {
             callback: phoneArrivalCommand,
             returns: 'a short status when asked for, otherwise nothing',
             unnamedArgumentList: arg('cancel (take the request back) or status (say where it stands); leave empty to have your phone contacts arrive in the next scene'),
-            helpString: 'Forces the people you have been texting to arrive in the next scene, once (Phone contacts enter the next scene). Works when that setting is Manual, Random or Always. /phone-bring-contacts cancel takes it back; /phone-bring-contacts status says where it stands. This is separate from /phone-send-texts, which sends the texts themselves.',
+            helpString: 'Manual only. Forces the people you have been texting to arrive in the next scene, once (Phone contacts enter the next scene). Works when that setting is Manual, Random or Always. /phone-bring-contacts cancel takes it back; /phone-bring-contacts status says where it stands. This is separate from /phone-send-texts, which sends the texts themselves.',
         }));
     } catch (e) { console.warn('[Phone] could not register the phone slash commands', e); }
 }
