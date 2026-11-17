@@ -59,7 +59,7 @@ function notify(id) {
  */
 export function missingModuleText(name, load) {
     if (load?.state === 'failed') {
-        return `${name} failed to load: ${load.error || 'unknown error'}. Details are in the browser console (lines starting with [SillyNPC]).`;
+        return `${name} failed to load: ${load.error || 'unknown error'}. Details are in the browser console (lines starting with [Worldkit]).`;
     }
     if (!load || load.state === 'loading') {
         return `${name} is still loading. This pane fills in by itself when it is ready.`;

@@ -12,7 +12,7 @@ import { inventorySettings, inventoryStore, latestReplyId, runInventoryUpdate, e
 
 /**
  * The Inventory section under a reply (fork), drawn right below the Bond Tracker's section. The
- * block is dressed by the chosen look, or by the display regexes (regex/Worldkit-Inventory.json),
+ * block is dressed by the chosen look, or by the display regexes (regex/inventory/),
  * then made safe to insert. It is never part of the message text.
  */
 

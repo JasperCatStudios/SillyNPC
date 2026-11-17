@@ -300,7 +300,7 @@ function setMessageText(message, text) {
  * inline must not be left in the story because the switch moved before the reply finished. The
  * visible BOND TRACKER lines are only read while the tracker is on and the timing is inline:
  * their values become changes, go through the growth rules, and the block is rewritten with the
- * clamped result. Synchronous up to the redraw, and registered first, so the rest of SillyNPC
+ * clamped result. Synchronous up to the redraw, and registered first, so the rest of Worldkit
  * reads the clean text.
  */
 function takeInlineBlock(messageId) {
@@ -387,7 +387,7 @@ export function currentBondInjection({ everyone = false } = {}) {
 /** Sets or clears both prompts. Called on every generation. */
 export function applyBondPrompts(type = 'normal') {
     const settings = bondSettings();
-    // SillyNPC's own master switch, as the other injected blocks read it.
+    // Worldkit's own master switch, as the other injected blocks read it.
     const on = Boolean(getSettings().enabled);
 
     const text = on ? currentBondInjection() : '';

@@ -435,7 +435,7 @@ export function applyInternalStatesPrompt() {
     }
     placeWritingPrompt(INJECT_KEY, text, {
         depth: Number(settings.internalStatesInjectDepth ?? 1),
-        name: 'SillyNPC - Internal States',
+        name: 'Worldkit - Internal States',
     });
 }
 

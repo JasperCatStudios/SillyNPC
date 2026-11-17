@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="img/SillyNPCLogo.jpg" alt="SillyNPC" width="420">
+  <img src="img/SillyNPCLogo.jpg" alt="Worldkit" width="420">
 </p>
 
-# SillyNPC
+# Worldkit
 
 [![SillyTavern Compatible](https://img.shields.io/badge/SillyTavern-Extension-crimson?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/SillyTavern/SillyTavern)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](https://github.com/BrutalKoala/SillyNPC/pulls)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](https://github.com/JasperCatStudios/WorldKit/pulls)
 
 ---
 
@@ -73,7 +73,7 @@ Worldkit is made of a few parts that work together:
 1. Open SillyTavern and click **Extensions** (stacked blocks icon) -> **Install Extension**.
 2. Paste the repository URL:
    ```text
-   https://github.com/BrutalKoala/SillyNPC
+   https://github.com/JasperCatStudios/WorldKit
    ```
 3. Click **Save / Install** and refresh the page.
 
@@ -82,7 +82,7 @@ Clone the repository directly into your SillyTavern installation directory:
 
 ```bash
 cd SillyTavern/public/scripts/extensions/third-party
-git clone https://github.com/BrutalKoala/SillyNPC.git
+git clone https://github.com/JasperCatStudios/WorldKit.git
 ```
 Reload SillyTavern.
 
@@ -92,7 +92,7 @@ Reload SillyTavern.
 
 1. **Dialogue Formatting:**
    * **Ask The Model To Format Dialogue** is on out of the box — it asks for the `**Name**:` speaker line that everything else reads.
-   * If your chat is not being decorated, check it is still enabled under **Extensions -> SillyNPC -> Manage SillyNPC -> Writing Rules**. A persona or preset asking for a different layout is the usual cause.
+   * If your chat is not being decorated, check it is still enabled under **Extensions -> Worldkit -> Manage Worldkit -> Writing Rules**. A persona or preset asking for a different layout is the usual cause.
 2. **Assigning Avatars:**
    * When a character speaks in chat, click their name or placeholder portrait to create/open their card.
    * Upload an image, assign an accent color, and save.
@@ -174,3 +174,7 @@ window.SILLYNPC_DEBUG = true;
 ## Credits
 
 The dialogue gradient model and its shipped gradients (`src/gradient-style.js`) are adapted from the **Dialogue Colors** SillyTavern extension (`sillytavern-character-colors`), which is MIT licensed.
+
+---
+
+Worldkit began as a fork of [SillyNPC](https://github.com/BrutalKoala/SillyNPC) by BrutalKoala (MIT) and includes adapted code from RPG-Phone and RPG-Game-Companion by Arkana8 (AGPL-3.0). See `NOTICE.md` for the licences. Worldkit was built from SillyNPC and keeps its credit.

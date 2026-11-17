@@ -19,7 +19,7 @@ import {
 
 export const RESULT_IDS = Object.freeze(['combat', 'games']);
 const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result' };
-const NAMES = { combat: 'SillyNPC - Combat Result', games: 'SillyNPC - Game Result' };
+const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result' };
 
 const since = { combat: Infinity, games: Infinity };   // replies since it last went; not saved
 const turns = {};                                      // id -> { key, text } the decision made for the current turn

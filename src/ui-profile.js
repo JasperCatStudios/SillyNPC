@@ -235,7 +235,7 @@ export async function renderProfileView(char, container) {
             }
         }
     } catch (err) {
-        console.warn('[SillyNPC] could not read the bond for the profile', err);
+        console.warn('[Worldkit] could not read the bond for the profile', err);
     }
     if (relCard.children.length === 1) {
         const none = document.createElement('small');

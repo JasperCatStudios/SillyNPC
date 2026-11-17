@@ -7,7 +7,7 @@
     "css": "style.css",
     "author": "BrutalKoala, JasperCatStudios; includes work by Arkana8",
     "version": "0.5.7",
-    "homePage": "https://github.com/BrutalKoala/SillyNPC",
+    "homePage": "https://github.com/JasperCatStudios/WorldKit",
     "auto_update": false,
     "description": "Styles chat messages by speaker with per-character avatars and colours, and tracks an RPG-style status system (stats, inventory, HUD, player sheet) driven by the AI."
 }

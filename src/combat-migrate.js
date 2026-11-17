@@ -48,7 +48,7 @@ function leadingNumber(value) {
 }
 
 /**
- * @param {object} record A SillyNPC character record or the player card.
+ * @param {object} record A Worldkit character record or the player card.
  * @param {object} type A world type.
  * @returns {{ matches: object[], unknown: object[], skipped: string[], ignored: string[] }}
  *   matches: { key, value, target: 'stats.str' | 'profs.sword' | 'meta.level', parsed }

@@ -948,7 +948,7 @@ export function renderVectorsView(view) {
         if (vecTab === 'general') renderGeneralTab(body, rerender);
         else renderModuleTab(body, vecTab, rerender);
     } catch (err) {
-        console.error('[SillyNPC] Vectors tab failed', err);
+        console.error('[Worldkit] Vectors tab failed', err);
         body.append(el('p', 'snpc-vec-error', `This tab failed to draw: ${String(err?.message || err)}`));
     }
 }

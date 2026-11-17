@@ -149,7 +149,7 @@ export async function requestOnConnection(settingKey, system, user, maxTokens = 
             );
             return (typeof result === 'string' ? result : (result?.content ?? '')) || '';
         } catch (err) {
-            console.warn('[SillyNPC] Connection unavailable, using the main API:', err);
+            console.warn('[Worldkit] Connection unavailable, using the main API:', err);
         }
     }
     const raw = await context.generateRawData({ prompt: user, systemPrompt: system, responseLength: maxTokens });

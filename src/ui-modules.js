@@ -6,11 +6,11 @@ import { moduleSends, setModuleSends } from './context-blocks.js';
 import { getModulePane, moduleLoadState, onModuleLoad, missingModuleText } from './module-panes.js';
 
 /**
- * The Modules tab (fork): one place for everything that rides along with SillyNPC.
+ * The Modules tab (fork): one place for everything that rides along with Worldkit.
  *
  * Each borrowed module builds its own settings panel and parks it in SillyTavern's Extensions
  * list. Here those panels are moved into cards instead, so there is one menu rather than one
- * per extension, and the Extensions list keeps only SillyNPC. The panels are the modules' own
+ * per extension, and the Extensions list keeps only Worldkit. The panels are the modules' own
  * and keep working as they were; a card only gives them a header, a switch and a place to be.
  *
  * Moving a panel is borrowing it: it is put back in a hidden holder when this tab goes away,
@@ -171,7 +171,7 @@ export function renderModulesView(view) {
         }
     };
 
-    // Voices belong to SillyNPC itself rather than to a module, and come first.
+    // Voices belong to Worldkit itself rather than to a module, and come first.
     add('voices', 'fa-volume-high', 'Voices', (pane) => {
         const head = document.createElement('div');
         head.className = 'sillynpc-pane-head';
@@ -273,7 +273,7 @@ export function renderModulesView(view) {
                     try {
                         draw(pane, { live, head, makeSwitch });
                     } catch (err) {
-                        console.error('[SillyNPC]', `The ${mod.name} pane failed to draw`, err);
+                        console.error('[Worldkit]', `The ${mod.name} pane failed to draw`, err);
                         const note = document.createElement('p');
                         note.className = 'notes sillynpc-module-error';
                         note.textContent = `${mod.name} loaded, but its pane failed to draw: ${err?.message || err}. Details are in the browser console.`;

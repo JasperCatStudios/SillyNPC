@@ -93,7 +93,7 @@ export function renderCombatSection(record, container, options = {}) {
                 else if (!out.ok) toastr.warning(out.reason, PRODUCT_NAME);
                 else { saveSettings(); toastr.success(`Filled ${out.applied} values from their lore.`, PRODUCT_NAME); options.onChange?.(); }
             } catch (err) {
-                console.error('[SillyNPC] combat generation failed', err);
+                console.error('[Worldkit] combat generation failed', err);
                 toastr.error('Could not generate combat stats.', PRODUCT_NAME);
             }
             renderCombatSection(record, container, options);
@@ -114,7 +114,7 @@ export function renderCombatSection(record, container, options = {}) {
                     renderCombatSection(record, container, options);
                 });
             } catch (err) {
-                console.error('[SillyNPC] could not open the lorebook picker', err);
+                console.error('[Worldkit] could not open the lorebook picker', err);
                 toastr.error('Could not open the lorebook picker.', PRODUCT_NAME);
                 link.disabled = false;
             }

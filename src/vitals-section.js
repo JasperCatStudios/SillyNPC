@@ -12,7 +12,7 @@ import { vitalsSettings, vitalsStore, latestReplyId, runVitalsUpdate, editVitals
 
 /**
  * The Vitals section under a reply (fork), drawn right below the Bond Tracker's section. The
- * block is dressed by the display regexes (regex/Worldkit-Vitals-Bars.json) the same way the
+ * block is dressed by the display regexes (regex/vitals/Worldkit-Vitals-Bars.json) the same way the
  * bond block is, then made safe to insert. It is never part of the message text.
  */
 

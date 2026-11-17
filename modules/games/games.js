@@ -1,7 +1,7 @@
 import { queueResult, armResult } from '../../src/result-runtime.js';
 import { getContext, extension_settings } from '../../../../../extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '../../../../../../script.js';
-// Fork: the opponents are SillyNPC's characters, not SillyTavern's cards.
+// Fork: the opponents are Worldkit's characters, not SillyTavern's cards.
 import { phoneCharacters as characters, activeCharacterNames, lastTaggedSpeaker, sceneClock } from '../shim.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';

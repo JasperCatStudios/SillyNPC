@@ -10,7 +10,7 @@ import { readLoreEntry } from './character-fill.js';
  * here, so a character is described the same way everywhere and is set up in one place - their
  * page. In order of say:
  *
- *   the lorebook entry linked to them on their SillyNPC character page - the one place
+ *   the lorebook entry linked to them on their Worldkit character page - the one place
  *      the link is made - as their personality and profile.
  *
  * Entries are read into memory ahead of time, because the callers ask for text synchronously.
@@ -59,7 +59,7 @@ export function profileSource(char) {
 /**
  * The text describing somebody.
  *
- * @param {object} char A SillyNPC character record.
+ * @param {object} char A Worldkit character record.
  * @returns {string}
  */
 export function profileText(char) {

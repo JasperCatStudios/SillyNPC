@@ -259,7 +259,7 @@ function renderTabExtras(dom) {
                 body.className = 'sillynpc-cv-lore-text';
                 body.textContent = text;
                 loreView.append(heading, body);
-            }).catch(err => console.error('[SillyNPC] player lore read failed', err));
+            }).catch(err => console.error('[Worldkit] player lore read failed', err));
         }
     }
 
@@ -269,7 +269,7 @@ function renderTabExtras(dom) {
     const loreEdit = dom.querySelector('.sillynpc-sheet-content .lorebook-section-container');
     if (loreEdit) {
         renderLorebookSection(card, loreEdit, { onChange: () => refreshModal(dom) })
-            .catch(err => console.error('[SillyNPC] player lorebook section failed', err));
+            .catch(err => console.error('[Worldkit] player lorebook section failed', err));
     }
 
     // After the editor sections above are filled, so their lookups never find the tabs drawn here.
@@ -451,7 +451,7 @@ function attachModalListeners(dom) {
     if (restoreBtn && !restoreBtn.dataset.listenerAttached) {
         restoreBtn.addEventListener('click', () => {
             openRestorePicker().then(changed => { if (changed) refreshModal(dom); })
-                .catch(err => console.error('[SillyNPC] restore picker failed', err));
+                .catch(err => console.error('[Worldkit] restore picker failed', err));
         });
         restoreBtn.dataset.listenerAttached = 'true';
     }

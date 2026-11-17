@@ -45,7 +45,7 @@ export function recordTalk(kind, entry) {
         if (saved) save(kind);
         return saved;
     } catch (err) {
-        console.warn('[SillyNPC] could not keep the table talk', err);
+        console.warn('[Worldkit] could not keep the table talk', err);
         return null;
     }
 }

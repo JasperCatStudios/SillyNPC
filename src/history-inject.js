@@ -13,7 +13,7 @@ import { listTalk } from './talk-store.js';
 /**
  * The shared history, in the main story prompt (fork).
  *
- * Set on every generation, like the other blocks SillyNPC injects, so what goes in can change
+ * Set on every generation, like the other blocks Worldkit injects, so what goes in can change
  * from one message to the next: who is in the scene, whose name came up, and a dice roll when
  * the trigger is random. Nothing is sent when it is off or when nobody qualifies.
  */

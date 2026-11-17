@@ -8,11 +8,11 @@ import { getContext } from '../../../../st-context.js';
 import { world_names, loadWorldInfo } from '../../../../world-info.js';
 
 /**
- * Presents SillyNPC's characters as the character cards the phone was written against, and
+ * Presents Worldkit's characters as the character cards the phone was written against, and
  * gives the phone the few things it needs to know about the story that cards never held.
  *
  * The phone reads `characters` - a list of cards with a name, an avatar file, and a
- * description, personality and scenario. Here those come from SillyNPC instead: the
+ * description, personality and scenario. Here those come from Worldkit instead: the
  * people who exist in this story, with their portrait and their profile, rather than
  * whichever single card SillyTavern happens to have open.
  *
@@ -30,10 +30,10 @@ function portraitUrl(path) {
     return `/${p}`;
 }
 
-/* Who somebody is, as text, is SillyNPC's own business: see src/profile-text.js. */
+/* Who somebody is, as text, is Worldkit's own business: see src/profile-text.js. */
 export { primeLore };
 
-/** One SillyNPC character, in the shape of a card. */
+/** One Worldkit character, in the shape of a card. */
 function asCard(char) {
     return {
         id: char.id,
@@ -147,7 +147,7 @@ export function activeCharacterNames() {
 
 /**
  * Who spoke last in the main story, as a card: the last speaker tag in the newest message
- * that has one naming somebody SillyNPC knows. Null when nobody can be told.
+ * that has one naming somebody Worldkit knows. Null when nobody can be told.
  */
 export function lastTaggedSpeaker(chat) {
     const cards = allCards();

@@ -14,7 +14,7 @@ import { dressWithTheme } from './tracker-theme-setting.js';
  *
  *   - <b>Kaito</b> → <b>Mira</b> | AFFECTION: +34 | TRUST: 20 | RESPECT: 15 | LEVEL: Friend (+2 affection)
  *
- * with `| DESIRE: d` before LEVEL while the character's romance is on (regex/SillyNPC-Bond-Bars-*.json
+ * with `| DESIRE: d` before LEVEL while the character's romance is on (regex/bonds/Worldkit-Bond-Bars-*.json
  * match both shapes). With no regex the block still reads as a list.
  */
 

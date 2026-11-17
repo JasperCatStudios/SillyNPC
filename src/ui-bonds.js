@@ -111,9 +111,9 @@ function chip(label, on, title, onToggle) {
     return b;
 }
 
-/** The builders in ui-shared, aimed at settings.bonds instead of SillyNPC's root. */
+/** The builders in ui-shared, aimed at settings.bonds instead of Worldkit's root. */
 const STORE = { get: () => bondSettings(), save: () => saveBondSettings(), defaults: BOND_DEFAULTS };
-/** Search keys are namespaced so "enabled" here never answers for SillyNPC's own switch. */
+/** Search keys are namespaced so "enabled" here never answers for Worldkit's own switch. */
 function namespaced(node) {
     if (node?.dataset?.setting) node.dataset.setting = `bonds.${node.dataset.setting}`;
     return node;

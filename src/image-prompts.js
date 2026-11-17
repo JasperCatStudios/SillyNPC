@@ -63,7 +63,7 @@ export function applyImagePromptInjection() {
     const on = settings.enabled && settings.imagePromptInject;
     placeWritingPrompt(IMAGE_PROMPT_INJECT_KEY, on ? buildImagePromptBlock() : '', {
         depth: Number(settings.imagePromptInjectDepth ?? 1),
-        name: 'SillyNPC - Character Image Tags',
+        name: 'Worldkit - Character Image Tags',
     });
 }
 

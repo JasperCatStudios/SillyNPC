@@ -4,7 +4,7 @@ import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 /**
  * A small AllTalk client (fork).
  *
- * SillyNPC speaks for itself instead of going through SillyTavern's TTS extension, so a
+ * Worldkit speaks for itself instead of going through SillyTavern's TTS extension, so a
  * voice belongs to a character rather than to a name in somebody else's voice map, and
  * nothing in SillyTavern has to be changed. Only AllTalk is spoken to, over its own HTTP
  * API: /api/ready, /api/voices and /api/tts-generate.

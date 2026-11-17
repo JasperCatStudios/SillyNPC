@@ -48,7 +48,7 @@ function markAdvanced(wrap, spec) {
  *
  * These builders carry the label, the help text, the advanced gating and the saving, which
  * is why every settings surface here is made of them - and why an addon wants them too. But
- * they read SillyNPC's own settings by name, so an addon using them as they stood would
+ * they read Worldkit's own settings by name, so an addon using them as they stood would
  * write its settings into this extension's file.
  *
  * An optional store is the whole of the fix. Omitted, which is every existing call, it is
@@ -60,7 +60,7 @@ function markAdvanced(wrap, spec) {
  * about one person's screen, not a per-extension preference.
  *
  * defaults comes with it because the slider and number controls fall back to the schema
- * default for their key when nothing is stored - and reading SillyNPC's schema for somebody
+ * default for their key when nothing is stored - and reading Worldkit's schema for somebody
  * else's key finds nothing, which puts a slider at its minimum rather than where the addon
  * says it starts.
  *
@@ -759,7 +759,7 @@ export function applyPortraitFraming() {
  * Updates the extension theme classes on all open extension windows.
  */
 export function updateAllExtensionThemes() {
-    // Target all active SillyNPC containers in the DOM
+    // Target all active Worldkit containers in the DOM
     const manageContainers = document.querySelectorAll('.sillynpc-manage, .sillynpc-player-sheet');
     manageContainers.forEach(container => {
         updateExtensionTheme(container);
@@ -812,13 +812,13 @@ export function updateExtensionTheme(root, popupInstance = null) {
     const themeClasses = allThemeClasses();
     container.classList.remove(...themeClasses);
 
-    const isSillyNPCTheme = SILLYNPC_THEMES.includes(style);
+    const isWorldkitTheme = SILLYNPC_THEMES.includes(style);
     const themeClass = themeClassFor(style);
     
     // Fallback: if it's a SillyTavern native theme not in our special list, still try to add it
     // so CSS variables from that theme can be used.
     container.classList.add(themeClass);
-    if (!isSillyNPCTheme && style !== 'default') {
+    if (!isWorldkitTheme && style !== 'default') {
         container.classList.add(`sillynpc-theme-${style}`);
     }
 

@@ -2916,7 +2916,7 @@ function bridgeTurnKey(type) {
     } catch (e) { return ''; }
 }
 
-const BRIDGE_NAME = 'SillyNPC - Phone Texts';
+const BRIDGE_NAME = 'Worldkit - Phone Texts';
 
 /** The time words in the block are the story's clock first, the real one as the fallback (never shown in the phone). */
 function bridgeTime() {
@@ -3089,7 +3089,7 @@ function openBridgePreview() {
    people you have been texting arrive in the next scene. The decision and the wording live in
    src/phone-bridge.js (chooseArrival, arrivalText). Same slot rules as the texts. */
 const ARRIVAL_KEY = 'sillynpc_phone_arrival';
-const ARRIVAL_NAME = 'SillyNPC - Phone Contacts Arriving';
+const ARRIVAL_NAME = 'Worldkit - Phone Contacts Arriving';
 let arrivalSince = Infinity;    // replies since people last arrived (random mode's cooldown); not saved
 let arrivalTurn = null;         // { key, text, names } the decision made for the current turn, reused by a swipe or regenerate
 

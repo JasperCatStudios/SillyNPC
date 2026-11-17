@@ -23,7 +23,7 @@ import { charactersMentionedIn, mentionsName } from './mentions.js';
 import { sceneNames, sceneSet } from './scene-cast.js';
 
 /**
- * Vectors for SillyNPC's histories (fork): SillyTavern wiring.
+ * Vectors for Worldkit's histories (fork): SillyTavern wiring.
  *
  * Only histories of what happened are vectorized: the rivalry record, phone threads, and the
  * table talk of games and fights. Bonds are current state and never vectorized.
@@ -519,7 +519,7 @@ function sceneRelevance(chat, scanDepth) {
         if (!n) return false;
         if (here.has(n.toLowerCase())) return true;
         const rec = known.find(c => String(c.name).toLowerCase() === n.toLowerCase());
-        // A known character's aliases count too, the way the rest of SillyNPC finds names.
+        // A known character's aliases count too, the way the rest of Worldkit finds names.
         if (rec) return charactersMentionedIn(text, [rec]).length > 0;
         return mentionsName(text, n, true);
     };
