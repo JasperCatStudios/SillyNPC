@@ -290,26 +290,15 @@ export function renderInternalStatesSettings(container, rerender) {
     toggleHelp.style.cssText = 'margin-top:4px; display:block;';
     toggleHelp.textContent = 'A second request writes the state block (agendas, thoughts, body scale, Chekhov, GM '
         + 'notebook, world sim; bonds live in the Bonds view) and it is shown in its own section under the message. '
-        + 'Its connection is chosen in Connections, and its instructions are in Prompts, under Tracker prompts.';
+        + 'It uses the connection chosen for Internal states in Connections (the Main API until you pick one), '
+        + 'and its instructions are in Prompts, under Tracker prompts.';
     toggleWrap.append(toggleRow, toggleHelp);
     container.append(toggleWrap);
 
     if (getSettings().internalStatesMode === 'off') return;
 
-    container.append(buildSettingSelect({
-        key: 'internalStatesMode',
-        advanced: true,
-        label: 'How It Is Written',
-        help: 'After The Reply: a separate request writes it. In The Reply: the story model writes it itself and '
-            + 'any regex scripts you have handle it - nothing happens here. If a preset of yours also asks for a '
-            + 'block, use In The Reply or switch the preset off.',
-        options: [
-            { value: 'after', label: 'After the reply (separate request)' },
-            { value: 'inline', label: 'In the reply (preset writes it)' },
-        ],
-        onChange: () => { redraw(); rerender(); },
-    }));
-
+    // A save that still has the old In The Reply choice keeps it (nothing is written here, the preset and
+    // its regexes handle it), so the settings below only apply to the written-after kind.
     if (getSettings().internalStatesMode !== 'after') return;
 
     container.append(buildSettingNumber({

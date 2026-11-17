@@ -373,6 +373,15 @@ export function renderThreadsView(container) {
     if (!getSettings().statusTracker.threadsEnabled) return;
 
     container.append(buildSettingNumber({
+        key: 'threadsMaxTokens',
+        label: 'Reader Reply Budget',
+        suffix: 'tokens',
+        help: 'How much the reader may write back. The answer itself is short, but a model that thinks '
+            + 'out loud spends part of this on its reasoning first; if scans say the reply was empty or '
+            + 'ended while thinking, raise it. The connection is chosen in Connections.',
+    }));
+
+    container.append(buildSettingNumber({
         key: 'statusTracker.threadsInjectedMax',
         advanced: true,
         label: 'How Many Ride Along',

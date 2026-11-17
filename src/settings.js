@@ -92,6 +92,8 @@ export const defaultSettings = {
      */
     /** The connection profile Threads reads replies on. Empty is the main API. */
     threadsProfileId: '',
+    /** Tokens the Threads reader may reply with. Thinking models spend part of it on reasoning. */
+    threadsMaxTokens: 4000,
     banListEnabled: false,
     banList: [],
     /** How far back the scan reads when it goes looking for them. */

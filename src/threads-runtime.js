@@ -7,7 +7,7 @@ import { getSettings } from './settings.js';
 import { requestOnConnection } from './connections.js';
 import { hasReadableText } from './message-content.js';
 import { charactersMentionedIn, mentionsName } from './mentions.js';
-import { currentMessageIndex } from './utils.js';
+import { currentMessageIndex, extractJSON, safeJsonParse } from './utils.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import {
     THREAD_KINDS, openThreads, coerceThread, addThread, closeThread, reopenThread,
@@ -75,19 +75,36 @@ export function saveThreadsStore() {
 
 /* ---- applying a reading --------------------------------------------------------------- */
 
+/** A reply with any reasoning block removed: models that think out loud put it before the answer. */
+function withoutReasoning(raw) {
+    let text = String(raw ?? '');
+    text = text.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
+    // A block that was opened and never closed means the reply ran out of room while still thinking.
+    text = text.replace(/<(think|thinking|reasoning)>[\s\S]*$/i, '');
+    return text.trim();
+}
+
 function parseReply(raw) {
-    let text = String(raw ?? '').trim();
+    const text = withoutReasoning(raw);
     if (!text) return null;
-    text = text.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/i, '');
-    const a = text.indexOf('{');
-    const b = text.lastIndexOf('}');
-    if (a === -1 || b <= a) return null;
-    try {
-        const parsed = JSON.parse(text.slice(a, b + 1));
-        return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-        return null;
-    }
+    const parsed = safeJsonParse(extractJSON(text));
+    if (Array.isArray(parsed)) return { threads: parsed, closed: [] };
+    return parsed && typeof parsed === 'object' ? parsed : null;
+}
+
+/** Why a reply could not be used, in a line, with the start of it. Also logged in full. */
+function describeBadReply(raw) {
+    const text = String(raw ?? '');
+    console.warn(LOG_PREFIX, 'Threads: the reply was not usable JSON. Full reply:', text);
+    if (!text.trim()) return 'the reply was empty (a thinking model may have used the whole reply budget; raise the Threads reply budget)';
+    if (/<(think|thinking|reasoning)>/i.test(text) && !withoutReasoning(text)) return 'the reply ended while the model was still thinking; raise the Threads reply budget';
+    const start = withoutReasoning(text).replace(/\s+/g, ' ').slice(0, 80);
+    return `the reply was not JSON (it began: "${start}")`;
+}
+
+function threadsMaxTokens() {
+    const n = Number(getSettings().threadsMaxTokens);
+    return Number.isFinite(n) && n >= 500 ? n : 4000;
 }
 
 /**
@@ -229,8 +246,13 @@ export async function runThreadsUpdate(messageId, { force = false } = {}) {
                 open ? `### ALREADY OPEN, do not list again\n${open}` : '',
                 '### TASK\nReturn the JSON.',
             ].filter(Boolean).join('\n\n');
-            const raw = await requestOnConnection('threadsProfileId', threadReaderSystemPrompt(), user, 1500);
-            reading = parseReply(raw) || { threads: [], closed: [] };
+            const raw = await requestOnConnection('threadsProfileId', threadReaderSystemPrompt(), user, threadsMaxTokens());
+            reading = parseReply(raw);
+            if (!reading) {
+                // Not remembered, so a later swipe or a reload tries again rather than keeping an empty answer.
+                toastr.warning(`Threads: ${describeBadReply(raw)}.`, PRODUCT_NAME);
+                return null;
+            }
             rememberReading(message, reading);
         }
         return applyThreadReading(reading, messageId, String(message.mes), { key, swipeId });
@@ -334,9 +356,9 @@ export async function scanHistoryForThreads(onProgress) {
 ${chunk.text}
 
 ### TASK
-List what is still unfinished at the end of this, quoting the line each one came from.`, 3000);
+List what is still unfinished at the end of this, quoting the line each one came from.`, threadsMaxTokens());
             const parsed = parseReply(raw);
-            if (!parsed) { failures.push('a reply was not JSON'); continue; }
+            if (!parsed) { failures.push(describeBadReply(raw)); continue; }
             opened += applyThreadReading(parsed, null).opened;
             read += chunk.used;
         } catch (err) {
