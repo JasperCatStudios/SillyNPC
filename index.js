@@ -34,7 +34,7 @@ import { noteActivatedLore } from './src/activated-lore.js';
 import { setDebugLogging } from './src/constants.js';
 import { describeChatConnection } from './src/utils.js';
 import { applyDialogueFormatPrompt } from './src/dialogue-format.js';
-import { applyNarratorRulesPrompt } from './src/narrator-rules.js';
+import { placeWritingPrompt } from './src/prompt-slot.js';
 import { applyBanList } from './src/banlist.js';
 import { applyHistoryInjection } from './src/history-inject.js';
 import { initTts } from './src/tts.js';
@@ -361,6 +361,8 @@ jQuery(async () => {
         // logged and tried again next time.
         repairDefaultImages().catch(err => console.warn(LOG_PREFIX, 'Portrait repair failed', err));
         initStatusLogic();
+        // Narrator Rules was removed: take out whatever an earlier version left in the prompt or the prompt list.
+        try { placeWritingPrompt('sillynpc-narrator-rules', '', { inList: false }); } catch (err) { debugLog('Narrator rules cleanup failed', err); }
         setReprocessCallback(reprocessAllMessages);
         /* A correction made by hand has to survive a swipe. Registered rather than
            imported: the aligner lives in status-snapshots, which already imports
@@ -430,7 +432,6 @@ jQuery(async () => {
         eventSource.on(event_types.OAI_PRESET_CHANGED_AFTER, () => {
             try {
                 applyDialogueFormatPrompt();
-                applyNarratorRulesPrompt();
             } catch (err) {
                 debugLog('Could not put the writing prompts back after the preset change', err);
             }
@@ -447,7 +448,6 @@ jQuery(async () => {
             // the tracker is off, and the chat is still decorated then.
             try {
                 applyDialogueFormatPrompt();
-                applyNarratorRulesPrompt();
                 applyBanList();
                 applyHistoryInjection();
             } catch (err) {

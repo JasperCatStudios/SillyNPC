@@ -2,7 +2,6 @@ import { getSettings, saveSettings } from './settings.js';
 import { pickAndProcessImages, resolveImageFolder, describeSaveDestination } from './utils.js';
 import { promptListAvailable } from './prompt-slot.js';
 import { applyDialogueFormatPrompt } from './dialogue-format.js';
-import { applyNarratorRulesPrompt } from './narrator-rules.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
 import { renderBanList } from './ui-banlist.js';
@@ -10,7 +9,7 @@ import { promptById } from './prompts.js';
 import { world_names } from '../../../../world-info.js';
 import { extension_settings } from '../../../../extensions.js';
 import { Popup, POPUP_TYPE, POPUP_RESULT } from '../../../../popup.js';
-import { LOG_PREFIX, NARRATOR_RULES_PROMPT, GEMINI_IMAGE_MODELS, PORTRAIT_SHAPES, debugLog, setDebugLogging, PRODUCT_NAME } from './constants.js';
+import { LOG_PREFIX, GEMINI_IMAGE_MODELS, PORTRAIT_SHAPES, debugLog, setDebugLogging, PRODUCT_NAME } from './constants.js';
 import { buildLoreExcerpt, resolvePortraitShape, getLastLoreConnection, resolveImageSecretId, scanFolderForCharacterImages, persistGeneratedImage, findOrphanedImages, deleteImageFiles } from './api.js';
 import { getSecretLabelById } from '../../../../secrets.js';
 import { getRequestHeaders } from '../../../../../script.js';
@@ -194,62 +193,6 @@ export function renderWritingRulesView(view, onReprocessMessages) {
                 + 'before answering - which is where a layout rule holds best, and why it '
                 + 'is the default. Raise it only if it crowds something you would rather '
                 + 'have last.',
-        }));
-    }
-
-    const narratorHeading = document.createElement('h4');
-    narratorHeading.className = 'sillynpc-subsection-title';
-    narratorHeading.textContent = 'Narrator Rules';
-    view.append(narratorHeading);
-
-    view.append(buildSettingToggle({
-        key: 'narratorRulesEnabled',
-        label: 'Send Narrator Rules Late In The Prompt',
-        help: 'For the rules a narrator keeps breaking: speaking or acting for you, '
-            + 'recapping what just happened, wrapping the scene up, summarising instead of '
-            + 'writing it. Written into a card those sit at the top of the prompt with the '
-            + 'whole chat between them and the moment they apply, which is why rewording '
-            + 'one so often changes nothing - where it sits was the problem, not how it '
-            + 'was phrased. Switching this on fills the box with a working set to edit; '
-            + 'emptying the box sends nothing.',
-        onChange: () => {
-            // Filled on the way on, not shipped as a default. Nothing is ever sent while
-            // the feature is off, so this cannot put words in a prompt nobody asked for -
-            // and a blank field beside "write something here" is not guidance.
-            const settings = getSettings();
-            if (settings.narratorRulesEnabled
-                && !String(settings.narratorRulesPrompt ?? '').trim()) {
-                settings.narratorRulesPrompt = NARRATOR_RULES_PROMPT;
-                saveSettings();
-            }
-            rerender();
-        },
-    }));
-    if (getSettings().narratorRulesEnabled) {
-        view.append(buildPromptEditor(promptById('narratorRules')));
-        if (promptListAvailable()) {
-            view.append(buildSettingToggle({
-                key: 'narratorRulesInPromptList',
-                label: "Manage In SillyTavern's Prompt List",
-                help: "Puts the narrator rules into SillyTavern's own prompt list, under AI Response Configuration, where it can be dragged among the system prompts, given another depth, or switched off beside everything else. It goes in as In-Chat at depth 0, which is where it already sits, so switching this on moves nothing until you move it. The entry is kept in your chat completion preset: it is exported with that preset, and loading a different one drops it until Worldkit puts it back. The text stays here - the list owns only where it goes and whether it is sent. Chat Completion only: there is no such list on Text Completion.",
-                onChange: () => {
-                    // At once rather than at the next message: the list entry is
-                    // what makes the block appear there at all, and a setting whose
-                    // effect waits for a send reads as a setting that did nothing.
-                    applyNarratorRulesPrompt();
-                    rerender();
-                },
-            }));
-        }
-        if (!getSettings().narratorRulesInPromptList) view.append(buildSettingNumber({
-            key: 'narratorRulesDepth',
-            advanced: true,
-            label: 'Narrator Rules Depth',
-            suffix: 'messages back',
-            help: 'How far back from the newest message the rules are inserted. 0 puts '
-                + 'them after the newest one, last before the model answers, which is '
-                + 'where an instruction holds best. Raise it if it crowds the dialogue '
-                + 'format, which wants the same place.',
         }));
     }
 

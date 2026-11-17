@@ -1,6 +1,6 @@
 import { getSettings, defaultSettings } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
-import { SYSTEM_PROMPT, buildDialogueFormatPrompt, NARRATOR_RULES_PROMPT } from './constants.js';
+import { SYSTEM_PROMPT, buildDialogueFormatPrompt } from './constants.js';
 import { TIME_PERIODS } from './phone-image-requests.js';
 import { INTERNAL_STATES_SYSTEM } from './internal-states.js';
 import { BOND_SYSTEM } from './bonds-core.js';
@@ -43,49 +43,6 @@ export const PROMPTS = [
         recommended: () => buildDialogueFormatPrompt(getMarkerPair().open, getMarkerPair().close),
         emptyNote: 'The built-in format is sent.',
         available: () => getSettings().dialogueFormatEnabled,
-    },
-    {
-        id: 'narratorRules',
-        key: 'narratorRulesPrompt',
-        label: 'Narrator Rules',
-        home: 'Settings',
-        help: 'Sent with every message, at the depth you choose. This is for the rules a '
-            + 'narrator keeps breaking - speaking or acting for you, recapping, wrapping '
-            + 'the scene up, summarising instead of writing it. In a character card those '
-            + 'sit at the top of the prompt with the whole chat between them and the moment '
-            + 'they apply; rewording one does not help, moving it does. Empty means nothing '
-            + 'is sent. '
-            + "SillyTavern's own macros work here too - {{user}}, {{char}}, {{persona}}, "
-            + '{{time}}, {{roll:d20}} and the rest. ',
-        recommended: () => NARRATOR_RULES_PROMPT,
-        emptyNote: 'Nothing is sent.',
-        available: () => getSettings().narratorRulesEnabled,
-    },
-    {
-        id: 'extraction',
-        key: 'statusTracker.extractionPrompt',
-        label: 'Extraction Instructions',
-        home: 'Tracker',
-        help: 'What the reader is told before it is shown the current state and the '
-            + 'message. Everything specific to your setup - the stats, the collections and '
-            + 'what they hold, a worked example in your own field names, and any profile '
-            + 'field you have unlocked - is built separately and sent whatever you write '
-            + 'here. So rewriting this cannot cost the reply its vocabulary, and this text '
-            + 'should stay general: it is the one part that cannot know your system. '
-            + "SillyTavern's own macros work here too - {{user}}, {{char}}, {{persona}}, "
-            + '{{time}}, {{roll:d20}} and the rest. '
-            + 'There is no {{name}} here: this prompt describes a whole scene rather than '
-            + 'one character, so there is nobody for it to mean.',
-        recommended: () => SYSTEM_PROMPT,
-        emptyNote: 'The built-in instructions are sent.',
-        available: () => getSettings().statusTracker.extractionMode === 'extract',
-        budget: {
-            key: 'statusTracker.extractionMaxTokens',
-            label: 'Extraction Reply Budget',
-            kind: 'slider',
-            min: 300, max: 4000, step: 100,
-            help: 'Raise this if updates come back truncated while tracking many stats.',
-        },
     },
     {
         id: 'systemRules',

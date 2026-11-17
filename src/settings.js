@@ -79,11 +79,7 @@ export const defaultSettings = {
      * fall back on: what a narrator should do is yours to say, and sending an opinion
      * nobody asked for into every message is not a sensible default.
      */
-    narratorRulesEnabled: false,
-    narratorRulesPrompt: '',
-    narratorRulesDepth: 0,
     /** As above. The rules exist because a card's instructions sit too far from the reply. */
-    narratorRulesInPromptList: false,
     /**
      * Phrases the model leans on, stopped at the sampler where the backend allows it.
      *

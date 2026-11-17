@@ -168,7 +168,7 @@ window.SILLYNPC_DEBUG = true;
 | `src/history-scan.js` | Reading the whole story to catch collections up |
 | `src/threads.js` | What is not finished with |
 | `src/ui-grid-filter.js` · `src/ui-settings-search.js` | Finding a character, and finding a setting |
-| `src/banlist.js` · `src/narrator-rules.js` · `src/dialogue-format.js` | Text placed into the prompt |
+| `src/banlist.js` · `src/dialogue-format.js` | Text placed into the prompt |
 | `src/lorebook.js` · `src/api.js` | Lorebook linking, generation, portraits |
 | `src/usage.js` | What each generator has cost |
 | `src/status-ui.js` | Rendering the status box |

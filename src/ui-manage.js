@@ -537,9 +537,17 @@ function buildChatScopeRow() {
         box.type = 'checkbox';
         box.checked = cast.categories.includes(category);
         box.addEventListener('change', () => {
-            const next = new Set(getChatCast().categories || []);
+            const now = getChatCast();
+            const next = new Set(now.categories || []);
             box.checked ? next.add(category) : next.delete(category);
-            setChatCast({ categories: [...next], include: cast.include, exclude: cast.exclude });
+            // Turning a faction on or off decides for everyone in it: the individual on/off choices made for its members
+            // are cleared, or a character turned off and back on by hand would stay on when the faction is turned off.
+            const members = new Set((getSettings().characters || []).filter(c => (c.category || UNCATEGORISED) === category).map(c => c.id));
+            setChatCast({
+                categories: [...next],
+                include: now.include.filter(id => !members.has(id)),
+                exclude: now.exclude.filter(id => !members.has(id)),
+            });
             renderCardGrid();
             triggerReprocess();
         });
@@ -873,12 +881,15 @@ function buildCard(char) {
         scopeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             const cast = getChatCast();
+            // What the faction alone would decide. When the new state is just that, the per-character override is dropped
+            // instead of stored: a stored "include" would otherwise keep this character on after their faction is turned off.
+            const factionDefault = isCharacterInChat(char, { categories: cast.categories, include: [], exclude: [] });
+            const wantIn = !inChat;
+            const rest = (list) => list.filter(x => x !== char.id);
             setChatCast({
                 categories: cast.categories,
-                include: inChat ? cast.include.filter(x => x !== char.id)
-                                : [...cast.include, char.id],
-                exclude: inChat ? [...cast.exclude, char.id]
-                                : cast.exclude.filter(x => x !== char.id),
+                include: wantIn && !factionDefault ? [...rest(cast.include), char.id] : rest(cast.include),
+                exclude: !wantIn && factionDefault ? [...rest(cast.exclude), char.id] : rest(cast.exclude),
             });
             renderCardGrid();
             triggerReprocess();

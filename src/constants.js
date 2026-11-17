@@ -293,45 +293,6 @@ export function paletteColorFor(name) {
  * chose.
  */
 /**
- * A working set of narrator rules, offered on the first switch-on and by Restore
- * recommended.
- *
- * These are the four that models most reliably break when the same words are written into
- * a character card - which is the whole reason this slot exists. Where a rule sits in the
- * prompt decides whether it survives; a card is read once at the top and then buried under
- * the chat.
- *
- * It starts filled rather than empty. Leaving it blank was the more principled reading -
- * what a narrator should do is not the extension's opinion to have - and it made the first
- * run a blank field beside a sentence telling you to write something, which is not
- * guidance. Clearing the box still means send nothing.
- */
-export const NARRATOR_RULES_PROMPT = [
-    '### NARRATOR',
-    '[Formatting & Meta]',
-    '- Narrate in the second person ("You").',
-    '- End a turn however the scene wants to end. A hook is optional and should be rare - see the Scene Contract. "What do you do?" with nothing attached is a complete ending.',
-    '- Keep Out-Of-Character communication strictly contained within ((double brackets)).',
-    '',
-    '[Pacing & Narrative Modes]',
-    '1. DIALOGUE & SOCIAL MODE:',
-    '- Let conversations unfold natural.',
-    "- LIVING WORLD: the town exists when nobody is looking. This means schedules, weather, gossip and other people's ordinary days - not that something must happen every reply.",
-    '  A still, quiet scene is correct and requires no ambient event',
-    '2. ACTION & HAZARD MODE:',
-    '- Concise, punchy paragraphs (1-4 paragraphs).',
-    '- Respect roll outcomes.',
-    '3. TRAVEL & TRANSITION MODE:',
-    '- Summarize uneventful transitions or routine time-skips in 1-2 atmospheric paragraphs, placing {{user}} directly at the new scene.',
-    '',
-    '[MANDATORY ROLL GATE - DO NOT RESOLVE ACTIONS EARLY]',
-    'Whenever {{user}} declares an attack, spell, dodge, or risky action:',
-    '1. Immediately FREEZE the narrative at the exact moment of the attempt.',
-    '2. State the required Attribute/Skill Check + any modifier, target DC, and any cost.',
-    "3. HARD STOP: Strictly forbidden from narrating success, failure, or damage in this turn. Stop and wait for {{user}}'s roll result.",
-].join('\n');
-
-/**
  * The speaker marker.
  *
  * Fork note: upstream asks for `**Name**:`, which other formatting extensions and presets
