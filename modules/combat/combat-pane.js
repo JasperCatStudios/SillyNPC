@@ -14,7 +14,7 @@ import { renderAbilityEditor } from '../../src/ui-abilities.js';
 import { renderArmoury } from '../../src/ui-armoury.js';
 import { renderHistoryView } from '../../src/ui-history-inject.js';
 import { renderCombatButton } from './combat-window.js';
-import { renderTypeEditor, startDraft, deleteCustomType, importTypeFile, exportTypeFile } from './type-editor.js';
+import { renderTypeEditor, startDraft, deleteCustomType, importTypeFile, exportTypeFile, exportTemplateFile } from './type-editor.js';
 
 import { PRODUCT_NAME } from '../../src/constants.js';
 /**
@@ -169,7 +169,7 @@ function openEditor(host, rerender, { start, editing }) {
 function renderTypeToolbar(host, types, rerender) {
     const bar = el('div', 'sillynpc-te-toolbar');
     bar.append(el('small', 'notes',
-        'Make your own world type with its own stats, roles and rules. Start from a small blank starter, or copy a world that is already here and change it. Each field in the editor explains itself.'));
+        'Make your own world type with its own stats, roles and rules. Start from a small blank starter, or copy a world that is already here and change it. Each field in the editor shows an example. You can also export a template file, edit it in a text editor and import it back.'));
     const row = el('div', 'sillynpc-actions');
     const pick = el('select', 'text_pole');
     pick.append(new Option('Blank starter', ''));
@@ -181,7 +181,11 @@ function renderTypeToolbar(host, types, rerender) {
     load.type = 'button';
     load.title = 'Add a world type someone shared with you (a .json file)';
     load.addEventListener('click', () => importTypeFile(rerender));
-    row.append(pick, make, load);
+    const template = el('button', 'menu_button', 'Export as a template file');
+    template.type = 'button';
+    template.title = 'Save the chosen world (or the blank starter) as a .json file you can edit in a text editor and import back as a world of its own';
+    template.addEventListener('click', () => exportTemplateFile(pick.value));
+    row.append(pick, make, load, template);
     bar.append(row);
     return bar;
 }
@@ -200,6 +204,7 @@ function renderTypeActions(host, type, rerender) {
         button('Edit', 'Change this world type', () => openEditor(host, rerender, { start: startDraft(type.id), editing: true }));
     }
     if (!type.builtin) button('Export', 'Save this world type as a file to share', () => exportTypeFile(type));
+    else button('Export template', 'Save this world as a file to edit and import back as a world of its own', () => exportTemplateFile(type.id));
     button('Copy', 'Make an editable copy', () => openEditor(host, rerender, { start: startDraft(type.id), editing: false }));
     if (!type.builtin) {
         button('Delete', 'Remove this world type. Characters keep their numbers for it.', () => {

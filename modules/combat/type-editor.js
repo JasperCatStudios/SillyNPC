@@ -5,7 +5,7 @@ import { listTypes, getType, parseTypeFile, typeToFile } from '../../src/combat-
 import { offerDownload } from '../../src/utils.js';
 import { BUILTIN_IDS } from '../../src/combat-builtins.js';
 import {
-    blankDraft, draftFromType, buildType, parseExtra, POOL_KEYS, ROLE_KEYS,
+    blankDraft, draftFromType, buildType, POOL_KEYS, ROLE_KEYS,
 } from '../../src/combat-type-draft.js';
 import { buildDataSections, COVERED_KEYS } from './type-editor-sections.js';
 
@@ -14,8 +14,8 @@ import { buildDataSections, COVERED_KEYS } from './type-editor-sections.js';
  * built-in or custom one and changing it. Every field has a plain-words note and a placeholder
  * that shows what to type. The form covers everything a type holds: stats, damage channels, roles, pools,
  * the modifier, the roll and damage formulas, sheet fields, ranks, proficiencies, moves, advantage rules,
- * abilities, weapons, tiers, tools, elements, the roll extras and the artwork. Only data a pasted file adds
- * beyond those goes in a small "Other data" box, so a copy of a rich world keeps everything.
+ * abilities, weapons, tiers, tools, elements, the roll extras and the artwork. Anything a file adds beyond
+ * those is kept untouched, so a copy of a rich world keeps everything.
  *
  * Saves into settings.combatTypes. Never touches built-ins or any character.
  */
@@ -73,13 +73,12 @@ const statNames = (draft) => draft.stats.map(s => s.id || s.label).filter(Boolea
  */
 export function renderTypeEditor(host, { start, editing, onDone }) {
     const draft = start;
-    // The form edits draft.extra in place; only keys it does not cover live in this box.
+    // The forms edit draft.extra in place. Anything else a file carried that no form covers is kept as it is and saved
+    // back with the type, so editing never drops data.
     const leftover = {};
     for (const key of Object.keys(draft.extra || {})) {
         if (!COVERED_KEYS.includes(key)) { leftover[key] = draft.extra[key]; delete draft.extra[key]; }
     }
-    let extraText = Object.keys(leftover).length ? JSON.stringify(leftover, null, 2) : '';
-    let extraError = '';
     host.replaceChildren();
 
     const status = el('div', 'sillynpc-te-status');
@@ -87,15 +86,12 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     saveButton.type = 'button';
 
     const take = () => {
-        const parsed = parseExtra(extraText);
-        extraError = parsed.ok ? '' : parsed.reason;
-        const merged = { ...draft, extra: { ...draft.extra, ...(parsed.ok ? parsed.value : leftover) } };
+        const merged = { ...draft, extra: { ...draft.extra, ...leftover } };
         const all = listTypes(getSettings().combatTypes);
         const takenIds = all.map(t => t.id).filter(id => !(editing && id === draft.id));
         const out = buildType(merged, {
             takenIds, builtinIds: BUILTIN_IDS, editingId: editing ? draft.id : '',
         });
-        if (extraError) out.errors.unshift(extraError);
         return out;
     };
 
@@ -377,15 +373,6 @@ export function renderTypeEditor(host, { start, editing, onDone }) {
     artBox.append(field('Factions and colour themes', 'The colours of a character\'s page follow their faction. A faction with no entry here uses the shipped look or Neutral.', factionRows), addFaction);
     host.append(artBox);
 
-    /* ------------------------------------------------------------ other data */
-    const adv = el('details', 'sillynpc-te-section');
-    adv.append(el('summary', 'sillynpc-combat-heading', '17. Other data (only for files from elsewhere)'));
-    adv.append(el('small', 'notes',
-        'Everything above is a form. This box only holds data a pasted or imported world file carries that no form covers, as JSON. It is empty for worlds made here. Leave it as it is if unsure.'));
-    adv.append(area(extraText, '{ }', (v) => { extraText = v; touch(); }, 6));
-    if (extraText) adv.open = true;
-    host.append(adv);
-
     /* ------------------------------------------------------------- footer */
     host.append(status);
     const footer = el('div', 'sillynpc-actions');
@@ -449,6 +436,32 @@ export function importTypeFile(onDone) {
         }
     };
     picker.click();
+}
+
+/**
+ * A template file for editing outside the app: a copy of a world (built-in or custom) or the blank starter, with a new
+ * id and name so importing it adds a world of its own and never touches the original. Edit it, then import it.
+ */
+export function exportTemplateFile(fromId) {
+    let type;
+    if (fromId) {
+        const source = getType(getSettings().combatTypes, fromId);
+        if (!source) { toastr.error('That world type was not found.', PRODUCT_NAME); return; }
+        type = typeToFile(source);
+    } else {
+        const draft = blankDraft();
+        draft.name = 'My world';
+        const out = buildType(draft, { takenIds: [], builtinIds: BUILTIN_IDS, editingId: '' });
+        type = typeToFile(out.type || draft);
+    }
+    const base = String(type.id || 'my_world').replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+    const id = fromId ? `${base}_template` : 'my_world_template';
+    type.id = id;
+    type.dataKey = id;
+    type.name = fromId ? `${type.name} (template)` : 'My world (template)';
+    type.builtin = false;
+    offerDownload(type, `worldkit-world-${id}.json`);
+    toastr.success(`Saved the ${fromId ? type.name : 'blank'} template. Edit the file, then use Import a world type file.`, PRODUCT_NAME);
 }
 
 /** Saves a custom type as a file anybody can import. */
