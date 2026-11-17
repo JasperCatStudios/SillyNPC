@@ -5,7 +5,7 @@ import { getSettings } from './settings.js';
 import { mergeRegexScripts } from './content-kit.js';
 import { buildDeliveryPrompt, deliveryScripts, deliveryNames, normalizeDeliveryInject, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
 import { deliveryCss, fontsUrl } from './delivery-style.js';
-import { toneTable } from './alltalk.js';
+import { toneTable, toneInline } from './alltalk.js';
 import { debugLog } from './constants.js';
 
 /**
@@ -24,7 +24,7 @@ export function deliveryEnabled() {
 
 /** The instruction text: the owner's if they have written their own, else built from the tag names. */
 export function deliveryPromptText() {
-    return String(getSettings().deliveryTagsPrompt ?? '').trim() || buildDeliveryPrompt(toneTable(), getSettings().deliveryMeanings);
+    return String(getSettings().deliveryTagsPrompt ?? '').trim() || buildDeliveryPrompt(toneTable(), getSettings().deliveryMeanings, { inline: toneInline() });
 }
 
 const POSITIONS = {
@@ -66,9 +66,11 @@ export function deliveryStatus() {
     const find = (id) => list.find(s => s?.id === id) || null;
     const display = find(DELIVERY_SCRIPT_IDS.display);
     const saver = find(DELIVERY_SCRIPT_IDS.saver);
+    const inline = find(DELIVERY_SCRIPT_IDS.inline);
     return {
         enabled: deliveryEnabled(),
         display: { script: display, installed: !!display, on: !!display && display.disabled !== true },
+        inline: { script: inline, installed: !!inline, on: !!inline && inline.disabled !== true },
         saver: { script: saver, installed: !!saver, on: !!saver && saver.disabled !== true },
         text: deliveryPromptText(),
         inject: deliveryInject(),
@@ -76,7 +78,7 @@ export function deliveryStatus() {
 }
 
 /**
- * Writes the two regex scripts into SillyTavern's list for the current tag names and switch. The
+ * Writes the three regex scripts (display, saver, inline display) into SillyTavern's list for the current tag names and switch. The
  * context saver keeps whatever on/off and depth the owner gave it; it starts off.
  */
 export function syncDeliveryScripts() {
@@ -86,6 +88,7 @@ export function syncDeliveryScripts() {
         enabled: deliveryEnabled(),
         saverOn: settings.deliverySaverOn === true,
         saverDepth: settings.deliverySaverDepth ?? 2,
+        inline: toneInline(settings),
     });
     // Nothing to write while the feature has never been on and the scripts are not there yet.
     if (!deliveryEnabled() && !list.some(s => s?.id === DELIVERY_SCRIPT_IDS.display)) return;

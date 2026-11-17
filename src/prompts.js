@@ -8,6 +8,7 @@ import { BOND_SYSTEM } from './bonds-core.js';
 import { VITALS_SYSTEM } from './vitals-core.js';
 import { DEFAULT_PROMPT, PROMPT_SHORT } from './phone-prompts.js';
 import { buildDeliveryPrompt } from './delivery-core.js';
+import { toneTable, toneInline } from './alltalk.js';
 import { KNIVES_SYSTEM } from './knives-core.js';
 
 /**
@@ -57,7 +58,7 @@ export const PROMPTS = [
         help: 'Sent with every message when Delivery Tags is on, telling the story model to mark how a line is said, '
             + 'like [whisper]"I know."[/whisper]. The tags are styled by Appearance and passed to voices that understand them. '
             + 'The built-in text lists the tags in the Delivery table.',
-        recommended: () => buildDeliveryPrompt(getSettings().ttsToneTable, getSettings().deliveryMeanings),
+        recommended: () => buildDeliveryPrompt(toneTable(), getSettings().deliveryMeanings, { inline: toneInline() }),
         emptyNote: 'The built-in instruction is sent. It is only sent while Delivery Tags is switched on under Writing Rules.',
     },
     {

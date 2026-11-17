@@ -93,6 +93,8 @@ export const defaultSettings = {
     deliveryStyles: {},
     /** Per tag: what it means, in the words the model is given. Empty: the built-in wording. */
     deliveryMeanings: {},
+    /** Per tag: true if it stands alone (pacing and reaction tags, no closing tag), false if it wraps a line. Empty: the built-in kinds. */
+    deliveryInline: {},
     /** The voice and the line the delivery-tag test buttons use (Appearance, Tonal Typography). */
     deliveryTestVoice: '',
     deliveryTestLine: '',

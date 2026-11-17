@@ -4,7 +4,7 @@ import { getSettings } from './settings.js';
 import { beatsOfMessage, MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { genderOfFace, genderOfName } from './default-portraits.js';
-import { alltalkReady, alltalkVoices, speakWith, stopSpeech, toneTable } from './alltalk.js';
+import { alltalkReady, alltalkVoices, speakWith, stopSpeech, toneTable, toneInline } from './alltalk.js';
 import { toneAt } from './tts-text.js';
 import { engineOf, elevenReady, elevenVoices } from './tts-engines.js';
 
@@ -67,6 +67,7 @@ export function spokenSegments(beat) {
     const text = String(beat.text ?? '');
     const out = [];
     const table = toneTable();
+    const inline = toneInline();
     // Delivery marked in the page itself: the display regexes leave data-tone on what they restyle.
     const marked = [...(beat.element?.querySelectorAll?.('[data-tone]') || [])]
         .map(node => ({ tone: String(node.getAttribute('data-tone') || '').toLowerCase(), text: String(node.textContent ?? '') }))
@@ -77,7 +78,7 @@ export function spokenSegments(beat) {
         const spoken = String(m[1] ?? m[2] ?? m[3] ?? m[4]).trim();
         if (!spoken) continue;
         // Tags still in the text (no display regex), else the page's marks.
-        const tone = toneAt(text, m.index, table) || (marked.find(node => node.text.includes(spoken))?.tone ?? '');
+        const tone = toneAt(text, m.index, table, inline) || (marked.find(node => node.text.includes(spoken))?.tone ?? '');
         out.push({ text: spoken, thought, tone });
     }
     // Some renderers drop the quote marks and keep only a <q> element.

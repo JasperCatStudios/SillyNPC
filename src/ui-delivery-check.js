@@ -1,7 +1,7 @@
 import { runRegexScript } from '../../../regex/engine.js';
 import { getSettings, saveSettings } from './settings.js';
 import { promptListAvailable } from './prompt-slot.js';
-import { toneTable } from './alltalk.js';
+import { toneTable, toneInline } from './alltalk.js';
 import { toneAt, speechFor } from './tts-text.js';
 import { engineOf, engineReadsAudioTags, ENGINES } from './tts-engines.js';
 import {
@@ -101,7 +101,7 @@ function safePreview(html) {
     return out;
 }
 
-const SAMPLE = 'She leaned in close. [whisper]"Stay quiet."[/whisper] Then, louder, [shout, urgent]"Run!"[/shout] He laughed. "Fine."';
+const SAMPLE = 'She leaned in close. [whisper]"Stay quiet."[/whisper] Then, louder, [shout, urgent]"Run!"[/shout] He laughed. "Fine." Then, quietly: "I... [pause] don\'t know. [sighs] Really."';
 
 /** The checker: status, a sample, and what each step makes of it. */
 export function buildDeliveryChecker() {
@@ -115,8 +115,11 @@ export function buildDeliveryChecker() {
     item(status.display.installed && status.display.on, status.display.installed
         ? `the display script is installed and ${status.display.on ? 'on' : 'switched off'} in the Regex list (it shows tagged lines styled)`
         : 'the display script is not installed yet (switching Delivery Tags on installs it)');
+    item(status.inline.installed && status.inline.on, status.inline.installed
+        ? `the standalone-tag script is installed and ${status.inline.on ? 'on' : 'switched off'} in the Regex list (it hides [pause], [sighs] and the like in the chat)`
+        : 'the standalone-tag script is not installed yet (switching Delivery Tags on installs it)');
     item(status.saver.installed && status.saver.on, status.saver.installed
-        ? `the context saver is ${status.saver.on ? 'on: tags are hidden from older messages sent to the model' : 'off: older messages keep their tags when sent to the model'}`
+        ? `the context saver is ${status.saver.on ? 'on: tags (both kinds) are hidden from older messages sent to the model' : 'off: older messages keep their tags when sent to the model'}`
         : 'the context saver is not installed yet');
     const engine = engineOf();
     item(engineReadsAudioTags(), `the voice engine (${ENGINES[engine]}) ${engineReadsAudioTags() ? 'reads delivery tags' : 'does not read delivery tags: only the words are spoken'}`);
@@ -145,11 +148,13 @@ export function buildDeliveryChecker() {
         };
 
         if (s.display.script) {
-            const html = runRegexScript(forced(s.display.script), text);
+            // Both display scripts run in order: wrappers first, then the standalone tags.
+            let html = runRegexScript(forced(s.display.script), text);
+            if (s.inline.script) html = runRegexScript(forced(s.inline.script), html);
             const shown = el('div', 'sillynpc-delivery-shown');
             shown.append(safePreview(html));
             block(`In the chat${s.display.on ? '' : ' (the script is switched off, so the chat would show the tags as written)'}:`, shown);
-            block('The page HTML that script makes:', el('pre', 'snpc-hi-preview', html));
+            block('The page HTML those scripts make (a standalone tag becomes an empty wk-inline marker):', el('pre', 'snpc-hi-preview', html));
         } else {
             block('In the chat:', el('p', 'notes', 'Nothing yet: the display script is not installed.'));
         }
@@ -159,10 +164,11 @@ export function buildDeliveryChecker() {
         }
 
         const table = toneTable();
+        const inline = toneInline();
         const audio = engineReadsAudioTags() && getSettings().ttsToneTags !== false;
         const sent = [];
         for (const m of text.matchAll(/"([^"]+)"/g)) {
-            sent.push(speechFor(m[1], { tone: toneAt(text, m.index, table), table, audioTags: audio }));
+            sent.push(speechFor(m[1], { tone: toneAt(text, m.index, table, inline), table, audioTags: audio, inline }));
         }
         block(`Sent to the voice (${ENGINES[engine]}${audio ? ', tags on' : ', tags off'}):`, el('pre', 'snpc-hi-preview', sent.join('\n') || 'No quoted speech in the sample.'));
     });

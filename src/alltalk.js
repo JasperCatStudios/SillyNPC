@@ -1,6 +1,6 @@
 import { getSettings } from './settings.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
-import { applyPhonetics, speechFor, cleanToneTable, DEFAULT_TONE_TAGS } from './tts-text.js';
+import { applyPhonetics, speechFor, cleanToneTable, inlineNames, DEFAULT_TONE_TAGS } from './tts-text.js';
 import { engineOf, engineReadsAudioTags, engineFingerprint, generateEleven } from './tts-engines.js';
 import { getCached, putCached } from './tts-cache.js';
 import { contentKey } from './image-dedupe.js';
@@ -9,6 +9,11 @@ import { contentKey } from './image-dedupe.js';
 export function toneTable(settings = getSettings()) {
     const own = cleanToneTable(settings.ttsToneTable);
     return Object.keys(own).length ? own : DEFAULT_TONE_TAGS;
+}
+
+/** The standalone (inline) delivery tags in force: pacing and reaction tags that have no closing tag. */
+export function toneInline(settings = getSettings()) {
+    return inlineNames(toneTable(settings), settings.deliveryInline);
 }
 
 /**
@@ -160,6 +165,7 @@ export function speakWith(voice, text, { tone = '' } = {}) {
     const spoken = speechFor(said, {
         tone,
         table: toneTable(settings),
+        inline: toneInline(settings),
         audioTags: settings.ttsToneTags !== false && engineReadsAudioTags(settings),
     }).trim();
     if (!spoken || !voice) return false;

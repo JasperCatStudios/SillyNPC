@@ -1,4 +1,4 @@
-import { DEFAULT_TONE_TAGS, cleanToneTable } from './tts-text.js';
+import { DEFAULT_TONE_TAGS, cleanToneTable, inlineNames } from './tts-text.js';
 
 /**
  * Delivery tags, the writing side (fork): what the story model is told, and the regex scripts that
@@ -62,27 +62,60 @@ export function deliveryNames(table) {
 }
 
 /**
- * The instruction sent to the story model.
+ * The tag names split by kind, longest first: WRAPPERS go around words, INLINE tags stand alone.
+ *
+ * @param {Record<string,string>} [table]
+ * @param {Set<string>|string[]} [inline] The inline names in force (inlineNames); the built-in kinds when left out.
+ * @returns {{ wrappers: string[], inline: string[] }}
+ */
+export function splitDeliveryNames(table, inline) {
+    const clean = cleanToneTable(table);
+    const effective = Object.keys(clean).length ? clean : DEFAULT_TONE_TAGS;
+    const set = inline === undefined ? inlineNames(effective) : new Set(inline);
+    const names = deliveryNames(table);
+    return { wrappers: names.filter(n => !set.has(n)), inline: names.filter(n => set.has(n)) };
+}
+
+/**
+ * The instruction sent to the story model: wrapping tags and standalone (inline) tags, and the rules for each.
  *
  * @param {Record<string,string>} [table] Delivery tag to ElevenLabs word; only the names are used here.
  * @param {Record<string,string>} [meanings] The owner's own wording per tag; the built-in one is used where there is none.
+ * @param {{ inline?: Set<string>|string[] }} [options] inline: the standalone tag names (inlineNames).
  * @returns {string}
  */
-export function buildDeliveryPrompt(table, meanings) {
-    const names = deliveryNames(table);
+export function buildDeliveryPrompt(table, meanings, { inline } = {}) {
+    const { wrappers, inline: solo } = splitDeliveryNames(table, inline);
     const own = meanings && typeof meanings === 'object' ? meanings : {};
     const said = (n) => String(own[n] ?? '').replace(/\s+/g, ' ').trim() || DELIVERY_MEANINGS[n] || n;
-    const lines = names.map(n => `  ${n}: ${said(n)}`);
-    return [
+    const lines = wrappers.map(n => `  ${n}: ${said(n)}`);
+    const soloLines = solo.map(n => `  ${n}: ${said(n)}`);
+    const first = wrappers.includes('whisper') ? 'whisper' : (wrappers[0] || 'whisper');
+    const out = [
         '### DELIVERY TAGS',
-        '- When a line of speech is delivered in a clearly different way from normal talking, wrap its quoted words in a delivery tag:',
-        `  [${names[0] || 'whisper'}]"I know."[/${names[0] || 'whisper'}]`,
-        '- Available tags:',
+        '- When a line of speech is delivered in a clearly different way from normal talking, mark it with a delivery tag. A wrapping tag goes around the quoted words:',
+        `  [${first}]"I know."[/${first}]`,
+        '- Wrapping tags (open and close):',
         ...lines,
-        '- Use only these tags, one per line of speech, and choose the one that fits the line most closely (for example [pleading] for begging rather than [cry], [seething] for held-down rage rather than [angry]). Ordinary speech needs no tag, but never skip one when a line is clearly whispered, shouted, laughed, cried or otherwise marked; if the scene or the line calls for it, tag it.',
-        '- The tag goes around the quoted words of one speaker, inside that speaker\'s own paragraph. Never wrap narration, actions or several speakers.',
-        '- Tags are plain text. Do not describe sounds or delivery in the tag, and never use colour, bold or italics to show delivery.',
-    ].join('\n');
+    ];
+    if (soloLines.length) {
+        out.push(
+            '- Standalone tags (inline): written alone in square brackets with NO closing tag, inside the quoted speech, right before the words they affect:',
+            `  "I didn't think you would come. [${solo.includes('pause') ? 'pause' : solo[0]}] [${solo.includes('sighs') ? 'sighs' : solo[solo.length - 1]}] But here you are."`,
+            ...soloLines,
+        );
+    }
+    out.push(
+        '- Use only the tags listed here, and choose the one that fits most closely (for example [pleading] for begging rather than [cry], [seething] for held-down rage rather than [angry]). Ordinary speech needs no tag, but never skip one when a line is clearly whispered, shouted, laughed, cried or otherwise marked; if the scene or the line calls for it, tag it.',
+        '- A wrapping tag goes around the quoted words of ONE speaker, inside that speaker\'s own paragraph, one per line of speech. Never wrap narration, actions or several speakers.',
+    );
+    if (soloLines.length) {
+        out.push(
+            '- A standalone tag has no closing tag. Put one per clause at most, right before the words it affects, and use them sparingly, only where the delivery really changes. Never put one in narration or in an action.',
+        );
+    }
+    out.push('- Tags are plain text. Do not describe sounds or delivery in the tag, and never use colour, bold or italics to show delivery.');
+    return out.join('\n');
 }
 
 /** Where the instruction goes in the story prompt, the same choices as the other injected blocks. */
@@ -135,17 +168,22 @@ export function describeDeliveryPlacement(inject) {
 export const DELIVERY_SCRIPT_IDS = Object.freeze({
     display: '5b0e6d1c-6c2e-4a52-9d1e-77a1f0a0de11',
     saver: '5b0e6d1c-6c2e-4a52-9d1e-77a1f0a0de12',
+    inline: '5b0e6d1c-6c2e-4a52-9d1e-77a1f0a0de13',
 });
 
 /**
- * The two SillyTavern regex scripts for the current tag names.
+ * The three SillyTavern regex scripts for the current tag names: display (wrappers), saver (both kinds), and a
+ * display script for the standalone tags, which only leaves an empty marker span (so the tag is hidden in the chat).
  *
  * @param {Record<string,string>} [table]
- * @param {{ enabled?: boolean, saverOn?: boolean, saverDepth?: number }} [options]
- * @returns {object[]} Regex script objects in SillyTavern's own format.
+ * @param {{ enabled?: boolean, saverOn?: boolean, saverDepth?: number, inline?: Set<string>|string[] }} [options]
+ * @returns {object[]} Regex script objects in SillyTavern's own format: display, saver, inline display, in that order.
  */
-export function deliveryScripts(table, { enabled = true, saverOn = false, saverDepth = 2 } = {}) {
-    const alt = deliveryNames(table).map(escapeRe).join('|');
+export function deliveryScripts(table, { enabled = true, saverOn = false, saverDepth = 2, inline } = {}) {
+    const split = splitDeliveryNames(table, inline);
+    const alt = split.wrappers.map(escapeRe).join('|') || '(?!)';
+    const both = [...split.wrappers, ...split.inline].map(escapeRe).join('|');
+    const soloAlt = split.inline.map(escapeRe).join('|');
     // An opening tag may carry extra words ([whisper, soft]); the closing tag must match the opening one.
     const open = `\\[(${alt})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]`;
     return [
@@ -167,7 +205,7 @@ export function deliveryScripts(table, { enabled = true, saverOn = false, saverD
         {
             id: DELIVERY_SCRIPT_IDS.saver,
             scriptName: 'Worldkit - Delivery Tags Context Saver',
-            findRegex: `/\\[\\/?(?:${alt})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]/gi`,
+            findRegex: `/\\[\\/?(?:${both})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]/gi`,
             replaceString: '',
             trimStrings: [],
             placement: [2],
@@ -177,6 +215,22 @@ export function deliveryScripts(table, { enabled = true, saverOn = false, saverD
             runOnEdit: false,
             substituteRegex: 0,
             minDepth: Math.max(0, Math.round(Number(saverDepth) || 0)),
+            maxDepth: null,
+        },
+        {
+            id: DELIVERY_SCRIPT_IDS.inline,
+            scriptName: 'Worldkit - Delivery Tags (inline)',
+            // With no standalone tags, a pattern that can never match.
+            findRegex: soloAlt ? `/\\[(${soloAlt})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]/gi` : '/(?!)/g',
+            replaceString: '<span class="wk-inline" data-tone="$1"></span>',
+            trimStrings: [],
+            placement: [2],
+            disabled: !enabled,
+            markdownOnly: true,
+            promptOnly: false,
+            runOnEdit: true,
+            substituteRegex: 0,
+            minDepth: null,
             maxDepth: null,
         },
     ];

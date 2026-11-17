@@ -75,17 +75,65 @@ export function cleanToneTable(table) {
     return out;
 }
 
-function tagRegex(table, flags = 'gi') {
-    const names = Object.keys(table).sort((a, b) => b.length - a.length).map(escapeRe);
+/**
+ * Tags come in two kinds. A WRAPPER is written around the words it affects ([whisper]"I know."[/whisper]).
+ * An INLINE tag stands alone, with no closing tag, right before the words it affects ([pause], [sighs]); it is
+ * ElevenLabs' own way of writing pacing and reactions. These are the names that are inline unless the owner says
+ * otherwise (settings.deliveryInline).
+ */
+export const DEFAULT_INLINE_TAGS = Object.freeze([
+    // pacing
+    'slowly', 'rushed', 'pause', 'drawnout', 'snappy', 'speedy', 'longpause',
+    // reactions
+    'laughs', 'sighs', 'gasps', 'clearthroat', 'gulp',
+]);
+
+/**
+ * The inline tag names in force: names in the table that are inline by default and not overridden to false, plus
+ * names overridden to true. Names that are not in the table are ignored.
+ *
+ * @param {Record<string,string>} table
+ * @param {Record<string,boolean>} [overrides] settings.deliveryInline
+ * @returns {Set<string>}
+ */
+export function inlineNames(table, overrides) {
+    const own = overrides && typeof overrides === 'object' ? overrides : {};
+    const out = new Set();
+    for (const name of Object.keys(table && typeof table === 'object' ? table : {})) {
+        const key = name.toLowerCase();
+        const set = Object.prototype.hasOwnProperty.call(own, key) ? own[key] : undefined;
+        if (set === true || (set !== false && DEFAULT_INLINE_TAGS.includes(key))) out.add(key);
+    }
+    return out;
+}
+
+const asSet = (inline) => (inline instanceof Set ? inline : new Set(Array.isArray(inline) ? inline : []));
+const byLength = (names) => [...names].sort((a, b) => b.length - a.length).map(escapeRe);
+
+/** Opening and closing tags of the WRAPPER names (those not in `inline`). */
+function tagRegex(table, flags = 'gi', inline = new Set()) {
+    const skip = asSet(inline);
+    const names = byLength(Object.keys(table).filter(n => !skip.has(n)));
     if (!names.length) return null;
     // An opening tag may carry extra words ([whisper, soft]); they count as the same tag and are dropped.
     return new RegExp(`\\[(\\/?)(${names.join('|')})(?:\\s*,[^\\]\\[]{0,40})?\\]`, flags);
 }
 
-/** Removes every delivery tag, opening and closing. */
-export function stripToneTags(text, table = DEFAULT_TONE_TAGS) {
-    const re = tagRegex(table);
-    return re ? String(text ?? '').replace(re, '') : String(text ?? '');
+/** Standalone tags of the INLINE names: [pause], [sighs, soft]. No closing form. */
+function inlineRegex(table, flags = 'gi', inline = new Set()) {
+    const names = byLength(Object.keys(table).filter(n => asSet(inline).has(n)));
+    if (!names.length) return null;
+    return new RegExp(`\\[(${names.join('|')})(?:\\s*,[^\\]\\[]{0,40})?\\]`, flags);
+}
+
+/** Removes every delivery tag: wrappers (opening and closing) and inline ones. */
+export function stripToneTags(text, table = DEFAULT_TONE_TAGS, inline = new Set()) {
+    let out = String(text ?? '');
+    const wrap = tagRegex(table, 'gi', inline);
+    if (wrap) out = out.replace(wrap, '');
+    const solo = inlineRegex(table, 'gi', inline);
+    if (solo) out = out.replace(solo, '');
+    return out;
 }
 
 /**
@@ -93,8 +141,9 @@ export function stripToneTags(text, table = DEFAULT_TONE_TAGS) {
  *
  * @returns {string} The tag name, or '' for none.
  */
-export function toneAt(text, index, table = DEFAULT_TONE_TAGS) {
-    const re = tagRegex(table);
+export function toneAt(text, index, table = DEFAULT_TONE_TAGS, inline = new Set()) {
+    // Inline tags are never pushed: a standalone [sighs] does not make the rest of the text "sighing".
+    const re = tagRegex(table, 'gi', inline);
     if (!re) return '';
     const stack = [];
     const head = String(text ?? '').slice(0, Math.max(0, index));
@@ -115,10 +164,29 @@ export function toneAt(text, index, table = DEFAULT_TONE_TAGS) {
  *
  * @param {string} text The words, possibly with tags still in them.
  * @param {{ tone?: string, table?: Record<string,string>, audioTags?: boolean }} [options]
- *   tone: the delivery this piece is said in (from toneAt); audioTags: whether the model reads them.
+ *   tone: the delivery this piece is said in (from toneAt); audioTags: whether the model reads them;
+ *   inline: the names of the standalone tags (inlineNames), each turned into [<ElevenLabs word>] in place
+ *   when audioTags is on, removed otherwise.
  */
-export function speechFor(text, { tone = '', table = DEFAULT_TONE_TAGS, audioTags = false } = {}) {
-    const words = stripToneTags(text, table).replace(/\s+/g, ' ').trim();
+export function speechFor(text, { tone = '', table = DEFAULT_TONE_TAGS, audioTags = false, inline = new Set() } = {}) {
+    // Wrappers first (opening and closing); then the inline ones become [word] in place. In that order, so a
+    // freshly written [word] is never stripped again.
+    let words = String(text ?? '');
+    const wrap = tagRegex(table, 'gi', inline);
+    if (wrap) words = words.replace(wrap, '');
+    const solo = inlineRegex(table, 'gi', inline);
+    if (solo) {
+        let removed = false;
+        words = words.replace(solo, (_all, name) => {
+            const audio = table[String(name).toLowerCase()];
+            if (audioTags && audio) return `[${audio}]`;
+            removed = true;
+            return '';
+        });
+        // A removed tag leaves a gap before punctuation ("Yes [sighs]." -> "Yes .").
+        if (removed) words = words.replace(/\s+([,.!?;:])/g, '$1');
+    }
+    words = words.replace(/\s+/g, ' ').trim();
     const audio = tone ? table[String(tone).toLowerCase()] : '';
     return audioTags && audio && words ? `[${audio}] ${words}` : words;
 }

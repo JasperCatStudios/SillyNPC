@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from './settings.js';
-import { DEFAULT_TONE_TAGS, cleanToneTable } from './tts-text.js';
+import { DEFAULT_TONE_TAGS, cleanToneTable, inlineNames } from './tts-text.js';
 import { DELIVERY_MEANINGS } from './delivery-core.js';
 import {
     DELIVERY_FONTS, DELIVERY_EFFECTS, DELIVERY_CASES, DELIVERY_DECORATIONS, DEFAULT_DELIVERY_STYLES, styleFor, cleanStyle,
@@ -8,7 +8,18 @@ import { applyDelivery, applyDeliveryStyle } from './delivery.js';
 import { engineReadsAudioTags, ENGINES, engineOf } from './tts-engines.js';
 import { previewVoice } from './tts.js';
 import { buildVoicePicker } from './ui-character-extras.js';
-import { missingEmotions, withEmotions } from './eleven-emotions.js';
+import { missingTags, withAllTags } from './eleven-tags.js';
+
+const KINDS = [['wrap', 'Wraps a line'], ['inline', 'Stands alone']];
+
+/** Whether a tag stands alone (inline) with the owner's choices applied. */
+const isInline = (settings, table, name) => inlineNames(table, settings.deliveryInline).has(name);
+
+/** Writes the kind of one tag. Stored explicitly, so a built-in inline tag can be made a wrapper and the other way round. */
+function setKind(settings, name, inline) {
+    if (!settings.deliveryInline || typeof settings.deliveryInline !== 'object') settings.deliveryInline = {};
+    settings.deliveryInline[name] = inline === true;
+}
 
 /** The section is a collapsible menu. Whether it is open is kept here, so a redraw (adding a tag) does not fold it shut. */
 const view = { open: false };
@@ -78,15 +89,18 @@ function checkField(labelText, value, onChange) {
 function buildTagCard(name, table, settings, rerender) {
     const card = el('div', 'sillynpc-dstyle-card');
     const head = el('div', 'sillynpc-dstyle-head');
+    const inline = isInline(settings, table, name);
     head.append(el('strong', 'sillynpc-dstyle-name', `[${name}]`));
 
-    // Live preview: the page's own stylesheet styles this span.
-    const preview = el('span', 'wk-tone', `"${testLine(settings)}"`);
-    preview.dataset.tone = name;
-    preview.dataset.dstylePreview = '1';
-    const previewLine = el('div', 'sillynpc-dstyle-preview');
-    previewLine.append(preview);
-    head.append(previewLine);
+    // Live preview: the page's own stylesheet styles this span. A standalone tag has no look, so no preview.
+    if (!inline) {
+        const preview = el('span', 'wk-tone', `"${testLine(settings)}"`);
+        preview.dataset.tone = name;
+        preview.dataset.dstylePreview = '1';
+        const previewLine = el('div', 'sillynpc-dstyle-preview');
+        previewLine.append(preview);
+        head.append(previewLine);
+    }
 
     // Hear it: reads the test line in the chosen voice in this delivery. Only a voice engine that understands audio
     // tags (ElevenLabs v3 and v4) turns the tag into a performance; any other would read the plain words.
@@ -101,7 +115,9 @@ function buildTagCard(name, table, settings, rerender) {
     hear.addEventListener('click', () => {
         const voice = String(settings.deliveryTestVoice || '').trim();
         if (!voice) { toastr.info('Pick a test voice at the top of Tonal Typography first.', 'Worldkit'); return; }
-        previewVoice(voice, testLine(settings), { tone: name }).catch(err => console.warn('[Worldkit] test voice failed', err));
+        // A standalone tag is written before the words, and speakWith turns it into the ElevenLabs word in place.
+        const request = inline ? previewVoice(voice, `[${name}] ${testLine(settings)}`) : previewVoice(voice, testLine(settings), { tone: name });
+        request.catch(err => console.warn('[Worldkit] test voice failed', err));
     });
     head.append(hear);
     card.append(head);
@@ -114,6 +130,15 @@ function buildTagCard(name, table, settings, rerender) {
         applyDeliveryStyle();
     };
     const s = read();
+
+    const kind = field('Kind', selectInput(KINDS, inline ? 'inline' : 'wrap', v => {
+        setKind(settings, name, v === 'inline');
+        saveSettings();
+        applyDelivery();
+        rerender();
+    }));
+    kind.title = 'Wraps a line: written around the words, [whisper]"words"[/whisper]. Stands alone: no closing tag, written right before the words it affects, [pause].';
+    card.append(kind);
 
     const grid = el('div', 'sillynpc-dstyle-grid');
     grid.append(
@@ -128,7 +153,8 @@ function buildTagCard(name, table, settings, rerender) {
         checkField('Bold', s.bold, v => write({ bold: v })),
         checkField('Italic', s.italic, v => write({ italic: v })),
     );
-    card.append(grid);
+    if (inline) card.append(el('small', 'notes', 'Stands alone: it has no look. It is hidden in the chat and sent to the voice.'));
+    else card.append(grid);
 
     // What the voice is told, and what the model is told it means.
     const words = el('div', 'sillynpc-dstyle-words');
@@ -166,13 +192,14 @@ function buildTagCard(name, table, settings, rerender) {
         applyDeliveryStyle();
         rerender();
     });
-    actions.append(reset);
+    if (!inline) actions.append(reset);
     if (Object.keys(table).length > 1) {
         const remove = el('button', 'menu_button', 'Remove tag');
         remove.type = 'button';
         remove.addEventListener('click', () => {
             const next = editableTable(settings);
             delete next[name];
+            if (settings.deliveryInline) delete settings.deliveryInline[name];
             settings.ttsToneTable = next;
             if (settings.deliveryStyles) delete settings.deliveryStyles[name];
             saveSettings();
@@ -251,19 +278,22 @@ export function renderDeliveryStyles(container, rerender) {
         const audioBox = el('input', 'text_pole');
         audioBox.type = 'text';
         audioBox.placeholder = 'ElevenLabs word, e.g. whispering';
+        const kindBox = selectInput(KINDS, 'wrap', () => {});
+        kindBox.title = 'Wraps a line: [name]"words"[/name]. Stands alone: [name] before the words, no closing tag.';
         const button = el('button', 'menu_button', 'Add tag');
         button.type = 'button';
         button.addEventListener('click', () => {
             const name = nameBox.value.trim().toLowerCase();
             const next = cleanToneTable({ ...editableTable(settings), [name]: audioBox.value || name });
             if (!name || !next[name]) { toastr.info('A tag name is letters and digits only, 25 at most.', 'Worldkit'); return; }
+            setKind(settings, name, kindBox.value === 'inline');
             settings.ttsToneTable = next;
             saveSettings();
             applyDelivery();
             applyDeliveryStyle();
             rerender();
         });
-        add.append(nameBox, audioBox, button);
+        add.append(nameBox, audioBox, kindBox, button);
         wrap.append(add);
 
         const buttons = el('div', 'sillynpc-dstyle-actions');
@@ -284,17 +314,18 @@ export function renderDeliveryStyles(container, rerender) {
             });
             buttons.append(fill);
         }
-        // The Eleven v4 emotions from ElevenLabs' Audio Tags page. Not in the starting list: every tag is described to the
-        // story model on every message, so they are added when you want them.
-        const emotions = missingEmotions(table);
-        if (emotions.length) {
-            const pack = el('button', 'menu_button', `Add the Eleven v4 emotion tags (${emotions.length})`);
+        // Every ElevenLabs audio tag: emotions, delivery, accents, and the standalone pacing and reaction tags. Not in the
+        // starting list: every tag is described to the story model on every message, so they are added when you want them.
+        const everything = missingTags(table);
+        if (everything.length) {
+            const pack = el('button', 'menu_button', `Add all the ElevenLabs tags (${everything.length})`);
             pack.type = 'button';
-            pack.title = 'Adds the emotion tags from ElevenLabs (high energy, heated, tense, low energy, calm) to your list, each with a meaning for the story model. They start plain; style them here. Every tag in the list is described to the story model on each message, so a long list costs tokens.';
+            pack.title = 'Adds the ElevenLabs audio tags that are not in your list: emotions, delivery and volume, accents, and the standalone pacing and reaction tags (pause, sighs...), each with a meaning for the story model. Tags you already have are left alone. Every tag in the list is described to the story model on each message, so a long list costs tokens.';
             pack.addEventListener('click', () => {
-                const out = withEmotions(editableTable(settings), settings.deliveryMeanings);
+                const out = withAllTags(editableTable(settings), settings.deliveryMeanings, settings.deliveryInline);
                 settings.ttsToneTable = out.table;
                 settings.deliveryMeanings = out.meanings;
+                settings.deliveryInline = out.inline;
                 saveSettings();
                 applyDelivery();
                 applyDeliveryStyle();
@@ -309,6 +340,7 @@ export function renderDeliveryStyles(container, rerender) {
             settings.ttsToneTable = {};
             settings.deliveryStyles = {};
             settings.deliveryMeanings = {};
+            settings.deliveryInline = {};
             saveSettings();
             applyDelivery();
             applyDeliveryStyle();

@@ -3857,6 +3857,7 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-dstyle-field input[type="checkbox"] { width: auto; align-self: flex-start; }
 .sillynpc-dstyle-actions, .sillynpc-dstyle-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .sillynpc-dstyle-add input { flex: 1 1 12em; min-width: 0; }
+.sillynpc-dstyle-add select { flex: 0 1 10em; min-width: 0; }
 /* Tonal Typography: one collapsible menu; tick boxes sit beside their words, left-aligned, like the other controls. */
 .sillynpc-dstyle-menu { margin: 12px 0; border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: var(--sillynpc-radius-md, 6px); padding: 6px 10px; }
 .sillynpc-dstyle-menu > summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
