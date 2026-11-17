@@ -148,12 +148,12 @@
 #rph-roster::-webkit-scrollbar-thumb { background: rgba(150, 195, 255, 0.35); border-radius: 3px; }
 /* the scrollbar in the skin's colours: Chrome draws its own grey bar once scrollbar-width is set,
    so the colour is given the standard way too (thumb, then the track) */
-#rph-roster, #rph-diary-panel, #rph-diary-panel .rph-diary-list { scrollbar-color: rgba(150, 195, 255, .38) transparent; }
-body[data-rph-skin="cute"] #rph-roster, body[data-rph-skin="cute"] #rph-diary-panel, body[data-rph-skin="cute"] #rph-diary-panel .rph-diary-list { scrollbar-color: #ffb3cc transparent; }
-body[data-rph-skin="goth"] #rph-roster, body[data-rph-skin="goth"] #rph-diary-panel, body[data-rph-skin="goth"] #rph-diary-panel .rph-diary-list { scrollbar-color: rgba(212, 175, 55, .5) transparent; }
-body[data-rph-skin="lace"] #rph-roster, body[data-rph-skin="lace"] #rph-diary-panel, body[data-rph-skin="lace"] #rph-diary-panel .rph-diary-list { scrollbar-color: rgba(201, 164, 92, .55) transparent; }
-body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diary-panel, body[data-rph-skin="modern"] #rph-diary-panel .rph-diary-list { scrollbar-color: #c7c7cc transparent; }
-@media (prefers-color-scheme: dark) { body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diary-panel, body[data-rph-skin="modern"] #rph-diary-panel .rph-diary-list { scrollbar-color: #48484a transparent; } }
+#rph-roster { scrollbar-color: rgba(150, 195, 255, .38) transparent; }
+body[data-rph-skin="cute"] #rph-roster { scrollbar-color: #ffb3cc transparent; }
+body[data-rph-skin="goth"] #rph-roster { scrollbar-color: rgba(212, 175, 55, .5) transparent; }
+body[data-rph-skin="lace"] #rph-roster { scrollbar-color: rgba(201, 164, 92, .55) transparent; }
+body[data-rph-skin="modern"] #rph-roster { scrollbar-color: #c7c7cc transparent; }
+@media (prefers-color-scheme: dark) { body[data-rph-skin="modern"] #rph-roster { scrollbar-color: #48484a transparent; } }
 
 .rph-roster-title { font-weight: 700; font-size: 0.95rem; color: #bcd8ff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
 .rph-roster-close { background: none; border: none; color: inherit; font-size: 1.15rem; line-height: 1; padding: 6px 10px; cursor: pointer; opacity: .8; border-radius: 8px; }
@@ -317,71 +317,6 @@ body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diar
 
 /* bubbles animate only on first appearance — a re-render must not replay it */
 .rph-msg.noanim { animation: none; }
-
-/* ============================================================
-   PHONE DIARY
-   ============================================================ */
-#rph-diary-btn {
-    cursor: pointer; color: #cbb6ff; font-size: 0.88rem; flex-shrink: 0;
-    opacity: 0.75; transition: 0.15s;
-}
-#rph-diary-btn:hover { opacity: 1; transform: scale(1.12); color: #e0d0ff; }
-
-#rph-diary-panel {
-    position: fixed;
-    right: 20px; bottom: 84px;
-    width: min(340px, 94vw);
-    max-height: 72vh;
-    display: flex; flex-direction: column;
-    z-index: 3003;
-    border-radius: 14px;
-    padding: 12px;
-    background: linear-gradient(150deg, rgba(42, 34, 66, 0.95), rgba(20, 18, 34, 0.96));
-    border: 1px solid rgba(190, 165, 255, 0.32);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
-    opacity: 0; pointer-events: none; transform: translateY(8px);
-    transition: opacity 0.18s, transform 0.18s;
-}
-#rph-diary-panel.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
-
-.rph-diary-head {
-    display: flex; align-items: center; justify-content: space-between;
-    font-weight: 700; font-size: 0.9rem; color: #d9c8ff; margin-bottom: 8px;
-}
-.rph-diary-close { cursor: pointer; opacity: 0.6; }
-.rph-diary-close:hover { opacity: 1; color: #ff8b8b; }
-
-.rph-diary-list {
-    flex: 1; overflow-y: auto; padding-right: 4px;
-    display: flex; flex-direction: column; gap: 8px;
-    scrollbar-width: thin;
-}
-.rph-diary-list::-webkit-scrollbar { width: 6px; }
-.rph-diary-list::-webkit-scrollbar-thumb { background: rgba(190, 165, 255, 0.35); border-radius: 3px; }
-
-.rph-entry {
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    border-left: 3px solid rgba(190, 165, 255, 0.5);
-}
-.rph-entry.linked { border-left-color: rgba(140, 200, 255, 0.5); background: rgba(120, 190, 255, 0.06); }
-.rph-entry-head {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 0.68rem; opacity: 0.6; margin-bottom: 4px;
-}
-.rph-entry-src { font-style: italic; }
-.rph-entry-del { cursor: pointer; }
-.rph-entry-del:hover { color: #ff8b8b; }
-.rph-entry-text {
-    font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap;
-    color: #efeaff; font-style: italic;
-}
-.rph-diary-write { margin-top: 10px; width: 100%; }
-
-/* entries the phone wrote into the real RPG Diary */
-.rph-entry.fromphone { border-left-color: rgba(120, 220, 170, 0.55); background: rgba(120, 220, 170, 0.06); }
 
 /* ============================================================
    SKINS (1.9.0)
@@ -560,8 +495,8 @@ body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diar
     transition: transform .15s, filter .15s;
 }
 .rph-phone #rph-send:hover { color: var(--ph-send-ink); transform: scale(1.08); filter: brightness(1.08); }
-.rph-phone #rph-attach, .rph-phone #rph-diary-btn { color: var(--ph-accent); opacity: .85; }
-.rph-phone #rph-attach:hover, .rph-phone #rph-diary-btn:hover { color: var(--ph-accent); opacity: 1; }
+.rph-phone #rph-attach { color: var(--ph-accent); opacity: .85; }
+.rph-phone #rph-attach:hover { color: var(--ph-accent); opacity: 1; }
 #rph-layer.rph-phone .rph-home { display: block; flex: none; height: 16px; background: var(--ph-bar-bg); position: relative; }
 .rph-phone .rph-home::after {
     content: ""; position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
@@ -737,50 +672,43 @@ body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diar
 #rph-layer.rph-skin-modern #rph-send::before { content: "\f062"; }     /* arrow-up, like a stock messenger */
 
 /* ---------- roster, diary and the corner button follow the skin ---------- */
-body[data-rph-skin="cute"] #rph-roster, body[data-rph-skin="cute"] #rph-diary-panel {
+body[data-rph-skin="cute"] #rph-roster {
     background: linear-gradient(160deg, #fff6f9, #ffe6ef); border: 1.5px solid #f6b3cb; color: #6d4656;
     box-shadow: 0 14px 34px -8px rgba(170, 60, 110, .4); font-family: "Nunito", "Quicksand", ui-rounded, system-ui, sans-serif;
 }
-body[data-rph-skin="cute"] .rph-roster-title, body[data-rph-skin="cute"] .rph-diary-head { color: #c2507c; }
+body[data-rph-skin="cute"] .rph-roster-title { color: #c2507c; }
 body[data-rph-skin="cute"] .rph-toggle { background: rgba(255, 111, 159, .18); }
 body[data-rph-skin="cute"] .rph-toggle.on { background: #ff8cb6; }
 body[data-rph-skin="cute"] .rph-toggle.on .rph-knob { background: #fff; }
 body[data-rph-skin="cute"] .rph-open:hover { color: #ff6f9f; }
-body[data-rph-skin="cute"] .rph-entry { background: #fff; border-left-color: #ff9fc0; }
-body[data-rph-skin="cute"] .rph-entry-text { color: #6d4656; }
 body[data-rph-skin="cute"] #rph-btn { background: linear-gradient(135deg, #ff9fc0, #ff6f9f); border-color: #fff; }
 
-body[data-rph-skin="goth"] #rph-roster, body[data-rph-skin="goth"] #rph-diary-panel {
+body[data-rph-skin="goth"] #rph-roster {
     background: linear-gradient(160deg, rgba(34, 15, 44, .97), rgba(16, 7, 22, .98)); border: 1px solid #b8913f; color: #ece1f4;
     box-shadow: 0 0 0 3px #160b1b, 0 0 0 4px rgba(184, 145, 63, .5), 0 16px 40px rgba(0, 0, 0, .6);
     font-family: "Cormorant Garamond", "EB Garamond", Georgia, serif;
 }
-body[data-rph-skin="goth"] .rph-roster-title, body[data-rph-skin="goth"] .rph-diary-head { color: #e6c66a; font-variant: small-caps; letter-spacing: .08em; }
+body[data-rph-skin="goth"] .rph-roster-title { color: #e6c66a; font-variant: small-caps; letter-spacing: .08em; }
 body[data-rph-skin="goth"] .rph-toggle.on { background: rgba(212, 175, 55, .45); }
 body[data-rph-skin="goth"] .rph-toggle.on .rph-knob { background: #f1dca0; }
 body[data-rph-skin="goth"] .rph-open:hover { color: #e6c66a; }
-body[data-rph-skin="goth"] .rph-entry { border-left-color: #b8913f; }
 body[data-rph-skin="goth"] #rph-btn { background: radial-gradient(circle at 35% 30%, #4a1f5c, #160b1b); border-color: #d4af37; color: #e6c66a; }
 
-body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diary-panel {
+body[data-rph-skin="modern"] #rph-roster {
     background: rgba(250, 250, 252, .97); border: .5px solid rgba(0, 0, 0, .12); color: #000;
     box-shadow: 0 14px 40px rgba(0, 0, 0, .28); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
 }
-body[data-rph-skin="modern"] .rph-roster-title, body[data-rph-skin="modern"] .rph-diary-head { color: #000; }
+body[data-rph-skin="modern"] .rph-roster-title { color: #000; }
 body[data-rph-skin="modern"] .rph-toggle { background: #e9e9eb; }
 body[data-rph-skin="modern"] .rph-toggle.on { background: #34c759; }
 body[data-rph-skin="modern"] .rph-toggle.on .rph-knob, body[data-rph-skin="modern"] .rph-toggle .rph-knob { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
 body[data-rph-skin="modern"] .rph-open:hover { color: #0a84ff; }
-body[data-rph-skin="modern"] .rph-entry { background: #fff; border-left-color: #0a84ff; }
-body[data-rph-skin="modern"] .rph-entry-text { color: #1c1c1e; }
 body[data-rph-skin="modern"] #rph-btn { background: linear-gradient(145deg, #3a3a3e, #1c1c1f); border-color: #8e8e93; }
 @media (prefers-color-scheme: dark) {
-    body[data-rph-skin="modern"] #rph-roster, body[data-rph-skin="modern"] #rph-diary-panel { background: rgba(28, 28, 30, .97); border-color: rgba(255, 255, 255, .12); color: #fff; }
-    body[data-rph-skin="modern"] .rph-roster-title, body[data-rph-skin="modern"] .rph-diary-head { color: #fff; }
+    body[data-rph-skin="modern"] #rph-roster { background: rgba(28, 28, 30, .97); border-color: rgba(255, 255, 255, .12); color: #fff; }
+    body[data-rph-skin="modern"] .rph-roster-title { color: #fff; }
     body[data-rph-skin="modern"] .rph-toggle { background: #39393d; }
-    body[data-rph-skin="modern"] .rph-entry { background: #2c2c2e; }
-    body[data-rph-skin="modern"] .rph-entry-text { color: #f2f2f7; }
 }
 
 /* ============================================================
@@ -1126,16 +1054,15 @@ body[data-rph-skin="modern"] .rph-lookrow .text_pole { background: #fff; color: 
 .rph-skintile.lace .rph-skinart { background: #170e12; border: 2px solid #c9a45c; border-radius: 6px; box-shadow: inset 0 0 0 2px #170e12, inset 0 0 0 3px rgba(201, 164, 92, .45); }
 .rph-skintile.lace .rph-skinart::before, .rph-skintile.lace .rph-skinart i { background: #2a1820; box-shadow: 0 0 0 1px rgba(201, 164, 92, .6); border-radius: 3px; }
 .rph-skintile.lace .rph-skinart::after { background: #7e1326; box-shadow: 0 0 0 1px rgba(201, 164, 92, .7); border-radius: 3px; }
-body[data-rph-skin="lace"] #rph-roster, body[data-rph-skin="lace"] #rph-diary-panel {
+body[data-rph-skin="lace"] #rph-roster {
     background: linear-gradient(165deg, rgba(30, 18, 22, .98), rgba(14, 8, 11, .98)); border: 1px solid #c9a45c; color: #f0e5d8; border-radius: 8px;
     box-shadow: 0 0 0 3px #0c0709, 0 0 0 4px rgba(201, 164, 92, .45), 0 16px 40px rgba(0, 0, 0, .65);
     font-family: "Playfair Display", "Cormorant Garamond", Georgia, serif;
 }
-body[data-rph-skin="lace"] .rph-roster-title, body[data-rph-skin="lace"] .rph-diary-head { color: #f1e4c4; font-variant: small-caps; letter-spacing: .12em; }
+body[data-rph-skin="lace"] .rph-roster-title { color: #f1e4c4; font-variant: small-caps; letter-spacing: .12em; }
 body[data-rph-skin="lace"] .rph-toggle.on { background: rgba(179, 18, 42, .7); }
 body[data-rph-skin="lace"] .rph-toggle.on .rph-knob { background: #e9c77a; }
 body[data-rph-skin="lace"] .rph-open:hover { color: #e9c77a; }
-body[data-rph-skin="lace"] .rph-entry { border-left-color: #c9a45c; }
 body[data-rph-skin="lace"] #rph-roster .menu_button { background: linear-gradient(135deg, #7e1326, #4a0915); color: #f1e4c4; border: 1px solid rgba(201, 164, 92, .6); }
 body[data-rph-skin="lace"] #rph-roster .menu_button.armed { background: #d4324c; }
 body[data-rph-skin="lace"] .rph-cast-in, body[data-rph-skin="lace"] .rph-lookrow .text_pole { background: rgba(8, 5, 7, .75); color: #f0e5d8; border: 1px solid rgba(201, 164, 92, .5); }
