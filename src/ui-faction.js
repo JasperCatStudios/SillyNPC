@@ -1,7 +1,9 @@
 import { getSettings, saveSettings } from './settings.js';
 import {
     NEUTRAL_ICON, normalizeFactionSettings, paletteFor, themeStyle, artworkUrl, iconFor, crestPicture, BUILTIN_FACTIONS, foldFaction,
+    FACTION_WORLDS, worldGroupOf,
 } from './faction-theme.js';
+import { Popup } from '../../../../popup.js';
 
 /**
  * Faction colours, banners and icons on screen (fork). The rules are in faction-theme.js; this
@@ -125,13 +127,30 @@ export function buildCrestIcon(worldId, name) {
     return wrap;
 }
 
-/** Every faction name worth offering: the shipped ones, the user's, and the roster's categories. */
+/** Every faction name worth offering: the shipped ones (minus any deleted), the user's, and the roster's categories. */
 export function knownFactions() {
+    const hidden = factionSettings().hidden;
     const names = new Map();
     for (const f of Object.values(BUILTIN_FACTIONS)) if (f.label !== 'Neutral') names.set(foldFaction(f.label), f.label);
     for (const c of getSettings().characters || []) if (c?.category) names.set(foldFaction(c.category), c.category);
     for (const [id, t] of Object.entries(factionSettings().themes)) names.set(id, t.label || id);
+    for (const id of hidden) names.delete(id);
     return [...names.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** The known factions sorted into their worlds, each group in the world's own order; the rest under "Other". */
+export function factionGroups() {
+    const byId = new Map(knownFactions().map(name => [foldFaction(name), name]));
+    const groups = [];
+    for (const world of FACTION_WORLDS) {
+        const names = world.ids.filter(id => byId.has(id)).map(id => { const n = byId.get(id); byId.delete(id); return n; });
+        if (names.length) groups.push({ id: world.id, label: world.label, names });
+    }
+    const rest = [...byId.entries()].filter(([id]) => !worldGroupOf(id)).map(([, name]) => name);
+    const aliased = [...byId.entries()].filter(([id]) => worldGroupOf(id)).map(([, name]) => name);
+    const other = [...rest, ...aliased].sort((a, b) => a.localeCompare(b));
+    if (other.length) groups.push({ id: 'other', label: 'Other (your own and roster categories)', names: other });
+    return groups;
 }
 
 /* ------------------------------------------------------------------ the settings section */
@@ -182,7 +201,7 @@ export function renderFactionSettings(view, rerender) {
     wrap.append(defRow);
     wrap.append(el('small', 'notes', 'The look used for a character whose category has no palette of its own.'));
 
-    for (const name of knownFactions()) {
+    const factionEditor = (name) => {
         const id = foldFaction(name);
         const palette = paletteFor(name, settings);
         const own = Boolean(settings.themes[id]);
@@ -222,7 +241,36 @@ export function renderFactionSettings(view, rerender) {
             reset.addEventListener('click', () => { delete settings.themes[id]; saveFactionSettings(); rerender?.(); });
             box.append(reset);
         }
-        wrap.append(box);
+        const shipped = Boolean(BUILTIN_FACTIONS[id]);
+        const remove = el('button', 'menu_button', shipped ? 'Delete from the list' : 'Delete this theme');
+        remove.type = 'button';
+        remove.title = shipped
+            ? 'Hides this shipped palette. Characters of this faction then use the default faction. You can bring deleted ones back at the bottom of the list.'
+            : 'Removes the palette you made for this faction.';
+        remove.addEventListener('click', async () => {
+            const ok = await Popup.show.confirm(`${shipped ? 'Delete from the list' : 'Delete theme'}: ${name}`,
+                shipped ? 'This palette is hidden and no longer used. You can restore it later.' : 'Your palette for this faction is removed.');
+            if (!ok) return;
+            delete settings.themes[id];
+            if (shipped && !settings.hidden.includes(id)) settings.hidden.push(id);
+            saveFactionSettings();
+            rerender?.();
+        });
+        box.append(remove);
+        return box;
+    };
+
+    for (const group of factionGroups()) {
+        const section = el('details', 'sillynpc-fx-world');
+        section.append(el('summary', '', `${group.label} (${group.names.length})`));
+        for (const name of group.names) section.append(factionEditor(name));
+        wrap.append(section);
+    }
+    if (settings.hidden.length) {
+        const restore = el('button', 'menu_button', `Bring back ${settings.hidden.length} deleted theme${settings.hidden.length === 1 ? '' : 's'}`);
+        restore.type = 'button';
+        restore.addEventListener('click', () => { settings.hidden = []; saveFactionSettings(); rerender?.(); });
+        wrap.append(restore);
     }
     view.append(wrap);
 }

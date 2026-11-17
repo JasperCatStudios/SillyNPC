@@ -56,6 +56,23 @@ export const BUILTIN_FACTIONS = Object.freeze({
     oc: { label: 'Original Character', bg: '#15151A', panel: '#26262E', accent: '#E0B84C', accent2: '#C0C0CC', text: '#F1EFE8', tab: '#4A4330', banner: '' },
 });
 
+/**
+ * The shipped palettes, grouped by the world they belong to, in the order the menu lists them.
+ * A palette in no group (or a faction the user made) is listed under "Other".
+ */
+export const FACTION_WORLDS = Object.freeze([
+    { id: 'fe', label: 'Fire Emblem: Three Houses', ids: ['golden_deer', 'black_eagles', 'blue_lions', 'ashen_wolves', 'knights_of_seiros'] },
+    { id: 'bleach', label: 'Bleach', ids: ['soul_society', 'karakura_town', 'visored', 'quincy', 'bounts', 'xcution', 'mod_souls', 'espada', 'privaron_espada', 'arrancar', 'fraccion', 'hollow'] },
+    { id: 'bc', label: 'Black Clover', ids: ['black_bulls', 'golden_dawn', 'blue_rose', 'crimson_lion_kings', 'silver_eagles', 'purple_orcas', 'green_mantis', 'coral_peacocks', 'azure_deer', 'stormbound_tide', 'clover_kingdom', 'heart_kingdom', 'diamond_kingdom', 'elves', 'enemy', 'commoner_s_tournament', 'independent'] },
+    { id: 'general', label: 'General', ids: ['oc'] },
+]);
+
+/** The world group a faction id belongs to ("fe", "bleach", ...), or '' when it is in none. */
+export function worldGroupOf(id) {
+    const folded = ALIASES[id] || id;
+    return FACTION_WORLDS.find(w => w.ids.includes(folded))?.id || '';
+}
+
 /** Other names a faction goes by, folded the way foldFaction folds. */
 const ALIASES = Object.freeze({
     church_of_seiros: 'knights_of_seiros',
@@ -119,6 +136,8 @@ export function normalizeFactionSettings(raw) {
         useArtwork: r.useArtwork === undefined ? true : Boolean(r.useArtwork),
         artworkBase: base.endsWith('/') ? base : `${base}/`,
         defaultFaction: typeof r.defaultFaction === 'string' ? foldFaction(r.defaultFaction) : '',
+        // Shipped palettes the user has deleted from the list (ids). They are not used either.
+        hidden: [...new Set((Array.isArray(r.hidden) ? r.hidden : []).map(foldFaction).filter(Boolean))],
         themes,
     };
 }
@@ -136,10 +155,10 @@ export function paletteFor(faction, settings = normalizeFactionSettings(), world
     const worldFaction = id && artOf(world).factions[id];
     if (worldFaction) return { id, ...worldFaction };
     const builtinId = ALIASES[id] || (BUILTIN_FACTIONS[id] ? id : '');
-    if (builtinId) return { id: builtinId, ...normalizePalette(BUILTIN_FACTIONS[builtinId]) };
+    if (builtinId && !(settings.hidden || []).includes(builtinId)) return { id: builtinId, ...normalizePalette(BUILTIN_FACTIONS[builtinId]) };
     const def = settings.defaultFaction;
     if (def && settings.themes[def]) return { id: def, ...settings.themes[def] };
-    if (def && BUILTIN_FACTIONS[def]) return { id: def, ...normalizePalette(BUILTIN_FACTIONS[def]) };
+    if (def && BUILTIN_FACTIONS[def] && !(settings.hidden || []).includes(def)) return { id: def, ...normalizePalette(BUILTIN_FACTIONS[def]) };
     // Neutral, wearing the world's own banner when it set one.
     const fallback = { id: 'neutral', ...normalizePalette(BUILTIN_FACTIONS.neutral) };
     const worldBanner = artOf(world).banner;

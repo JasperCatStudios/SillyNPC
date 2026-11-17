@@ -29,18 +29,16 @@ import { renderProfileView } from './ui-profile.js';
 import { renderCharacterExtras } from './ui-character-extras.js';
 import { renderThreadsView } from './ui-threads.js';
 import { fillCharacter } from './ui-fill.js';
-import { renderAppearanceView, renderWritingRulesView, renderAdvancedView, renderGenerationSettingsView } from './ui-settings-tabs.js';
+import { renderAppearanceView, renderWritingRulesView, renderAdvancedView } from './ui-settings-tabs.js';
 import { renderPromptsView } from './ui-prompts.js';
 import { renderConnectionsView } from './connections.js';
 import { renderBondsView } from './ui-bonds.js';
 import { renderVitalsView } from './ui-vitals.js';
 import { renderVectorsView } from './ui-vectors.js';
-import { renderStatsView } from './ui-stats.js';
 import { renderStatusView } from './ui-tracker-settings.js';
 import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
 import { renderModulesView } from './ui-modules.js';
-import { renderHudView } from './ui-hud-settings.js';
 import { buildSystemBuilder } from './ui-system-builder.js';
 import { buildSystemManager } from './ui-system-manager.js';
 import { syncOverrideToActiveState, loadStateFromMetadata, hasOpenChat } from './status-logic.js';
@@ -323,20 +321,14 @@ function settingsTabs() {
               { sub: 'Bonds', hint: 'How the people in the story feel about you.', render: v => renderBondsView(v) },
               { sub: 'Vitals', hint: 'Health, hunger, energy and mood.', render: v => renderVitalsView(v) },
           ] },
-        { id: 'hud', label: 'HUD', container: 'sillynpc-hud-view',
-          render: v => renderHudView(v), forceOn: ['statusTracker.hudEnabled'] },
         { id: 'systems', label: 'Systems', container: 'sillynpc-systems-view',
           render: v => renderSystemsView(v) },
-        { id: 'generation', label: 'Generation', container: 'sillynpc-generation-settings-view',
-          render: v => renderGenerationSettingsView(v) },
         { id: 'connections', label: 'Connections', container: 'sillynpc-connections-view',
           render: v => renderConnectionsView(v) },
         { id: 'vectors', label: 'Vectors', container: 'sillynpc-vectors-view',
           render: v => renderVectorsView(v) },
         { id: 'prompts', label: 'Prompts', container: 'sillynpc-prompts-view',
           render: v => renderPromptsView(v, reprocessAllMessages) },
-        { id: 'stats', label: 'Stats', container: 'sillynpc-stats-view',
-          render: v => renderStatsView(v) },
         { id: 'advanced', label: 'Advanced', container: 'sillynpc-advanced-view',
           render: v => renderAdvancedView(v, {
               applyPopupSize,
@@ -1196,23 +1188,67 @@ function renderEditor() {
     const colorField = document.createElement('div');
     colorField.className = 'sillynpc-editor-field';
     colorField.innerHTML = '<label>Speech color</label>';
-    const colorRow = document.createElement('div');
-    colorRow.className = 'sillynpc-color-row';
-    const colorSwatch = document.createElement('div');
-    colorSwatch.className = 'sillynpc-color-swatch';
-    colorSwatch.style.backgroundColor = char.color || 'transparent';
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.className = 'sillynpc-color-input';
-    colorInput.value = char.color || '#ffffff';
-    colorInput.addEventListener('input', () => { char.color = colorInput.value; colorSwatch.style.backgroundColor = char.color; saveSettings(); });
-    const clearColorBtn = document.createElement('button');
-    clearColorBtn.type = 'button';
-    clearColorBtn.className = 'menu_button clear-color-btn';
-    clearColorBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-    clearColorBtn.addEventListener('click', () => { char.color = ''; saveSettings(); renderEditor(); });
-    colorRow.append(colorSwatch, colorInput, clearColorBtn);
-    colorField.appendChild(colorRow);
+    colorField.appendChild(buildColorControl(char, 'color', '#ffffff', () => renderEditor()));
+
+    // Optional extras. Empty means "the speech color", so a character with only the colour above set looks
+    // exactly as before. With them, the text, the border accent and the background highlight can differ - a
+    // highlight the same colour as the text on it is unreadable.
+    const advanced = document.createElement('details');
+    advanced.className = 'sillynpc-color-advanced';
+    const advSummary = document.createElement('summary');
+    advSummary.textContent = 'Advanced colors';
+    advanced.appendChild(advSummary);
+    // Dialogue text and its gradient are one group: the gradient runs from the dialogue colour to a second one,
+    // so the two only make sense together.
+    const textGroup = document.createElement('fieldset');
+    textGroup.className = 'sillynpc-color-group';
+    const textLegend = document.createElement('legend');
+    textLegend.textContent = 'Dialogue text';
+    textGroup.appendChild(textLegend);
+    const textField = document.createElement('div');
+    textField.className = 'sillynpc-editor-field';
+    textField.innerHTML = '<label>Text color</label>';
+    textField.appendChild(buildColorControl(char, 'colorText', char.color || '#ffffff'));
+    const textNote = document.createElement('small');
+    textNote.className = 'notes';
+    textNote.textContent = 'The color of the words themselves.';
+    textField.appendChild(textNote);
+    textGroup.appendChild(textField);
+    const gradLabel = document.createElement('label');
+    gradLabel.className = 'checkbox_label';
+    const gradBox = document.createElement('input');
+    gradBox.type = 'checkbox';
+    gradBox.checked = Boolean(char.colorGradient);
+    gradLabel.append(gradBox, ' Gradient text: fade from the text color to a second color');
+    textGroup.appendChild(gradLabel);
+    const gradSecond = document.createElement('div');
+    gradSecond.className = 'sillynpc-editor-field';
+    gradSecond.style.display = gradBox.checked ? '' : 'none';
+    gradSecond.innerHTML = '<label>Gradient ends in</label>';
+    gradSecond.appendChild(buildColorControl(char, 'colorText2', char.color || '#ffffff'));
+    gradBox.addEventListener('change', () => {
+        char.colorGradient = gradBox.checked;
+        gradSecond.style.display = gradBox.checked ? '' : 'none';
+        saveSettings();
+    });
+    textGroup.appendChild(gradSecond);
+    advanced.appendChild(textGroup);
+
+    for (const [key, text, help] of [
+        ['colorBorder', 'Border accent', 'The stripe at the left of a line (Left Border Accent, Subtle Gradient and Full Highlight styles).'],
+        ['colorBg', 'Background highlight', 'The tint behind a line (Soft Background, Subtle Gradient and Full Highlight styles).'],
+    ]) {
+        const field = document.createElement('div');
+        field.className = 'sillynpc-editor-field';
+        field.innerHTML = `<label>${text}</label>`;
+        field.appendChild(buildColorControl(char, key, char.color || '#ffffff'));
+        const note = document.createElement('small');
+        note.className = 'notes';
+        note.textContent = help;
+        field.appendChild(note);
+        advanced.appendChild(field);
+    }
+    colorField.appendChild(advanced);
     
     const catContainer = document.createElement('div');
     catContainer.className = 'sillynpc-editor-field category-field-container';
@@ -1633,4 +1669,60 @@ async function importData() {
         }
     };
     input.click();
+}
+
+/**
+ * A colour control: swatch, picker, a box for typing a hex code, and a clear button. The picker and the
+ * box stay in step; a typed code is only kept once it is a valid hex (3 or 6 digits, # optional).
+ * Writes char[key] ('' when cleared) and saves.
+ */
+function buildColorControl(char, key, fallback = '#ffffff', onClear = null) {
+    const normalise = (value) => {
+        let t = String(value || '').trim();
+        if (!t) return '';
+        if (t[0] !== '#') t = `#${t}`;
+        if (/^#[0-9a-f]{3}$/i.test(t)) t = `#${[...t.slice(1)].map(c => c + c).join('')}`;
+        return /^#[0-9a-f]{6}$/i.test(t) ? t.toLowerCase() : null;
+    };
+    const row = document.createElement('div');
+    row.className = 'sillynpc-color-row';
+    const swatch = document.createElement('div');
+    swatch.className = 'sillynpc-color-swatch';
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.className = 'sillynpc-color-input';
+    const hexBox = document.createElement('input');
+    hexBox.type = 'text';
+    hexBox.className = 'text_pole sillynpc-color-hex';
+    hexBox.placeholder = '#rrggbb';
+    hexBox.maxLength = 7;
+    hexBox.style.cssText = 'width:7em; flex:none;';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'menu_button clear-color-btn';
+    clear.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    clear.title = 'Clear';
+    const show = () => {
+        const v = normalise(char[key]) || '';
+        swatch.style.backgroundColor = v || 'transparent';
+        picker.value = v || normalise(fallback) || '#ffffff';
+        hexBox.value = v;
+        hexBox.style.borderColor = '';
+    };
+    const set = (v) => { char[key] = v; saveSettings(); show(); };
+    picker.addEventListener('input', () => set(picker.value));
+    hexBox.addEventListener('input', () => {
+        const v = normalise(hexBox.value);
+        if (v === null) { hexBox.style.borderColor = '#d9534f'; return; }
+        hexBox.style.borderColor = '';
+        char[key] = v;
+        saveSettings();
+        swatch.style.backgroundColor = v || 'transparent';
+        picker.value = v || normalise(fallback) || '#ffffff';
+    });
+    hexBox.addEventListener('change', show);
+    clear.addEventListener('click', () => { set(''); onClear?.(); });
+    show();
+    row.append(swatch, picker, hexBox, clear);
+    return row;
 }

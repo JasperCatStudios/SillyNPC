@@ -299,7 +299,7 @@ function dress(html) {
     // GM's Notebook entries sit on their own lines in the text, which HTML runs together:
     // put a break between one "- [R]/[T]/[D]" entry and the next (not after one already broken).
     let out = String(html ?? '').replace(/(?<!<br\s*\/?>|<\/summary>)[ \t]*\n[ \t]*-[ \t]*\[([RTD])\]/g, '<br>- [$1]');
-    if (getSettings().internalStatesApplyRegex !== false) {
+    {
         try {
             out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
         } catch (err) {

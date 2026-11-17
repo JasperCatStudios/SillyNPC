@@ -94,7 +94,7 @@ function suggestionCard(person, mesEl, ctx) {
 /** The block dressed by the preset's display regexes, then made safe to insert. */
 function dress(html) {
     let out = html;
-    if (getSettings().internalStatesApplyRegex !== false) {
+    {
         try {
             out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
         } catch (err) {

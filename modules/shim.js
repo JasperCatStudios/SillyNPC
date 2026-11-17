@@ -42,7 +42,6 @@ function asCard(char) {
         description: profileText(char),
         personality: '',
         scenario: '',
-        skin: String(char.phoneSkin || ''),
         color: String(char.color || ''),
         imagePrompt: String(char.imagePrompt || ''),
         imageNegative: String(char.imageNegative || ''),

@@ -18,7 +18,7 @@ const busy = new Set();
 
 function dress(html) {
     let out = html;
-    if (getSettings().internalStatesApplyRegex !== false) {
+    {
         try {
             out = getRegexedString(out, regex_placement.AI_OUTPUT, { isMarkdown: true });
         } catch (err) {

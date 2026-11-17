@@ -4,7 +4,6 @@ import { updateAllExtensionThemes } from './ui-shared.js';
 import { deleteSystemPreset, importSystemPreset, getActiveSystem, setActiveSystem, createSystem, saveCheckpoint, restoreCheckpoint, deleteCheckpoint, getCheckpoints } from './status-logic.js';
 import { Popup } from '../../../../popup.js';
 import { triggerReprocess } from './chat.js';
-import { updateHUD } from './ui-hud.js';
 import { escapeHtml } from './utils.js';
 import { openItemLibrary } from './ui-item-library.js';
 
@@ -118,7 +117,6 @@ function buildCheckpointControls(onRefresh) {
             if (await restoreCheckpoint(index)) {
                 toastr.success('Restored.', PRODUCT_NAME);
                 triggerReprocess();
-                updateHUD();
                 onRefresh();
             } else {
                 toastr.error('Could not read that saved state; its file may be gone.', PRODUCT_NAME);

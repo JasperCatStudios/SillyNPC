@@ -26,12 +26,25 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
        --st-text-color was never a SillyTavern variable at all, so the foreground silently
        resolved to #fff every time and the fallback was doing all the work. */
-    --sillynpc-bg-primary: var(--SmartThemeBlurTintColor, #222);
-    --sillynpc-bg-secondary: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 14%, transparent);
-    --sillynpc-fg-primary: var(--SmartThemeBodyColor, #fff);
-    --sillynpc-fg-secondary: var(--SmartThemeEmColor, #9a9a9a);
-    --sillynpc-accent: var(--SmartThemeQuoteColor, #c9a96e);
-    --sillynpc-border: var(--SmartThemeBorderColor, #444);
+    /* Worldkit frame: the dark campaign frame the Games and Combat windows wear, now the
+       look of every menu. One palette, named once. */
+    --wk-frame-bg: linear-gradient(145deg, #373532, #1b1b1d 45%, #252320);
+    --wk-frame-border: #b5a58d;
+    --wk-frame-line: #a4947d;
+    --wk-frame-text: #eee7da;
+    --wk-frame-muted: #c8bfb2;
+    --wk-frame-accent: #e8d6b9;
+    --wk-gold: #d9b45a;
+    --wk-frame-active: #665340;
+    --wk-frame-field: #282727;
+    --wk-frame-button: linear-gradient(#504b43, #34312d);
+    --wk-frame-shadow: inset 0 0 0 3px #201f20, inset 0 0 0 4px #756c5e, 0 18px 48px #0009;
+    --sillynpc-bg-primary: #252320;
+    --sillynpc-bg-secondary: rgba(238, 231, 218, 0.08);
+    --sillynpc-fg-primary: var(--wk-frame-text);
+    --sillynpc-fg-secondary: var(--wk-frame-muted);
+    --sillynpc-accent: var(--wk-gold);
+    --sillynpc-border: var(--wk-frame-line);
     --sillynpc-success: #00c851;
     --sillynpc-danger: #ff4444;
     /* Amber on a dark ground. Every light theme overrides all three below, because a
@@ -492,49 +505,42 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 /* ── 1. Default (Seamless Native) ─────────────────────────────────────── */
 
-/* The pink panel and the invisible descriptions were one bug. --SmartThemeBodyColor is
-   SillyTavern's *text* colour - a salmon pink on Celestial Macaron - and this painted the
-   panel with it, then wrote text on top. --SmartThemeBlurTintColor is the background.
-   With the roles the right way round, "seamless" finally follows the user's ST theme. */
+/* The default look: the Worldkit dark frame (see the --wk-frame-* tokens on :root). It
+   no longer follows the SillyTavern theme; the Games and Combat windows and every menu
+   wear the same frame. */
 .sillynpc-manage.sillynpc-theme-default,
 .sillynpc-review-panel.sillynpc-theme-default,
 .sillynpc-status-box.sillynpc-theme-default,
-.sillynpc-theme-default.sillynpc-hud-container,
 .sillynpc-theme-default.sillynpc-player-sheet,
 .sillynpc-theme-default.sillynpc-manage {
-    --sillynpc-bg-primary: var(--SmartThemeBlurTintColor, #1a1a1a);
-    --sillynpc-bg-secondary: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 14%, transparent);
-    --sillynpc-fg-primary: var(--SmartThemeBodyColor, #e5e5e5);
-    --sillynpc-fg-secondary: var(--SmartThemeEmColor, #9a9a9a);
-    --sillynpc-accent: var(--SmartThemeQuoteColor, #c9a96e);
-    --sillynpc-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12));
-    background: var(--sillynpc-bg-primary);
-    color: var(--sillynpc-fg-primary);
+    color-scheme: dark;
+    --sillynpc-bg-primary: #252320;
+    --sillynpc-bg-secondary: rgba(238, 231, 218, 0.08);
+    --sillynpc-fg-primary: var(--wk-frame-text);
+    --sillynpc-fg-secondary: var(--wk-frame-muted);
+    --sillynpc-accent: var(--wk-gold);
+    --sillynpc-border: var(--wk-frame-line);
+    background: var(--wk-frame-bg);
+    color: var(--wk-frame-text);
     border: 0;
 }
-
-/* Seamless Native's whole palette hangs off --SmartThemeBlurTintColor, which is a
-   *translucent* tint: SillyTavern only ever paints it with a blur behind it, and the user
-   controls that blur - plenty of people set it to zero. At zero the panel is simply a
-   sheet of tinted glass over the chat, which is unreadable and looks wrong, and the
-   dropdown lists that take the same colour end up pale enough to lose their text on.
-
-   Relative colour syntax takes that exact tint and drops its alpha, so the panel keeps the
-   user's own SillyTavern colour and becomes a surface instead of a filter. The "/ 1" is
-   the whole point: without it relative colour syntax carries the origin's alpha straight
-   through, and the declaration computes to the very colour it was meant to replace.
-   A browser without relative colour keeps the translucent value above. */
-@supports (color: rgb(from white r g b / 1)) {
-    :root,
-    .sillynpc-manage.sillynpc-theme-default,
-    .sillynpc-review-panel.sillynpc-theme-default,
-    .sillynpc-status-box.sillynpc-theme-default,
-    .sillynpc-theme-default.sillynpc-hud-container,
-    .sillynpc-theme-default.sillynpc-player-sheet,
-    .sillynpc-theme-default.sillynpc-manage {
-        --sillynpc-bg-primary: rgb(from var(--SmartThemeBlurTintColor, #1a1a1a) r g b / 1);
-    }
+.sillynpc-manage.sillynpc-theme-default,
+.sillynpc-theme-default.sillynpc-player-sheet {
+    border: 1px solid var(--wk-frame-border);
+    border-radius: 8px;
+    box-shadow: var(--wk-frame-shadow);
 }
+.sillynpc-theme-default :is(input, select, textarea, .text_pole) {
+    color: var(--wk-frame-text); background: var(--wk-frame-field); border-color: var(--wk-frame-line);
+}
+.sillynpc-theme-default :is(input, select, textarea) option { color: var(--wk-frame-text); background: var(--wk-frame-field); }
+.sillynpc-theme-default .menu_button {
+    color: var(--wk-frame-text); background: var(--wk-frame-button);
+    border-color: var(--wk-frame-line); box-shadow: inset 0 1px #ffffff20;
+}
+.sillynpc-theme-default .menu_button:hover:not(:disabled) { color: #fff; background: var(--wk-frame-active); }
+.sillynpc-theme-default :is(button, input, select, textarea):focus-visible { outline: 2px solid #ead4ae; outline-offset: 2px; }
+.sillynpc-theme-default .sillynpc-tab.active, .sillynpc-theme-default .sillynpc-tab[aria-selected="true"] { background: var(--wk-frame-active); color: #fff4df; }
 
 .sillynpc-theme-default .sillynpc-setting {
     /* Flat by design: rows told apart by a rule beneath them, not by a filled box. The
@@ -583,7 +589,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-terminal .sillynpc-manage,
 .sillynpc-theme-terminal .sillynpc-status-box,
-.sillynpc-theme-terminal.sillynpc-hud-container,
 .sillynpc-theme-terminal.sillynpc-player-sheet,
 .sillynpc-theme-terminal.sillynpc-manage {
     background: var(--sillynpc-bg-primary);
@@ -592,7 +597,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 }
 
 .sillynpc-theme-terminal .sillynpc-manage *,
-.sillynpc-theme-terminal.sillynpc-hud-container *,
 .sillynpc-theme-terminal .sillynpc-status-box *:not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: var(--sillynpc-font-mono);
 }
@@ -640,7 +644,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-cyberpunk .sillynpc-manage,
 .sillynpc-theme-cyberpunk .sillynpc-status-box,
-.sillynpc-theme-cyberpunk.sillynpc-hud-container,
 .sillynpc-theme-cyberpunk.sillynpc-player-sheet,
 .sillynpc-theme-cyberpunk.sillynpc-manage {
     background: var(--sillynpc-bg-primary);
@@ -649,7 +652,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 }
 
 .sillynpc-theme-cyberpunk .sillynpc-manage *:not(.fa-solid):not(.fa-regular):not(.fa-brands),
-.sillynpc-theme-cyberpunk.sillynpc-hud-container *:not(.fa-solid):not(.fa-regular):not(.fa-brands),
 .sillynpc-theme-cyberpunk .sillynpc-status-box *:not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: var(--sillynpc-font-mono);
 }
@@ -713,7 +715,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-monochrome .sillynpc-manage,
 .sillynpc-theme-monochrome .sillynpc-status-box,
-.sillynpc-theme-monochrome.sillynpc-hud-container,
 .sillynpc-theme-monochrome.sillynpc-player-sheet,
 .sillynpc-theme-monochrome.sillynpc-manage {
     background: var(--sillynpc-bg-primary);
@@ -776,7 +777,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-modern-dark .sillynpc-manage,
 .sillynpc-theme-modern-dark .sillynpc-status-box,
-.sillynpc-theme-modern-dark.sillynpc-hud-container,
 .sillynpc-theme-modern-dark.sillynpc-player-sheet,
 .sillynpc-theme-modern-dark.sillynpc-manage {
     background: radial-gradient(circle at top left, #141418, #050506);
@@ -846,7 +846,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-fantasy-hud .sillynpc-manage,
 .sillynpc-theme-fantasy-hud .sillynpc-status-box,
-.sillynpc-theme-fantasy-hud.sillynpc-hud-container,
 .sillynpc-theme-fantasy-hud.sillynpc-player-sheet,
 .sillynpc-theme-fantasy-hud.sillynpc-manage {
     background: var(--sillynpc-bg-primary);
@@ -855,7 +854,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 }
 
 .sillynpc-theme-fantasy-hud .sillynpc-manage *:not(.fa-solid):not(.fa-regular):not(.fa-brands),
-.sillynpc-theme-fantasy-hud.sillynpc-hud-container *:not(.fa-solid):not(.fa-regular):not(.fa-brands),
 .sillynpc-theme-fantasy-hud .sillynpc-status-box *:not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: var(--sillynpc-font-serif);
 }
@@ -879,13 +877,10 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-theme-fantasy-hud .sillynpc-hud-bar { box-shadow: 0 0 8px rgba(0, 0, 0, 0.45); }
 
 .sillynpc-theme-terminal .sillynpc-hud-bar { box-shadow: 0 0 5px currentColor; }
-.sillynpc-theme-terminal .sillynpc-hud-bar-wrap { border-color: var(--sillynpc-accent); background: #000; }
-.sillynpc-theme-terminal.sillynpc-hud-container { box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); }
+
 
 .sillynpc-theme-cyberpunk .sillynpc-hud-bar { filter: saturate(1.4) brightness(1.1); }
-.sillynpc-theme-cyberpunk.sillynpc-hud-container { 
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
-}
+
 
 /* ── 10. Tabletop Parchment (Light - Serif) ───────────────────────────── */
 
@@ -911,7 +906,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-tabletop-parchment .sillynpc-manage,
 .sillynpc-theme-tabletop-parchment .sillynpc-status-box,
-.sillynpc-theme-tabletop-parchment.sillynpc-hud-container,
 .sillynpc-theme-tabletop-parchment.sillynpc-player-sheet,
 .sillynpc-theme-tabletop-parchment.sillynpc-manage {
     /* Blotching, then a faint fibre weave, over the base tone. All gradients, so the
@@ -938,7 +932,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 }
 
 .sillynpc-theme-tabletop-parchment .sillynpc-manage *:not(.fa-solid):not(.fa-regular):not(.fa-brands),
-.sillynpc-theme-tabletop-parchment.sillynpc-hud-container *:not(.fa-solid):not(.fa-regular):not(.fa-brands),
 .sillynpc-theme-tabletop-parchment .sillynpc-status-box *:not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: var(--sillynpc-font-serif);
 }
@@ -1069,21 +1062,7 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 /* The HUD is 60 pixels across and permanently on screen. Giving it the same treatment as
    a full menu panel is what made the theme unusable rather than atmospheric: it shook, and
    the overlay covered the few numbers it exists to show. */
-.sillynpc-theme-analog-horror.sillynpc-hud-container {
-    background: var(--sillynpc-bg-primary);
-    color: var(--sillynpc-fg-primary);
-    font-family: var(--sillynpc-font-mono);
-    position: relative;
-    overflow: hidden;
-    animation: none;
-}
 
-.sillynpc-theme-analog-horror.sillynpc-hud-container::before {
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.10) 50%);
-    background-size: 100% 3px;
-    opacity: 0.4;
-    pointer-events: none;
-}
 
 .sillynpc-theme-analog-horror .sillynpc-section-title {
     color: var(--sillynpc-accent-text, var(--sillynpc-accent));
@@ -1139,7 +1118,6 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-theme-rosewater .sillynpc-manage,
 .sillynpc-theme-rosewater .sillynpc-status-box,
-.sillynpc-theme-rosewater.sillynpc-hud-container,
 .sillynpc-theme-rosewater.sillynpc-player-sheet,
 .sillynpc-theme-rosewater.sillynpc-manage {
     background: var(--sillynpc-bg-primary);
@@ -1255,12 +1233,22 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 /* Speech Block Coloring */
 .mes_text .sillynpc-speech-block[class*="color-"],
 .mes_text .sillynpc-speech-block[class*="color-"] * {
-    color: var(--sillynpc-color) !important;
+    color: var(--sillynpc-text-color, var(--sillynpc-color)) !important;
+}
+
+/* Gradient dialogue: the text itself is painted with a gradient, from the dialogue colour to a
+   second one. Only the text is clipped, so a background highlight keeps its own colour. */
+.mes_text .sillynpc-speech-block.sillynpc-gradient-text .sillynpc-speech-text,
+.mes_text .sillynpc-speech-block.sillynpc-gradient-text .sillynpc-speech-text * {
+    background-image: linear-gradient(90deg, var(--sillynpc-text-color, var(--sillynpc-color)), var(--sillynpc-text-color-2, var(--sillynpc-color)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .mes_text .sillynpc-speech-block.color-background,
 .mes_text .sillynpc-speech-block.color-all {
-    background-color: color-mix(in srgb, var(--sillynpc-color), transparent 85%) !important;
+    background-color: color-mix(in srgb, var(--sillynpc-bg-color, var(--sillynpc-color)), transparent var(--sillynpc-bg-fade, 85%)) !important;
     /* Horizontal padding stays: text needs clearance from a coloured edge. Only the
        vertical band shrinks. */
     padding: var(--sillynpc-speech-pad-y, 6px) 15px !important;
@@ -1269,13 +1257,13 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .mes_text .sillynpc-speech-block.color-border,
 .mes_text .sillynpc-speech-block.color-all {
-    border-left: 4px solid var(--sillynpc-color) !important;
+    border-left: 4px solid var(--sillynpc-border-color, var(--sillynpc-color)) !important;
     padding-left: 15px !important;
 }
 
 .mes_text .sillynpc-speech-block.color-gradient {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--sillynpc-color), transparent 85%) 0%, transparent 100%) !important;
-    border-left: 4px solid var(--sillynpc-color) !important;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--sillynpc-bg-color, var(--sillynpc-color)), transparent var(--sillynpc-bg-fade, 85%)) 0%, transparent 100%) !important;
+    border-left: 4px solid var(--sillynpc-border-color, var(--sillynpc-color)) !important;
     padding-left: 15px !important;
 }
 
@@ -1292,7 +1280,7 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-speech-block.divider-subtle {
     border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent) !important;
 }
-.sillynpc-speech-block.divider-bold   { border-top: 2px solid var(--SmartThemeQuoteColor, #c9a96e) !important; }
+.sillynpc-speech-block.divider-bold   { border-top: 2px solid var(--sillynpc-accent, #c9a96e) !important; }
 .sillynpc-speech-block.divider-dashed {
     border-top: 1px dashed color-mix(in srgb, currentColor 55%, transparent) !important;
 }
@@ -1302,7 +1290,7 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 
 .sillynpc-category-heading.drag-over {
     background: rgba(201, 169, 110, 0.2);
-    border-bottom: 2px solid var(--SmartThemeQuoteColor, #c9a96e);
+    border-bottom: 2px solid var(--sillynpc-accent, #c9a96e);
 }
 
 .sillynpc-card-subgrid {
@@ -1747,7 +1735,7 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 }
 
 .sillynpc-category-heading.drag-over-category {
-    border-top: 2px solid var(--SmartThemeQuoteColor, #c9a96e);
+    border-top: 2px solid var(--sillynpc-accent, #c9a96e);
     background: rgba(201, 169, 110, 0.12);
 }
 
@@ -2298,26 +2286,11 @@ span.sillynpc-review-to {
 /* Its gap, padding and radius are set in HUD proportions further down, and were also set
    here where they never applied - so editing them here did nothing at all. Declared once,
    where the reasoning for the numbers is. */
-.sillynpc-hud-container {
-    position: fixed;
-    z-index: var(--sillynpc-z-hud);
-    display: flex;
-    align-items: center;
-    background: var(--sillynpc-bg-primary);
-    backdrop-filter: var(--sillynpc-backdrop);
-    border: 1px solid var(--sillynpc-border);
-    box-shadow: var(--sillynpc-shadow);
-    pointer-events: all;
-    transition: transform 0.2s ease, opacity 0.2s ease, background 0.3s, border-color 0.3s, box-shadow 0.3s;
-    transform-origin: center center;
-}
+
 
 /* Clear of SillyTavern's top bar rather than 20px from the window edge, which put the
    HUD under it. The variable is SillyTavern's own and follows the user's font scale. */
-.sillynpc-hud-container.top-right    { top: calc(var(--topBarBlockSize, 34px) + 20px); right: 20px; }
-.sillynpc-hud-container.top-left     { top: calc(var(--topBarBlockSize, 34px) + 20px); left: 20px; flex-direction: row-reverse; }
-.sillynpc-hud-container.bottom-right { bottom: 20px; right: 20px; }
-.sillynpc-hud-container.bottom-left  { bottom: 20px; left: 20px; flex-direction: row-reverse; }
+
 
 /* Persona images are 2:3 - SillyTavern renders the thumbnail at 96x144 - and this frame is
  * a circle, so `cover` keeps a square from the middle and discards the top and bottom. On a
@@ -2339,76 +2312,16 @@ span.sillynpc-review-to {
  *
  * pointer-events: none so the frame keeps the drag, the click that opens the sheet, and
  * the keyboard activation - the picture must not become a second target for any of them. */
-.sillynpc-hud-portrait-img {
-    width: 100%;
-    height: 100%;
-    display: block;
-    object-fit: cover;
-    object-position: center var(--sillynpc-portrait-focus, top);
-    border-radius: inherit;
-    pointer-events: none;
-}
+
 
 /* Its width and height follow the meter count and are set in HUD proportions below. */
-.sillynpc-hud-portrait {
-    border-radius: 50%;
-    /* Kept for the empty frame: the tint below still shows while no picture has loaded. */
-    background-size: cover;
-    background-position: center var(--sillynpc-portrait-focus, top);
-    /* 1px, not 2. At 2 the accent read as a frame around the picture rather than an edge
-       to it, which with the panel padding outside it made the portrait look boxed in. */
-    border: 1px solid var(--sillynpc-accent);
-    cursor: pointer;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
-    flex-shrink: 0;
-}
 
-.sillynpc-hud-portrait:hover {
-    transform: scale(1.05);
-    z-index: 5;
-}
-
-.sillynpc-hud-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    /* min-width follows the meter width, in HUD proportions below. */
-}
-
-.sillynpc-hud-stat-row {
-    width: 100%;
-}
-
-.sillynpc-hud-bar-wrap {
-    width: var(--sillynpc-hud-meter-width, 92px);
-    height: var(--sillynpc-hud-meter-height, 14px);
-    background: var(--sillynpc-bg-secondary);
-    border-radius: var(--sillynpc-radius-md);
-    overflow: hidden;
-    position: relative;
-    border: 1px solid var(--sillynpc-border);
-}
 
 .sillynpc-hud-bar {
     height: 100%;
     transition: width 0.3s ease;
 }
 
-
-.sillynpc-hud-bar-text {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: bold;
-    color: white;
-    text-shadow: 0 0 2px black;
-}
 
 /* ─── Player Sheet Modal ───────────────────────────────────────────────── */
 
@@ -3158,7 +3071,6 @@ span.sillynpc-review-to {
 }
 
 
-
 /* One rank below a section title. The Writing Rules tab has two halves with three
    features in the first, so the features need to read as parts of the half above them
    rather than as five equal headings. Quieter on every count: no rule, no uppercase,
@@ -3284,31 +3196,11 @@ span.sillynpc-review-to {
    ─────────────────────────────────────────────────────────────────────────── */
 
 /* Ten notches filled from the left, for systems that count in pips rather than percent. */
-.sillynpc-hud-bar-wrap.segmented {
-    display: flex;
-    gap: 2px;
-    background: transparent;
-    border: 0;
-    overflow: visible;
-}
 
-.sillynpc-hud-segment {
-    flex: 1;
-    height: 100%;
-    background: var(--sillynpc-bg-secondary);
-    border: 1px solid var(--sillynpc-border);
-    border-radius: 1px;
-}
 
 /* A stat with no number in it cannot fill anything, so it is shown as its value alone
    rather than as a bar stuck at 0% for the life of the chat. */
-.sillynpc-hud-stat-text {
-    font-size: 11px;
-    font-weight: bold;
-    line-height: 1.4;
-    white-space: nowrap;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
+
 
 /* Arcs around the portrait, nested inward, one per stat.
 
@@ -3316,44 +3208,13 @@ span.sillynpc-review-to {
    radial-gradient mask, and when the mask did not apply every ring rendered as a filled
    square stacked behind the portrait - the HUD became a pile of coloured blocks. A stroked
    circle has no clip to lose. */
-.sillynpc-hud-rings {
-    position: absolute;
-    /* Exactly the space the rings occupy, written by the painter that drew them. It was a
-       fraction of the portrait size, which meant the gap between the image and the first
-       ring grew with the portrait and had nothing to do with how thick the rings were. */
-    inset: calc(var(--sillynpc-hud-ring-overhang, 8px) * -1);
-    width: auto;
-    height: auto;
-    overflow: visible;
-    pointer-events: none;
-    z-index: 1;
-}
 
-.sillynpc-hud-ring-track {
-    fill: none;
-    stroke: var(--sillynpc-border);
-    /* No stroke-width here: it is set per ring from the thickness setting, and a rule at
-       this level would beat the presentation attribute and pin every ring to one size. */
-    opacity: 0.35;
-}
 
 /* Both of them, or they disagree. The track carried no rotation while the arc did,
    which was invisible while a track was a whole circle - a rotated circle is the same
    circle - and obvious the moment the ring was split into segments, because then the
    track is dashed too and its gaps sat a quarter turn from the arc's. */
-.sillynpc-hud-ring-track,
-.sillynpc-hud-ring-arc {
-    /* From the top rather than from three o'clock, which is where a meter is expected to
-       start filling. */
-    transform: rotate(-90deg);
-    transform-origin: 50% 50%;
-}
 
-.sillynpc-hud-ring-arc {
-    fill: none;
-    stroke-linecap: round;
-    transition: stroke-dasharray 0.3s ease;
-}
 
 /* A square ring's seam, and why it was showing as a rounded bottom-left corner.
 
@@ -3365,11 +3226,7 @@ span.sillynpc-review-to {
    A square rotated a quarter turn about its centre maps onto itself, so dropping the
    rotation changes nothing but where the fill begins: the top-left corner, which is what
    the rotation was reaching for in the first place. */
-.sillynpc-hud-container.portrait-square .sillynpc-hud-ring-track,
-.sillynpc-hud-container.portrait-square .sillynpc-hud-ring-arc {
-    stroke-linecap: butt;
-    transform: none;
-}
+
 
 /* ── HUD proportions ───────────────────────────────────────────────────────
 
@@ -3382,22 +3239,6 @@ span.sillynpc-review-to {
    gap and a 12px radius around a panel only 60px tall.
    ─────────────────────────────────────────────────────────────────────────── */
 
-.sillynpc-hud-container {
-    gap: var(--sillynpc-space-sm);
-    /* The only place these three are declared; see the note by the base rule. */
-    /* 4px rather than 8. The panel is a backing plate for the portrait and its meters,
-       and at 8 there was more panel than there was reason for it. */
-    padding: var(--sillynpc-space-xs);
-    border-radius: var(--sillynpc-radius-md);
-}
-
-.sillynpc-hud-portrait {
-    width: var(--sillynpc-hud-portrait-size, 60px);
-    height: var(--sillynpc-hud-portrait-size, 60px);
-    /* Rings are absolutely positioned against this. */
-    position: relative;
-    border-color: var(--sillynpc-hud-portrait-border, var(--sillynpc-accent));
-}
 
 /* Square means square, everywhere the panel draws a corner.
 
@@ -3405,51 +3246,30 @@ span.sillynpc-review-to {
    the meter track 8, a segment 1 - so choosing "square" changed the outline of the picture
    and left everything around it curved. The rings were the worst of it: they rounded by
    6 plus their own thickness, so the thicker they were set the less square they looked. */
-.sillynpc-hud-container.portrait-square,
-.sillynpc-hud-container.portrait-square .sillynpc-hud-portrait,
-.sillynpc-hud-container.portrait-square .sillynpc-hud-bar-wrap,
-.sillynpc-hud-container.portrait-square .sillynpc-hud-segment {
-    border-radius: 0;
-}
+
 
 /* Explicit sides win over whatever the docked corner implies, so a HUD in the top-left
    can still keep its portrait on the right. */
-.sillynpc-hud-container.portrait-left  { flex-direction: row; }
-.sillynpc-hud-container.portrait-right { flex-direction: row-reverse; }
 
-.sillynpc-hud-stats {
-    /* Follows the meter, so widening one does not leave the column clipping it. */
-    min-width: var(--sillynpc-hud-meter-width, 92px);
-}
 
 /* With rings there is often nothing in the column at all, and the reserved width became a
    slab of empty panel beside the portrait - wider the wider the meter was set. An empty
    column takes no room; a column holding text rows still sizes itself to its content
    rather than to the bar width, which rings do not use. */
-.sillynpc-hud-stats:empty {
-    display: none;
-}
+
 
 /* A ring draws no bar, so it has no bar width to reserve a column for. Layouts that
    also want their column to shrink to its content set this for themselves. */
-.sillynpc-hud-container.meter-ring .sillynpc-hud-stats {
-    min-width: 0;
-}
+
 
 /* Rings sit outside the portrait, so the panel needs room or they cross its edge. The
    overhang is set on the portrait by the painter, so it is read from there. */
-.sillynpc-hud-container.meter-ring {
-    /* Cannot go below the overhang or the rings cross the panel edge - they are inset by
-       calc(overhang * -1) - so the 2px is clearance, not taste. */
-    padding: calc(var(--sillynpc-hud-ring-overhang, 8px) + 2px);
-}
+
 
 /* With rings and nothing else, the panel is a rounded rectangle wrapped around a circle -
    which is the dark slab showing in the corners. Matching the portrait's shape makes the
    background read as a backing plate rather than as a stray box. */
-.sillynpc-hud-container.meter-ring:not(.portrait-square) {
-    border-radius: 50%;
-}
+
 
 /* ═══ HUD layouts ═══════════════════════════════════════════════════════════
    Eight looks, chosen from a gallery rather than argued about. Each decides both its
@@ -3464,295 +3284,88 @@ span.sillynpc-review-to {
    buildMeterRow, so a layout can reach it from CSS without painting each piece in JS. */
 
 /* Written by every layout, shown by the one built around it. */
-.sillynpc-hud-stat-name { display: none; }
+
 
 /* A halo in the theme's own background colour. The HUD floats over the story, so a layout
    with no panel writes its numbers straight onto whatever the chat happens to be - and the
    text colour comes from the theme, so a light theme over a dark chat is near-black on
    near-black. Invisible on the layouts that do have a panel, since it matches what is
    already behind the text. */
-.sillynpc-hud-bar-text,
-.sillynpc-hud-stat-name,
-.sillynpc-hud-stat-text {
-    text-shadow: 0 0 3px var(--sillynpc-bg-primary), 0 0 6px var(--sillynpc-bg-primary);
-}
+
 
 /* Shared by the four that draw nothing behind themselves. */
-.sillynpc-hud-container.sillynpc-hud-fan,
-.sillynpc-hud-container.sillynpc-hud-brackets,
-.sillynpc-hud-container.sillynpc-hud-underline,
-.sillynpc-hud-container.sillynpc-hud-pips {
-    background: none;
-    border: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-}
+
 
 /* ─── Bracket Plate ─────────────────────────────────────────────────────────
    A panel with the portrait held at its corners. Closest to how the HUD has always
    looked, so it is the default and the one an existing user migrates onto. */
-.sillynpc-hud-container.sillynpc-hud-plate {
-    padding: var(--sillynpc-space-sm);
-}
-.sillynpc-hud-plate .sillynpc-hud-portrait { position: relative; }
-.sillynpc-hud-plate .sillynpc-hud-portrait::before,
-.sillynpc-hud-plate .sillynpc-hud-portrait::after {
-    content: '';
-    position: absolute;
-    width: 0.75em;
-    height: 0.75em;
-    border: 2px solid var(--sillynpc-hud-portrait-border, var(--sillynpc-accent));
-}
-.sillynpc-hud-plate .sillynpc-hud-portrait::before {
-    top: -4px; left: -4px; border-right: 0; border-bottom: 0;
-}
-.sillynpc-hud-plate .sillynpc-hud-portrait::after {
-    bottom: -4px; right: -4px; border-left: 0; border-top: 0;
-}
+
 
 /* ─── Stepped Blades ────────────────────────────────────────────────────────
    One plate cut off at the same angle as the meters, so the whole HUD is a single wedge
    rather than a box with things in it. Each meter steps in from the one above. */
-.sillynpc-hud-container.sillynpc-hud-blades {
-    padding: var(--sillynpc-space-xs) 1.6em var(--sillynpc-space-xs) var(--sillynpc-space-xs);
-    border-radius: 0;
-    clip-path: polygon(0 0, 100% 0, calc(100% - 1.4em) 100%, 0 100%);
-}
-.sillynpc-hud-blades .sillynpc-hud-stats { gap: 3px; }
-.sillynpc-hud-blades .sillynpc-hud-bar-wrap {
-    border-radius: 0;
-    border: 0;
-    clip-path: polygon(0 0, 100% 0, calc(100% - 0.8em) 100%, 0 100%);
-}
-.sillynpc-hud-blades .sillynpc-hud-stat-row:nth-child(2) { margin-left: 0.5em; }
-.sillynpc-hud-blades .sillynpc-hud-stat-row:nth-child(3) { margin-left: 1em; }
-.sillynpc-hud-blades .sillynpc-hud-stat-row:nth-child(4) { margin-left: 1.5em; }
-.sillynpc-hud-blades .sillynpc-hud-stat-row:nth-child(n+5) { margin-left: 2em; }
+
 
 /* ─── Angled Fan ────────────────────────────────────────────────────────────
    Slashes, not bars: no rail behind them, so what is on screen is only the value. The
    staggered lengths are what make it read as a fan rather than as a list. */
-.sillynpc-hud-container.sillynpc-hud-fan { gap: var(--sillynpc-space-sm); }
-.sillynpc-hud-fan .sillynpc-hud-stats { gap: 4px; min-width: 0; }
-.sillynpc-hud-fan .sillynpc-hud-bar-wrap {
-    background: none;
-    border: 0;
-    border-radius: 1px;
-    overflow: visible;
-    transform: skewX(-26deg);
-}
-.sillynpc-hud-fan .sillynpc-hud-bar {
-    box-shadow: 0 0 0.6em -0.05em var(--sillynpc-hud-stat-colour, var(--sillynpc-accent));
-}
+
+
 /* Unskewed, or the number leans with its meter and stops being readable. */
-.sillynpc-hud-fan .sillynpc-hud-bar-text { transform: skewX(26deg); }
-.sillynpc-hud-fan .sillynpc-hud-stat-row:nth-child(2) .sillynpc-hud-bar-wrap { width: 84%; }
-.sillynpc-hud-fan .sillynpc-hud-stat-row:nth-child(3) .sillynpc-hud-bar-wrap { width: 70%; }
-.sillynpc-hud-fan .sillynpc-hud-stat-row:nth-child(4) .sillynpc-hud-bar-wrap { width: 56%; }
-.sillynpc-hud-fan .sillynpc-hud-stat-row:nth-child(n+5) .sillynpc-hud-bar-wrap { width: 42%; }
+
 
 /* ─── Corner Brackets ───────────────────────────────────────────────────────
    Four marks and the content. The lightest thing here over a plain chat, and the first to
    struggle over a background image - which is the trade, not a fault. */
-.sillynpc-hud-container.sillynpc-hud-brackets {
-    position: fixed;
-    padding: var(--sillynpc-space-sm) var(--sillynpc-space-md);
-}
-.sillynpc-hud-brackets::before,
-.sillynpc-hud-brackets::after {
-    content: '';
-    position: absolute;
-    width: 1em;
-    height: 1em;
-    border: 2px solid var(--sillynpc-accent);
-    opacity: 0.85;
-}
-.sillynpc-hud-brackets::before { top: 0; left: 0; border-right: 0; border-bottom: 0; }
-.sillynpc-hud-brackets::after { bottom: 0; right: 0; border-left: 0; border-top: 0; }
-.sillynpc-hud-brackets .sillynpc-hud-stats { gap: 4px; }
-.sillynpc-hud-brackets .sillynpc-hud-bar-wrap {
-    height: calc(var(--sillynpc-hud-meter-height, 14px) * 0.45);
-    border: 0;
-    border-radius: 0;
-    background: color-mix(in srgb, var(--sillynpc-fg-primary) 20%, transparent);
-}
+
+
 /* Beside the rail, not above it. The rail is too thin to hold a number, so the number
    goes next to it - and the rail gives up the width to make room. Anchoring it to the
    row's top edge put every number over the row above instead. */
-.sillynpc-hud-brackets .sillynpc-hud-stat-row { position: relative; }
-.sillynpc-hud-brackets .sillynpc-hud-bar-wrap {
-    position: static;
-    width: calc(var(--sillynpc-hud-meter-width, 92px) - 3.4em);
-}
-.sillynpc-hud-brackets .sillynpc-hud-bar-text {
-    position: absolute;
-    inset: 0 0 0 auto;
-    width: auto;
-    justify-content: flex-end;
-    font-size: var(--sillynpc-text-xs);
-}
+
 
 /* ─── Underlines ────────────────────────────────────────────────────────────
    Typography rather than a widget: the stat is a word and the meter is the rule beneath
    it. The only layout where the names are always readable. */
-.sillynpc-hud-container.sillynpc-hud-underline { gap: var(--sillynpc-space-md); }
-.sillynpc-hud-underline .sillynpc-hud-stats { gap: 7px; min-width: 0; }
-.sillynpc-hud-underline .sillynpc-hud-stat-row {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: var(--sillynpc-hud-meter-width, 92px);
-}
-.sillynpc-hud-underline .sillynpc-hud-stat-name {
-    display: block;
-    font-size: var(--sillynpc-text-xs);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.85;
-}
-.sillynpc-hud-underline .sillynpc-hud-bar-wrap {
-    position: static;
-    width: 100%;
-    height: 2px;
-    border: 0;
-    border-radius: 0;
-    background: color-mix(in srgb, var(--sillynpc-fg-primary) 20%, transparent);
-}
-.sillynpc-hud-underline .sillynpc-hud-bar-text {
-    position: absolute;
-    inset: 0 0 auto auto;
-    width: auto;
-    height: auto;
-    font-size: var(--sillynpc-text-xs);
-}
+
 
 /* ─── Pip Rows ──────────────────────────────────────────────────────────────
    Notches rather than a fill, so a change of two points is a whole cell instead of a
    pixel. The cells divide the meter width, so the slider still means something. */
-.sillynpc-hud-container.sillynpc-hud-pips { gap: var(--sillynpc-space-sm); }
-.sillynpc-hud-pips .sillynpc-hud-stats { gap: 4px; }
+
+
 /* No border. A 1px border on each of ten cells is two pixels of every cell spent on
    something invisible, and it is what made the columns look unequal: the cells share out
    the leftover width and the borders push that share into fractions, which the browser
    then paints a pixel apart. Wider meters hid it because the fraction got smaller.
    flex-basis 0 divides the whole width rather than what is left after the content. */
-.sillynpc-hud-pips .sillynpc-hud-segment {
-    flex: 1 1 0;
-    min-width: 0;
-    border: 0;
-    border-radius: 1px;
-    background: color-mix(in srgb, var(--sillynpc-fg-primary) 16%, transparent);
-}
+
 /* Painted in JS, so this only has to add the glow the lit ones carry. */
-.sillynpc-hud-pips .sillynpc-hud-segment[style*="background"] {
-    box-shadow: 0 0 0.4em -0.1em var(--sillynpc-hud-stat-colour, var(--sillynpc-accent));
-}
-.sillynpc-hud-pips .sillynpc-hud-bar-text {
-    position: static;
-    width: auto;
-    height: auto;
-    margin-left: 0.4em;
-    font-size: var(--sillynpc-text-xs);
-}
-.sillynpc-hud-pips .sillynpc-hud-stat-row { display: flex; align-items: center; }
+
 
 /* ─── Split Ring ────────────────────────────────────────────────────────────
    One ring divided into a segment per stat. The panel matches the portrait's shape so it
    reads as a backing plate rather than a stray box behind a circle. Geometry - the
    padding against the ring overhang - is in the .meter-ring rules above. */
-.sillynpc-hud-container.sillynpc-hud-splitring {
-    border-radius: 50%;
-}
-.sillynpc-hud-container.sillynpc-hud-splitring.portrait-square {
-    border-radius: 0;
-}
-.sillynpc-hud-splitring .sillynpc-hud-stats { min-width: 0; }
+
 
 /* ─── Edge Dock ─────────────────────────────────────────────────────────────
    Docked against the side of the screen with its outer half cut away. Takes the least
    room of any of them, and only makes sense against an edge - which the corner setting
    already guarantees. */
-.sillynpc-hud-container.sillynpc-hud-dock {
-    gap: var(--sillynpc-space-sm);
-    /* The right-hand form is the base because the default corner is the top right. */
-    flex-direction: row-reverse;
-    padding: var(--sillynpc-space-xs) 0 var(--sillynpc-space-xs) var(--sillynpc-space-md);
-    border-right: 0;
-    border-radius: 2em 0 0 2em;
-}
-.sillynpc-hud-dock .sillynpc-hud-portrait {
-    margin-right: calc(var(--sillynpc-hud-portrait-size, 60px) / -2.4);
-    box-shadow: 0 0 0 2px var(--sillynpc-bg-primary);
-}
-.sillynpc-hud-dock .sillynpc-hud-stats { gap: 3px; }
-.sillynpc-hud-dock .sillynpc-hud-bar-wrap {
-    height: calc(var(--sillynpc-hud-meter-height, 14px) * 0.7);
-    border-radius: 1em 0 0 1em;
-    border-right: 0;
-}
+
 
 /* Which way the dock faces is the corner's decision, not the Portrait Side setting's. The
    portrait hugs the screen edge and the panel is cut on that same side, so a dock whose
    portrait points inland is just a lozenge. This layout therefore overrides Portrait Side;
    the setting still applies to the other seven. */
-.sillynpc-hud-container.sillynpc-hud-dock.top-left,
-.sillynpc-hud-container.sillynpc-hud-dock.bottom-left {
-    flex-direction: row;
-    padding: var(--sillynpc-space-xs) var(--sillynpc-space-md) var(--sillynpc-space-xs) 0;
-    border-left: 0;
-    border-right: 1px solid var(--sillynpc-border);
-    border-radius: 0 2em 2em 0;
-}
-.sillynpc-hud-container.sillynpc-hud-dock.top-left .sillynpc-hud-portrait,
-.sillynpc-hud-container.sillynpc-hud-dock.bottom-left .sillynpc-hud-portrait {
-    margin-left: calc(var(--sillynpc-hud-portrait-size, 60px) / -2.4);
-    margin-right: 0;
-}
-.sillynpc-hud-container.sillynpc-hud-dock.top-left .sillynpc-hud-bar-wrap,
-.sillynpc-hud-container.sillynpc-hud-dock.bottom-left .sillynpc-hud-bar-wrap {
-    border-radius: 0 1em 1em 0;
-    border-left: 0;
-    border-right: 1px solid var(--sillynpc-border);
-}
+
 
 /* An explicit Portrait Side wins over the corner. Making the corner decide outright was
    meant to stop a dock pointing inland, but it also made the Left/Right setting do nothing
    at all on this layout - a control that silently ignores you is worse than one that lets
    you make it look wrong. The corner is still the default, on "Follow the corner". */
-.sillynpc-hud-container.sillynpc-hud-dock.portrait-left {
-    flex-direction: row;
-    padding: var(--sillynpc-space-xs) var(--sillynpc-space-md) var(--sillynpc-space-xs) 0;
-    border-left: 0;
-    border-right: 1px solid var(--sillynpc-border);
-    border-radius: 0 2em 2em 0;
-}
-.sillynpc-hud-container.sillynpc-hud-dock.portrait-left .sillynpc-hud-portrait {
-    margin-left: calc(var(--sillynpc-hud-portrait-size, 60px) / -2.4);
-    margin-right: 0;
-}
-.sillynpc-hud-container.sillynpc-hud-dock.portrait-left .sillynpc-hud-bar-wrap {
-    border-radius: 0 1em 1em 0;
-    border-left: 0;
-    border-right: 1px solid var(--sillynpc-border);
-}
 
-.sillynpc-hud-container.sillynpc-hud-dock.portrait-right {
-    flex-direction: row-reverse;
-    padding: var(--sillynpc-space-xs) 0 var(--sillynpc-space-xs) var(--sillynpc-space-md);
-    border-right: 0;
-    border-left: 1px solid var(--sillynpc-border);
-    border-radius: 2em 0 0 2em;
-}
-.sillynpc-hud-container.sillynpc-hud-dock.portrait-right .sillynpc-hud-portrait {
-    margin-right: calc(var(--sillynpc-hud-portrait-size, 60px) / -2.4);
-    margin-left: 0;
-}
-.sillynpc-hud-container.sillynpc-hud-dock.portrait-right .sillynpc-hud-bar-wrap {
-    border-radius: 1em 0 0 1em;
-    border-right: 0;
-    border-left: 1px solid var(--sillynpc-border);
-}
 
 /* Icon-and-label buttons. SillyTavern styles .menu_button as a flex container, which turns
    the space in `<i></i> Back` into an anonymous flex item and then discards it - so the
@@ -4651,7 +4264,7 @@ textarea.sillynpc-profile-input {
 .sillynpc-pool-group { grid-column: 1 / -1; font-weight: bold; opacity: 0.8; margin-top: 8px; border-bottom: 1px solid var(--SmartThemeBorderColor, #444); }
 .sillynpc-pool-gender { margin-top: 4px; width: 100%; }
 .sillynpc-is-body summary { cursor: pointer; font-weight: bold; padding: 2px 0; }
-.sillynpc-is-body > details > summary { color: var(--SmartThemeQuoteColor, inherit); }
+.sillynpc-is-body > details > summary { color: var(--sillynpc-accent, inherit); }
 .sillynpc-is-body details details { margin-left: 10px; border-left: 2px solid var(--SmartThemeBorderColor, #555); padding-left: 8px; }
 .sillynpc-is-body b { color: var(--SmartThemeEmColor, inherit); }
 
@@ -4675,14 +4288,14 @@ textarea.sillynpc-profile-input {
 .sillynpc-switch input { opacity: 0; width: 0; height: 0; }
 .sillynpc-switch-slider { position: absolute; inset: 0; border-radius: 24px; background: rgba(127, 127, 127, .5); transition: .2s; cursor: pointer; }
 .sillynpc-switch-slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; }
-.sillynpc-switch input:checked + .sillynpc-switch-slider { background: var(--SmartThemeQuoteColor, #4c9); }
+.sillynpc-switch input:checked + .sillynpc-switch-slider { background: var(--sillynpc-accent, #4c9); }
 .sillynpc-switch input:checked + .sillynpc-switch-slider::before { transform: translateX(18px); }
 
 /* ---- Fork additions: tabs inside the Modules tab ---- */
 .sillynpc-subtabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--SmartThemeBorderColor, #444); margin: 4px 0 12px; }
 .sillynpc-subtab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 14px; cursor: pointer; color: inherit; opacity: .7; font: inherit; }
 .sillynpc-subtab:hover { opacity: 1; }
-.sillynpc-subtab.active { opacity: 1; border-bottom-color: var(--SmartThemeQuoteColor, #4c9); font-weight: bold; }
+.sillynpc-subtab.active { opacity: 1; border-bottom-color: var(--sillynpc-accent, #4c9); font-weight: bold; }
 .sillynpc-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .sillynpc-subpane > .notes:first-child { margin-top: 0; }
 .sillynpc-module-panel { margin: 0 !important; padding: 0 !important; }
@@ -4701,7 +4314,7 @@ textarea.sillynpc-profile-input {
 }
 
 .sillynpc-combat-section .sillynpc-combat-tabs .is-active {
-    outline: 1px solid var(--SmartThemeQuoteColor, currentColor);
+    outline: 1px solid var(--sillynpc-accent, currentColor);
 }
 
 .sillynpc-combat-section .sillynpc-combat-meta,
@@ -4763,7 +4376,7 @@ textarea.sillynpc-profile-input {
     flex-wrap: wrap;
     margin: 6px 0;
     padding: 6px 10px;
-    border-left: 3px solid var(--SmartThemeQuoteColor, #888);
+    border-left: 3px solid var(--sillynpc-accent, #888);
 }
 .sillynpc-is-body { line-height: 1.4; overflow-wrap: anywhere; }
 /* ---- Weapons, tiers and tools (combat gear): the sheet block and the Armoury ---- */
@@ -4849,7 +4462,7 @@ textarea.sillynpc-profile-input {
 .snpc-vit-health .snpc-vit-fill { background: #5aa469; }
 .snpc-vit-hunger .snpc-vit-fill { background: #d08a3a; }
 .snpc-vit-mood .snpc-vit-fill { background: #8d7ac4; }
-.snpc-vit-energy .snpc-vit-fill { background: #5b8fd6; }
+.snpc-vit-energy .snpc-vit-fill { background: var(--wk-gold, #d9b45a); }
 .snpc-vit-reset { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
 .snpc-vit-people { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
 .snpc-vit-person { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -5471,3 +5084,13 @@ textarea.sillynpc-profile-input {
 .sillynpc-cat-section > .sillynpc-fx-banner { min-height: 64px; max-height: 110px; margin: 0 0 10px; }
 .sillynpc-cat-section > .sillynpc-fx-banner .sillynpc-fx-banner-label { display: none; }
 .sillynpc-cat-section .sillynpc-category-heading.sillynpc-fx { margin-top: 0; }
+
+/* Faction themes grouped by world. */
+.sillynpc-fx-world { margin: 8px 0; border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 4px 10px; }
+.sillynpc-fx-world > summary { cursor: pointer; font-weight: bold; padding: 6px 0; }
+.sillynpc-fx-world .sillynpc-fx-faction { margin: 6px 0; }
+.sillynpc-fx-world .sillynpc-fx-faction > .menu_button { margin-top: 8px; margin-right: 6px; }
+
+/* Dialogue text and its gradient, grouped. */
+.sillynpc-color-group { border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 6px 10px 10px; margin: 8px 0; }
+.sillynpc-color-group > legend { padding: 0 6px; font-weight: bold; font-size: 0.9em; width: auto; }

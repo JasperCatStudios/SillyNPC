@@ -64,6 +64,11 @@ export async function serialiseCharacter(char) {
     return {
         name: String(char.name || ''),
         color: String(char.color || ''),
+        colorText: String(char.colorText || ''),
+        colorBorder: String(char.colorBorder || ''),
+        colorBg: String(char.colorBg || ''),
+        colorText2: String(char.colorText2 || ''),
+        colorGradient: Boolean(char.colorGradient),
         category: String(char.category || ''),
         imageFit: String(char.imageFit || ''),
         aliases: Array.isArray(char.aliases) ? structuredClone(char.aliases) : [],
@@ -159,6 +164,11 @@ function freeName(wanted) {
 function applyRecord(char, record, name) {
     char.name = name;
     char.color = String(record.color || char.color || '');
+    char.colorText = String(record.colorText || '');
+    char.colorBorder = String(record.colorBorder || '');
+    char.colorBg = String(record.colorBg || '');
+    char.colorText2 = String(record.colorText2 || '');
+    char.colorGradient = Boolean(record.colorGradient);
     char.imageFit = String(record.imageFit || '');
     char.imagePrompt = String(record.imagePrompt || '');
     char.imageNegative = String(record.imageNegative || '');

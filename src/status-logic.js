@@ -3970,12 +3970,7 @@ export function applySystemPreset(profile) {
     // The theme was called displayStyle and lived in config; it is menuStyle at the root
     // now, and carried like anything else. Old profiles still name the old one.
     if (cfg.displayStyle !== undefined) {
-        const legacyThemeMap = {
-            'modern': 'modern-dark',
-            'minimal': 'default',
-            'compact': 'default'
-        };
-        settings.menuStyle = legacyThemeMap[cfg.displayStyle] || cfg.displayStyle;
+        settings.menuStyle = 'default';   // one look now; an old profile's theme is ignored
     }
 
     // Absent on any profile saved before systems carried a world, and on a profile

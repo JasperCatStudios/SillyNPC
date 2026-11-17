@@ -109,24 +109,6 @@ export function renderCharacterExtras(char, container, options = {}) {
     }
 
     if (!wantVoice) return;
-    // --- Phone theme -----------------------------------------------------------------
-    const skinRow = document.createElement('div');
-    skinRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
-    const skinSelect = document.createElement('select');
-    skinSelect.className = 'text_pole';
-    skinSelect.style.cssText = 'width:auto; min-width:14em;';
-    for (const [value, text] of [['', 'Phone default'], ['cute', 'Cute'], ['goth', 'Gothic'], ['lace', 'Lace'], ['modern', 'Classic']]) {
-        skinSelect.append(new Option(text, value));
-    }
-    skinSelect.value = char.phoneSkin || '';
-    skinSelect.addEventListener('change', () => {
-        char.phoneSkin = skinSelect.value;
-        saveSettings();
-        eventSource.emit('sillynpc-phone-refresh');
-    });
-    skinRow.append(label('Phone theme'), skinSelect);
-    container.append(skinRow, note('This contact’s thread on the phone uses this skin, tinted with their accent colour. Applies when the phone is in one of its phone skins.'));
-
     // --- Voice -----------------------------------------------------------------------
     container.append(buildVoicePicker({
         label: 'Voice',
@@ -311,13 +293,6 @@ export function renderInternalStatesSettings(container, rerender) {
         label: 'Earlier Messages Read',
         suffix: 'messages',
         help: 'How many messages before the new one the writer is shown, besides the previous state.',
-    }));
-    container.append(buildSettingToggle({
-        key: 'internalStatesApplyRegex',
-        label: "Apply The Preset's Regexes",
-        help: 'Runs your regex scripts that are set to Markdown-only over the block before showing it, '
-            + 'so the preset’s colours and layout apply. Stripping scripts are never run on it.',
-        onChange: redraw,
     }));
     container.append(buildSettingToggle({
         key: 'internalStatesInject',

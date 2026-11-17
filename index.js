@@ -25,7 +25,6 @@ import { tryAutoSyncLorebook, syncLorebookScope, repairEntryIdentities } from '.
 import { initStatusLogic, hasOpenChat, setSwipeBaseAligner } from './src/status-logic.js';
 import { rebaseToSwipe, revertToBase, alignSwipeBaseToNow } from './src/status-snapshots.js';
 import { extractStateFromMessage, resetExtractionState, tidyThreadsOnLoad, forgetExtractionsFrom } from './src/status-extractor.js';
-import { initHUD, updateHUD, forgetPortrait } from './src/ui-hud.js';
 import { openPlayerModal } from './src/ui-player-modal.js';
 import { Popup, POPUP_TYPE, POPUP_RESULT } from '../../../popup.js';
 import { refreshScanButton } from './src/ui-scan-button.js';
@@ -414,11 +413,6 @@ jQuery(async () => {
         // logged and tried again next time.
         repairDefaultImages().catch(err => console.warn(LOG_PREFIX, 'Portrait repair failed', err));
         initStatusLogic();
-        try {
-            initHUD();
-        } catch (hudErr) {
-            console.error(LOG_PREFIX, 'initHUD failed', hudErr);
-        }
         setReprocessCallback(reprocessAllMessages);
         /* A correction made by hand has to survive a swipe. Registered rather than
            imported: the aligner lives in status-snapshots, which already imports
@@ -481,27 +475,6 @@ jQuery(async () => {
            Written again here, which puts them back at the foot of the new list.
            Nothing happens for a block that is not managed there. */
         eventSource.on(event_types.OAI_PRESET_CHANGED_AFTER, () => {
-            /* Redrawn first, and in a try of its own.
-             *
-             * Reported as the HUD's portrait disappearing on a preset change and staying
-             * gone until the page was reloaded. Nothing else asks the HUD to draw again -
-             * none of the events that do, a message or a chat change or a settings
-             * control, fires when a preset is swapped - so whatever leaves the picture
-             * unusable, the recovery inside updateHUD never gets a turn.
-             *
-             * It was added below the two calls that follow, which was the mistake: the
-             * catch around them exists because they are expected to fail sometimes, and
-             * putting the redraw behind them let a failure in the prompt work silently
-             * take the HUD with it. Two unrelated jobs, two failure paths. */
-            try {
-                // Rebuilt rather than merely redrawn - see forgetPortrait for which of the
-                // remaining explanations that covers, and which it does not.
-                forgetPortrait();
-                updateHUD();
-            } catch (err) {
-                debugLog('Could not redraw the HUD after the preset change', err);
-            }
-
             try {
                 applyDialogueFormatPrompt();
                 applyNarratorRulesPrompt();
@@ -596,23 +569,12 @@ jQuery(async () => {
             repairEntryIdentities().catch(err =>
                 console.error(LOG_PREFIX, 'Naming lorebook entries failed', err));
         });
-        // The HUD has to re-evaluate on every chat switch: it hides when none is open.
-        eventSource.on(event_types.CHAT_CHANGED, () => updateHUD());
         eventSource.on(event_types.CHAT_CHANGED, () => {
             offerChatScope().catch(err => console.error(LOG_PREFIX, 'offerChatScope failed', err));
             syncLorebookScope().catch(err => console.error(LOG_PREFIX, 'syncLorebookScope failed', err));
         });
-        eventSource.on(event_types.PERSONA_CHANGED, () => {
-            try {
-                updateHUD();
-            } catch (err) {
-                console.error(LOG_PREFIX, 'PERSONA_CHANGED HUD update failed', err);
-            }
-        });
-
         eventSource.on(event_types.CHARACTER_EDITED, () => {
             try {
-                updateHUD();
                 reprocessAllMessages();
             } catch (err) {
                 console.error(LOG_PREFIX, 'CHARACTER_EDITED HUD update failed', err);
@@ -630,7 +592,6 @@ jQuery(async () => {
 
         eventSource.on('sillynpc-player-portrait-changed', () => {
             try {
-                updateHUD();
                 reprocessAllMessages();
             } catch (err) {
                 console.error(LOG_PREFIX, 'player portrait refresh failed', err);
@@ -639,7 +600,6 @@ jQuery(async () => {
 
         eventSource.on('sillynpc-status-updated', () => {
             try {
-                updateHUD();
                 // The tracker state moved, which changes the tracker boxes and nothing
                 // else. This called reprocessAllMessages(), so every extracted message -
                 // that is, every message - redrew the speaker decoration, the portraits

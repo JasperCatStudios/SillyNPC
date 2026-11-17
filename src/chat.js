@@ -23,7 +23,6 @@ export { charactersMentionedIn };
 // handle lives where they can reach it.
 import { triggerReprocess, setReprocessCallback } from './reprocess.js';
 export { triggerReprocess, setReprocessCallback };
-import { updateHUD } from './ui-hud.js';
 import { getTrackerView, setTrackerView, nextTrackerView } from './tracker-view.js';
 import { eventSource } from '../../../../events.js';
 import { messageBeats, MESSAGE_RENDERED_EVENT } from './beats.js';
@@ -677,7 +676,14 @@ export function createAvatarImg({ char, defaultImage, name, isLastMessage }) {
  */
 export function resolveSpeakerColor(charId, charName) {
     const char = charId ? findCharacter(charId) : null;
-    if (char?.color) return { color: char.color, charId: char.id };
+    if (char?.color) {
+        const hex = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v) : '');
+        return {
+            color: char.color, charId: char.id,
+            text: hex(char.colorText), border: hex(char.colorBorder), bg: hex(char.colorBg),
+            text2: hex(char.colorText2), gradient: Boolean(char.colorGradient),
+        };
+    }
 
     if (!getSettings().autoColorUnknownSpeakers || !charName) return null;
     return { color: paletteColorFor(charName), charId: null };
@@ -733,9 +739,11 @@ function decorateSpeechBlocks(container) {
         block.classList.remove(
             'sillynpc-speech-block', 
             'divider-subtle', 'divider-bold', 'divider-dashed', 'divider-none',
-            'color-text', 'color-background', 'color-border', 'color-gradient', 'color-all'
+            'color-text', 'color-background', 'color-border', 'color-gradient', 'color-all', 'sillynpc-gradient-text'
         );
-        block.style.removeProperty('--sillynpc-color');
+        for (const prop of ['--sillynpc-color', '--sillynpc-text-color', '--sillynpc-text-color-2', '--sillynpc-border-color', '--sillynpc-bg-color', '--sillynpc-bg-fade']) {
+            block.style.removeProperty(prop);
+        }
 
         block.classList.add('sillynpc-speech-block', `divider-${settings.dividerStyle || 'subtle'}`);
         block.classList.toggle('sillynpc-thought',
@@ -753,6 +761,16 @@ function decorateSpeechBlocks(container) {
             const colour = resolveSpeakerColor(matchedAvatar?.dataset.charId, named?.dataset.charName);
             if (colour) {
                 block.style.setProperty('--sillynpc-color', colour.color);
+                if (colour.text) block.style.setProperty('--sillynpc-text-color', colour.text);
+                if (colour.border) block.style.setProperty('--sillynpc-border-color', colour.border);
+                if (colour.bg) {
+                    block.style.setProperty('--sillynpc-bg-color', colour.bg);
+                    block.style.setProperty('--sillynpc-bg-fade', '65%');
+                }
+                if (colour.gradient) {
+                    block.style.setProperty('--sillynpc-text-color-2', colour.text2 || colour.color);
+                    block.classList.add('sillynpc-gradient-text');
+                }
                 if (colour.charId) block.setAttribute('data-sillynpc-char', colour.charId);
                 block.classList.add(`color-${settings.colorStyle || 'text'}`);
             }
@@ -981,7 +999,6 @@ function addRefreshButtonToMessage(mesEl) {
         // earlier state has its own control on the player sheet, so this is what its name
         // says instead: draw the tracker and the chat decorations again.
         reprocessAllMessages();
-        updateHUD();
         if (typeof toastr !== 'undefined') {
             toastr.info('Tracker and chat redrawn.', PRODUCT_NAME);
         }

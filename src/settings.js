@@ -176,8 +176,6 @@ export const defaultSettings = {
     internalStatesContextMessages: 2,
     /** Empty means the built-in instructions and template. */
     internalStatesPrompt: '',
-    /** Run the preset's display regexes over the block. */
-    internalStatesApplyRegex: true,
     /** Tell the story model the last known state, and not to write one. */
     internalStatesInject: true,
     internalStatesInjectDepth: 1,
@@ -989,6 +987,11 @@ export function normalizeSettings(settings) {
         if (char.imageUrl && !char.images.includes(char.imageUrl)) char.images.push(char.imageUrl);
         if (!('lorebook' in char)) char.lorebook = null;
         if (typeof char.color !== 'string') char.color = '';
+        // Optional extras on top of the main colour. Empty means "use the main colour".
+        for (const key of ['colorText', 'colorBorder', 'colorBg', 'colorText2']) {
+            if (typeof char[key] !== 'string') char[key] = '';
+        }
+        if (typeof char.colorGradient !== 'boolean') char.colorGradient = false;
         if (typeof char.category !== 'string') char.category = '';
         if (typeof char.imageFit !== 'string') char.imageFit = '';
         if (!char.statusOverrides || typeof char.statusOverrides !== 'object') char.statusOverrides = {};
@@ -998,7 +1001,6 @@ export function normalizeSettings(settings) {
         // Fork: the picture prompt for this character, and what to keep out of it.
         if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
         if (typeof char.imageNegative !== 'string') char.imageNegative = '';
-        if (typeof char.phoneSkin !== 'string') char.phoneSkin = '';
         if (typeof char.ttsVoice !== 'string') char.ttsVoice = '';
     }
 
@@ -1109,6 +1111,10 @@ export function normalizeSettings(settings) {
         delete settings.statusTracker.displayStyle;
         saveSettings();
     }
+
+    // One look: the dark Worldkit frame. The theme chooser is gone, so whatever an older
+    // save chose is put back to it.
+    settings.menuStyle = 'default';
 
     if (!settings.statusTracker) {
         settings.statusTracker = structuredClone(defaultSettings.statusTracker);

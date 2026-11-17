@@ -7,7 +7,6 @@ import { loadStateFromMetadata, saveStateToMetadata, syncPlayerToMaster, applyCh
 import { POPUP_TYPE, Popup } from '../../../../popup.js';
 import { eventSource } from '../../../../events.js';
 import { triggerReprocess } from './chat.js';
-import { updateHUD } from './ui-hud.js';
 import { escapeHtml } from './utils.js';
 import { cleanChatHistory, measureChatOverhead, estimateTokens } from './status-history.js';
 import { renderInternalStatesSettings } from './ui-character-extras.js';
@@ -53,14 +52,12 @@ export function renderStatusView(container) {
             if (scrollParent) scrollParent.scrollTop = top;
         });
         triggerReprocess();
-        updateHUD();
     };
 
     /** Saves and refreshes the chat, leaving the panel alone. Used by almost everything. */
     const onApply = () => {
         saveSettings();
         triggerReprocess();
-        updateHUD();
     };
 
     const section = (name) => {

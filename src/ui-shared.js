@@ -1,6 +1,5 @@
 import { getSettings, saveSettings, defaultSettings } from './settings.js';
 import { isStaticField, PRODUCT_NAME } from './constants.js';
-import { updateHUD } from './ui-hud.js';
 import {
     loadStateFromMetadata,
     findMatchingStatKey,
@@ -797,7 +796,6 @@ export function updateAllExtensionThemes() {
         });
 
     // Update the HUD
-    updateHUD();
 }
 
 /**

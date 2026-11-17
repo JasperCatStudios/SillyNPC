@@ -202,15 +202,10 @@ const defaults = {
 const SKINS = ['arc', 'cute', 'goth', 'lace', 'modern'];
 function isPhoneSkin() { return settings.skin && settings.skin !== 'arc'; }
 
-/* PER-CONTACT THEMES (fork). A contact may carry their own skin, chosen on their Worldkit
-   page, and their thread is tinted with their Worldkit accent colour. Only between the phone
-   skins: 'arc' is a different layout rather than a different look, so it stays global. */
+/* PER-CONTACT ACCENT (fork). A contact's thread is tinted with their Worldkit accent colour.
+   The skin itself is global: one phone theme, chosen in the phone settings. */
 function contactCard() { const n = currentContact(); return n ? characters.find(c => c.name === n) : null; }
-function effectiveSkin() {
-    if (!isPhoneSkin()) return settings.skin;
-    const own = contactCard()?.skin;
-    return own && SKINS.includes(own) && own !== 'arc' ? own : settings.skin;
-}
+function effectiveSkin() { return settings.skin; }
 function contactAccent() {
     const color = String(contactCard()?.color || '').trim();
     return settings.contactAccent !== false && /^#[0-9a-f]{6}$/i.test(color) ? color : '';
@@ -4525,12 +4520,8 @@ function renderContactEditor(row, name) {
     const rec = recordOf(name);
     if (!row) return;
     if (!rec) { row.innerHTML = '<div class="rph-hint">This contact has no Worldkit character.</div>'; return; }
-    const skins = [['', 'Phone default'], ['cute', 'Cute'], ['goth', 'Gothic'], ['lace', 'Lace'], ['modern', 'Classic']];
-    const option = (value, text, current) => `<option value="${escapeHtml(value)}"${String(value) === String(current) ? ' selected' : ''}>${escapeHtml(text)}</option>`;
     row.innerHTML = `
         <small class="rph-ed-note">${rec.lorebook?.world ? `Their lorebook entry ("${escapeHtml(rec.lorebook.world)}") is their profile.` : 'No lorebook entry yet. Link one on their Worldkit character page, in the Lorebook section.'}</small>
-        <label>Phone theme</label>
-        <select class="text_pole rph-ed-skin">${skins.map(([v, x]) => option(v, x, rec.phoneSkin || '')).join('')}</select>
         <label>Image prompt (photos and /sd)</label>
         <textarea class="text_pole rph-ed-img" rows="3" placeholder="1girl, silver hair, green eyes...">${escapeHtml(rec.imagePrompt || '')}</textarea>
         <textarea class="text_pole rph-ed-neg" rows="2" placeholder="Negative prompt (optional)">${escapeHtml(rec.imageNegative || '')}</textarea>`;
@@ -4538,10 +4529,6 @@ function renderContactEditor(row, name) {
     const refresh = () => { lastSig = ''; renderBubbles(); };
     $row.find('.rph-ed-img').on('change', function () { rec.imagePrompt = String(this.value); saveChars(); refresh(); });
     $row.find('.rph-ed-neg').on('change', function () { rec.imageNegative = String(this.value); saveChars(); });
-    $row.find('.rph-ed-skin').on('change', function () {
-        rec.phoneSkin = String(this.value); saveChars();
-        eventSource.emit('sillynpc-phone-refresh');
-    });
 }
 
 function chatManagerHtml(name) {

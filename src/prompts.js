@@ -1,4 +1,4 @@
-import { getSettings, defaultSettings, recommendedImagePrompt } from './settings.js';
+import { getSettings, defaultSettings } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
 import { SYSTEM_PROMPT, buildDialogueFormatPrompt, NARRATOR_RULES_PROMPT } from './constants.js';
 import { TIME_PERIODS } from './phone-image-requests.js';
@@ -59,30 +59,6 @@ export const PROMPTS = [
         available: () => getSettings().narratorRulesEnabled,
     },
     {
-        id: 'lore',
-        key: 'generationPrompt',
-        label: 'Lore Prompt Template',
-        home: 'Generation',
-        help: 'Macros: {{name}}, {{lore}} for the existing entry, {{facts}} for what the '
-            + 'tracker already records about them, {{context}} for recent chat, {{world}} '
-            + 'for what the Data Bank search found. '
-            + "SillyTavern's own macros work here too - {{user}}, {{char}}, {{persona}}, "
-            + '{{time}}, {{roll:d20}} and the rest. '
-            + '{{char}} is whoever the chat is with, which need not be the character being '
-            + 'written about - {{name}} is the subject. '
-            + 'The old [NAME] spelling still works and means the same thing.',
-        recommended: () => defaultSettings.generationPrompt,
-        budget: {
-            key: 'loreMaxTokens',
-            label: 'Lore Reply Budget',
-            suffix: 'tokens',
-            kind: 'number',
-            help: 'Maximum tokens the lore writer may reply with. The default prompt asks for six '
-                + 'sections, which 500 tokens could not hold. No ceiling - set it to whatever '
-                + 'your model and your patience allow.',
-        },
-    },
-    {
         id: 'extraction',
         key: 'statusTracker.extractionPrompt',
         label: 'Extraction Instructions',
@@ -120,46 +96,6 @@ export const PROMPTS = [
             + '{{time}}, {{roll:d20}} and the rest. ',
         recommended: () => defaultSettings.statusTracker.systemRules,
         available: () => getSettings().statusTracker.extractionMode !== 'extract',
-    },
-    {
-        id: 'image',
-        key: 'imgGenPrompt',
-        label: 'Image Prompt Template',
-        home: 'Generation',
-        help: 'Macros: {{name}}, {{lore}} for the entry text, {{items}} for what they '
-            + 'carry, {{context}} for recent chat. '
-            + "SillyTavern's own macros work here too - {{user}}, {{char}}, {{persona}}, "
-            + '{{time}}, {{roll:d20}} and the rest. '
-            + 'The old [NAME] spelling still works. '
-            + 'Leave empty to use the template that suits your backend - description for '
-            + 'Gemini, tags for Stable Diffusion.',
-        recommended: () => recommendedImagePrompt(),
-        emptyNote: "Your backend's own template is sent.",
-    },
-    {
-        id: 'imageReference',
-        key: 'imgGenReferencePreamble',
-        label: 'Reference Instruction',
-        home: 'Generation',
-        help: 'Sent only when you generate with a reference image, and always placed '
-            + 'BEFORE the template above - so write it pointing forward, at "the '
-            + 'description below". Wording that sends the model looking the other way is '
-            + 'a good way to get an answer in words instead of a picture, which is the '
-            + 'very thing this exists to prevent: without it the model sees a picture '
-            + 'beside a description of that picture and asks what you would like changed. '
-            + 'Clear it to send the template alone.',
-        recommended: () => defaultSettings.imgGenReferencePreamble,
-        available: () => getSettings().imageBackend === 'gemini',
-    },
-    {
-        id: 'imageNegative',
-        key: 'imgGenNegativePrompt',
-        label: 'Negative Prompt',
-        home: 'Generation',
-        help: 'What the image must not contain. Stable Diffusion only - Gemini takes '
-            + 'these as instructions in the prompt itself instead.',
-        recommended: () => defaultSettings.imgGenNegativePrompt,
-        available: () => getSettings().imageBackend !== 'gemini',
     },
     {
         id: 'phoneSelfie',
