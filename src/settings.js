@@ -92,6 +92,16 @@ export const defaultSettings = {
      */
     /** The connection profile Threads reads replies on. Empty is the main API. */
     threadsProfileId: '',
+    /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
+    threadsEnabled: false,
+    /** How many open threads ride along with each reply (the highest scoring first). */
+    threadsInjectedMax: 8,
+    /** How many open threads are kept at all; past this the lowest scoring is deleted. Pinned ones do not count. */
+    threadsOpenMax: 20,
+    /** How many settled threads stay as a record. Oldest deleted past this. */
+    threadsClosedKeep: 10,
+    /** Messages until a thread is worth half its kind's weight. */
+    threadsHalfLife: 60,
     /** Tokens the Threads reader may reply with. Thinking models spend part of it on reasoning. */
     threadsMaxTokens: 4000,
     banListEnabled: false,
@@ -470,7 +480,7 @@ export const defaultSettings = {
      */
     categoryRenames: {},
     statusTracker: {
-        enabled: true,
+        enabled: false,
         showOnlyAtBottom: false,
         globalStats: [
             { name: 'Location', defaultValue: 'Unknown', format: '<b>{{name}}:</b> {{value}}', visible: true },
@@ -650,40 +660,6 @@ export const defaultSettings = {
          * can lose JSON quality when asked for prose alongside it.
          */
         extractionReasons: true,
-        /**
-         * Things said and done that are not finished with: promises, threats, debts,
-         * secrets, deadlines, plans.
-         *
-         * Off by default. It adds to the extraction prompt on every message, and a reader
-         * that over-reports turns eight useful lines into fifty - so it is opt-in until
-         * you have looked at what it catches on your own chat.
-         */
-        threadsEnabled: false,
-        /**
-         * How many open threads ride along in the scene block - the "active" ones.
-         *
-         * Highest scoring rather than oldest: see threadScore in threads.js for why
-         * ordering by age alone picked badly at both ends of the list.
-         */
-        threadsInjectedMax: 8,
-        /**
-         * How many open threads are kept at all. Past this the lowest scoring is deleted.
-         *
-         * The reason there is a cap: nothing ever removed a thread, so a long chat reached
-         * eighty of them. Only the active handful were ever sent to the story, but every
-         * one of them was pasted into the extraction prompt on every message, so the pile
-         * cost more the bigger it got. Pinned threads do not count against this.
-         */
-        threadsOpenMax: 20,
-        /** How many settled threads stay as a record. Oldest deleted past this. */
-        threadsClosedKeep: 10,
-        /**
-         * Messages until a thread is worth half its kind's weight.
-         *
-         * Ageing is in messages, not time: a story left for a week and picked up where it
-         * stopped has not moved on, and one played hard for an hour has.
-         */
-        threadsHalfLife: 60,
         /**
          * Remove the tracker's own status block from a message once it has been read.
          *
@@ -1266,6 +1242,20 @@ export function normalizeSettings(settings) {
             }
         }
     }
+
+    // The Threads settings used to live inside statusTracker. They are their own settings now; the old values are
+    // copied over once and the old keys left where they are.
+    if (settings.statusTracker && !settings.threadsMoved) {
+        for (const key of ['threadsEnabled', 'threadsInjectedMax', 'threadsOpenMax', 'threadsClosedKeep', 'threadsHalfLife']) {
+            if (settings.statusTracker[key] !== undefined) settings[key] = settings.statusTracker[key];
+        }
+        settings.threadsMoved = true;
+    }
+
+    // The original SillyNPC default tracker (stat extraction on every message, the status box in the chat, its
+    // prompt injection) is switched off for good: it has no settings page any more. Its saved data is left alone.
+    // Who is in the scene is still kept by speaker detection (castMode), which this switch does not touch.
+    if (settings.statusTracker) settings.statusTracker.enabled = false;
 
     if (!settings.personaData) {
         settings.personaData = {};

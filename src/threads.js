@@ -171,7 +171,7 @@ function positive(value, fallback) {
 
 /** The caps, in one place, so the UI and the pruning cannot disagree about them. */
 export function threadLimits() {
-    const settings = getSettings().statusTracker || {};
+    const settings = getSettings() || {};
     return {
         active: positive(settings.threadsInjectedMax, 8),
         openMax: positive(settings.threadsOpenMax, 20),
@@ -366,7 +366,7 @@ export function pruneThreads(state, now) {
  * @returns {string} Empty when there is nothing open, so the caller can leave it out.
  */
 export function describeThreads(state, now) {
-    const settings = getSettings().statusTracker;
+    const settings = getSettings();
     /* Off unless explicitly on, which is what the other six checks say - status-extractor
        in four places, history-scan and ui-threads. This one read it the other way round.
        They agree today because the key is always present in the defaults, and diverge for

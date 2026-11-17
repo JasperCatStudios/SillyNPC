@@ -26,7 +26,7 @@ import { buildPortraitBlock } from './ui-portrait.js';
 import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section.js';
 import { renderCombatSection } from './ui-combat-section.js';
 import { renderProfileView } from './ui-profile.js';
-import { renderCharacterExtras } from './ui-character-extras.js';
+import { renderCharacterExtras, renderInternalStatesSettings } from './ui-character-extras.js';
 import { renderThreadsView } from './ui-threads.js';
 import { renderAppearanceView, renderWritingRulesView, renderAdvancedView } from './ui-settings-tabs.js';
 import { renderPromptsView } from './ui-prompts.js';
@@ -34,7 +34,6 @@ import { renderConnectionsView } from './connections.js';
 import { renderBondsView } from './ui-bonds.js';
 import { renderVitalsView } from './ui-vitals.js';
 import { renderVectorsView } from './ui-vectors.js';
-import { renderStatusView } from './ui-tracker-settings.js';
 import { applyFactionTheme, buildFactionBanner, factionPalette, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
 import { renderModulesView } from './ui-modules.js';
@@ -312,10 +311,11 @@ function settingsTabs() {
           render: v => renderWritingRulesView(v, reprocessAllMessages) },
         { id: 'threads', label: 'Threads', container: 'sillynpc-threads-view',
           render: v => renderThreadsView(v) },
-        { id: 'status', label: 'Tracker', container: 'sillynpc-status-view',
+        { id: 'status', label: 'Trackers', container: 'sillynpc-status-view',
           render: v => renderTrackerView(v),
           // The search reads these too: they are views of this page.
           extras: [
+              { sub: 'Internal States', hint: 'What the characters think and feel.', render: v => renderInternalStatesSettings(v, () => {}) },
               { sub: 'Bonds', hint: 'How the people in the story feel about you.', render: v => renderBondsView(v) },
               { sub: 'Vitals', hint: 'Health, hunger, energy and mood.', render: v => renderVitalsView(v) },
           ] },
@@ -336,12 +336,12 @@ function settingsTabs() {
     ];
 }
 
-/** Which view of the Tracker tab is showing. */
-let trackerView = 'tracker';
+/** Which view of the Trackers tab is showing. */
+let trackerView = 'internal';
 
 /**
- * The Tracker tab: the tracker settings, and Bonds as a second view beside them
- * (same pattern as Systems).
+ * The Trackers tab: Internal States, Bonds and Vitals as three views of one page (same pattern as
+ * Systems). The original SillyNPC default tracker has no view here any more.
  *
  * @param {HTMLElement} view
  */
@@ -351,7 +351,7 @@ function renderTrackerView(view) {
     const tabs = document.createElement('div');
     tabs.className = 'sillynpc-charview-tabs';
     for (const [id, label, hint] of [
-        ['tracker', 'Tracker', 'Internal states, display and the rest of the tracker settings.'],
+        ['internal', 'Internal States', 'What the characters think and feel, written under each reply.'],
         ['bonds', 'Bonds', 'How the people in the story feel about you.'],
         ['vitals', 'Vitals', 'Health, hunger, energy and mood. On or off.'],
     ]) {
@@ -375,7 +375,7 @@ function renderTrackerView(view) {
     try {
         if (trackerView === 'bonds') renderBondsView(body);
         else if (trackerView === 'vitals') renderVitalsView(body);
-        else renderStatusView(body);
+        else renderInternalStatesSettings(body, () => renderTrackerView(view));
     } catch (e) {
         console.error(LOG_PREFIX, `Tracker ${trackerView} view failed`, e);
     }

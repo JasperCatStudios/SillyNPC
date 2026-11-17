@@ -24,7 +24,7 @@ import {
  * SillyTavern side: the chat's store, the request after each reply, swipes and deletes, and the
  * injection.
  *
- * Off by default (statusTracker.threadsEnabled, kept under its old name so nobody's choice moves).
+ * Off by default (the threadsEnabled setting; an old save's choice was copied over from statusTracker).
  */
 
 const META_KEY = 'sillynpc_threads';
@@ -34,7 +34,7 @@ export const THREADS_CHANGED_EVENT = 'sillynpc-threads-changed';
 const MAX_TURNS = 60;
 
 export function threadsEnabled() {
-    return getSettings().statusTracker?.threadsEnabled === true;
+    return getSettings().threadsEnabled === true;
 }
 
 function playerName() {
@@ -308,10 +308,9 @@ const SCAN_SYSTEM_PROMPT = [
 
 /** The recent chat cut into pieces that each fit one request, oldest piece first. */
 function historyChunks() {
-    const st = getSettings().statusTracker || {};
     const chat = getContext()?.chat || [];
-    const depth = Number(st.scanDepth ?? 50);
-    const budget = Math.max(1000, Number(st.scanCharBudget ?? 60000));
+    const depth = 50;          // the most recent messages the catch-up scan reads
+    const budget = 60000;      // characters per request
     const wanted = depth > 0 ? chat.slice(-depth) : chat.slice();
     const chunks = [];
     let parts = [];

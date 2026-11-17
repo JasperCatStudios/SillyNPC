@@ -363,14 +363,14 @@ export function renderThreadsView(container) {
     container.append(cost);
 
     container.append(buildSettingToggle({
-        key: 'statusTracker.threadsEnabled',
+        key: 'threadsEnabled',
         label: 'Track What Is Not Finished With',
         help: 'Asks the reader, on every message, whether anything in it opened one of the '
             + 'six above - and whether anything closed one.',
         onChange: () => renderThreadsView(container),
     }));
 
-    if (!getSettings().statusTracker.threadsEnabled) return;
+    if (!getSettings().threadsEnabled) return;
 
     container.append(buildSettingNumber({
         key: 'threadsMaxTokens',
@@ -382,7 +382,7 @@ export function renderThreadsView(container) {
     }));
 
     container.append(buildSettingNumber({
-        key: 'statusTracker.threadsInjectedMax',
+        key: 'threadsInjectedMax',
         advanced: true,
         label: 'How Many Ride Along',
         suffix: 'threads',
@@ -394,7 +394,7 @@ export function renderThreadsView(container) {
     }));
 
     container.append(buildSettingNumber({
-        key: 'statusTracker.threadsOpenMax',
+        key: 'threadsOpenMax',
         advanced: true,
         label: 'How Many Are Kept',
         suffix: 'open threads',
@@ -406,7 +406,7 @@ export function renderThreadsView(container) {
     }));
 
     container.append(buildSettingNumber({
-        key: 'statusTracker.threadsClosedKeep',
+        key: 'threadsClosedKeep',
         advanced: true,
         label: 'Settled Ones Kept',
         suffix: 'threads',
@@ -416,7 +416,7 @@ export function renderThreadsView(container) {
     }));
 
     container.append(buildSettingNumber({
-        key: 'statusTracker.threadsHalfLife',
+        key: 'threadsHalfLife',
         advanced: true,
         label: 'Goes Cold After',
         suffix: 'messages',
