@@ -41,9 +41,9 @@ const BASE = Object.freeze({ size: 100, bold: false, italic: false, case: 'none'
 
 /** The starting look of each delivery. Subtle on purpose; every value can be changed in Appearance. */
 export const DEFAULT_DELIVERY_STYLES = Object.freeze({
-    whisper: { ...BASE, size: 90, opacity: 72, spacing: 0.03 },
+    whisper: { ...BASE, size: 90, opacity: 72, spacing: 0.03, italic: true },
     shout: { ...BASE, size: 116, bold: true, case: 'upper' },
-    sigh: { ...BASE, size: 95, opacity: 68, effect: 'fade' },
+    sigh: { ...BASE, size: 95, opacity: 68, effect: 'fade', italic: true },
     laugh: { ...BASE, bold: true, size: 104 },
     cry: { ...BASE, size: 96, opacity: 82, effect: 'tremble' },
     excited: { ...BASE, size: 108, bold: true },
@@ -52,7 +52,7 @@ export const DEFAULT_DELIVERY_STYLES = Object.freeze({
     nervous: { ...BASE, size: 95, effect: 'tremble' },
     scared: { ...BASE, size: 92, opacity: 80, effect: 'tremble' },
     angry: { ...BASE, bold: true, size: 106 },
-    tired: { ...BASE, size: 92, opacity: 66, spacing: 0.05 },
+    tired: { ...BASE, size: 92, opacity: 66, spacing: 0.05, italic: true },
 });
 
 const clamp = (n, lo, hi, d) => (Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Number(n))) : d);

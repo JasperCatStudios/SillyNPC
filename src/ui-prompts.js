@@ -204,7 +204,7 @@ export function renderPromptsView(view, onApply) {
     const shown = availablePrompts();
     // The phone prompts are most of this page, so they sit in one collapsible group, closed by default.
     // The tracker prompts are grouped the same way.
-    const GROUPS = { Phone: 'Phone prompts', Trackers: 'Tracker prompts' };
+    const GROUPS = { Phone: 'Phone prompts', Trackers: 'Tracker prompts', TTS: 'TTS prompts' };
     const groups = {};
     for (const entry of shown) {
         const section = document.createElement('div');

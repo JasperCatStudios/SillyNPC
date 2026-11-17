@@ -92,7 +92,10 @@ export async function generateEleven(text, voiceId) {
         headers: getRequestHeaders(),
         body: JSON.stringify({ voiceId, request }),
     });
-    if (!response.ok) throw new Error(`ElevenLabs answered ${response.status}. The key may be missing or the voice id wrong (see the server console).`);
+    if (!response.ok) {
+        throw new Error(`ElevenLabs refused the request (model ${model}, HTTP ${response.status}). The SillyTavern console prints ElevenLabs' own reason. `
+            + 'Common causes: no key or a wrong voice id, or a plan that does not include this model; try Eleven v3 or Flash v2.5 to tell which.');
+    }
     return URL.createObjectURL(await response.blob());
 }
 

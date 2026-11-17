@@ -50,14 +50,13 @@ export const PROMPTS = [
     {
         id: 'deliveryTags',
         key: 'deliveryTagsPrompt',
-        label: 'Delivery Tags',
-        home: 'Settings',
+        label: 'Delivery Tags (sent to the story model)',
+        home: 'TTS',
         help: 'Sent with every message when Delivery Tags is on, telling the story model to mark how a line is said, '
             + 'like [whisper]"I know."[/whisper]. The tags are styled by Appearance and passed to voices that understand them. '
             + 'The built-in text lists the tags in the Delivery table.',
         recommended: () => buildDeliveryPrompt(getSettings().ttsToneTable, getSettings().deliveryMeanings),
-        emptyNote: 'The built-in instruction is sent.',
-        available: () => getSettings().deliveryTagsEnabled === true,
+        emptyNote: 'The built-in instruction is sent. It is only sent while Delivery Tags is switched on under Writing Rules.',
     },
     {
         id: 'systemRules',

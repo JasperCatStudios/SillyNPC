@@ -55,7 +55,7 @@ export function buildDeliveryPrompt(table, meanings) {
         `  [${names[0] || 'whisper'}]"I know."[/${names[0] || 'whisper'}]`,
         '- Available tags:',
         ...lines,
-        '- Use only these tags, one per line of speech, and only when the delivery really changes. Most lines need no tag.',
+        '- Use only these tags, one per line of speech. Ordinary speech needs no tag, but never skip one when a line is clearly whispered, shouted, laughed, cried or otherwise marked; if the scene or the line calls for it, tag it.',
         '- The tag goes around the quoted words of one speaker, inside that speaker\'s own paragraph. Never wrap narration, actions or several speakers.',
         '- Tags are plain text. Do not describe sounds or delivery in the tag, and never use colour, bold or italics to show delivery.',
     ].join('\n');
