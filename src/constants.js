@@ -326,6 +326,16 @@ export function buildDialogueFormatPrompt(open = DEFAULT_MARKER_OPEN, close = DE
 export const DIALOGUE_FORMAT_PROMPT = buildDialogueFormatPrompt();
 
 /**
+ * Whether a dialogue format prompt is the original upstream one, which asks for a bold name and a colon
+ * (`**Name**: "line"`) instead of the speaker tag. Such a prompt is replaced by the tag version, once, while
+ * speaker detection is on its default, so nobody is left asking for a layout the extension no longer reads.
+ */
+export function isLegacyDialoguePrompt(text) {
+    const t = String(text ?? '');
+    return /\*\*[^*\n]{1,40}\*\*\s*:/.test(t) && !/\u27e6|\[\[/.test(t);
+}
+
+/**
  * What a character *is*, as named fields rather than a paragraph.
  *
  * These four used to live inside the lore entry as prose, which meant the interface could

@@ -1,4 +1,5 @@
 import { queueResult, armResult } from '../../src/result-runtime.js';
+import { textFromRaw } from '../../src/raw-text.js';
 import { getContext, extension_settings } from '../../../../../extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '../../../../../../script.js';
 // Fork: the opponents are Worldkit's characters, not SillyTavern's cards.
@@ -330,7 +331,7 @@ async function callApi(messages, { maxTokens = 120 } = {}) {
             systemPrompt: system,
             responseLength: maxTokens,
         });
-        out = typeof raw === 'string' ? raw : (raw?.content ?? '');
+        out = textFromRaw(context, raw);
     }
     return String(out || '').trim();
 }

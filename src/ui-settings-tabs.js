@@ -4,6 +4,7 @@ import { promptListAvailable } from './prompt-slot.js';
 import { applyDialogueFormatPrompt } from './dialogue-format.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
+import { buildContextSaverControls } from './ui-context-savers.js';
 import { renderBanList } from './ui-banlist.js';
 import { promptById } from './prompts.js';
 import { world_names } from '../../../../world-info.js';
@@ -158,7 +159,7 @@ export function renderWritingRulesView(view, onReprocessMessages) {
         key: 'dialogueFormatEnabled',
         label: 'Ask The Model To Format Dialogue',
         help: 'Sends the Dialogue Format prompt with every message, asking for a speaker '
-            + 'line - a name in bold followed by a colon - which is what avatars, speech '
+            + 'line - the name in brackets before each line, like \u27e6Name\u27e7 "Hello." - which is what avatars, speech '
             + 'blocks and colours all read. Without it, whether your chat is decorated '
             + 'depends on your persona or preset happening to ask for the same thing, and '
             + 'switching either one silently stops all of it.',
@@ -317,6 +318,8 @@ export function renderAdvancedView(view, handlers = {}) {
             + 'removed - this shows them again, on every tab.',
         onChange: () => rerender(),
     }));
+
+    view.append(buildContextSaverControls());
 
     const sizeHeading = document.createElement('h3');
     sizeHeading.className = 'sillynpc-section-title';

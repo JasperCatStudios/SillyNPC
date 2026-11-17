@@ -11,6 +11,7 @@ import {
     DIALOGUE_FORMAT_PROMPT,
     DEFAULT_MARKER_OPEN,
     DEFAULT_MARKER_CLOSE,
+    isLegacyDialoguePrompt,
     buildDialogueFormatPrompt,
     IMAGE_PROMPT_BY_BACKEND
 } from './constants.js';
@@ -748,6 +749,13 @@ export function normalizeSettings(settings) {
             settings.speakerMarkerOpen || DEFAULT_MARKER_OPEN,
             settings.speakerMarkerClose || DEFAULT_MARKER_CLOSE);
         settings.mimoMigrated = 1;
+    }
+    // A prompt that still asks for the old bold-name-and-colon layout is replaced by the tag version while detection is
+    // on its default (the tag), so a first run never shows, or sends, a layout nothing reads any more.
+    if ((settings.speakerDetection ?? 'marker') === 'marker' && isLegacyDialoguePrompt(settings.dialogueFormatPrompt)) {
+        settings.dialogueFormatPrompt = buildDialogueFormatPrompt(
+            settings.speakerMarkerOpen || DEFAULT_MARKER_OPEN,
+            settings.speakerMarkerClose || DEFAULT_MARKER_CLOSE);
     }
 
     if (settings.imageBackend !== 'gemini') settings.imageBackend = 'sd';

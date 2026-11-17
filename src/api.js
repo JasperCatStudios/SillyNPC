@@ -1,5 +1,6 @@
 import { chat, getRequestHeaders } from '../../../../../script.js';
 import { getContext } from '../../../../st-context.js';
+import { textFromRaw } from './raw-text.js';
 import { loadWorldInfo, saveWorldInfo, createWorldInfoEntry } from '../../../../world-info.js';
 import { executeSlashCommandsOnChatInput } from '../../../../slash-commands.js';
 import { saveBase64AsFile } from '../../../../utils.js';
@@ -379,7 +380,7 @@ async function requestLore(prompt) {
         systemPrompt: LORE_SYSTEM_PROMPT,
         responseLength: maxTokens,
     });
-    const text = (typeof raw === 'string' ? raw : (raw?.content ?? '')) || '';
+    const text = textFromRaw(context, raw) || '';
     // Not awaited on purpose: counting asks the tokenizer, and a counter is not worth
     // making anyone wait for, nor worth failing a generation over.
     recordUsage('lore', { prompt: LORE_SYSTEM_PROMPT + prompt, reply: text });

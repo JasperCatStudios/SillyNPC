@@ -9,6 +9,7 @@ import { placeWritingPrompt } from './prompt-slot.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { getTrackerTheme } from './tracker-theme-setting.js';
+import { textFromRaw } from './raw-text.js';
 import { THEME_PLAIN, internalStatesTemplate, INTERNAL_STATES_LINE_BREAK_RULE } from './tracker-themes.js';
 
 /**
@@ -207,7 +208,7 @@ async function request(userPrompt) {
         }
     }
     const raw = await context.generateRawData({ prompt: userPrompt, systemPrompt: system, responseLength: maxTokens });
-    return typeof raw === 'string' ? raw : (raw?.content ?? '');
+    return textFromRaw(context, raw);
 }
 
 const inFlight = new Set();

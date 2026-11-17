@@ -1,5 +1,6 @@
 import { getContext } from '../../../../st-context.js';
 import { getSettings } from './settings.js';
+import { textFromRaw } from './raw-text.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 
 /**
@@ -153,5 +154,5 @@ export async function requestOnConnection(settingKey, system, user, maxTokens = 
         }
     }
     const raw = await context.generateRawData({ prompt: user, systemPrompt: system, responseLength: maxTokens });
-    return (typeof raw === 'string' ? raw : (raw?.content ?? '')) || '';
+    return textFromRaw(context, raw) || '';
 }
