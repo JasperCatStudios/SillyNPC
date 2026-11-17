@@ -5,7 +5,7 @@ import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../../../slash-comman
 import { SlashCommandParser } from '../../../../../slash-commands/SlashCommandParser.js';
 import { extension_settings, getContext } from '../../../../../extensions.js';
 // Fork: the phone's people are Worldkit's characters, not SillyTavern's cards.
-import { phoneCharacters as characters, isInChat, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
+import { phoneCharacters as characters, isInChat, factionOf, factionOrder, isUserName, sceneNames, messageInvolves, recordOf, save as saveChars, primeLore, sceneClock } from '../shim.js';
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
@@ -187,6 +187,7 @@ const defaults = {
     bridge: {},             // the phone in the story: normalized by normalizeBridge in loadSettings
     bridgeShown: {},        // thread id -> time of the last text already given to the story
     bridgeArmed: false,     // "on request" mode: the next reply carries the texts
+    rosterSort: 'faction',  // contacts list: 'faction' (by the Characters menu factions) or 'az'
     arrival: {},            // phone contacts enter the scene: normalized by normalizeArrival in loadSettings (separate from the texts)
     arrivalArmed: false,    // its "on request" mode: the next reply brings them
     threads: {},            // contactId -> [{who:'user'|'char', name, text, ts}]
@@ -2998,12 +2999,12 @@ function setBridgeArmed(on) {
     try { $('#rph-br-ask').text(settings.bridgeArmed ? t('br_cancel') : t('br_ask')); } catch (e) { /* drawer not open */ }
 }
 
-/** /phonetexts: ask for the texts on the next reply; "cancel" takes it back; "status" says where it stands. */
+/** /phone-send-texts: force the texts of your recent phone conversations into the next reply; "cancel" takes it back; "status" says where it stands. */
 function phoneTextsCommand(_args, value) {
     const word = String(value || '').trim().toLowerCase();
     const b = bridgeBox();
     if (word === 'status') {
-        return `Phone in the story: ${b.mode}${b.mode === 'random' ? `, ${b.chance}% a reply` : ''}${settings.bridgeArmed ? ', asked for on the next reply' : ''}.`;
+        return `Send phone texts to the main chat: ${b.mode}${b.mode === 'random' ? `, ${b.chance}% a reply` : ''}${settings.bridgeArmed ? ', forced on the next reply' : ''}.`;
     }
     if (word === 'cancel' || word === 'off' || word === 'no') {
         setBridgeArmed(false);
@@ -3011,7 +3012,7 @@ function phoneTextsCommand(_args, value) {
         return '';
     }
     if (b.mode === 'off') {
-        toastr.warning('Phone in the story is off. Switch it to On request or Random in the phone settings first.');
+        toastr.warning('Send phone texts to the main chat is off. Set it to Manual, Random or Always in the phone settings first.');
         return '';
     }
     setBridgeArmed(true);
@@ -3019,23 +3020,49 @@ function phoneTextsCommand(_args, value) {
     return '';
 }
 
+/** /phone-bring-contacts: force the people you have been texting to arrive in the next scene; "cancel" takes it back; "status" says where it stands. */
+function phoneArrivalCommand(_args, value) {
+    const word = String(value || '').trim().toLowerCase();
+    const a = arrivalBox();
+    if (word === 'status') {
+        return `Phone contacts enter the next scene: ${a.mode}${a.mode === 'random' ? `, ${a.chance}% each` : ''}${settings.arrivalArmed ? ', forced on the next reply' : ''}.`;
+    }
+    if (word === 'cancel' || word === 'off' || word === 'no') {
+        setArrivalArmed(false);
+        toastr.info(t('br_cancelled'));
+        return '';
+    }
+    if (a.mode === 'off') {
+        toastr.warning('Phone contacts enter the next scene is off. Set it to Manual, Random or Always in the phone settings first.');
+        return '';
+    }
+    setArrivalArmed(true);
+    toastr.info(t('ar_asked'));
+    return '';
+}
+
 function registerPhoneTextsCommand() {
+    const arg = (description) => [SlashCommandArgument.fromProps({
+        description, typeList: [ARGUMENT_TYPE.STRING], isRequired: false,
+    })];
     try {
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-            name: 'phonetexts',
-            aliases: ['phone-texts'],
+            name: 'phone-send-texts',
+            aliases: ['phone-texts', 'phonetexts'],
             callback: phoneTextsCommand,
             returns: 'a short status when asked for, otherwise nothing',
-            unnamedArgumentList: [
-                SlashCommandArgument.fromProps({
-                    description: 'cancel (take the request back) or status (say where it stands); leave empty to bring the recent phone texts into the next reply',
-                    typeList: [ARGUMENT_TYPE.STRING],
-                    isRequired: false,
-                }),
-            ],
-            helpString: 'Brings the recent phone texts into the next story reply, once. Works when Phone in the story is set to On request or Random. /phonetexts cancel takes it back; /phonetexts status says where it stands.',
+            unnamedArgumentList: arg('cancel (take the request back) or status (say where it stands); leave empty to send the recent phone texts with the next reply'),
+            helpString: 'Forces the texts of your recent phone conversations into the next story reply, once (Send phone texts to the main chat). Works when that setting is Manual, Random or Always. /phone-send-texts cancel takes it back; /phone-send-texts status says where it stands. This is separate from /phone-bring-contacts, which sends no texts.',
         }));
-    } catch (e) { console.warn('[Phone] could not register /phonetexts', e); }
+        SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+            name: 'phone-bring-contacts',
+            aliases: ['phone-arrive', 'phone-arrival'],
+            callback: phoneArrivalCommand,
+            returns: 'a short status when asked for, otherwise nothing',
+            unnamedArgumentList: arg('cancel (take the request back) or status (say where it stands); leave empty to have your phone contacts arrive in the next scene'),
+            helpString: 'Forces the people you have been texting to arrive in the next scene, once (Phone contacts enter the next scene). Works when that setting is Manual, Random or Always. /phone-bring-contacts cancel takes it back; /phone-bring-contacts status says where it stands. This is separate from /phone-send-texts, which sends the texts themselves.',
+        }));
+    } catch (e) { console.warn('[Phone] could not register the phone slash commands', e); }
 }
 /**
  * Puts the block in the prompt, or takes it out (empty text). On Chat Completion it goes through
@@ -4798,23 +4825,31 @@ function renderRoster() {
     // Everyone is listed, including whoever is in the current scene (marked "in the scene"): hiding them made a
     // contact impossible to find by search, and nobody could tell why she was missing. Only the player is left out.
     const away = awayFromScene();
-    characters.forEach(c => { if (c?.name && !seen.has(c.name) && !isUserName(c.name)) { seen.add(c.name); list.push(c.name); } });
+    // Characters (or whole factions) switched off for this chat are not contacts: the Characters menu is where they come back.
+    characters.forEach(c => { if (c?.name && !seen.has(c.name) && !isUserName(c.name) && isInChat(c.name)) { seen.add(c.name); list.push(c.name); } });
     // somebody already switched on stays listed even after stepping into the scene
-    Object.keys(settings.active).forEach(n => { if (settings.active[n] && !seen.has(n) && !isUserName(n) && !isGroup(n) && characters.some(c => c.name === n)) { seen.add(n); list.push(n); } });
+    Object.keys(settings.active).forEach(n => { if (settings.active[n] && !seen.has(n) && !isUserName(n) && !isGroup(n) && isInChat(n) && characters.some(c => c.name === n)) { seen.add(n); list.push(n); } });
 
-    // Alphabetical, and narrowed by the search box: with 100+ contacts the order they came in is no way to find anyone.
-    list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+    // By faction by default (the Characters menu's order), A to Z inside each; or plain A to Z. Narrowed by the search box:
+    // with 100+ contacts the order they came in is no way to find anyone.
+    const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+    const sortMode = settings.rosterSort === 'az' ? 'az' : 'faction';
+    const order = factionOrder();
+    const rank = (n) => { const i = order.indexOf(factionOf(n)); return i === -1 ? order.length : i; };
+    if (sortMode === 'faction') list.sort((a, b) => (rank(a) - rank(b)) || byName(a, b));
+    else list.sort(byName);
     const q = rosterFilter.trim().toLowerCase();
     const shown = q ? list.filter(n => n.toLowerCase().includes(q)) : list;
 
     let html = `<div class="rph-roster-title"><button type="button" class="rph-roster-close" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button><span><i class="fa-solid fa-mobile-screen-button"></i> ${t('roster')}</span></div>`;
     const gid = groupContactId();
-    html += `<div class="rph-roster-searchrow"><input type="search" id="rph-roster-search" class="text_pole" placeholder="Search ${list.length} contacts" value="${escapeHtml(rosterFilter)}" autocomplete="off"><span class="rph-roster-count">${q ? `${shown.length} of ${list.length}` : ''}</span></div>`;
+    html += `<div class="rph-roster-searchrow"><input type="search" id="rph-roster-search" class="text_pole" placeholder="Search ${list.length} contacts" value="${escapeHtml(rosterFilter)}" autocomplete="off"><span class="rph-roster-count">${q ? `${shown.length} of ${list.length}` : ''}</span><select id="rph-roster-sort" class="text_pole" title="How the contacts are grouped"><option value="faction"${sortMode === 'faction' ? ' selected' : ''}>By faction</option><option value="az"${sortMode === 'az' ? ' selected' : ''}>A to Z</option></select></div>`;
     if (!list.length) html += `<div class="rph-hint">${t('no_chars')}</div>`;
     else if (!shown.length) html += `<div class="rph-hint">No contact matches "${escapeHtml(rosterFilter.trim())}".</div>`;
     let letter = '';
     html += shown.map(n => {
-        const first = (n.trim()[0] || '#').toUpperCase();
+        // the heading of each group: the faction, or the first letter in A to Z
+        const first = sortMode === 'faction' ? (factionOf(n) || 'No faction') : (n.trim()[0] || '#').toUpperCase();
         const head = !q && first !== letter ? `<div class="rph-roster-letter">${escapeHtml(first)}</div>` : '';
         letter = first;
         const castTxt = String(settings.cast[n] || '');
@@ -4858,6 +4893,11 @@ function renderRoster() {
 
     body.on('click.rph', '.rph-roster-close', () => { $('#rph-roster').removeClass('visible'); });
     body.on('keydown.rph', '#rph-roster-search', e => e.stopPropagation());
+    body.on('change.rph', '#rph-roster-sort', function () {
+        settings.rosterSort = this.value === 'az' ? 'az' : 'faction';
+        saveSettings();
+        renderRoster();
+    });
     body.on('input.rph', '#rph-roster-search', function () {
         rosterFilter = String(this.value);
         const at = this.selectionStart ?? rosterFilter.length;

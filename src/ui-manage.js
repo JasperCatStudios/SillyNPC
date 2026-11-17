@@ -558,6 +558,28 @@ function buildChatScopeRow() {
     return row;
 }
 
+/** Stays open across the redraws that ticking a faction causes. */
+let scopePanelOpen = false;
+
+/**
+ * Turning factions on or off for the open chat, as a collapsible panel right under the buttons at the top of
+ * the Characters menu (next to New Category). It replaces the question that used to pop up on a new chat.
+ */
+function buildChatScopePanel() {
+    const panel = document.createElement('details');
+    panel.className = 'sillynpc-chat-scope-details';
+    panel.open = scopePanelOpen;
+    panel.addEventListener('toggle', () => { scopePanelOpen = panel.open; });
+    const summary = document.createElement('summary');
+    const cast = hasOpenChat() ? getChatCast() : null;
+    const state = !cast ? 'open a chat first'
+        : cast.categories === null ? 'all factions on'
+            : `${cast.categories.length} of ${getAllCategories().length + 1} on`;
+    summary.textContent = `Factions in this chat (turn factions on or off): ${state}`;
+    panel.append(summary, buildChatScopeRow());
+    return panel;
+}
+
 function renderCardGrid() {
     const root = manageRoot.querySelector('#sillynpc-card-grid');
     if (!root) return;
@@ -566,8 +588,8 @@ function renderCardGrid() {
 
     // The full list on purpose: you have to be able to see somebody to put them back.
     const characters = getSettings().characters;
-    root.appendChild(buildChatScopeRow());
     root.appendChild(buildSyncAllRow(characters));
+    root.appendChild(buildChatScopePanel());
 
     const filter = buildGridFilterRow(root);
     root.appendChild(filter.row);

@@ -5070,3 +5070,7 @@ textarea.sillynpc-profile-input {
 /* Phone prompts, collapsed together. */
 .sillynpc-prompt-group { margin: 12px 0; border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 4px 10px; }
 .sillynpc-prompt-group > summary { cursor: pointer; font-weight: bold; padding: 8px 0; }
+
+/* Factions in this chat, under the buttons at the top of the Characters menu. */
+.sillynpc-chat-scope-details { margin: 8px 0; border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 4px 10px; }
+.sillynpc-chat-scope-details > summary { cursor: pointer; font-weight: bold; padding: 6px 0; }

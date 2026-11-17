@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from '../src/settings.js';
-import { getActiveCharacters } from '../src/characters.js';
+import { getActiveCharacters, getAllCategories } from '../src/characters.js';
 import { charactersMentionedIn } from '../src/mentions.js';
 import { parseMarkedLines } from '../src/speaker-marker.js';
 import { primeLore, profileText } from '../src/profile-text.js';
@@ -74,6 +74,17 @@ export const phoneCharacters = new Proxy([], {
 /** Whether somebody is one of the characters in the open chat. */
 export function isInChat(name) {
     return getActiveCharacters().some(c => c.name === name);
+}
+
+/** The faction (category) a character belongs to, or an empty string. */
+export function factionOf(name) {
+    const c = (getSettings().characters || []).find(x => x && x.name === name);
+    return String(c?.category || '');
+}
+
+/** The factions in the order the Characters menu lists them, uncategorised first. */
+export function factionOrder() {
+    return ['', ...getAllCategories()];
 }
 
 /** The player. Never a contact: the phone is how everyone else reaches them. */
