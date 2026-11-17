@@ -3,7 +3,6 @@ import { getSettings } from './settings.js';
 import { getContext } from '../../../../st-context.js';
 import { findCharacter, getActiveCharacters, getChatCast } from './characters.js';
 import { escapeRegExp, personaFileFromAvatar } from './utils.js';
-import { processStatusUpdate, renderStatusTrackerBox, redrawStatusBoxes } from './status-ui.js';
 import {
     resolvePersonaSpeaker,
     getPlayerImageUrl, getCurrentPersonaKey,
@@ -24,7 +23,6 @@ export { charactersMentionedIn };
 // handle lives where they can reach it.
 import { triggerReprocess, setReprocessCallback } from './reprocess.js';
 export { triggerReprocess, setReprocessCallback };
-import { getTrackerView, setTrackerView, nextTrackerView } from './tracker-view.js';
 import { eventSource } from '../../../../events.js';
 import { messageBeats, MESSAGE_RENDERED_EVENT } from './beats.js';
 import { injectAtMarkers, markerDetectionOn, legacyDetectionOn, getMarkerPair } from './speaker-marker.js';
@@ -183,22 +181,7 @@ export function chatRenderSignature() {
        point: that object also holds every hud* setting, and a HUD slider must not redraw
        a hundred messages. A stat definition is included whole because its name, format,
        visibility and colour all reach the box. */
-    const tracker = getSettings().statusTracker || {};
     const trackerBox = [
-        tracker.enabled,
-        tracker.showOnlyAtBottom,
-        tracker.customCSS,
-        /* The layout itself, which shapes the box more than anything else here and was the
-           one thing this list left out. The template box has no onChange, so a hand edit
-           was saved and then ignored until something unrelated forced a redraw - Tidy
-           labels and Reset both reprocess, which is why it went unnoticed. Watching it here
-           rather than wiring the control also covers a template arriving from an import, a
-           preset, or a system switch. */
-        tracker.template,
-        JSON.stringify(tracker.globalStats || []),
-        JSON.stringify(tracker.playerStats || []),
-        JSON.stringify(tracker.npcStats || []),
-        JSON.stringify(tracker.collections || []),
         settings.trackerFontScale,
         // Not a setting at all: which face a stranger wears is chat metadata, and
         // "Redraw every face" changes it without touching anything else here.
@@ -798,17 +781,11 @@ function runReprocessLogic(mesEl) {
             addRefreshButtonToMessage(mesEl);
         } catch (e) { console.error(LOG_PREFIX, 'addRefreshButton failed', e); }
 
-        try {
-            addTrackerEyeToMessage(mesEl);
-        } catch (e) { console.error(LOG_PREFIX, 'addTrackerEye failed', e); }
-
         mesEl.removeAttribute('data-sillynpc-status-hidden');
         
         const tasks = [
-            { name: 'processStatusUpdate', fn: processStatusUpdate },
             { name: 'applyPlayerPortrait', fn: applyPlayerPortrait },
             { name: 'injectCharacterImages', fn: injectCharacterImages },
-            { name: 'renderStatusTrackerBox', fn: renderStatusTrackerBox }
         ];
 
         for (const task of tasks) {
@@ -908,76 +885,6 @@ function runReprocessAllNow() {
 
         processBatch();
     });
-}
-
-/**
- * What each state of the eye looks like and says it does.
- *
- * Font Awesome has no plain closed eye; fa-eye-low-vision is the one between open and
- * struck through, which is the order these are read in.
- */
-export const TRACKER_EYE = {
-    full: { icon: 'fa-eye', title: 'Tracker: showing everything. Click for world stats only.' },
-    globals: { icon: 'fa-eye-low-vision', title: 'Tracker: world stats only. Click to hide it.' },
-    hidden: { icon: 'fa-eye-slash', title: 'Tracker: hidden. Click to show it again.' },
-};
-
-/** Puts the eye in the state given, without rebuilding it. */
-export function paintTrackerEye(btn, view) {
-    const { icon, title } = TRACKER_EYE[view] || TRACKER_EYE.full;
-    // mes_button so it looks and sizes like SillyTavern's own toolbar buttons, which
-    // is where it now lives.
-    btn.className = `mes_button sillynpc-tracker-eye fa-solid ${icon}`;
-    btn.title = title;
-    btn.dataset.view = view;
-}
-
-/**
- * The control that hides the tracker box.
- *
- * Deliberately not inside the box: the third state removes the box, and a switch that
- * disappears along with the thing it switches cannot be switched back.
- *
- * It lives in SillyTavern's own per-message toolbar, beside the refresh button this
- * extension already puts there. It spent its first version absolutely positioned in the
- * message's left margin, lined up with the swipe chevron by borrowing that chevron's
- * offsets - which is exact arithmetic against somebody else's layout, and read as a stray
- * icon floating in the margin on the stock theme.
- *
- * The toolbar sits behind SillyTavern's "Message Actions" ellipsis, so this is a step
- * further in than it was. That is the trade for a position that no theme can move.
- */
-function addTrackerEyeToMessage(mesEl) {
-    if (!getSettings().statusTracker?.enabled) {
-        mesEl.querySelector('.sillynpc-tracker-eye')?.remove();
-        return;
-    }
-
-    const toolbar = mesEl.querySelector('.extraMesButtons');
-    if (!toolbar) return;
-
-    const existing = mesEl.querySelector('.sillynpc-tracker-eye');
-    if (existing) {
-        // A redraw must not stack copies, and the one already here may be showing a
-        // state from before the last click.
-        paintTrackerEye(existing, getTrackerView());
-        return;
-    }
-
-    const btn = document.createElement('div');
-    paintTrackerEye(btn, getTrackerView());
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const next = nextTrackerView(getTrackerView());
-        setTrackerView(next);
-        // Every message's eye, not just this one: the others are only hidden by CSS, and
-        // "show under every message" puts a box under each of them.
-        document.querySelectorAll('.sillynpc-tracker-eye')
-            .forEach(el => paintTrackerEye(el, next));
-        redrawStatusBoxes();
-    });
-
-    toolbar.insertBefore(btn, toolbar.firstChild);
 }
 
 function addRefreshButtonToMessage(mesEl) {

@@ -1,6 +1,5 @@
 import { normalizeGradient, gradientCss, gradientFallback } from './gradient-style.js';
 import { getSettings } from './settings.js';
-import { liveFactsFor } from './api.js';
 import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
@@ -215,15 +214,6 @@ export async function renderProfileView(char, container) {
         console.warn('[Worldkit] could not draw the profile tabs', err);
     }
 
-    // Tracker values: whatever is true now. A character on stage has live numbers and the
-    // card's are what they last walked in with, so showing the card's would be stale.
-    const { stats, collections } = liveFactsFor(char);
-    const statChips = Object.entries(stats)
-        .filter(([, value]) => String(value ?? '').trim() !== '')
-        .map(([name, value]) => chip(name, value));
-    const statsRow = chipRow('Tracked', statChips);
-    if (statsRow) right.append(statsRow);
-
     // Mood, hunger, health and energy, each with its own reset. Redrawn in place after a reset.
     const statusHost = document.createElement('div');
     statusHost.className = 'sillynpc-cv-status';
@@ -275,18 +265,6 @@ export async function renderProfileView(char, container) {
         none.className = 'notes';
         none.textContent = bondSettings().enabled ? 'No bond with you yet.' : 'The Bond Tracker is off.';
         relCard.append(none);
-    }
-
-    // Every collection, including the ones hidden from the tracker. That flag keeps the
-    // bar in the chat readable and says nothing about this page, which is where somebody
-    // comes precisely to see what is not on the bar.
-    for (const colDef of getSettings().statusTracker.collections || []) {
-        if (!colDef?.id) continue;
-        const items = (collections[colDef.id] || [])
-            .map(item => String(item?.name ?? '').trim())
-            .filter(Boolean);
-        const row = chipRow(colDef.name || colDef.id, items.map(name => chip(name)));
-        if (row) right.append(row);
     }
 
     // ── The lore entry, read in after the rest is on screen ─────────────────

@@ -4,7 +4,6 @@ import { renderExtensionTemplateAsync } from '../../../extensions.js';
 import { LOG_PREFIX, extensionName, debugLog, PRODUCT_NAME } from './src/constants.js';
 import { getContext } from '../../../st-context.js';
 import { initSettings, saveSettings, getSettings } from './src/settings.js';
-import { REVIEW_EVENT } from './src/status-review.js';
 import { repairDefaultImages } from './src/default-portraits.js';
 import { 
     openManagePopup
@@ -16,20 +15,16 @@ import {
     triggerReprocess,
     invalidateChatRender,
 } from './src/chat.js';
-import { redrawStatusBoxes } from './src/status-ui.js';
 import {
     createCharacter, addAlias, addCharacterToChat,
     CAST_KEY, setChatCast, getAllCategories, UNCATEGORISED,
 } from './src/characters.js';
 import { tryAutoSyncLorebook, syncLorebookScope, repairEntryIdentities } from './src/lorebook.js';
-import { initStatusLogic, hasOpenChat, setSwipeBaseAligner } from './src/status-logic.js';
-import { rebaseToSwipe, revertToBase, alignSwipeBaseToNow } from './src/status-snapshots.js';
-import { extractStateFromMessage, resetExtractionState, forgetExtractionsFrom } from './src/status-extractor.js';
+import { initStatusLogic, hasOpenChat } from './src/status-logic.js';
 import { openPlayerModal } from './src/ui-player-modal.js';
 import { Popup, POPUP_TYPE, POPUP_RESULT } from '../../../popup.js';
-import { refreshScanButton } from './src/ui-scan-button.js';
 import { applyPortraitFraming, applySpeechPadding } from './src/ui-shared.js';
-import { applyCheckpointSchedule, applyScenePrompt } from './src/status-logic.js';
+import { applyCheckpointSchedule } from './src/status-logic.js';
 import { noteActivatedLore } from './src/activated-lore.js';
 import { setDebugLogging } from './src/constants.js';
 import { describeChatConnection } from './src/utils.js';
@@ -67,114 +62,15 @@ function onMessageRendered(messageId) {
     }
 }
 
-/**
- * Runs the state-extraction pass for a freshly rendered AI message.
- *
- * Deliberately fire-and-forget: the reply is already on screen, and a slow or failing
- * extraction must never block reading it or throw into SillyTavern's event loop.
- */
-function onMessageForExtraction(messageId) {
-    try {
-        const context = getContext();
-        const message = context?.chat?.[Number(messageId)];
-        // Only the model's own prose is worth reading; user turns and system notes
-        // describe nothing that changed.
-        if (!message || message.is_user || message.is_system) return;
-        if (!hasReadableText(message)) return;   // nothing written yet (a blank greeting, a chat just opening)
-
-        extractStateFromMessage(message.mes, messageId)
-            .then(result => {
-                if (!result.applied && result.reason && result.reason !== 'extraction disabled'
-                    && result.reason !== 'already extracted') {
-                    debugLog('Extraction skipped:', result.reason);
-                }
-            })
-            .catch(err => console.error(LOG_PREFIX, 'Extraction pass failed', err));
-    } catch (err) {
-        console.error(LOG_PREFIX, 'onMessageForExtraction error', err);
-    }
-}
-
-/**
- * The tracker follows the swipe, then the message is redrawn.
- *
- * The changes already applied describe the reply that was on screen a moment ago. Left
- * alone, the story continues from numbers that belong to a reply the user swiped away
- * from - silently, which is what made this worth fixing rather than living with.
- */
+/** Swiping between replies rewrites the message in place, so it is decorated again. */
 function onSwipe(messageId) {
-    try {
-        const result = rebaseToSwipe(messageId);
-        if (!result.rebased && result.reason === 'no base') {
-            // Never a silent disagreement between the tracker and the reply on screen.
-            toastr.warning(
-                'The tracker could not follow that swipe, so it may not match this reply.',
-                PRODUCT_NAME);
-        }
-    } catch (err) {
-        console.error(LOG_PREFIX, 'onSwipe error', err);
-    }
     onMessageRendered(messageId);
-}
-
-/**
- * The tracker follows a Regenerate, which is not a swipe.
- *
- * Regenerate deletes the newest reply and writes another in its place. SillyTavern says so
- * only by emitting MESSAGE_DELETED - MESSAGE_SWIPED comes from the swipe arrows alone - and
- * the payload there is the new chat length, which is identical whether the tail or the
- * middle was removed. So the generation type is what this reads instead: it is unambiguous,
- * and it arrives before the truncation, while the doomed message is still the last one.
- *
- * Two things have to happen, and neither used to. The changes that reply applied are undone,
- * or the replacement stacks on top of a reply nobody can see. And the guard that remembers
- * which messages have been read has to forget this index, because the replacement lands on
- * the same number and would otherwise be waved through as already extracted - which is why
- * the numbers did not merely drift after a Regenerate, they stopped moving entirely.
- */
-function onRegenerateStarted(type, _data, dryRun) {
-    if (dryRun || type !== 'regenerate') return;
-    try {
-        const messageId = (getContext()?.chat?.length ?? 0) - 1;
-        if (messageId < 0) return;
-
-        forgetExtractionsFrom(messageId);
-        const result = revertToBase(messageId);
-        if (!result.reverted && result.reason === 'no base') {
-            // Same reasoning as the swipe path: never a silent disagreement between the
-            // tracker and the reply on screen.
-            toastr.warning(
-                'The tracker could not undo the reply being regenerated, so it may not '
-                + 'match the new one.',
-                PRODUCT_NAME);
-        }
-    } catch (err) {
-        console.error(LOG_PREFIX, 'onRegenerateStarted error', err);
-    }
-}
-
-/**
- * Stale guard entries are dropped whenever messages go away.
- *
- * Message ids are positions, not identities, so anything from here on is a number that will
- * be handed to a different message later. Only the forgetting is safe to do here: the
- * payload cannot distinguish deleting the last message from deleting one in the middle, and
- * reverting the wrong one would discard state silently. See the regenerate handler above,
- * which knows exactly what it is undoing.
- */
-function onMessageDeleted(newLength) {
-    try {
-        forgetExtractionsFrom(newLength);
-    } catch (err) {
-        console.error(LOG_PREFIX, 'onMessageDeleted error', err);
-    }
 }
 
 async function addSettingsPanel() {
     try {
         const html = await renderExtensionTemplateAsync(extensionName, 'index');
         $('#extensions_settings2').append(html);
-        refreshScanButton();
 
         document.getElementById('sillynpc-open-manage')?.addEventListener('click', () => {
             openManagePopup().catch(err => console.error(LOG_PREFIX, 'openManagePopup failed', err));
@@ -364,10 +260,6 @@ jQuery(async () => {
         // Narrator Rules was removed: take out whatever an earlier version left in the prompt or the prompt list.
         try { placeWritingPrompt('sillynpc-narrator-rules', '', { inList: false }); } catch (err) { debugLog('Narrator rules cleanup failed', err); }
         setReprocessCallback(reprocessAllMessages);
-        /* A correction made by hand has to survive a swipe. Registered rather than
-           imported: the aligner lives in status-snapshots, which already imports
-           status-logic, and an edge back the other way would be a cycle. */
-        setSwipeBaseAligner(alignSwipeBaseToNow);
         await addSettingsPanel();
         wireAvatarClicks();
         try {
@@ -466,14 +358,12 @@ jQuery(async () => {
         eventSource.on(event_types.WORLD_INFO_ACTIVATED, (entries) => {
             try {
                 noteActivatedLore(entries);
-                applyScenePrompt();
             } catch (err) {
                 debugLog('Could not record activated lore', err);
             }
         });
 
         eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onMessageRendered);
-        eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onMessageForExtraction);
         eventSource.on(event_types.USER_MESSAGE_RENDERED, onMessageRendered);
         eventSource.on(event_types.MESSAGE_UPDATED, onMessageRendered);
         // Swiping between replies that already exist rewrites the message in place and
@@ -481,19 +371,6 @@ jQuery(async () => {
         // fires. The new text arrived undecorated and stayed that way until something
         // else redrew the chat.
         eventSource.on(event_types.MESSAGE_SWIPED, onSwipe);
-        /* Regenerate is not a swipe, and says so through neither of the events above.
-
-           makeFirst rather than on, and it matters. status-logic listens to the same event
-           to build the scene block it injects, and it registered first, so it ran first:
-           the prompt for the regenerated reply was built from the state the *discarded*
-           reply had left behind, and told the model about threads that were about to be
-           undone. A log of a real regenerate showed exactly that - the story prompt still
-           carrying two threads the extraction a moment later no longer had.
-
-           Ordering is the only lever here, since both listen to the same event, so it is
-           declared out loud instead of resting on which line of this function runs first. */
-        eventSource.makeFirst(event_types.GENERATION_STARTED, onRegenerateStarted);
-        eventSource.on(event_types.MESSAGE_DELETED, onMessageDeleted);
         eventSource.on(event_types.MORE_MESSAGES_LOADED, () => {
             // The signature describes the settings, not the DOM, and these two change
             // which messages exist without changing a setting - so they have to say
@@ -505,7 +382,6 @@ jQuery(async () => {
             invalidateChatRender();
             reprocessAllMessages();
         });
-        eventSource.on(event_types.CHAT_CHANGED, resetExtractionState);
         // Entries written before they carried a heading are named here, once, rather than
         // waiting to be regenerated by hand. It writes only where something differs, so a
         // chat switch with nothing to fix touches no files.
@@ -524,33 +400,11 @@ jQuery(async () => {
             }
         });
 
-        eventSource.on(REVIEW_EVENT, ({ messageId } = {}) => {
-            try {
-                const mesEl = document.querySelector(`#chat .mes[mesid="${messageId}"]`);
-                if (mesEl) reprocessMessage(mesEl);
-            } catch (err) {
-                console.error(LOG_PREFIX, 'review refresh failed', err);
-            }
-        });
-
         eventSource.on('sillynpc-player-portrait-changed', () => {
             try {
                 reprocessAllMessages();
             } catch (err) {
                 console.error(LOG_PREFIX, 'player portrait refresh failed', err);
-            }
-        });
-
-        eventSource.on('sillynpc-status-updated', () => {
-            try {
-                // The tracker state moved, which changes the tracker boxes and nothing
-                // else. This called reprocessAllMessages(), so every extracted message -
-                // that is, every message - redrew the speaker decoration, the portraits
-                // and the avatars over the whole chat as well. redrawStatusBoxes exists
-                // for exactly this case and says so in its own comment.
-                redrawStatusBoxes();
-            } catch (err) {
-                console.error(LOG_PREFIX, 'sillynpc-status-updated refresh failed', err);
             }
         });
 

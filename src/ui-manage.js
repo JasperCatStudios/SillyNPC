@@ -1317,19 +1317,12 @@ function renderEditor() {
     });
     aliasField.append(aliasList, addAliasBtn);
     
-    const overridesContainer = document.createElement('div');
-    overridesContainer.className = 'sillynpc-editor-field overrides-field-container';
-
-    const collectionsContainer = document.createElement('div');
-    collectionsContainer.className = 'sillynpc-editor-field collections-field-container';
-
     const combatContainer = document.createElement('div');
     combatContainer.className = 'sillynpc-editor-field sillynpc-combat-section';
     
     // The lorebook link goes right under the name: it is who they are, and the phone, the
     // games and everything else that describes somebody reads it from here.
-    right.append(nameField, loreContainer, aliasField, extrasContainer, overridesContainer,
-        collectionsContainer, combatContainer);
+    right.append(nameField, loreContainer, aliasField, extrasContainer, combatContainer);
     
     main.append(left, vDivider, right);
     mountDetail(editView, char, sticky, main);
@@ -1337,133 +1330,7 @@ function renderEditor() {
     renderCategorySelect(char, catContainer);
     renderCharacterExtras(char, extrasContainer);
     renderLorebookSection(char, loreContainer, { onChange: renderEditor });
-    renderOverridesSection(char, overridesContainer);
-    renderCollectionsSection(char, collectionsContainer);
     renderCombatSection(char, combatContainer, { onChange: renderEditor });
-}
-
-function renderCollectionsSection(char, container) {
-    if (!container) return;
-    
-    const settings = getSettings().statusTracker;
-    const collections = settings.collections.filter(col => col.target === 'npc' || col.target === 'all');
-    
-    if (collections.length === 0) return;
-
-    container.innerHTML = `
-        <div class="sillynpc-aliases-header">
-            <label>Current Collections</label>
-            <small class="notes">Manage inventory and other collections for this NPC in the current chat.</small>
-        </div>
-        <div class="sillynpc-npc-collections-tabs sillynpc-sheet-tabs" style="margin-top: 10px;">
-            ${collections.map((col, idx) => `
-                <div class="sillynpc-tab ${idx === 0 ? 'active' : ''}" data-tab="${escapeHtml(col.id)}">${escapeHtml(col.name)}</div>
-            `).join('')}
-        </div>
-        <div class="sillynpc-npc-collections-content" style="margin-top: 10px;">
-            <!-- Collection UI will be rendered here -->
-        </div>
-    `;
-
-    const contentArea = container.querySelector('.sillynpc-npc-collections-content');
-    const tabs = container.querySelectorAll('.sillynpc-tab');
-    
-    let currentCollectionId = collections[0].id;
-
-    // Off by default every time the editor opens: seeing a card's stored belongings is
-    // a deliberate act, not a mode you can forget you left on.
-    let editOffstage = false;
-
-    /** Holds the ticked rows across the redraws that ticking one causes. */
-    let collectionBulk = null;
-
-    const refreshCollection = () => {
-        const state = loadStateFromMetadata();
-        const charInState = state.characters.find(c => c.name.toLowerCase() === char.name.toLowerCase());
-
-        // Off stage, the character's belongings still exist - they are kept on the card as
-        // statusCollections, which is what seeds them when they next walk into a scene. The
-        // editor used to refuse to show them at all, so the only way to correct an
-        // inventory was to drag the character into the scene first.
-        if (!charInState && !editOffstage) {
-            const notice = document.createElement('p');
-            notice.className = 'notes';
-            notice.textContent = `${char.name || 'This character'} is not in the current scene, `
-                + 'so these are the belongings stored on their card rather than live values.';
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'menu_button';
-            btn.innerHTML = '<i class="fa-solid fa-pen"></i> Edit stored collections';
-            btn.addEventListener('click', async () => {
-                const ok = await Popup.show.confirm(
-                    'Edit belongings for a character who is not in the scene?',
-                    'These are the values stored on the card. They are copied into the scene '
-                    + 'the next time this character appears, so an edit made now is what they '
-                    + 'will arrive with. If they are already in another chat, that chat keeps '
-                    + 'its own live values and is not changed.',
-                );
-                if (!ok) return;
-                editOffstage = true;
-                refreshCollection();
-            });
-
-            contentArea.replaceChildren(notice, btn);
-            return;
-        }
-
-        // A card-backed actor, shaped like a scene one so the same renderer and listeners
-        // work unchanged rather than needing an off-stage variant.
-        const actor = charInState || {
-            name: char.name,
-            stats: char.statusOverrides || {},
-            collections: char.statusCollections || (char.statusCollections = {}),
-        };
-
-        // Built once per editor rather than per redraw: the handle holds the selection,
-        // and rebuilding it with the panel would forget every tick.
-        if (!collectionBulk) {
-            collectionBulk = buildBulkBar({
-                noun: 'item',
-                allIds: () => {
-                    const list = resolveCollectionTarget(actor, false).target
-                        ?.collections?.[currentCollectionId] || [];
-                    return list.map((_, i) => i);
-                },
-                onDelete: (ids) => {
-                    const where = resolveCollectionTarget(actor, false);
-                    const list = where.target?.collections?.[currentCollectionId];
-                    if (!list) return;
-                    // Descending, or the first splice shifts every index chosen after it.
-                    const removed = spliceIndexes(list, ids);
-                    persistCollectionEdit(`Dropped ${removed} item(s)`, where, false);
-                },
-                onRefresh: () => refreshCollection(),
-            });
-        }
-
-        contentArea.innerHTML = renderCollectionUI(currentCollectionId, actor, settings, {
-            bulk: collectionBulk,
-        });
-        attachCollectionListeners(contentArea, actor, () => {
-            // Edits to a card-backed actor have to be written back to the card; a scene
-            // actor is already part of the state the tracker saves.
-            if (!charInState) saveSettings();
-            refreshCollection();
-        }, collectionBulk);
-    };
-
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            currentCollectionId = tab.dataset.tab;
-            refreshCollection();
-        });
-    });
-
-    refreshCollection();
 }
 
 function renderCategorySelect(char, container) {
@@ -1495,121 +1362,6 @@ function renderCategorySelect(char, container) {
             char.category = select.value; saveSettings();
         }
     });
-}
-
-function renderOverridesSection(char, container) {
-    if (!container) return;
-    
-    container.innerHTML = `
-        <div class="sillynpc-aliases-header">
-            <label>Initial Status Overrides</label>
-            <small class="notes">Leave blank to use global default values.</small>
-        </div>
-    `;
-
-    const stats = getSettings().statusTracker.npcStats || [];
-    if (stats.length === 0) {
-        const p = document.createElement('p');
-        p.className = 'notes';
-        p.textContent = 'No character stats defined in Status Settings.';
-        container.appendChild(p);
-        return;
-    }
-
-    const grid = document.createElement('div');
-    grid.className = 'sillynpc-overrides-grid';
-    grid.style.display = 'grid';
-    grid.style.gridTemplateColumns = '1fr';
-    grid.style.gap = '8px';
-    grid.style.marginTop = '8px';
-
-    stats.forEach(stat => {
-        const row = document.createElement('div');
-        row.className = 'sillynpc-override-row';
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.gap = '10px';
-
-        const label = document.createElement('div');
-        label.style.flex = '0 0 80px';
-        label.style.fontWeight = 'bold';
-        label.textContent = stat.name;
-
-        // Parse currentValue (e.g. "50/100" or "50")
-        const currentValue = char.statusOverrides?.[stat.name] || '';
-        let valPart = currentValue;
-        let maxPart = '';
-        if (typeof currentValue === 'string' && currentValue.includes('/')) {
-            const parts = currentValue.split('/');
-            valPart = parts[0];
-            maxPart = parts[1];
-        }
-
-        const valInput = document.createElement('input');
-        valInput.type = 'text';
-        valInput.className = 'text_pole override-val-input';
-        valInput.style.flex = '2';
-        valInput.placeholder = `Val (Def: ${stat.defaultValue || ''})`;
-        valInput.value = valPart;
-
-        const slashLabel = document.createElement('span');
-        slashLabel.textContent = '/';
-        slashLabel.style.opacity = '0.5';
-
-        const maxInput = document.createElement('input');
-        maxInput.type = 'text';
-        maxInput.className = 'text_pole override-max-input';
-        maxInput.style.flex = '1';
-        maxInput.placeholder = `Max (Def: ${stat.maxStatValue || ''})`;
-        maxInput.value = maxPart;
-
-        const updateOverride = () => {
-            const v = valInput.value.trim();
-            const m = maxInput.value.trim();
-            
-            if (!char.statusOverrides) char.statusOverrides = {};
-            
-            if (v === '' && m === '') {
-                delete char.statusOverrides[stat.name];
-            } else if (m !== '') {
-                char.statusOverrides[stat.name] = `${v}/${m}`;
-            } else {
-                char.statusOverrides[stat.name] = v;
-            }
-            
-            saveSettings();
-            
-            const finalValue = char.statusOverrides[stat.name] || '';
-            syncOverrideToActiveState(char.name, stat.name, finalValue);
-            triggerReprocess();
-        };
-
-        if (isChoiceField(stat)) {
-            const select = buildChoiceSelect(stat.options, currentValue);
-            select.style.flex = '3';
-            select.addEventListener('change', () => {
-                if (!char.statusOverrides) char.statusOverrides = {};
-                const chosen = select.value;
-                if (chosen === '') delete char.statusOverrides[stat.name];
-                else char.statusOverrides[stat.name] = chosen;
-
-                saveSettings();
-                syncOverrideToActiveState(char.name, stat.name, chosen);
-                triggerReprocess();
-            });
-            row.append(label, select);
-            grid.appendChild(row);
-            return;
-        }
-
-        valInput.addEventListener('input', updateOverride);
-        maxInput.addEventListener('input', updateOverride);
-
-        row.append(label, valInput, slashLabel, maxInput);
-        grid.appendChild(row);
-    });
-
-    container.appendChild(grid);
 }
 
 function buildAliasRow(char, index) {

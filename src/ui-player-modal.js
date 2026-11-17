@@ -81,8 +81,7 @@ export function openPlayerModal() {
 
     // Not gated on visible: that now says whether the stat belongs on the in-chat
     // tracker, which has nothing to do with the badge on the sheet.
-    const levelStat = settings.playerStats.find(s => s.name === 'Level' || s.name === 'LvL');
-    const levelValue = levelStat ? (state.player.stats[levelStat.name] || levelStat.defaultValue || '1') : null;
+    const levelValue = null;   // the level badge came from the original tracker's stats
 
     const modalHtml = `
         <div class="sillynpc-modal sillynpc-player-sheet">
@@ -92,7 +91,6 @@ export function openPlayerModal() {
                     ${levelValue !== null ? `<div class="level-badge">Lvl ${escapeHtml(levelValue)}</div>` : ''}
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <button type="button" class="menu_button sillynpc-restore-open" title="Put your stats and collections back to what they were after an earlier message"><i class="fa-solid fa-clock-rotate-left"></i></button>
                     <div class="sillynpc-sheet-settings" title="Extension Settings" style="cursor: pointer;"><i class="fa-solid fa-cog"></i></div>
                     <div class="sillynpc-sheet-close" style="cursor: pointer;"><i class="fa-solid fa-xmark"></i></div>
                 </div>
@@ -289,8 +287,8 @@ function renderTabExtras(dom) {
 
 /** The collections a player can hold anything in. */
 function playerCollections() {
-    return (getSettings().statusTracker.collections || [])
-        .filter(col => col.target === 'player' || col.target === 'all');
+    // The original tracker's collections are gone from the sheet; the inventory tracker will replace them.
+    return [];
 }
 
 /** One collection under its own heading, however the tab wants it drawn. */
@@ -375,28 +373,6 @@ function renderTabContent(tabId, state) {
 
     if (tabId === 'profile') {
         return `
-            <div class="sillynpc-attributes-grid">
-                ${settings.playerStats.map(statDef => {
-                    const actualKey = Object.keys(state.player.stats || {}).find(k => k.toLowerCase() === statDef.name.toLowerCase()) || statDef.name;
-                    const value = state.player.stats[actualKey] || statDef.defaultValue || '';
-                    // A field with a fixed vocabulary is chosen, not typed. Free typing
-                    // would still be refused on the way in, but being told no after the
-                    // fact is a worse answer than not being offered the chance.
-                    const control = isChoiceField(statDef)
-                        ? `<select class="attr-value sillynpc-inline-choice text_pole" data-stat="${escapeHtml(actualKey)}">`
-                            + `${choiceOptionsHtml(statDef.options, value)}</select>`
-                        : `<span class="attr-value sillynpc-inline-edit" data-stat="${escapeHtml(actualKey)}"`
-                            // What was rendered, so the committer can tell an edit from a field
-                            // nobody touched without an event having to fire.
-                            + ` data-initial="${escapeHtml(value)}" contenteditable="true">${escapeHtml(value)}</span>`;
-                    return `
-                        <div class="sillynpc-attribute-item">
-                            <span class="attr-name">${escapeHtml(statDef.name)}</span>
-                            ${control}
-                        </div>
-                    `;
-                }).join('')}
-            </div>
             ${playerCollections().map(col => collectionSection(col, state, settings, {
                 isEditMode: false, showEditToggle: false,
             })).join('')}
