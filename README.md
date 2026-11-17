@@ -154,7 +154,6 @@ window.SILLYNPC_DEBUG = true;
 | `src/character-transfer.js` | Sending one character to somebody else, and taking one in |
 | `src/default-portraits.js` | Faces for speakers who have none |
 | `src/status-logic.js` | Persona sync, worlds (systems) and saved states |
-| `src/status-snapshots.js` | Per-message records, and the state as of a message |
 | `src/threads.js` | What is not finished with |
 | `src/ui-grid-filter.js` · `src/ui-settings-search.js` | Finding a character, and finding a setting |
 | `src/banlist.js` · `src/dialogue-format.js` | Text placed into the prompt |

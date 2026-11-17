@@ -546,8 +546,8 @@ export function safeJsonParse(jsonStr) {
 /**
  * Splits a "current/maximum" value into its halves. A plain value has no maximum.
  *
- * Lived in five places at once - status-diff, status-extractor, status-logic,
- * status-snapshots and here - and the copies had already drifted: some trimmed the whole
+ * Lived in five places at once - status-diff, status-extractor, status-logic
+ * and here - and the copies had already drifted: some trimmed the whole
  * string before splitting, some trimmed the halves afterwards. What each caller does with
  * the halves is still its own business; only the parsing is shared.
  *

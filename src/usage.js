@@ -9,12 +9,8 @@ import { debugLog } from './constants.js';
  * so counting reply tokens for it would be inventing a number.
  */
 export const USAGE_KINDS = [
-    { id: 'extraction', label: 'Tracker Extraction', sends: 'text',
-      note: 'One per message, when the tracker is set to a separate pass.' },
     { id: 'lore', label: 'Lore Generation', sends: 'text',
       note: 'One per lore entry you generate.' },
-    { id: 'scan', label: 'History Scan', sends: 'text',
-      note: 'Several per scan - a long story is read in passes.' },
     { id: 'fill', label: 'Character Fill', sends: 'text',
       // One per stage, not one per character: Fill offers the profile, the lore, the
       // stats and a portrait, and the ones you pick run as separate requests. The profile

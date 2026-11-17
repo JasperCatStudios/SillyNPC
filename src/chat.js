@@ -903,10 +903,8 @@ function addRefreshButtonToMessage(mesEl) {
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
         // It used to re-parse this message for a <status_update> block and apply it. That
-        // only ever worked in inline mode: with a separate extraction pass - the default -
-        // messages carry no block, so the button did nothing but warn. Restoring an
-        // earlier state has its own control on the player sheet, so this is what its name
-        // says instead: draw the tracker and the chat decorations again.
+        // only ever worked in inline mode, and nothing writes those blocks any more, so the
+        // button now does what its name says: draw the tracker and the chat decorations again.
         reprocessAllMessages();
         if (typeof toastr !== 'undefined') {
             toastr.info('Tracker and chat redrawn.', PRODUCT_NAME);

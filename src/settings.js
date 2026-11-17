@@ -26,6 +26,8 @@ const OBSOLETE_TRACKER_KEYS = [
     'clockMaxElapsedMinutes', 'timeRules', 'extractionReasons', 'stripStatusFromHistory', 'sceneInjectionDepth', 'hudEnabled',
     'hudPosition', 'hudLayout', 'hudMeterWidth', 'hudMeterHeight', 'hudRingThickness', 'extractionPrompt', 'hudPortraitSide',
     'hudPortraitShape', 'hudPortraitBorder', 'customCSS', 'renderPosition',
+    'extractionMode', 'extractionProfileId', 'extractionMaxTokens', 'scanDepth', 'scanMaxTokens', 'scanProfileId',
+    'extractionUseSchema', 'systemRules',
 ];
 
 export const defaultSettings = {
@@ -372,10 +374,10 @@ export const defaultSettings = {
      */
     imageProfileId: '',
     /**
-     * Prints one line per request - lore, extraction and portrait - naming the connection,
+     * Prints one line per request - lore, portrait and the tracker readers - naming the connection,
      * the model and the API key each one resolved to.
      *
-     * Off by default because extraction runs after every message. It was previously
+     * Off by default because it is noisy. It was previously
      * reachable only by typing SILLYNPC_DEBUG = true into DevTools, which is no use to
      * someone who does not already know it exists.
      */
@@ -558,51 +560,6 @@ export const defaultSettings = {
         castMode: 'speakers',
         /** Messages a character may go unseen before leaving the scene. */
         castGraceMessages: 3,
-        /**
-         * How the tracker learns what changed.
-         * 'extract' - a separate request reads the finished message and returns JSON.
-         *             The narrative prompt then carries no tracker instructions, so a
-         *             character card that forbids status output stops conflicting.
-         * 'inline'  - the original behaviour: ask for a <status_update> block in the
-         *             same response as the narrative.
-         */
-        extractionMode: 'extract',
-        /** Connection Manager profile for the extraction request. Empty = main API. */
-        extractionProfileId: '',
-        /** Token budget for the extraction reply. */
-        extractionMaxTokens: 1200,
-        /**
-         * How many recent messages a scan reads. 0 reads the whole chat.
-         * Recent messages are what decide the final state, so the budget is spent there
-         * first when both limits bite.
-         */
-        scanDepth: 50,
-        /**
-         * Reply budget for a scan, separate from the per-message one.
-         *
-         * A scan lists whole inventories for several characters at once, where an update
-         * reports the one stat that moved. Sharing the per-message budget truncated the
-         * reply mid-object at 1200 tokens.
-         */
-        scanMaxTokens: 3000,
-        /**
-         * Connection for a scan. Empty means the extraction connection.
-         *
-         * A scan is a harder job than a per-message update - the whole history, every
-         * character, in one reply - so the model that handles updates fine may not cope.
-         * Scans are rare, which makes a stronger model affordable here and not there.
-         */
-        scanProfileId: '',
-        /**
-         * Send a JSON schema with the extraction request.
-         *
-         * Off by default because it is actively harmful on some backends: a Gemini
-         * profile returns an empty object for a schema it will not accept, and its
-         * supported subset rejects property names containing spaces, slashes or
-         * colons - which real stat names routinely have ("Willpower / Focus").
-         * The system prompt pins the shape reliably on every backend without it.
-         */
-        extractionUseSchema: false,
         hudScale: 1.0,
     systemAutoSaveMinutes: 0,
     /**
@@ -636,7 +593,6 @@ export const defaultSettings = {
         {{/characters}}
     </div>
 </div>`,
-        systemRules: 'Update stats realistically based on events. HP and Energy should change according to combat or resting. Location and Time should progress logically. Avoid double-deducting spell or skill costs that were already paid in previous turns.',
         sceneBindingStat: '',
     },
 };

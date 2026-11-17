@@ -1,6 +1,6 @@
-import { getSettings, defaultSettings } from './settings.js';
+import { getSettings } from './settings.js';
 import { getMarkerPair } from './speaker-marker.js';
-import { SYSTEM_PROMPT, buildDialogueFormatPrompt } from './constants.js';
+import { buildDialogueFormatPrompt } from './constants.js';
 import { TIME_PERIODS } from './phone-image-requests.js';
 import { INTERNAL_STATES_SYSTEM, isBuiltInStatesPrompt } from './internal-states.js';
 import { INVENTORY_SYSTEM } from './inventory-core.js';
@@ -19,8 +19,7 @@ import { buildDeliveryPrompt } from './delivery-core.js';
  * first edit.
  *
  * `available` decides whether an entry applies to the current setup at all: the negative
- * prompt is Stable Diffusion's, the reference instruction is Gemini's, and the system
- * rules only reach a model in inline mode. An entry that cannot be sent is not shown as
+ * prompt is Stable Diffusion's and the reference instruction is Gemini's. An entry that cannot be sent is not shown as
  * one that can.
  *
  * @type {Array<{
@@ -59,19 +58,6 @@ export const PROMPTS = [
             + 'The built-in text lists the tags in the Delivery table.',
         recommended: () => buildDeliveryPrompt(getSettings().ttsToneTable, getSettings().deliveryMeanings),
         emptyNote: 'The built-in instruction is sent. It is only sent while Delivery Tags is switched on under Writing Rules.',
-    },
-    {
-        id: 'systemRules',
-        key: 'statusTracker.systemRules',
-        label: 'System Rules & Logic',
-        home: 'Tracker',
-        help: 'Added to the story prompt, telling the narrator how your system works. '
-            + 'Only used by the inline mode - the separate pass reads events rather '
-            + 'than being told rules. '
-            + "SillyTavern's own macros work here too - {{user}}, {{char}}, {{persona}}, "
-            + '{{time}}, {{roll:d20}} and the rest. ',
-        recommended: () => defaultSettings.statusTracker.systemRules,
-        available: () => getSettings().statusTracker.extractionMode !== 'extract',
     },
     {
         id: 'internalStates',

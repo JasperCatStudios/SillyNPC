@@ -1,6 +1,6 @@
-import { debugLog, PRODUCT_NAME } from './constants.js';
+import { debugLog } from './constants.js';
 import { eventSource } from '../../../../events.js';
-import { POPUP_TYPE, POPUP_RESULT, Popup } from '../../../../popup.js';
+import { POPUP_TYPE, Popup } from '../../../../popup.js';
 import { getSettings } from './settings.js';
 import { escapeHtml } from './utils.js';
 import { openManagePopup } from './ui-manage.js';
@@ -10,7 +10,6 @@ import { renderCombatSection } from './ui-combat-section.js';
 import { readLoreEntry } from './character-fill.js';
 import { buildStatusCard } from './ui-vitals.js';
 import { buildProfileTabs, buildVoiceLine } from './ui-profile-tabs.js';
-import { playerHistory, restorePlayerFromMessage } from './status-snapshots.js';
 import { renderCollectionUI, attachCollectionListeners, resolveCollectionTarget, persistCollectionEdit, updateExtensionTheme } from './ui-shared.js';
 import { buildBulkBar, spliceIndexes } from './ui-bulk-select.js';
 import { choiceOptionsHtml, isChoiceField } from './ui-shared.js';
@@ -18,8 +17,7 @@ import {
     loadStateFromMetadata,
     applyUpdate,
     getPersonaData,
-    getPlayerCard,
-    statsInSystem
+    getPlayerCard
 } from './status-logic.js';
 
 /** 'profile' | 'edit' - the same two the character page has, for the same reason. */
@@ -446,83 +444,6 @@ function attachModalListeners(dom) {
         });
         btn.dataset.listenerAttached = 'true';
     });
-
-    const restoreBtn = dom.querySelector('.sillynpc-restore-open');
-    if (restoreBtn && !restoreBtn.dataset.listenerAttached) {
-        restoreBtn.addEventListener('click', () => {
-            openRestorePicker().then(changed => { if (changed) refreshModal(dom); })
-                .catch(err => console.error('[Worldkit] restore picker failed', err));
-        });
-        restoreBtn.dataset.listenerAttached = 'true';
-    }
-}
-
-/**
- * Choosing a point to put the player's stats and collections back to.
- *
- * Built on the per-message change records, which are the thing that actually survived
- * when a story's HP and Energy were overwritten - reading them was a manual dig through
- * the chat file, and this is that dig with a button on it.
- *
- * @returns {Promise<boolean>} Whether anything was restored.
- */
-async function openRestorePicker() {
-    const points = playerHistory();
-    if (points.length < 2) {
-        toastr.info('This chat has no earlier player state recorded yet.', PRODUCT_NAME);
-        return false;
-    }
-
-    const wrap = document.createElement('div');
-    const intro = document.createElement('p');
-    intro.textContent = 'Put your stats and collections back to how they were after a '
-        + 'message. Characters in the scene and world stats are left as they are.';
-    wrap.append(intro);
-
-    const select = document.createElement('select');
-    select.className = 'text_pole';
-    select.style.width = '100%';
-    for (const point of points) {
-        const option = document.createElement('option');
-        option.value = String(point.messageId);
-        // Through the schema: a point recorded before a stat was deleted still holds its
-        // value, and listing it here would name a stat the system no longer has.
-        const summary = Object.entries(statsInSystem(point.stats, 'playerStats'))
-            .filter(([, v]) => String(v).includes('/'))
-            .map(([k, v]) => `${k} ${v}`).join(', ');
-        option.textContent = `Message ${point.messageId} — ${summary || 'no meters'}`
-            + ` · ${point.itemCount} item${point.itemCount === 1 ? '' : 's'}`
-            // Older than the record, so it is reconstructed rather than known.
-            + (point.exact ? '' : ' (approximate)');
-        select.append(option);
-    }
-    // The newest point is where you already are; start one back, which is what you want.
-    select.selectedIndex = Math.min(1, points.length - 1);
-    wrap.append(select);
-
-    const note = document.createElement('small');
-    note.className = 'notes';
-    note.style.cssText = 'display:block; margin-top:8px;';
-    note.textContent = 'This lands as an ordinary undo step, so picking the wrong message '
-        + 'can be undone like anything else.';
-    wrap.append(note);
-
-    const result = await new Popup(wrap, POPUP_TYPE.CONFIRM, '', {
-        okButton: 'Restore', cancelButton: 'Cancel',
-    }).show();
-    if (result !== POPUP_RESULT.AFFIRMATIVE) return false;
-
-    const outcome = restorePlayerFromMessage(Number(select.value));
-    if (!outcome) {
-        toastr.error('Nothing recorded for that message.', PRODUCT_NAME);
-        return false;
-    }
-    toastr.success(
-        outcome.exact
-            ? `Restored from message ${select.value}.`
-            : `Restored from message ${select.value}, reconstructed (${outcome.reason}).`,
-        PRODUCT_NAME);
-    return true;
 }
 
 function refreshModal(dom) {

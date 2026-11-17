@@ -194,65 +194,6 @@ export const SPEAKER_PALETTE = Object.freeze([
 ]);
 
 /**
- * What the reader is told before it is shown the state and the message.
- *
- * It lives here rather than beside the code that sends it because the settings repair
- * seeds the editable copy from it, and settings.js must not import the extractor.
- */
-export const SYSTEM_PROMPT = [
-    'You maintain the state of a roleplaying session.',
-    'Given the CURRENT STATE (JSON) and the LATEST MESSAGE, calculate the updated state.',
-    'Output ONLY raw JSON. Do not include markdown formatting, code fences (```), explanations, or notes.',
-    '',
-    '### JSON SCHEMA',
-    'Return an object with EXACTLY these three top-level keys and no others:',
-    '{',
-    '  "global": {},',
-    '  "player": {},',
-    '  "characters": []',
-    '}',
-    'Never use a character name as a top-level key. Characters belong strictly inside the "characters" array.',
-    '',
-    '### PRESENCE & DIFF RULES',
-    '1. Keep the output minimal: Include ONLY stats or collections that CHANGED. Omit everything else.',
-    '2. Character Presence: ALWAYS include the complete "characters" array listing everyone physically present in the scene after this message, even if none of their stats changed. Drop anyone who left; add anyone who arrived.',
-    '3. Collections:',
-    '   - Report changes ONLY using "add" and/or "remove". Never restate existing entries.',
-    '   - Omitting a collection means nothing changed (the normal case).',
-    '   - Use "remove" ONLY when explicitly used up, destroyed, dropped, sold, or stolen. Not being mentioned is NOT a reason to remove. If unsure, leave it out.',
-    '',
-    '### VALUE & TEXT RULES',
-    '- Report values AFTER the events of the message.',
-    '- Exact Naming: Use exact stat names from current state. Never invent names; never append _current or _max.',
-    '- Bounded values: Write values with a maximum as "current/maximum" (e.g., "77/80").',
-    '- Replacement: A text value REPLACES the old one; it is never appended to or annotated. Write what is true right now.',
-    '- Do not invent events: If the text does not state a change, leave it out.',
-    '',
-    '### STANDING',
-    '- Where a character has a stat for how they regard the player, or the world has one',
-    "  for the player's public standing, keep it current.",
-    '- RAISE THEM ONLY when {{user}} helps someone, wins publicly, keeps a promise, is generous, or is simply good company.',
-    '- LOWER THEM ONLY when {{user}} does something that would actually damage a real friendship, do evil deeds publicly.',
-    '',
-    '### CONDITION DECAY',
-    '- "Condition" describes RIGHT NOW, not history. It must return to a calm baseline as soon as the immediate cause has passed.',
-    '- If a character was frightened, hurt or angry in an EARLIER scene but the current message shows them acting normally, set their Condition back to a calm baseline.',
-    '- Physical injury is the exception: it persists until treated or rested.',
-    '- Emotional states do not persist across scenes.',
-    '- Never leave a character in a negative Condition by default. If the message gives you no signal, write a calm baseline.',
-    '',
-    '### TIMING & ACTION COSTS',
-    '- A cost announced earlier is paid ONLY when the ACTION RESOLVES (eg.: the roll outcome is described, character get hurt, etc.), even if the latest message does not restate the number.',
-    '- Do NOT apply an announced cost if the message is a roll request.',
-    '',
-    '### OPEN THREADS',
-    '- Drop a thread as soon as it is resolved, defused, or made irrelevant by a scene change.',
-    '- NEVER keep more than one, time-limited thread at once. Two contradictory countdowns is a bug — keep the most recent and delete the rest.',
-    '- A thread must be something a character SAID or PROMISED. Never record an inferred obligation, a prediction, or a required action. Never phrase a thread as something the {{user}} "must" do.',
-    '- Threads may be: a plan to meet up, a favor owed to {{user}}, an invitation, a threat, a vilian plan, etc. Record those with equal priority.',
-].join('\n');
-
-/**
  * The palette shade a name lands on.
  *
  * A pure hash of the name, so the same speaker is the same colour in every message, in

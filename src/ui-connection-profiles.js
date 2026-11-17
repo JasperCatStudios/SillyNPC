@@ -4,30 +4,18 @@ import { getContext } from '../../../../st-context.js';
 /**
  * Which connection answers which request.
  *
- * Shared rather than owned by a tab: the tracker's pickers and the lore tab's picker are
- * the same control over different settings, and the one time they were not, choosing a
- * Scan Connection silently changed the extraction connection instead.
+ * Shared rather than owned by a tab: every picker is the same control over a different
+ * top-level setting, named by its key.
  */
-
-function profileStore(scope) {
-    return scope === 'root' ? getSettings() : getSettings().statusTracker;
-}
 
 /** The profile currently chosen for one setting. */
-export function readProfileSetting(scope, key) {
-    return profileStore(scope)[key] || '';
+export function readProfileSetting(key) {
+    return getSettings()[key] || '';
 }
 
-/**
- * Records the profile chosen for one setting, and only that one.
- *
- * The picker used to read and write `extractionProfileId` whatever key it was handed, so
- * choosing a **Scan Connection** silently changed the extraction connection instead, both
- * dropdowns showed the same value, and `scanProfileId` could never be set at all - even
- * though the scan reads it (`src/history-scan.js`).
- */
-export function writeProfileSetting(scope, key, value) {
-    profileStore(scope)[key] = value;
+/** Records the profile chosen for one setting, and only that one. */
+export function writeProfileSetting(key, value) {
+    getSettings()[key] = value;
     saveSettings();
 }
 
@@ -35,19 +23,18 @@ export function writeProfileSetting(scope, key, value) {
  * A "which connection runs this" dropdown.
  *
  * @param {Function} onChange
- * @param {{ key?: string, scope?: 'tracker'|'root', labelText?: string,
+ * @param {{ key?: string, labelText?: string,
  *           fallbackLabel?: string, noteText?: string, unavailableText?: string }} options
  */
 export function buildConnectionProfilePicker(onChange, options = {}) {
     const {
-        key = 'extractionProfileId',
-        scope = 'tracker',
-        labelText = 'Extraction Connection',
+        key = 'imageProfileId',
+        labelText = 'Connection',
         fallbackLabel = 'Main API (same as chat)',
-        noteText = 'Which connection runs the extraction. A small fast model is usually '
+        noteText = 'Which connection runs this. A small fast model is usually '
             + 'enough, and keeps this off the budget of your main model.',
-        unavailableText = 'Connection Manager is not available, so the extraction uses '
-            + 'your main API. Enable the Connection Manager extension to run it on a '
+        unavailableText = 'Connection Manager is not available, so the main API is used. '
+            + 'Enable the Connection Manager extension to run this on a '
             + 'separate, cheaper model.',
     } = options;
 
@@ -68,7 +55,7 @@ export function buildConnectionProfilePicker(onChange, options = {}) {
     try {
         profiles = getContext().ConnectionManagerRequestService.getSupportedProfiles();
     } catch (err) {
-        debugLogSafe('Connection Manager unavailable for the extraction picker', err);
+        debugLogSafe('Connection Manager unavailable for a connection picker', err);
     }
 
     if (!profiles) {
@@ -90,9 +77,9 @@ export function buildConnectionProfilePicker(onChange, options = {}) {
         option.textContent = profile.name || profile.id;
         select.append(option);
     }
-    select.value = readProfileSetting(scope, key);
+    select.value = readProfileSetting(key);
     select.addEventListener('change', () => {
-        writeProfileSetting(scope, key, select.value);
+        writeProfileSetting(key, select.value);
         onChange?.();
     });
 

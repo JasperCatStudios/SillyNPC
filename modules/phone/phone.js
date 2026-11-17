@@ -79,8 +79,6 @@ const defaults = {
 
     // initiative engine
     threadMemory: 24,       // how much of THIS phone conversation they re-read each time
-    useDiary: false,         // pull long-term memory from the RPG Diary extension
-    diaryEntries: 2,        // how many of their private diary entries to include
     initiative: true,
     minGapMinutes: 25,      // no unprompted texts sooner than this
     maxPerDay: 8,           // per character
@@ -124,7 +122,6 @@ const defaults = {
     active: {},             // contactId -> true (who is on the phone)
     state: {},              // contactId -> {lastInitiative, todayCount, dayStamp, ignored}
     unread: {},             // contactId -> unread counter
-    diaries: {},            // contactId -> [{ts, date, mood, text}] — the PHONE's own diary
     cast: {},               // card name -> "Sam Lee, Mark, Анна": people who live inside one RP card
     aliases: {},            // card name -> "Алекс, Ал": other ways the model writes that name (2.0.1)
     looks: {},              // person -> { useAvatar, refKey, desc }: who they look like on photos
@@ -173,7 +170,6 @@ let msgNodes = new Map();    // bubble key -> its element, reused across renders
 function loadSettings() {
     if (!extension_settings[MODULE_NAME]) extension_settings[MODULE_NAME] = {};
     settings = Object.assign({}, defaults, extension_settings[MODULE_NAME]);
-    settings.useDiary = false;
     // Fork: the speaker tag is for the model, never for the screen - take it out of what was stored.
     try {
         for (const thread of Object.values(settings.threads || {})) {
@@ -195,7 +191,7 @@ function loadSettings() {
     settings.bridge = normalizeBridge(settings.bridge);
     if (!settings.bridgeShown || typeof settings.bridgeShown !== 'object' || Array.isArray(settings.bridgeShown)) settings.bridgeShown = {};
     settings.bridgeArmed = settings.bridgeArmed === true;
-    for (const k of ['temperature', 'contextTokens', 'mainChatTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'diaryEntries', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
+    for (const k of ['temperature', 'contextTokens', 'mainChatTokens', 'mainChatMessages', 'minGapMinutes', 'maxPerDay', 'quietFrom', 'quietTo', 'arcDepth', 'bubbleWidth', 'visibleCount', 'offsetRight', 'offsetTop', 'fade', 'threadMemory', 'maxTokens', 'phoneSize', 'wallDim']) {
         if (!Number.isFinite(settings[k])) settings[k] = defaults[k];
     }
     // the first build hugged the very right edge and dimmed old messages far too hard —
@@ -287,14 +283,7 @@ const L = {
         set_quiet: 'Тихие часы, с', set_notify: 'Уведомлять', set_sound: 'Звук', set_arc: 'Изгиб', set_width: 'Ширина', set_vis: 'Видно',
         set_fade: 'Затухание, %', regen_title: 'Перегенерировать ответ',
         group_chat: 'Групповой чат', cancel_title: 'Отменить', cancelled: 'Отменено.',
-        set_diary: 'Память из RPG Diary', set_diary_n: 'Записей дневника',
         set_thmem: 'Из переписки',
-        diary_btn: 'Дневник (RPG Diary)', diary_title: 'Дневник', diary_write: 'Написать запись',
-        diary_no_ext: 'Расширение RPG Diary не найдено или выключено.',
-        diary_old_ext: 'Нужна свежая версия RPG Diary (с поддержкой отдельных дневников).',
-        diary_saved: 'Запись добавлена в дневник {name}.',
-        diary_empty: 'Записей пока нет. Пусть напишет первую.', diary_writing: 'Пишет запись…',
-        diary_from_chat: 'из чата', diary_del: 'Удалить запись',
         timeout: 'Модель не ответила вовремя — попробуй ещё раз.', open_chat: 'Открыть переписку',
         set_right: 'Справа, px', set_top: 'Сверху, px',
         nokey: 'Сначала укажи API-ключ в настройках телефона.',
@@ -380,14 +369,7 @@ const L = {
         set_quiet: 'Quiet hours, from', set_notify: 'Notify', set_sound: 'Sound', set_arc: 'Arc', set_width: 'Width', set_vis: 'Shown',
         set_fade: 'Fade, %', regen_title: 'Regenerate the reply',
         group_chat: 'Group chat', cancel_title: 'Cancel', cancelled: 'Cancelled.',
-        set_diary: 'Memory from RPG Diary', set_diary_n: 'Diary entries',
         set_thmem: 'From this thread',
-        diary_btn: 'Diary (RPG Diary)', diary_title: 'Diary', diary_write: 'Write an entry',
-        diary_no_ext: 'The RPG Diary extension is not installed or is disabled.',
-        diary_old_ext: 'A newer RPG Diary is required (with external-diary support).',
-        diary_saved: 'Entry added to {name}\'s diary.',
-        diary_empty: 'No entries yet. Let them write the first one.', diary_writing: 'Writing…',
-        diary_from_chat: 'from the chat', diary_del: 'Delete entry',
         timeout: 'The model did not answer in time — try again.', open_chat: 'Open conversation',
         set_right: 'Right, px', set_top: 'Top, px',
         nokey: 'Set the API key in the phone settings first.',
@@ -549,19 +531,12 @@ function nestedSender(text, extra) {
 }
 
 /* ONE CARD, MANY PEOPLE (2.0.0). An RP card can hold a whole cast. Who lives in it comes
-   from two places: the names you list for that card in «Кто на связи», and the people
-   RPG Diary has already filed in its NPC dossiers for that character. Those names are
+   from the names you list for that card in «Кто на связи». Those names are
    always read as senders, single-word ones too ("Mark: …"). */
 function castList(name) {
     const out = [];
     const add = n => { n = String(n || '').trim().slice(0, 32); if (n && n !== name && !out.some(x => x.toLowerCase() === n.toLowerCase())) out.push(n); };
     String(settings.cast?.[name] || '').split(/[,;\n]/).forEach(add);
-    if (settings.useDiary) {
-        try {
-            const st = diaryStateFor(name);
-            (st?.npcs || []).forEach(x => x && add(x.name));
-        } catch (e) { }
-    }
     return out.slice(0, 30);
 }
 /* (2.0.2) Other ways the model writes a name, kept per card in «Ещё зовут»:
@@ -686,7 +661,6 @@ function threadOf(name) {
     return settings.threads[name];
 }
 function pushRaw(id, msg) {
-    registerDiarySources();          // a brand-new thread must be known to the diary too
     const th = threadOf(id);
     // several bubbles of one reply used to share the same millisecond; a unique time
     // per message is what regenerate and the photo queue use to find it again
@@ -714,182 +688,6 @@ function stateOf(name) {
 }
 function activeNames() {
     return Object.keys(settings.active).filter(n => settings.active[n]);
-}
-
-/* ============================================================
-   PHONE DIARY
-   The RPG Diary lives inside a chat and is only reachable when that
-   chat is open. The phone keeps its OWN diary per conversation, so
-   the characters can write about the texting itself — and it can be
-   read right here, without leaving for the chat.
-   ============================================================ */
-function phoneDiary(id) {
-    if (!Array.isArray(settings.diaries[id])) settings.diaries[id] = [];
-    return settings.diaries[id];
-}
-function dateLabel(ts) {
-    const d = new Date(ts);
-    return d.toLocaleDateString() + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-}
-
-// EVERY phone conversation is its own diary "chat" inside RPG Diary — its own
-// entries, NPCs, memory — exactly like a normal chat has one. It is never mixed
-// with the diary of the character's main-story chat.
-function diaryKeyOf(contactId) { return contactId ? 'phone::' + contactId : null; }
-function diaryApi() {
-    const d = (typeof window !== 'undefined') && window.RPG && window.RPG.diary;
-    return (d && d.available && d.supportsExternal) ? d : null;
-}
-// The diary summarizes whatever transcript it is given; for a phone diary that is
-// the conversation itself, formatted the same way ("Name: line").
-function transcriptOf(contactId) {
-    const you = name1 || 'You';
-    return threadOf(contactId).map(m => {
-        const who = m.who === 'user' ? you : (m.name || contactLabel(contactId));
-        return `${who}: ${String(m.text || '').replace(/\s+/g, ' ').trim()}`;
-    }).filter(l => l.length > 3);
-}
-function registerDiarySources() {
-    return;   // fork: the diary is not used
-    const api = diaryApi();
-    if (!api || typeof api.setExternalSource !== 'function') return;
-    const ids = new Set(Object.keys(settings.threads || {}));
-    contactList().forEach(id => ids.add(id));
-    ids.forEach(id => api.setExternalSource(diaryKeyOf(id), () => transcriptOf(id)));
-}
-
-function phoneDiaryState(contactId) {
-    const api = diaryApi();
-    if (!api) return null;
-    try { return api.getExternal(diaryKeyOf(contactId)); } catch (e) { return null; }
-}
-
-async function writeDiaryEntry() {
-    const cur = currentContact();
-    if (!cur || busy) return;
-    if (!apiKey()) { toastr.warning(t('nokey')); return; }
-    const names = contactMembers(cur);
-    const author = names[0];
-    if (!author) return;
-
-    const rq = beginRequest(cur); renderDiaryPanel();
-    try {
-        const sys = `You ARE "${author}". Write a SHORT private diary entry (about 60-120 words) about your recent text conversation with "${name1 || 'them'}" — what was said, what you felt, what you did not say out loud. First person, intimate, in character. No greetings, no headers, no quotes around it. Write in ${genLang()}.
-${cardOf(author)}`;
-        const usr = [
-            timeContext(0),
-            diaryBlock([author], cur),
-            `[YOUR RECENT TEXTS]
-${threadContext(cur, 30)}`
-        ].filter(Boolean).join('\n\n');
-        const raw = await callAIComplete(sys, usr);
-        if (!isCurrent(rq)) return;    // cancelled while writing
-        // (2.0.1) a leaked <think> block went into the diary along with the entry
-        const text = cleanLine(cleanReplyText(raw).trim().replace(/^["'«]+|["'»]+$/g, ''), 1800);
-        if (text) {
-            const api = diaryApi();
-            const wrote = api && typeof api.addEntryTo === 'function' && api.addEntryTo(diaryKeyOf(cur), {
-                text, tags: ['📱'], source: 'phone',
-                seed: { author, label: contactLabel(cur) + ' 📱' }
-            });
-            if (wrote) toastr.success(t('diary_saved', { name: author }));
-            else {
-                // RPG Diary missing/old — keep it locally so nothing is lost
-                phoneDiary(cur).unshift({ ts: Date.now(), date: dateLabel(Date.now()), author, text });
-                if (phoneDiary(cur).length > 60) phoneDiary(cur).length = 60;
-                saveSettings();
-                toastr.info(t('diary_no_ext'));
-            }
-        } else toastr.info(t('err'));
-    } catch (e) {
-        requestFailed(e, rq, 'diary');
-    }
-    finishRequest(rq);
-    renderDiaryPanel();
-}
-
-// Open the RPG Diary extension itself — its book, its UI, its data. Only its own
-// floating button knows how to toggle the modal, so we click it. When that chat is
-// not the open one (or the extension is absent) we fall back to the local list.
-function openRealDiary() {
-    const cur = currentContact();
-    if (!cur) return;
-    registerDiarySources();
-    const api = diaryApi();
-    const label = contactLabel(cur) + ' 📱';
-    if (api) {
-        // opens the real diary book ON this conversation's own diary chat
-        const ok = api.openExternal(diaryKeyOf(cur), label, { author: contactMembers(cur)[0], label });
-        if (ok) return;
-        toastr.info(t('diary_no_ext'));
-    } else if (window.RPG && window.RPG.diary) {
-        toastr.info(t('diary_old_ext'));
-    } else {
-        toastr.info(t('diary_no_ext'));
-    }
-    renderDiaryPanel();
-    $('#rph-diary-panel').addClass('visible');
-}
-
-function renderDiaryPanel() {
-    let box = document.getElementById('rph-diary-panel');
-    if (!box) {
-        box = document.createElement('div');
-        box.id = 'rph-diary-panel';
-        document.body.appendChild(box);
-        box.addEventListener('wheel', e => e.stopPropagation());
-    }
-    const cur = currentContact();
-    if (!cur) { box.innerHTML = ''; return; }
-    const own = phoneDiary(cur).map(e => ({ ...e, src: 'phone' }));
-    // entries the character wrote in the chat-bound RPG Diary, shown read-only
-    let linked = [];
-    {
-        const author = contactMembers(cur)[0];
-        const st = phoneDiaryState(cur) || (settings.useDiary ? diaryStateFor(author) : null);
-        if (st && Array.isArray(st.entries)) {
-            linked = st.entries.filter(e => e && e.text).slice(-20).map(e => ({
-                ts: e.ts || 0, date: e.date || '', author, text: e.text, mood: e.mood || '',
-                src: e.source === 'phone' ? 'phone' : 'chat'
-            }));
-        }
-    }
-    const all = own.concat(linked).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 60);
-
-    const oldList = box.querySelector('.rph-diary-list');
-    const keepTop = oldList ? oldList.scrollTop : 0;   // a redraw (writing, deleting) keeps your place
-    box.innerHTML = `
-        <div class="rph-diary-head">
-            <span><i class="fa-solid fa-book"></i> ${escapeHtml(t('diary_title'))} — ${escapeHtml(contactLabel(cur))}</span>
-            <i class="fa-solid fa-xmark rph-diary-close"></i>
-        </div>
-        <div class="rph-diary-list">
-            ${all.length ? all.map((e, i) => `
-                <div class="rph-entry ${e.src === 'chat' ? 'linked' : ''} ${e.src === 'phone' ? 'fromphone' : ''}">
-                    <div class="rph-entry-head">
-                        <span>${escapeHtml(e.date || dateLabel(e.ts))}${e.mood ? ' · ' + escapeHtml(e.mood) : ''}</span>
-                        ${e.src === 'phone' ? `<span class="rph-entry-src">📱</span>`
-                            : e.src === 'chat' ? `<span class="rph-entry-src">${escapeHtml(t('diary_from_chat'))}</span>`
-                            : `<i class="fa-solid fa-trash rph-entry-del" data-ts="${escapeHtml(e.ts)}" title="${escapeHtml(t('diary_del'))}"></i>`}
-                    </div>
-                    <div class="rph-entry-text">${escapeHtml(e.text)}</div>
-                </div>`).join('')
-            : `<div class="rph-hint">${escapeHtml(t('diary_empty'))}</div>`}
-        </div>
-        <button class="menu_button rph-diary-write" ${busy ? 'disabled' : ''}>
-            <i class="fa-solid fa-feather"></i> ${escapeHtml(busy ? t('diary_writing') : t('diary_write'))}
-        </button>`;
-
-    const newList = box.querySelector('.rph-diary-list');
-    if (newList && keepTop) newList.scrollTop = keepTop;
-    box.querySelector('.rph-diary-close').onclick = () => box.classList.remove('visible');
-    box.querySelector('.rph-diary-write').onclick = writeDiaryEntry;
-    box.querySelectorAll('.rph-entry-del').forEach(el => el.onclick = () => {
-        const ts = Number(el.dataset.ts);
-        settings.diaries[cur] = phoneDiary(cur).filter(x => x.ts !== ts);
-        saveSettings();
-        renderDiaryPanel();
-    });
 }
 
 /* ============================================================
@@ -969,7 +767,7 @@ function deleteChat(id) {
     if (!chatInfo(id)) return;
     const name = baseName(id);
     forgetMessages(settings.threads[id]);
-    delete settings.threads[id]; delete settings.state[id]; delete settings.unread[id]; delete settings.diaries[id];
+    delete settings.threads[id]; delete settings.state[id]; delete settings.unread[id]; if (settings.diaries) delete settings.diaries[id];
     delete settings.active[id]; delete settings.chats[id];
     if (settings.current === id) settings.current = name;
     saveSettings();
@@ -1023,7 +821,6 @@ function openContact(id) {
     lastSig = '';
     phoneWindow = PHONE_PAGE;
     settings.current = id;
-    if ($('#rph-diary-panel').hasClass('visible')) setTimeout(renderDiaryPanel, 0);
     delete settings.unread[id];
     scrollOffset = 0;
     saveSettings();
@@ -1128,53 +925,6 @@ function diaryStateFor(name) {
 }
 function clip(x, n) { return String(x || '').replace(/\s+/g, ' ').trim().slice(0, n); }
 
-// BUG FIX (1.9.0). The phone-conversation memory below used currentContact() — the
-// thread OPEN on screen. A background initiative for another contact then got the
-// open conversation's diary. The conversation is now passed in explicitly.
-function diaryBlock(names, contactId) {
-    if (!settings.useDiary) return '';
-    const parts = [];
-    const seenStates = new Set();
-    for (const n of names.slice(0, 3)) {
-        const st = diaryStateFor(n);
-        if (!st) continue;
-        const bits = [];
-        // the shared long-term memory is the same object for everyone in that chat —
-        // include it once, not per character
-        if (st.summary && !seenStates.has(st)) {
-            seenStates.add(st);
-            bits.push(`What has happened between you so far: ${clip(st.summary, 1400)}`);
-        }
-        const ents = Array.isArray(st.entries) ? st.entries.filter(e => e && e.text).slice(-Math.max(0, settings.diaryEntries)) : [];
-        if (ents.length && st.author === n) {
-            bits.push(`Your own recent private diary entries (your true feelings — never quote them aloud, just let them colour how you write): ` +
-                ents.map(e => `[${clip(e.date || '', 40)}${e.mood ? ', ' + clip(e.mood, 30) : ''}] "${clip(e.text, 320)}"`).join(' / '));
-        }
-        if (st.bond && (st.bond.status || typeof st.bond.trust === 'number')) {
-            bits.push(`Your bond with them: ${clip(st.bond.status || '', 160)}${typeof st.bond.trust === 'number' ? ` (trust ${st.bond.trust})` : ''}`);
-        }
-        if (bits.length) parts.push(`— ${n}:\n${bits.join('\n')}`);
-    }
-    // the diary of THIS conversation (its own diary chat in RPG Diary)
-    const cur = contactId || currentContact();
-    if (cur) {
-        const own = [];
-        const st = phoneDiaryState(cur);
-        if (st) {
-            if (st.summary) own.push(`Memory of your texting: ${clip(st.summary, 900)}`);
-            const ents = Array.isArray(st.entries) ? st.entries.filter(e => e && e.text).slice(-Math.max(0, settings.diaryEntries)) : [];
-            if (ents.length) own.push(`Your private entries about this conversation: ` +
-                ents.map(e => `[${clip(e.date, 40)}] "${clip(e.text, 320)}"`).join(' / '));
-        }
-        // local fallback when RPG Diary is not installed
-        const loc = phoneDiary(cur).slice(0, Math.max(0, settings.diaryEntries));
-        if (!st && loc.length) own.push(`Your private entries about this conversation: ` +
-            loc.map(e => `[${clip(e.date, 40)}] "${clip(e.text, 320)}"`).join(' / '));
-        if (own.length) parts.push(`— ${contactMembers(cur)[0] || ''} (this phone conversation):\n${own.join('\n')}`);
-    }
-    return parts.length ? `[MEMORY (you remember all of this; it is your shared past):\n${parts.join('\n\n')}\n]` : '';
-}
-
 // a phone contact with no character card can still have a Diary dossier
 function diaryPersonaOf(name) {
     const st = diaryStateFor(name);
@@ -1268,7 +1018,6 @@ function cancelRequest() {
     finishRequest();
     toastr.info(t('cancelled'));
     renderBubbles();
-    if ($('#rph-diary-panel').hasClass('visible')) renderDiaryPanel();
 }
 // BUG FIX (1.9.0): the watchdog's abort looked exactly like a press on ✕, so a hung
 // model was reported as «Отменено». It now aborts with its own reason.
@@ -3280,7 +3029,7 @@ function buildRequest(names, reasonLine, isInitiative, contactId) {
     const lastTs = th.length ? th[th.length - 1].ts : 0;
     const sys = buildSystem(names, reasonLine);
     const lastSc = th.length ? th[th.length - 1].sc : null;
-    const head = [personaBlock(), extensionMemoryBlock(), timeContext(lastTs, lastSc), diaryBlock(names, primary)];
+    const head = [personaBlock(), extensionMemoryBlock(), timeContext(lastTs, lastSc)];
     // Photos from the player waiting for an answer, which the model is shown when vision is on: say so,
     // so a custom prompt without the photo rule still reacts to what is in them.
     const seeing = settings.vision && settings.profileId ? pickVisionImages(th, { max: MAX_VISION_IMAGES }).length : 0;
@@ -3874,13 +3623,6 @@ function initiativeTick() {
         else if (idleMin > 120) reason = `${name1 || 'The player'} has been away for ${Math.round(idleMin / 60)} hours. You are thinking about them.`;
         else {
             reason = `It has been quiet for ${Math.round(sinceMsgMin)} minutes and something about the day made you want to write first.`;
-            // sometimes what is on their mind is what they just wrote in their diary
-            if (settings.useDiary && Math.random() < 0.45) {
-                const st = diaryStateFor(contactMembers(name)[0]);
-                const ents = Array.isArray(st?.entries) ? st.entries.filter(e => e && e.text) : [];
-                const last = ents.length ? ents[ents.length - 1] : null;
-                if (last) reason = `Something you wrote privately in your diary is still on your mind — "${clip(last.text, 220)}" — and it made you want to write to them. Never quote the diary; let it only colour the message.`;
-            }
         }
 
         fireInitiative(name, reason);
@@ -3993,7 +3735,6 @@ function ensureLayer() {
         document.getElementById('rph-stack').addEventListener('scroll', onStackScroll, { passive: true });
     }
     $('#rph-input').attr('placeholder', t(pendingFiles.length ? 'caption_ph' : 'ph'));
-    $('#rph-diary-btn').attr('title', t('diary_btn'));
     $('#rph-attach').attr('title', t('attach'));
     $('#rph-contacts').attr('title', t('contacts'));
     $('#rph-min').attr('title', t('minimize'));
@@ -5744,7 +5485,6 @@ jQuery(() => {
     renderBubbles();
     // the lorebook entries linked to characters become their profile on the phone
     eventSource.on('sillynpc-profile-updated', () => { lastSig = ''; renderBubbles(); });
-    // RPG Diary loads after us (loading_order 116 vs 118) — register once it is there
     // photos from older versions leave settings.json for the browser's own storage
     setTimeout(() => { migratePhotos().catch(e => console.warn('[Phone] photo move failed', e)); }, 1500);
 

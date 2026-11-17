@@ -409,8 +409,8 @@ export function renderAdvancedView(view, handlers = {}) {
         key: 'debugLogging',
         label: 'Log Requests To The Console',
         help: 'Prints one line in the browser console for every request Worldkit makes - '
-            + 'lore, extraction and portraits - naming the connection, the model and which '
-            + 'API key it used. Off by default because extraction runs after every message. '
+            + 'lore, portraits and the tracker readers - naming the connection, the model and which '
+            + 'API key it used. Off by default because the tracker readers can run after every message. '
             + 'Open the console with F12.',
         onChange: () => setDebugLogging(getSettings().debugLogging),
     }));

@@ -12,7 +12,7 @@ import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
  * already has rather than writing behind their backs.
  */
 
-/** @type {{ id: string, label: string, help: string, scope?: 'root'|'tracker', key?: string, dom?: string }[]} */
+/** @type {{ id: string, label: string, help: string, key?: string, dom?: string }[]} */
 /** The connections that belong to the Trackers group. */
 const TRACKER_CONNECTIONS = ['internal', 'bonds', 'vitals', 'inventory'];
 /** The connections that belong to the Modules group: the three windows with a connection of their own. */
@@ -123,7 +123,6 @@ export function renderConnectionsView(view) {
         if (use.dom) { groupFor(use).append(domPicker(use)); continue; }
         groupFor(use).append(buildConnectionProfilePicker(null, {
             key: use.key,
-            scope: use.scope,
             labelText: use.label,
             fallbackLabel: 'Main API (same as chat)',
             noteText: use.help,
