@@ -2,7 +2,7 @@ import { getSettings, saveSettings } from './settings.js';
 import { DEFAULT_TONE_TAGS, cleanToneTable } from './tts-text.js';
 import { DELIVERY_MEANINGS } from './delivery-core.js';
 import {
-    DELIVERY_FONTS, DELIVERY_EFFECTS, DELIVERY_CASES, DEFAULT_DELIVERY_STYLES, styleFor, cleanStyle,
+    DELIVERY_FONTS, DELIVERY_EFFECTS, DELIVERY_CASES, DELIVERY_DECORATIONS, DEFAULT_DELIVERY_STYLES, styleFor, cleanStyle,
 } from './delivery-style.js';
 import { applyDelivery, applyDeliveryStyle } from './delivery.js';
 
@@ -89,7 +89,9 @@ function buildTagCard(name, table, settings, rerender) {
     grid.append(
         field('Size %', numberInput(s.size, { min: 50, max: 200, step: 1 }, v => write({ size: v }))),
         field('Opacity %', numberInput(s.opacity, { min: 20, max: 100, step: 1 }, v => write({ opacity: v }))),
-        field('Letter spacing', numberInput(s.spacing, { min: 0, max: 0.5, step: 0.01 }, v => write({ spacing: v }))),
+        field('Weight (0 = use Bold)', numberInput(s.weight, { min: 0, max: 900, step: 50 }, v => write({ weight: v }))),
+        field('Letter spacing', numberInput(s.spacing, { min: -0.1, max: 0.5, step: 0.005 }, v => write({ spacing: v }))),
+        field('Underline', selectInput(Object.entries(DELIVERY_DECORATIONS), s.decoration, v => write({ decoration: v }))),
         field('Case', selectInput(Object.entries(DELIVERY_CASES), s.case, v => write({ case: v }))),
         field('Font', selectInput(Object.entries(DELIVERY_FONTS).map(([id, f]) => [id, f.label]), s.font, v => write({ font: v }))),
         field('Effect', selectInput(Object.entries(DELIVERY_EFFECTS), s.effect, v => write({ effect: v }))),
@@ -164,7 +166,7 @@ export function renderDeliveryStyles(container, rerender) {
     wrap.append(el('h4', 'sillynpc-subsection-title', 'Delivery Styles'));
     wrap.append(el('p', 'notes sillynpc-tab-intro',
         'How a line marked [whisper]...[/whisper] looks in the chat. Each tag is a delivery the story model can mark; the look is set here, '
-        + 'never by the model. A character\'s own colour is left alone, and nothing is tilted. Turn the tags on under Writing Rules, Delivery Tags. '
+        + 'never by the model. A character\'s own colour is left alone, and nothing is tilted or rotated. Turn the tags on under Writing Rules, Delivery Tags. '
         + 'Fonts other than the system ones are loaded from Google Fonts when a tag uses them.'));
 
     const table = editableTable(settings);
@@ -192,6 +194,24 @@ export function renderDeliveryStyles(container, rerender) {
     });
     add.append(nameBox, audioBox, button);
     wrap.append(add);
+
+    // An older saved list lacks the tags added since; this puts the missing starting ones back without touching the rest.
+    const missing = Object.keys(DEFAULT_TONE_TAGS).filter(n => !(n in table));
+    if (missing.length) {
+        const fill = el('button', 'menu_button', `Add the ${missing.length} missing starting tags`);
+        fill.type = 'button';
+        fill.title = 'Keeps your own tags and looks; adds only the starting tags that are not in your list.';
+        fill.addEventListener('click', () => {
+            const next = editableTable(settings);
+            for (const n of missing) next[n] = DEFAULT_TONE_TAGS[n];
+            settings.ttsToneTable = next;
+            saveSettings();
+            applyDelivery();
+            applyDeliveryStyle();
+            rerender();
+        });
+        wrap.append(fill);
+    }
 
     const reset = el('button', 'menu_button', 'Reset all tags and looks');
     reset.type = 'button';

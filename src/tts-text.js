@@ -12,6 +12,7 @@
 
 /** Delivery tag to ElevenLabs audio tag. Editable in the settings; this is the starting table. */
 export const DEFAULT_TONE_TAGS = Object.freeze({
+    // the first set
     whisper: 'whispers',
     shout: 'shouts',
     sigh: 'sighs',
@@ -24,6 +25,35 @@ export const DEFAULT_TONE_TAGS = Object.freeze({
     scared: 'scared',
     angry: 'mad',
     tired: 'tired',
+    // quiet and intimate
+    murmur: 'softly',
+    hushed: 'quietly',
+    breathy: 'breathlessly',
+    intimate: 'intimate',
+    // forceful
+    snarl: 'growling',
+    command: 'firmly',
+    seething: 'seething',
+    sneer: 'sarcastic',
+    defiant: 'defiant',
+    bite: 'sharply',
+    // vulnerable
+    pleading: 'pleading',
+    sobbing: 'sobbing',
+    wistful: 'wistful',
+    uncertain: 'hesitant',
+    resigned: 'resigned',
+    trembling: 'trembling',
+    // expressive
+    teasing: 'teasing',
+    flirtatious: 'flirty',
+    amused: 'amused',
+    dreamy: 'dreamy',
+    // specialised
+    deadpan: 'deadpan',
+    reverent: 'reverent',
+    ominous: 'ominous',
+    steady: 'calm',
 });
 
 /**

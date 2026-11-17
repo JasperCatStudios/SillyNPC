@@ -37,18 +37,56 @@ export const DELIVERY_CASES = Object.freeze({
     smallcaps: 'Small caps',
 });
 
-const BASE = Object.freeze({ size: 100, bold: false, italic: false, case: 'none', spacing: 0, opacity: 100, font: '', effect: 'none' });
+/** An underline drawn under the words (no layout change). */
+export const DELIVERY_DECORATIONS = Object.freeze({
+    none: 'None',
+    dotted: 'Dotted underline',
+    wavy: 'Wavy underline',
+});
+
+/** weight 0 means "from the Bold box" (normal, or 700); any other number is the font weight itself. */
+const BASE = Object.freeze({ size: 100, bold: false, weight: 0, italic: false, case: 'none', spacing: 0, opacity: 100, font: '', effect: 'none', decoration: 'none' });
 
 /** The starting look of each delivery. Subtle on purpose; every value can be changed in Appearance. */
 export const DEFAULT_DELIVERY_STYLES = Object.freeze({
-    whisper: { ...BASE, size: 90, opacity: 72, spacing: 0.03, italic: true },
+    // quiet and intimate
+    whisper: { ...BASE, size: 84, weight: 300, spacing: 0.13, opacity: 70 },
+    murmur: { ...BASE, size: 95, weight: 300, italic: true, spacing: 0.04, opacity: 73 },
+    hushed: { ...BASE, size: 88, weight: 300, spacing: -0.025, opacity: 80 },
+    breathy: { ...BASE, weight: 300, italic: true, spacing: 0.16, opacity: 78 },
+    intimate: { ...BASE, italic: true, spacing: -0.02 },
+    // forceful
+    snarl: { ...BASE, size: 118, weight: 900, italic: true, spacing: -0.065 },
+    command: { ...BASE, weight: 850, case: 'upper', spacing: 0.09 },
+    seething: { ...BASE, weight: 850, spacing: -0.055 },
+    sneer: { ...BASE, weight: 650, italic: true, spacing: 0.07 },
+    defiant: { ...BASE, size: 112, weight: 900, case: 'upper', spacing: 0.06 },
+    bite: { ...BASE, weight: 900, spacing: -0.045 },
+    // vulnerable
+    pleading: { ...BASE, size: 110, weight: 300, italic: true, spacing: 0.09 },
+    sobbing: { ...BASE, weight: 300, italic: true, spacing: 0.065, opacity: 78, decoration: 'dotted' },
+    wistful: { ...BASE, size: 107, italic: true, spacing: 0.08 },
+    uncertain: { ...BASE, weight: 300, spacing: 0.14 },
+    resigned: { ...BASE, size: 88, italic: true, opacity: 57 },
+    trembling: { ...BASE, weight: 300, italic: true, spacing: 0.07, decoration: 'wavy' },
+    // expressive
+    teasing: { ...BASE, size: 110, weight: 650, italic: true, spacing: 0.04 },
+    flirtatious: { ...BASE, size: 112, italic: true, spacing: 0.025 },
+    amused: { ...BASE, size: 108, weight: 650, spacing: 0.025 },
+    excited: { ...BASE, size: 132, weight: 850, spacing: 0.035 },
+    curious: { ...BASE, size: 108, italic: true, spacing: 0.1 },
+    dreamy: { ...BASE, size: 106, weight: 300, italic: true, spacing: 0.13, opacity: 85 },
+    // specialised
+    deadpan: { ...BASE, font: 'mono' },
+    reverent: { ...BASE, size: 117, weight: 650, case: 'smallcaps', spacing: 0.15 },
+    ominous: { ...BASE, size: 110, weight: 850, spacing: 0.15 },
+    steady: { ...BASE, weight: 600, spacing: 0.01 },
+    // the earlier starting set
     shout: { ...BASE, size: 116, bold: true, case: 'upper' },
     sigh: { ...BASE, size: 95, opacity: 68, effect: 'fade', italic: true },
     laugh: { ...BASE, bold: true, size: 104 },
     cry: { ...BASE, size: 96, opacity: 82, effect: 'tremble' },
-    excited: { ...BASE, size: 108, bold: true },
     playful: { ...BASE, spacing: 0.02, size: 102 },
-    curious: { ...BASE },
     nervous: { ...BASE, size: 95, effect: 'tremble' },
     scared: { ...BASE, size: 92, opacity: 80, effect: 'tremble' },
     angry: { ...BASE, bold: true, size: 106 },
@@ -63,9 +101,11 @@ export function cleanStyle(raw) {
     return {
         size: Math.round(clamp(r.size, 50, 200, BASE.size)),
         bold: r.bold === true,
+        weight: Math.round(clamp(r.weight, 0, 900, BASE.weight) / 10) * 10,
         italic: r.italic === true,
         case: Object.prototype.hasOwnProperty.call(DELIVERY_CASES, r.case) ? r.case : BASE.case,
-        spacing: Math.round(clamp(r.spacing, 0, 0.5, BASE.spacing) * 100) / 100,
+        spacing: Math.round(clamp(r.spacing, -0.1, 0.5, BASE.spacing) * 1000) / 1000,
+        decoration: Object.prototype.hasOwnProperty.call(DELIVERY_DECORATIONS, r.decoration) ? r.decoration : BASE.decoration,
         opacity: Math.round(clamp(r.opacity, 20, 100, BASE.opacity)),
         font: Object.prototype.hasOwnProperty.call(DELIVERY_FONTS, r.font) ? r.font : BASE.font,
         effect: Object.prototype.hasOwnProperty.call(DELIVERY_EFFECTS, r.effect) ? r.effect : BASE.effect,
@@ -91,13 +131,16 @@ export function deliveryCss(styles, names) {
         const s = styleFor(styles, name);
         const rules = [];
         if (s.size !== 100) rules.push(`font-size: ${s.size}%`);
-        if (s.bold) rules.push('font-weight: 700');
+        if (s.weight) rules.push(`font-weight: ${s.weight}`);
+        else if (s.bold) rules.push('font-weight: 700');
         if (s.italic) rules.push('font-style: italic');
         if (s.case === 'upper') rules.push('text-transform: uppercase');
         if (s.case === 'lower') rules.push('text-transform: lowercase');
         if (s.case === 'smallcaps') rules.push('font-variant: small-caps');
         if (s.spacing) rules.push(`letter-spacing: ${s.spacing}em`);
         if (s.opacity !== 100) rules.push(`opacity: ${s.opacity / 100}`);
+        if (s.decoration === 'dotted') rules.push('text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 0.3em');
+        if (s.decoration === 'wavy') rules.push('text-decoration: underline wavy; text-decoration-thickness: 1px; text-underline-offset: 0.25em');
         const font = DELIVERY_FONTS[s.font]?.css;
         if (font) rules.push(`font-family: ${font}`);
         if (s.effect === 'tremble') rules.push('animation: wk-tone-tremble 0.18s linear infinite');
