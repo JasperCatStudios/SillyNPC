@@ -2,6 +2,7 @@ import { renderCombatSection } from './ui-combat-section.js';
 import { renderCharacterExtras } from './ui-character-extras.js';
 import { pickLorebookInto } from './ui-lorebook-section.js';
 import { buildInventoryCard, inventoryAvailable, NO_CHAT_HINT } from './ui-inventory-card.js';
+import { buildIdentityCard } from './ui-identity.js';
 
 /**
  * The profile page's tab row (fork): Combat, Equipment, Voice and Visual Prompt, and above it
@@ -19,6 +20,7 @@ export const PROFILE_TABS = Object.freeze([
     ['combat', 'Combat', 'fa-khanda', 'Stats, ranks, abilities and condition.'],
     ['equipment', 'Equipment', 'fa-shield-halved', 'Weapons and tools.'],
     ['inventory', 'Inventory', 'fa-bag-shopping', 'What they carry, and their money.'],
+    ['identity', 'Identity', 'fa-mask', 'A secret identity: link this card to another one they secretly are.'],
     ['visual', 'Visual Prompt', 'fa-image', 'Picture prompts for this character.'],
 ]);
 
@@ -112,6 +114,7 @@ export function buildProfileTabs(char, options = {}) {
             if (current === 'combat') renderCombatSection(char, host, { parts: 'sheet', noPersona: true, onChange: redraw });
             else if (current === 'equipment') renderCombatSection(char, host, { parts: 'gear', onChange: redraw });
             else if (current === 'inventory') host.append(buildInventoryCard(char));
+            else if (current === 'identity') host.append(buildIdentityCard(char));
             else renderCharacterExtras(char, host, { part: 'visual' });
         } catch (err) {
             console.error('[Worldkit] profile tab failed', current, err);

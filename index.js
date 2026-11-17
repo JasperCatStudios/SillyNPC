@@ -42,6 +42,7 @@ import { initThreads } from './src/threads-runtime.js';
 import { initResultInjection } from './src/result-runtime.js';
 import { initVitalsSection } from './src/vitals-section.js';
 import { initInventory } from './src/inventory.js';
+import { initIdentity } from './src/identity.js';
 import { initInventorySection } from './src/inventory-section.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
@@ -288,6 +289,11 @@ jQuery(async () => {
                 initInventorySection();
             } catch (inventoryErr) {
                 console.error(LOG_PREFIX, 'initInventory failed', inventoryErr);
+            }
+            try {
+                initIdentity();
+            } catch (identityErr) {
+                console.error(LOG_PREFIX, 'initIdentity failed', identityErr);
             }
             try {
                 initResultInjection();

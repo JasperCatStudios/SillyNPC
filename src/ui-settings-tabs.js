@@ -4,6 +4,7 @@ import { promptListAvailable } from './prompt-slot.js';
 import { applyDialogueFormatPrompt } from './dialogue-format.js';
 import { applyDelivery, syncDeliveryScripts } from './delivery.js';
 import { buildDeliveryPlacement, buildDeliveryChecker } from './ui-delivery-check.js';
+import { buildIdentitySettings } from './ui-identity.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
 import { buildContextSaverControls } from './ui-context-savers.js';
@@ -234,6 +235,8 @@ export function renderWritingRulesView(view, onReprocessMessages) {
         }));
         view.append(buildDeliveryChecker());
     }
+
+    view.append(buildIdentitySettings(rerender));
 
     const banHeading = document.createElement('h4');
     banHeading.className = 'sillynpc-subsection-title';

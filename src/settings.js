@@ -124,6 +124,8 @@ export const defaultSettings = {
     resultInjection: {},
     /** Leveling rules (see combat-level.js): { xpBase, xpStep, xpPerEnemy, maxLevel, difficultyXp }. An empty object is the starting rules. */
     leveling: {},
+    /** Hidden identities (see identity-core.js): when to send the secret-identity prompt of a linked character, and where. An empty object is off. */
+    identity: {},
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
     threadsEnabled: false,
