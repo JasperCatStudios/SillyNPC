@@ -42,7 +42,15 @@ export function buildPromptEditor(entry, { onChange, showHome = false } = {}) {
         o.textContent = c.label;
         picker.append(o);
     }
-    head.append(title, picker);
+    // Back to the built-in text in one press. Your own text is not thrown away: it stays under "My own", so
+    // choosing that brings it back. Changes the box and the dropdown in place and rebuilds nothing, so a
+    // press never disturbs what is on screen.
+    const restore = document.createElement('button');
+    restore.type = 'button';
+    restore.className = 'menu_button sillynpc-prompt-restore';
+    restore.textContent = 'Restore default';
+    restore.title = 'Put the built-in prompt back. Your own text is kept under "My own".';
+    head.append(title, picker, restore);
     wrap.append(head);
 
     const textarea = document.createElement('textarea');
@@ -72,6 +80,15 @@ export function buildPromptEditor(entry, { onChange, showHome = false } = {}) {
         const r = chooseMode(picker.value, { ...c, currentMode: from, currentText: textarea.value }, { storeDefault: slot.storeDefault });
         slot.write(r);
         textarea.value = r.text;
+        tokens.refresh();
+        onChange?.();
+    });
+    restore.addEventListener('click', () => {
+        const c = ctx();
+        const r = chooseMode(MODE_DEFAULT, { ...c, currentMode: currentMode(c), currentText: textarea.value }, { storeDefault: slot.storeDefault });
+        slot.write(r);
+        textarea.value = r.text;
+        picker.value = MODE_DEFAULT;
         tokens.refresh();
         onChange?.();
     });
@@ -201,10 +218,11 @@ export function renderPromptsView(view, onApply) {
         + 'and cost whatever they are filled with.';
     view.append(intro);
 
-    const shown = availablePrompts();
+    // Entries marked menu: false are edited where they are used (Writing Rules), not listed here a second time.
+    const shown = availablePrompts().filter(p => p.menu !== false);
     // The phone prompts are most of this page, so they sit in one collapsible group, closed by default.
     // The tracker prompts are grouped the same way.
-    const GROUPS = { Phone: 'Phone prompts', Trackers: 'Tracker prompts', TTS: 'TTS prompts' };
+    const GROUPS = { Phone: 'Phone prompts', Trackers: 'Tracker prompts' };
     const groups = {};
     for (const entry of shown) {
         const section = document.createElement('div');

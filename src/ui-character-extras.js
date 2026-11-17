@@ -4,7 +4,7 @@ import { buildSettingToggle, buildSettingNumber, buildSettingTextArea } from './
 import { previewVoice, voiceChoices, ttsStatus, VOICE_KEYS } from './tts.js';
 import { generateFromCard, DEFAULT_IMAGE_INJECT_TEMPLATE } from './image-prompts.js';
 import { buildSettingSelect } from './ui-shared.js';
-import { engineOf, ENGINES, ELEVEN_MODELS, FAL_DEFAULT_ENDPOINT } from './tts-engines.js';
+import { engineOf, ENGINES, ELEVEN_MODELS } from './tts-engines.js';
 import { INTERNAL_STATES_SYSTEM, drawSection } from './internal-states.js';
 import { buildThemePicker } from './ui-tracker-theme.js';
 
@@ -221,9 +221,8 @@ function decimalField({ key, label: text, help, min, max, step }) {
     return row;
 }
 
-/** The settings of the two cloud engines: ElevenLabs through SillyTavern, and fal.ai for testing. */
+/** The settings of the cloud engine: ElevenLabs through SillyTavern. */
 function buildCloudEngineSettings(engine) {
-    const settings = getSettings();
     const wrap = document.createElement('div');
     wrap.className = 'sillynpc-setting';
     const status = document.createElement('small');
@@ -251,34 +250,6 @@ function buildCloudEngineSettings(engine) {
         return wrap;
     }
 
-    // fal.ai: testing only
-    const key = document.createElement('input');
-    key.type = 'password';
-    key.autocomplete = 'off';
-    key.className = 'text_pole';
-    key.style.cssText = 'flex:1; min-width:14em;';
-    key.placeholder = 'fal key';
-    key.value = settings.falKey || '';
-    key.addEventListener('change', () => { settings.falKey = key.value.trim(); saveSettings(); });
-    const endpoint = document.createElement('input');
-    endpoint.type = 'text';
-    endpoint.className = 'text_pole';
-    endpoint.style.cssText = 'flex:1; min-width:14em;';
-    endpoint.value = settings.falEndpoint || FAL_DEFAULT_ENDPOINT;
-    endpoint.addEventListener('change', () => { settings.falEndpoint = endpoint.value.trim() || FAL_DEFAULT_ENDPOINT; saveSettings(); });
-    const keyRow = document.createElement('div');
-    keyRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;';
-    keyRow.append(label('fal key'), key);
-    const endpointRow = document.createElement('div');
-    endpointRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;';
-    endpointRow.append(label('Endpoint'), endpoint);
-    wrap.append(
-        note('For testing. The key is kept in your SillyTavern settings in this browser only; it is never part of the extension or its repository. '
-            + 'Each line spoken is a paid request to fal. A voice is a name such as Rachel; any name the endpoint accepts can be typed into a card.'),
-        keyRow, endpointRow,
-        decimalField({ key: 'elevenStability', label: 'Stability', help: '0 to 1.', min: 0, max: 1, step: 0.05 }),
-        test, status,
-    );
     return wrap;
 }
 

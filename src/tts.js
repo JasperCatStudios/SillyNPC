@@ -6,7 +6,7 @@ import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { genderOfFace, genderOfName } from './default-portraits.js';
 import { alltalkReady, alltalkVoices, speakWith, stopSpeech, toneTable } from './alltalk.js';
 import { toneAt } from './tts-text.js';
-import { engineOf, elevenReady, elevenVoices, falConfigured, falVoices } from './tts-engines.js';
+import { engineOf, elevenReady, elevenVoices } from './tts-engines.js';
 
 /**
  * A voice per character (fork), spoken through AllTalk directly.
@@ -41,11 +41,6 @@ export async function ttsStatus() {
             ? { ready: true, reason: '' }
             : { ready: false, reason: 'ElevenLabs gave no voices. The key is set in the SillyTavern TTS extension panel (choose ElevenLabs there once). Reload the page after adding it, and check the server console.' };
     }
-    if (engine === 'fal') {
-        return falConfigured()
-            ? { ready: true, reason: '' }
-            : { ready: false, reason: 'No fal key yet. Paste it under Voices in the Worldkit settings.' };
-    }
     if (!await alltalkReady()) {
         return { ready: false, reason: 'AllTalk is not answering. Check its address under Voices in the Modules or Writing Rules settings, and that it is running.' };
     }
@@ -56,7 +51,6 @@ export async function ttsStatus() {
 export async function voiceChoices() {
     const engine = engineOf();
     if (engine === 'elevenlabs') return elevenVoices();
-    if (engine === 'fal') return falVoices();
     return (await alltalkVoices()).map(v => ({ value: v, label: v }));
 }
 

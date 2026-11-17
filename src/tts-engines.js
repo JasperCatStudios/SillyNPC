@@ -4,22 +4,17 @@ import { LOG_PREFIX } from './constants.js';
 import { TAG_MODELS } from './tts-text.js';
 
 /**
- * The cloud voices (fork): ElevenLabs through SillyTavern's own routes, and fal.ai for testing.
+ * The cloud voice (fork): ElevenLabs through SillyTavern's own routes.
  *
- * ElevenLabs: SillyTavern already keeps the key (API Connections, ElevenLabs) and has the routes
- * /api/speech/elevenlabs/voices and /synthesize, the same ones its TTS extension uses, so nothing is
- * copied and no key is stored here. A voice is the ElevenLabs voice id.
- *
- * fal.ai: the key is pasted into Worldkit's Voices settings and kept in this browser's SillyTavern
- * settings only; it is never written into the extension's files. The browser calls fal directly
- * (SillyTavern has no fal speech route). Meant for the owner's own testing. A voice is a name such
- * as Rachel; the endpoint is a setting.
+ * SillyTavern already keeps the key (set in its TTS extension panel, by choosing ElevenLabs there) and has
+ * the routes /api/speech/elevenlabs/voices and /synthesize, the same ones its TTS extension uses, so nothing
+ * is copied and no key is stored here. The model name is passed through to ElevenLabs as it is, which is why
+ * models newer than SillyTavern's own dropdown (Eleven v4) work. A voice is the ElevenLabs voice id.
  */
 
 export const ENGINES = Object.freeze({
     alltalk: 'AllTalk',
     elevenlabs: 'ElevenLabs (through SillyTavern)',
-    fal: 'fal.ai (ElevenLabs, for testing)',
 });
 
 export const ELEVEN_MODELS = Object.freeze({
@@ -31,23 +26,13 @@ export const ELEVEN_MODELS = Object.freeze({
     eleven_multilingual_v2: 'Multilingual v2',
 });
 
-export const FAL_DEFAULT_ENDPOINT = 'elevenlabs/tts/eleven-v4';
-
-/** Voice names the fal ElevenLabs endpoint lists as examples; any other name can be typed in. */
-export const FAL_VOICES = Object.freeze([
-    'Rachel', 'Aria', 'Roger', 'Sarah', 'Laura', 'Charlie', 'George', 'Callum', 'River', 'Liam', 'Charlotte',
-    'Alice', 'Matilda', 'Will', 'Jessica', 'Eric', 'Chris', 'Brian', 'Daniel', 'Lily', 'Bill',
-]);
-
 export function engineOf(settings = getSettings()) {
     return Object.prototype.hasOwnProperty.call(ENGINES, settings.ttsEngine) ? settings.ttsEngine : 'alltalk';
 }
 
 /** Whether the model behind the chosen engine reads [whispers]-style tags instead of speaking them. */
 export function engineReadsAudioTags(settings = getSettings()) {
-    const engine = engineOf(settings);
-    if (engine === 'elevenlabs') return TAG_MODELS.includes(String(settings.elevenModel || 'eleven_v4'));
-    if (engine === 'fal') return /eleven-v[34]/i.test(String(settings.falEndpoint || FAL_DEFAULT_ENDPOINT));
+    if (engineOf(settings) === 'elevenlabs') return TAG_MODELS.includes(String(settings.elevenModel || 'eleven_v4'));
     return false;
 }
 
@@ -74,7 +59,7 @@ export async function elevenReady() {
     return (await elevenVoices()).length > 0;
 }
 
-/** Generates one piece of speech and returns a playable URL. */
+/** Generates one piece of speech and returns the audio. */
 export async function generateEleven(text, voiceId) {
     const s = getSettings();
     const model = String(s.elevenModel || 'eleven_v4');
@@ -99,49 +84,10 @@ export async function generateEleven(text, voiceId) {
     return await response.blob();
 }
 
-/* ------------------------------------------------------------------------ fal */
-
-export function falConfigured() {
-    return String(getSettings().falKey || '').trim() !== '';
-}
-
-export async function falVoices() {
-    return FAL_VOICES.map(v => ({ value: v, label: v }));
-}
-
-/** Generates one piece of speech through fal and returns a playable URL. */
-export async function generateFal(text, voice) {
-    const s = getSettings();
-    const key = String(s.falKey || '').trim();
-    if (!key) throw new Error('No fal key is set in the Voices settings.');
-    const endpoint = String(s.falEndpoint || FAL_DEFAULT_ENDPOINT).trim().replace(/^\/+|\/+$/g, '');
-    const response = await fetch(`https://fal.run/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Key ${key}`, 'Content-Type': 'application/json' },
-        // v4 takes similarity_boost; the older v3 endpoint does not list it, so it is only sent to v4.
-        body: JSON.stringify({
-            text,
-            voice: voice || 'Rachel',
-            stability: Number(s.elevenStability ?? 0.5),
-            ...(/eleven-v4/i.test(endpoint) ? { similarity_boost: Number(s.elevenSimilarity ?? 0.75) } : {}),
-        }),
-    });
-    if (!response.ok) {
-        const detail = (await response.text().catch(() => '')).slice(0, 160);
-        throw new Error(`fal answered ${response.status}${detail ? `: ${detail}` : ''}`);
-    }
-    const data = await response.json();
-    const url = String(data?.audio?.url || '');
-    if (!url) throw new Error('fal returned no audio.');
-    const audio = await fetch(url);
-    if (!audio.ok) throw new Error(`Could not fetch the audio (${audio.status}).`);
-    return await audio.blob();
-}
-
 /** What makes one generated line different from another on the same engine: the model and its settings. */
 export function engineFingerprint(settings = getSettings()) {
-    const engine = engineOf(settings);
-    if (engine === 'elevenlabs') return `eleven|${settings.elevenModel}|${settings.elevenStability}|${settings.elevenSimilarity}|${settings.elevenSpeed}`;
-    if (engine === 'fal') return `fal|${settings.falEndpoint}|${settings.elevenStability}|${settings.elevenSimilarity}`;
+    if (engineOf(settings) === 'elevenlabs') {
+        return `eleven|${settings.elevenModel}|${settings.elevenStability}|${settings.elevenSimilarity}|${settings.elevenSpeed}`;
+    }
     return `alltalk|${settings.alltalkLanguage}`;
 }

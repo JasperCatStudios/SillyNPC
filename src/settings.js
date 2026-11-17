@@ -175,15 +175,12 @@ export const defaultSettings = {
     /** AllTalk, spoken to directly. */
     alltalkUrl: 'http://localhost:7851',
     alltalkLanguage: 'en',
-    /** Which engine speaks: 'alltalk', 'elevenlabs' (through SillyTavern) or 'fal' (testing). */
+    /** Which engine speaks: 'alltalk' or 'elevenlabs' (through SillyTavern). */
     ttsEngine: 'alltalk',
     elevenModel: 'eleven_v4',
     elevenStability: 0.5,
     elevenSimilarity: 0.75,
     elevenSpeed: 1,
-    /** fal.ai, for testing: the key stays in this browser's settings and is never part of the extension. */
-    falKey: '',
-    falEndpoint: 'elevenlabs/tts/eleven-v4',
     /** Send a line's delivery (whisper, shout...) to engines that understand audio tags. Closing tags are always dropped. */
     ttsToneTags: true,
     /** Delivery tag to ElevenLabs audio tag, as edited by the owner. Empty: the built-in table. */
@@ -835,6 +832,15 @@ export function normalizeSettings(settings) {
     // No guard for an absent one: resolveImageFolder answers with the default, which is
     // what the defaults loop above would have filled in anyway.
     settings.imageSaveRoute = resolveImageFolder(settings.imageSaveRoute);
+
+    // The fal.ai test engine was removed. Its key was pasted into these settings, so it is deleted from the saved
+    // file rather than left behind, and the file is rewritten at once so the key does not wait for the next change.
+    if ('falKey' in settings || 'falEndpoint' in settings || settings.ttsEngine === 'fal') {
+        delete settings.falKey;
+        delete settings.falEndpoint;
+        if (settings.ttsEngine === 'fal') settings.ttsEngine = 'elevenlabs';
+        saveSettings();
+    }
 
     settings.combat = normalizeCombatPrefs(settings.combat);
     settings.combatTypes = normalizeTypeLibrary(settings.combatTypes);

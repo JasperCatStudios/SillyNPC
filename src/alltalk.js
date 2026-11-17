@@ -1,7 +1,7 @@
 import { getSettings } from './settings.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { applyPhonetics, speechFor, cleanToneTable, DEFAULT_TONE_TAGS } from './tts-text.js';
-import { engineOf, engineReadsAudioTags, engineFingerprint, generateEleven, generateFal } from './tts-engines.js';
+import { engineOf, engineReadsAudioTags, engineFingerprint, generateEleven } from './tts-engines.js';
 import { getCached, putCached } from './tts-cache.js';
 import { contentKey } from './image-dedupe.js';
 
@@ -54,7 +54,6 @@ export async function alltalkVoices() {
 async function generate(text, voice) {
     const engine = engineOf();
     if (engine === 'elevenlabs') return generateEleven(text, voice);
-    if (engine === 'fal') return generateFal(text, voice);
     return generateAlltalk(text, voice);
 }
 
