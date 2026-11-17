@@ -27,6 +27,7 @@ import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section
 import { renderCombatSection } from './ui-combat-section.js';
 import { renderProfileView } from './ui-profile.js';
 import { renderCharacterExtras, renderInternalStatesSettings } from './ui-character-extras.js';
+import { buildProfileGradientPanel } from './ui-gradient.js';
 import { renderThreadsView } from './ui-threads.js';
 import { renderAppearanceView, renderWritingRulesView, renderAdvancedView } from './ui-settings-tabs.js';
 import { renderPromptsView } from './ui-prompts.js';
@@ -1238,6 +1239,7 @@ function renderEditor() {
         advanced.appendChild(field);
     }
     colorField.appendChild(advanced);
+    colorField.appendChild(buildProfileGradientPanel(char));
     
     const catContainer = document.createElement('div');
     catContainer.className = 'sillynpc-editor-field category-field-container';

@@ -1,3 +1,4 @@
+import { normalizeGradient, gradientCss, gradientFallback } from './gradient-style.js';
 import { getSettings } from './settings.js';
 import { liveFactsFor } from './api.js';
 import { readLoreEntry } from './character-fill.js';
@@ -141,9 +142,24 @@ export async function renderProfileView(char, container) {
         console.warn('[Worldkit] faction theme failed', err);
         try { applyFactionTheme(container, '', null); } catch { /* the plain look is all that is left */ }
     }
+    let banner = null;
     try {
-        container.append(buildFactionBanner(char.category, world));
+        banner = buildFactionBanner(char.category, world);
+        container.append(banner);
     } catch (err) { console.warn('[Worldkit] faction banner failed', err); }
+
+    // The character's own gradient (set in their Edit tab) colours the banner, the name, the section labels and the
+    // portrait frame. Without one the page looks as it always did.
+    const gradient = normalizeGradient(char.gradient);
+    if (gradient) {
+        container.classList.add('sillynpc-has-gradient');
+        container.style.setProperty('--wk-gradient', gradientCss(gradient));
+        container.style.setProperty('--wk-gradient-fallback', gradientFallback(gradient));
+        container.style.setProperty('--wk-gradient-duration', `${gradient.animation.duration}s`);
+        container.style.setProperty('--wk-gradient-direction', gradient.animation.reverse ? 'alternate-reverse' : 'alternate');
+        container.classList.toggle('sillynpc-gradient-drift', gradient.animation.enabled);
+        if (banner) banner.style.background = gradientCss(gradient);
+    }
 
     const body = document.createElement('div');
     body.className = 'sillynpc-cv-body';
@@ -163,6 +179,13 @@ export async function renderProfileView(char, container) {
     // ── Right: everything that is written down ──────────────────────────────
     const right = document.createElement('div');
     right.className = 'sillynpc-cv-right';
+
+    if (gradient && char.name) {
+        const nameHeading = document.createElement('div');
+        nameHeading.className = 'sillynpc-cv-name';
+        nameHeading.textContent = char.name;
+        right.append(nameHeading);
+    }
 
     const aliasNames = (char.aliases || [])
         .filter(a => a?.pattern && !a.isRegex)

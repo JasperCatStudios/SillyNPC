@@ -5074,3 +5074,31 @@ textarea.sillynpc-profile-input {
 /* Factions in this chat, under the buttons at the top of the Characters menu. */
 .sillynpc-chat-scope-details { margin: 8px 0; border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 4px 10px; }
 .sillynpc-chat-scope-details > summary { cursor: pointer; font-weight: bold; padding: 6px 0; }
+
+/* Profile gradient (see src/gradient-style.js; gradients adapted from the Dialogue Colors extension, MIT). */
+.sillynpc-gradient-panel { margin: 8px 0; border: 1px solid var(--sillynpc-border); border-radius: 6px; padding: 4px 10px; }
+.sillynpc-gradient-panel > summary { cursor: pointer; font-weight: bold; padding: 6px 0; }
+.sillynpc-gradient-preview { height: 28px; border-radius: 6px; border: 1px solid var(--sillynpc-border); margin: 8px 0; display: flex; align-items: center; justify-content: center; font-size: .8em; opacity: .9; }
+.sillynpc-gradient-panel .sillynpc-color-row { flex-wrap: wrap; margin: 6px 0; }
+.sillynpc-charview.sillynpc-has-gradient .sillynpc-cv-name,
+.sillynpc-charview.sillynpc-has-gradient .sillynpc-cv-label {
+    color: var(--wk-gradient-fallback, currentColor);
+    background-image: var(--wk-gradient);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    width: fit-content;
+}
+.sillynpc-charview.sillynpc-has-gradient .sillynpc-cv-name { font-size: 1.7em; font-weight: 700; line-height: 1.2; margin-bottom: 8px; }
+.sillynpc-charview.sillynpc-has-gradient .sillynpc-cv-portrait {
+    border: 3px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(#0000, #0000) padding-box, var(--wk-gradient) border-box;
+}
+.sillynpc-charview.sillynpc-gradient-drift .sillynpc-cv-name,
+.sillynpc-charview.sillynpc-gradient-drift .sillynpc-cv-label { background-size: 260% 260%; animation: wk-gradient-drift var(--wk-gradient-duration, 8s) linear infinite; animation-direction: var(--wk-gradient-direction, alternate); }
+@keyframes wk-gradient-drift { 0% { background-position: 0% 50%; } 33% { background-position: 100% 0%; } 66% { background-position: 0% 100%; } 100% { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { .sillynpc-charview.sillynpc-gradient-drift .sillynpc-cv-name, .sillynpc-charview.sillynpc-gradient-drift .sillynpc-cv-label { animation: none; background-position: 50% 50%; } }

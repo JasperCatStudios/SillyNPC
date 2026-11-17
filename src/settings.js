@@ -1,4 +1,5 @@
 import { saveSettingsDebounced } from '../../../../../script.js';
+import { normalizeGradient } from './gradient-style.js';
 import { extension_settings } from '../../../../extensions.js';
 import {
     EXTENSION_VERSION,
@@ -968,6 +969,8 @@ export function normalizeSettings(settings) {
             if (typeof char[key] !== 'string') char[key] = '';
         }
         if (typeof char.colorGradient !== 'boolean') char.colorGradient = false;
+        // The gradient for the profile page (banner, name, labels, portrait frame). null means none.
+        char.gradient = normalizeGradient(char.gradient);
         if (typeof char.category !== 'string') char.category = '';
         if (typeof char.imageFit !== 'string') char.imageFit = '';
         if (!char.statusOverrides || typeof char.statusOverrides !== 'object') char.statusOverrides = {};
