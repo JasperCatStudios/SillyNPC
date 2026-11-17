@@ -337,6 +337,8 @@ export const defaultSettings = {
      * normalizeInventorySettings in inventory-core.js, so an empty object is every default - off.
      */
     inventory: {},
+    /** Your own items and presets for the Item Database ({ items: [], presets: [] }); the built-in ones are in item-database.js. */
+    itemDatabase: {},
     /** Which connection reads replies for the inventory. Empty means your main API. */
     inventoryProfileId: '',
     /** The look of each tracker block: { states, bonds, vitals, inventory }, each plain, parchment, persona or tactical. */

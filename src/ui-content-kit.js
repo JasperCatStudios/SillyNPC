@@ -4,6 +4,7 @@ import { importWorldInfo } from '../../../../world-info.js';
 import { getSettings, saveSettings } from './settings.js';
 import { LOG_PREFIX, PRODUCT_NAME } from './constants.js';
 import { parseTransferFile, importCharacters } from './character-transfer.js';
+import { mergeItemFile } from './item-database.js';
 import {
     DEFAULT_KIT_URL, isKitUrl, kitFolderName, kitFileUrl, normalizeCatalog, groupCatalog, scriptsFromFile, mergeRegexScripts,
 } from './content-kit.js';
@@ -120,6 +121,13 @@ async function importItem(item) {
         case 'lorebook':
             await importWorldInfo(new File([text], baseName(item.file), { type: 'application/json' }));
             return '';   // World Info reports its own result
+        case 'items': {
+            // Items and presets go into your own part of the Item Database; importing again replaces them in place.
+            const { database, added, replaced } = mergeItemFile(getSettings().itemDatabase, JSON.parse(text));
+            getSettings().itemDatabase = database;
+            saveSettings();
+            return `${added} added, ${replaced} updated. Find them in the Inventory tab, under Item Database.`;
+        }
         case 'workflow':
             await navigator.clipboard.writeText(text);
             return 'Copied. Paste it into the Phone\'s ComfyUI workflow box.';

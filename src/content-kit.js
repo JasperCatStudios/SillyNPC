@@ -13,6 +13,7 @@ export const KIT_TYPES = Object.freeze({
     world: 'Worlds',
     characters: 'Character packs',
     lorebook: 'Lorebooks',
+    items: 'Item databases',
     regex: 'Regex scripts',
     workflow: 'Workflows (Phone pictures)',
     art: 'Artwork',

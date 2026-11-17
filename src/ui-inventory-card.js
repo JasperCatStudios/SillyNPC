@@ -1,7 +1,9 @@
 import { eventSource } from '../../../../events.js';
 import {
     inventorySettings, inventoryStore, getInventory, giveItemFor, takeItemFor, editItemFor, setGoldFor, INVENTORY_CHANGED_EVENT,
+    databaseItems, databasePresets, giveDbItemFor, givePresetFor,
 } from './inventory.js';
+import { findDbItem } from './item-database.js';
 
 /**
  * The Inventory card on a profile (fork): what this person carries and how much money they have,
@@ -69,6 +71,40 @@ function itemForm(item, { save, cancel, saveIcon, saveTitle }) {
     form.append(name, qty, kind, note, iconButton(saveIcon, saveTitle, submit));
     if (cancel) form.append(iconButton('fa-xmark', 'Cancel', cancel));
     return form;
+}
+
+/** "From the Item Database": type a name to give a known item (kind and note filled in), or pick a preset to give a whole bundle. */
+function databasePicker(name, write) {
+    const row = el('div', 'snpc-inv-db');
+    row.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin:4px 0;';
+    const listId = `snpc-inv-db-${Math.random().toString(36).slice(2, 8)}`;
+    const items = databaseItems();
+    const input = field('From the item database: type a name', 'text', '', 'snpc-inv-db-name');
+    input.style.cssText = 'flex:2; min-width:10em;';
+    input.setAttribute('list', listId);
+    const datalist = el('datalist');
+    datalist.id = listId;
+    for (const i of items) datalist.append(new Option(i.name, i.name));
+    const give = () => {
+        const found = findDbItem(items, input.value);
+        if (!found) { toastr.info(input.value.trim() ? 'No single item matches that. Type more of the name.' : 'Type an item name first.', 'Worldkit'); return; }
+        write(() => giveDbItemFor(name, found, 1));
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); give(); } });
+    row.append(input, datalist, iconButton('fa-book', 'Add this item from the database', give));
+
+    const presets = databasePresets();
+    const pick = el('select', 'text_pole');
+    pick.style.cssText = 'flex:1; min-width:9em;';
+    pick.append(new Option('Give a preset...', ''));
+    for (const p of presets) pick.append(new Option(p.name, p.id));
+    pick.addEventListener('change', () => {
+        const preset = presets.find(p => p.id === pick.value);
+        if (!preset) return;
+        write(() => givePresetFor(name, preset, 1));
+    });
+    row.append(pick);
+    return row;
 }
 
 /**
@@ -140,6 +176,7 @@ export function buildInventoryCard(char) {
             saveTitle: 'Add this item',
             save: (v) => { write(() => giveItemFor(name, v)); },
         }));
+        host.append(databasePicker(name, write));
     };
 
     draw();

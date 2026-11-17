@@ -2,6 +2,7 @@ import { redrawWhenIdle } from './ui-edit-guard.js';
 import { eventSource } from '../../../../events.js';
 import { buildSettingToggle, buildSettingSelect, buildSettingNumber } from './ui-shared.js';
 import { buildThemePicker } from './ui-tracker-theme.js';
+import { renderItemDatabase } from './ui-item-database.js';
 import {
     inventorySettings, saveInventorySettings, inventoryStore, setGoldFor, giveItemFor, takeItemFor, ensurePlayerInventory,
     runInventoryUpdate, latestReplyId, currentInventoryInjection, INVENTORY_CHANGED_EVENT,
@@ -180,6 +181,7 @@ function renderPeople(view, rerender) {
         if (id >= 0) runInventoryUpdate(id, { force: true, button: true }).then(rerender);
     });
     view.append(update);
+    renderItemDatabase(view, rerender);
 }
 
 function addItemRow(name) {

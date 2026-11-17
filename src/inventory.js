@@ -10,6 +10,7 @@ import { sceneNames, sceneSet } from './scene-cast.js';
 import { charactersMentionedIn } from './mentions.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { registerInventoryCommands } from './inventory-commands.js';
+import { normalizeItemDatabase, allDbItems, allPresets, toInventoryItem, resolvePreset } from './item-database.js';
 import {
     normalizeInventorySettings, normalizeStore, findPerson, ensurePerson, applyTurn, revertTurn,
     setGold, giveItem, takeItem, editItem, parseUpdate, buildMonitorPrompt, selectPeople, buildInjection,
@@ -99,6 +100,44 @@ export const setGoldFor = (name, value) => editInventory(name, (p) => { setGold(
 export const giveItemFor = (name, item) => editInventory(name, (p) => { giveItem(p, item); });
 export const editItemFor = (name, oldName, item) => editInventory(name, (p) => { editItem(p, oldName, item); });
 export const takeItemFor =(name, itemName, qty) => editInventory(name, (p) => { takeItem(p, itemName, qty); });
+
+/* ---- the item database and presets ---------------------------------------------------- */
+
+/** Your own database items and presets, well-formed. Built-in ones are added by allDbItems / allPresets. */
+export function itemDatabase() {
+    const settings = getSettings();
+    settings.itemDatabase = normalizeItemDatabase(settings.itemDatabase);
+    return settings.itemDatabase;
+}
+
+export function saveItemDatabase() {
+    itemDatabase();
+    saveSettings();
+    eventSource.emit(INVENTORY_CHANGED_EVENT);
+}
+
+export const databaseItems = () => allDbItems(itemDatabase());
+export const databasePresets = () => allPresets(itemDatabase());
+
+/** Gives one database item, with its kind and note filled in from the database. */
+export function giveDbItemFor(name, dbItem, qty = 1) {
+    return editInventory(name, (p) => { giveItem(p, toInventoryItem(dbItem, qty)); });
+}
+
+/**
+ * Gives everything in a preset (and its gold) to one person, `times` over.
+ * @returns {{ person: object, count: number, gold: number } | null} null when no chat is open
+ */
+export function givePresetFor(name, preset, times = 1) {
+    const { items, gold } = resolvePreset(preset, databaseItems());
+    const n = Math.max(1, Math.round(Number(times)) || 1);
+    let count = 0;
+    const person = editInventory(name, (p) => {
+        for (const item of items) { if (giveItem(p, { ...item, qty: item.qty * n }, { why: 'preset' })) count++; }
+        if (gold) setGold(p, p.gold + gold * n, { why: 'preset' });
+    });
+    return person ? { person, count, gold: gold * n } : null;
+}
 
 /** The player's own record, created on first use so the screens always have somewhere to show it. */
 export function ensurePlayerInventory() {

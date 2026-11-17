@@ -3,15 +3,18 @@ import { ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } from '
 import { SlashCommandParser } from '../../../../slash-commands/SlashCommandParser.js';
 import { LOG_PREFIX } from './constants.js';
 import {
-    inventorySettings, inventoryStore, editInventory, playerName, getInventory,
+    inventorySettings, inventoryStore, editInventory, playerName, getInventory, databaseItems, databasePresets, givePresetFor,
 } from './inventory.js';
 import { giveItem, takeItem, setGold, clean } from './inventory-core.js';
+import { toInventoryItem, findPreset } from './item-database.js';
 
 /**
  * Slash commands that change an inventory by hand, by character name:
  *
  *   /inventory-add    name=Ana amount=2 kind=Consumable Healing Potion
  *   /inventory-remove name=Ana amount=1 Healing Potion        (amount=all takes the whole stack)
+ *   /inventory-preset name=Ana times=1 Adventurer Pack         (a bundle from the Item Database)
+ *   /inventory-presets                                          (lists the presets)
  *   /gold-add         name=Ana 30
  *   /gold-remove      name=Ana 15
  *
@@ -48,8 +51,13 @@ function addItemCommand(args, value) {
     const amount = amountOf(args?.amount);
     if (amount === null) throw new Error('amount must be a whole number of 1 or more.');
     const name = who(args);
+    // An exact match in the Item Database fills in the kind and note unless they were typed.
+    const known = databaseItems().find(i => i.name.toLowerCase() === itemName.toLowerCase());
+    const fromDb = known ? toInventoryItem(known, amount) : null;
     const given = editInventory(name, (p) => {
-        giveItem(p, { name: itemName, qty: amount, kind: args?.kind, note: args?.note }, { why: 'command' });
+        giveItem(p, {
+            name: fromDb?.name || itemName, qty: amount, kind: args?.kind || fromDb?.kind, note: args?.note || fromDb?.note,
+        }, { why: 'command' });
     });
     const held = given?.items.find(i => i.name.toLowerCase() === itemName.toLowerCase());
     if (!held) throw new Error(`Could not add ${itemName}.`);
@@ -100,7 +108,29 @@ function changeGold(args, value, sign) {
     return `${name} now has ${person.gold} ${unit}.`;
 }
 
-/** Registers the four commands. Called once at startup; a failure only costs the commands. */
+function presetCommand(args, value) {
+    needChat();
+    const typed = clean(stripWrapping(value));
+    if (!typed) throw new Error(`Say which preset: /inventory-preset name=Ana Adventurer Pack. Presets: ${databasePresets().map(p => p.name).join(', ')}.`);
+    const times = amountOf(args?.times);
+    if (times === null || times === Infinity) throw new Error('times must be a whole number of 1 or more.');
+    const preset = findPreset(databasePresets(), typed);
+    if (!preset) {
+        throw new Error(`No single preset matches "${typed}". Presets: ${databasePresets().map(p => p.name).join(', ')}.`);
+    }
+    const name = who(args);
+    const result = givePresetFor(name, preset, times);
+    if (!result) throw new Error('Could not give the preset.');
+    const unit = inventorySettings().currencyName;
+    return `${name} received ${preset.name}${times > 1 ? ` x${times}` : ''}: ${result.count} item${result.count === 1 ? '' : 's'}${result.gold ? ` and ${result.gold} ${unit}` : ''}.`;
+}
+
+function presetListCommand() {
+    const list = databasePresets();
+    return list.length ? list.map(p => `${p.name} (${p.items.length} item${p.items.length === 1 ? '' : 's'}${p.gold ? `, ${p.gold} gold` : ''})`).join('; ') : 'No presets yet.';
+}
+
+/** Registers the commands. Called once at startup; a failure only costs the commands. */
 export function registerInventoryCommands() {
     const amountArg = named('amount', 'How many (default 1). For removing, all takes the whole stack.');
     const nameArg = named('name', 'Whose inventory (default: you).');
@@ -122,6 +152,22 @@ export function registerInventoryCommands() {
             namedArgumentList: [nameArg, amountArg],
             unnamedArgumentList: unnamed('The item name.'),
             helpString: 'Takes an item out of a character\'s inventory in this chat. Example: /inventory-remove name=Ana amount=1 Healing Potion. amount=all removes the whole stack. The name defaults to you.',
+        }));
+        SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+            name: 'inventory-preset',
+            aliases: ['inv-preset'],
+            callback: async (args, value) => presetCommand(args, value),
+            returns: 'a short summary of what was given',
+            namedArgumentList: [nameArg, named('times', 'How many copies of the preset to give (default 1).')],
+            unnamedArgumentList: unnamed('The preset name (or enough of it to be unique).'),
+            helpString: 'Gives a character every item (and the money) in an item preset, from the Item Database in the Inventory tab. Example: /inventory-preset name=Ana Adventurer Pack. The name defaults to you.',
+        }));
+        SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+            name: 'inventory-presets',
+            aliases: ['inv-presets'],
+            callback: async () => presetListCommand(),
+            returns: 'the preset names',
+            helpString: 'Lists the item presets you can give with /inventory-preset.',
         }));
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'gold-add',
