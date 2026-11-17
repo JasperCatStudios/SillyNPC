@@ -16,7 +16,7 @@ import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
 /** The connections that belong to the Trackers group. */
 const TRACKER_CONNECTIONS = ['internal', 'bonds', 'vitals', 'inventory'];
 /** The connections that belong to the Modules group: the three windows with a connection of their own. */
-const MODULE_CONNECTIONS = ['combat', 'phone', 'games', 'knives'];
+const MODULE_CONNECTIONS = ['combat', 'phone', 'games', 'knives', 'weather'];
 
 export const CONNECTION_USES = [
     { id: 'combat', label: 'Combat', scope: 'root', key: 'combatProfileId',
@@ -35,6 +35,8 @@ export const CONNECTION_USES = [
       help: 'Reading the chat for phrases to ban (Writing Rules, Ban List). Empty means your main API.' },
     { id: 'knives', label: 'Knives', scope: 'root', key: 'knivesProfileId',
       help: 'Suggesting story twists for a character (Knives tab on their profile). Empty means your main API.' },
+    { id: 'weather', label: 'Weather', scope: 'root', key: 'weatherProfileId',
+      help: 'Reading each reply for the weather, when the weather source is "a model" (Scene, Weather effects). Empty means your main API.' },
     { id: 'phone', label: 'Phone', dom: '#rph-drawer .rph-profile-row select',
       help: 'The messages your characters text you.' },
     { id: 'games', label: 'Games', dom: '#rpg-game-profile',

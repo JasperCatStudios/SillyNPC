@@ -1,6 +1,7 @@
 import { WEATHER_EFFECTS, weatherEffect } from './weather-fx-core.js';
 import {
-    PERF_DEFAULTS, planSteps, readMarker, safeModeFrom, reportText, bestDensities, verdictFor,
+    PERF_DEFAULTS, BASELINE_KIND, planSteps, readMarker, safeModeFrom, reportText, bestDensities, verdictFor,
+    baselineFpsOf, effectResults, percentOfBaseline, baselineNotes,
 } from './weather-perf-core.js';
 import { createPerfRunner } from './weather-perf-runner.js';
 
@@ -54,7 +55,7 @@ export function createPerfScreen(deps) {
         return b;
     };
     const show = (node, on) => { node.style.display = on ? '' : 'none'; };
-    const label = (kind) => weatherEffect(kind)?.label || kind;
+    const label = (kind) => (kind === BASELINE_KIND ? 'Baseline (nothing drawn)' : (weatherEffect(kind)?.label || kind));
 
     /* ---- the leftover marker of a test that did not end ---- */
     let previous = null;
@@ -91,8 +92,8 @@ export function createPerfScreen(deps) {
     head.append(title, closeBtn);
 
     const intro = el('div', 'wk-perf-note',
-        'This tries every weather effect at three densities, lightest first, a few seconds each, and measures how smoothly '
-        + 'the device draws it. It stops by itself if the frame rate collapses or the page stalls, and you can stop it any '
+        'This first measures a baseline (nothing drawn), then tries every weather effect at three densities, lightest first, '
+        + 'a few seconds each, and judges how smoothly the device draws each one compared with that baseline. It stops by itself if the frame rate collapses or the page stalls, and you can stop it any '
         + 'time. Keep this screen in front while it runs. It works whether or not the weather switch is on.');
     const notice = el('div', 'wk-perf-warn');
     show(notice, false);
@@ -138,7 +139,7 @@ export function createPerfScreen(deps) {
     }
 
     if (safe) {
-        showNotice(`The last test did not finish: it was on ${label(safe.kind)} at ${safe.failedAt}% when the page stopped. `
+        showNotice(`The last test did not finish (the page was reloaded or stopped while it was on ${label(safe.kind)} at ${safe.failedAt}%). `
             + `This run starts in safe mode and stays at or under ${safe.cap}% density.`);
     }
 
@@ -180,8 +181,10 @@ export function createPerfScreen(deps) {
         const t = deps.now();
         if (t - lastPaint < 200) return;
         lastPaint = t;
-        current.textContent = `${label(u.kind)} at ${u.density}%`;
-        fps.textContent = `${u.fps} frames per second`;
+        current.textContent = u.kind === BASELINE_KIND ? `${label(u.kind)}: measuring the best this device can do` : `${label(u.kind)} at ${u.density}%`;
+        fps.textContent = u.baselineFps > 0
+            ? `${u.fps} frames per second (baseline ${Math.round(u.baselineFps)})`
+            : `${u.fps} frames per second`;
         stepLine.textContent = `Step ${u.step} of ${u.total}`;
         barFill.style.width = `${Math.round(((u.step - 1 + (u.stepProgress || 0)) / u.total) * 100)}%`;
     }
@@ -224,13 +227,24 @@ export function createPerfScreen(deps) {
         results.replaceChildren();
         results.append(el('div', 'wk-perf-big', stoppedBecause ? 'Test stopped' : 'Test finished'));
         if (stoppedBecause) results.append(el('div', 'wk-perf-warn', `Stopped early: ${stoppedBecause}. The steps that ran are below.`));
-        if (!list.length) results.append(el('div', 'wk-perf-note', 'No step finished, so there is nothing to measure.'));
-        for (const r of list) {
-            const v = verdictFor(r.summary);
+        if (!effectResults(list).length) results.append(el('div', 'wk-perf-note', 'No step finished, so there is nothing to measure.'));
+        const base = baselineFpsOf(list);
+        if (base > 0) {
+            const row = el('div', 'wk-perf-step');
+            row.append(
+                el('span', 'wk-perf-what', label(BASELINE_KIND)),
+                el('span', 'wk-perf-note', `${Math.round(base)} fps: the most this device delivers to the page, so each effect is judged against it`),
+            );
+            results.append(row);
+            for (const note of baselineNotes(base)) results.append(el('div', 'wk-perf-warn', note));
+        }
+        for (const r of effectResults(list)) {
+            const v = verdictFor(r.summary, base);
+            const pct = percentOfBaseline(r.summary, base);
             const row = el('div', 'wk-perf-step');
             row.append(
                 el('span', 'wk-perf-what', `${label(r.kind)} at ${r.density}%`),
-                el('span', 'wk-perf-note', r.summary.frames ? `${r.summary.avgFps} fps (lowest 5%: ${r.summary.lowFps})` : 'no frames'),
+                el('span', 'wk-perf-note', r.summary.frames ? `${r.summary.avgFps} fps${pct === null ? '' : `, ${pct}% of baseline`} (lowest 5%: ${r.summary.lowFps})` : 'no frames'),
                 el('span', `wk-perf-verdict wk-perf-${v.replace(' ', '')}`, v),
             );
             results.append(row);

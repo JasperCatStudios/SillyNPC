@@ -6,6 +6,8 @@ import { LOG_PREFIX, debugLog } from './constants.js';
 import { sceneFromChat, deviceScene } from './scene-header.js';
 import { repairSceneSettings, backgroundFor } from './scene-locations.js';
 import { repairWeatherSettings, isTouchDevice } from './weather-settings.js';
+import { classifyWeather } from './weather-kind.js';
+import { latestWeatherAnswer, mergeWeatherAnswer } from './weather-detect-core.js';
 import {
     SCENE_META_KEY, BG_MARK_KEY, SCENE_CHANGED_EVENT, backgroundCss, standAside, resolveLocation, sceneChanges, sceneKey,
 } from './scene-core.js';
@@ -111,6 +113,25 @@ function chatStore() {
 }
 
 /**
+ * The header's weather with its wind, and, when the Weather switch is on and the weather source is the Internal States
+ * report or a model and that source has an answer, the answer laid over it. No answer yet: the header's weather stays.
+ */
+function withWeatherSource(scene, chat, s) {
+    let out = { ...scene, weatherSource: scene.weatherText ? 'header' : '', weatherWanted: 'header' };
+    if (out.weatherText && !out.windSpeed) {
+        const wind = classifyWeather(out.weatherText).windSpeed;
+        if (wind) out.windSpeed = wind;
+    }
+    const wanted = s.weather?.enabled ? s.weather.source : 'header';
+    out.weatherWanted = wanted;
+    if (wanted === 'internal' || wanted === 'model') {
+        const hit = latestWeatherAnswer(chat, wanted);
+        if (hit) out = { ...mergeWeatherAnswer(out, hit.answer, wanted), weatherWanted: wanted };
+    }
+    return out;
+}
+
+/**
  * Reads the scene again. Cheap and idempotent: the same chat state (a redraw) does nothing; a reply, a swipe, an edit
  * or another chat recomputes, and only a real change is announced.
  * @param {{ force?: boolean }} [options] force: read and announce even when nothing seems to have changed
@@ -126,7 +147,7 @@ export function refreshScene({ force = false } = {}) {
     lastKey = key;
 
     const store = chatStore();
-    const scene = sceneFromChat(chat, { lastPlace: store?.lastPlace || '' });
+    const scene = withWeatherSource(sceneFromChat(chat, { lastPlace: store?.lastPlace || '' }), chat, s);
     const previous = current && current.chatId === chatId ? current.location : null;
     const next = { ...scene, ...resolveLocation(s.locations, scene, previous, { world: s.matchWorld }), chatId };
 

@@ -11,6 +11,7 @@ import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { dressWithTheme } from './tracker-theme-setting.js';
 import { textFromRaw } from './raw-text.js';
 import { THEME_PLAIN, dressDefault } from './tracker-themes.js';
+import { WEATHER_LINE_INSTRUCTION } from './weather-detect-core.js';
 
 /**
  * The preset's Internal States, kept outside the story (fork).
@@ -115,7 +116,11 @@ function mode() {
 
 function systemPrompt() {
     const own = String(getSettings().internalStatesPrompt ?? '').trim();
-    return substituteParams(own && !isBuiltInStatesPrompt(own) ? own : INTERNAL_STATES_SYSTEM);
+    const base = substituteParams(own && !isBuiltInStatesPrompt(own) ? own : INTERNAL_STATES_SYSTEM);
+    // The Weather source "Internal States report" (Scene, Weather effects): one extra line at request time, never saved into the prompt.
+    const scene = getSettings().scene;
+    const wantsWeather = scene?.enabled === true && scene.weather?.enabled === true && scene.weather.source === 'internal';
+    return wantsWeather ? `${base}\n\n${WEATHER_LINE_INSTRUCTION}` : base;
 }
 
 /** What is stored for this message's current swipe, or null. */

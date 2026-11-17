@@ -24,13 +24,48 @@ const TABLE = [
         ['sprinkle', 'light'], ['sprinkling', 'light'], ['mizzle', 'light'], ['shower'], ['showers'],
         ['downpour', 'heavy'], ['pouring', 'heavy'], ['deluge', 'heavy'], ['torrential', 'heavy'], ['monsoon', 'heavy'],
         ['wet', 'light']]],
-    ['mist', [['fog'], ['foggy'], ['mist'], ['misty'], ['haze', 'light'], ['hazy', 'light'], ['smog'], ['murk']]],
+    ['mist', [['fog'], ['foggy'], ['mist'], ['misty'], ['smog'], ['murk']]],
+    // A sky you can see (sun, stars, moon) beats cloud and wind: "Sunny, light breeze" is a clear sky with a light wind.
+    ['clear', [['clear'], ['sunny'], ['sunshine'], ['sun'], ['fair'], ['cloudless'], ['starry'], ['starlit'], ['moonlit']]],
+    // Haze alone is a light mist; next to a clear-sky word it is a clear sky with haze (see classifyWeather).
+    ['mist', [['haze', 'light'], ['hazy', 'light']]],
+    ['cloudy', [['overcast', 'heavy'], ['cloudy'], ['clouds'], ['cloud'], ['grey skies'], ['gray skies'], ['gloomy']]],
     ['wind', [['wind'], ['winds'], ['windy'], ['breeze', 'light'], ['breezy', 'light'], ['gust'], ['gusts'], ['gusty'],
         ['gale', 'heavy'], ['gales', 'heavy'], ['blustery'], ['squall', 'heavy']]],
-    ['cloudy', [['overcast', 'heavy'], ['cloudy'], ['clouds'], ['cloud'], ['grey skies'], ['gray skies'], ['gloomy']]],
-    ['clear', [['clear'], ['sunny'], ['sunshine'], ['sun'], ['fair'], ['cloudless'], ['bright'], ['starry'],
-        ['starlit'], ['moonlit'], ['balmy'], ['warm'], ['hot'], ['dry'], ['calm']]],
+    ['clear', [['bright'], ['balmy'], ['warm'], ['hot'], ['dry'], ['calm']]],
 ];
+
+/* The wind words: the speed word the engine understands, and how a wind phrase is cut out of the text so that
+   "light breeze" does not make a sunny sky "light". */
+const WIND_WORD_SPEED = {
+    breeze: 'breeze', breezy: 'breeze', gust: 'gusty', gusts: 'gusty', gusty: 'gusty', gale: 'gale', gales: 'gale',
+    squall: 'gale', blustery: 'gusty', windy: 'windy', wind: 'moderate', winds: 'moderate',
+};
+const WIND_SOFT = ['light', 'slight', 'gentle', 'soft', 'faint', 'mild', 'little'];
+const WIND_STRONG = ['strong', 'heavy', 'howling', 'fierce', 'violent', 'raging', 'driving', 'biting', 'bitter'];
+const WIND_PHRASE = new RegExp(
+    ` (?:(?:${[...WIND_SOFT, ...WIND_STRONG].join('|')}) )?(?:${Object.keys(WIND_WORD_SPEED).join('|')}) `, 'g');
+
+/** The wind the text names as a speed word (or ''), and the text with the wind phrases taken out. */
+function windOf(padded) {
+    let speed = '';
+    let rest = padded;
+    let m;
+    WIND_PHRASE.lastIndex = 0;
+    while ((m = WIND_PHRASE.exec(padded)) !== null) {
+        const parts = m[0].trim().split(' ');
+        const word = parts[parts.length - 1];
+        const mod = parts.length > 1 ? parts[0] : '';
+        if (findWord(padded, word) < 0) { WIND_PHRASE.lastIndex = m.index + 1; continue; }
+        let s = WIND_WORD_SPEED[word];
+        if (WIND_SOFT.includes(mod)) s = 'light';
+        else if (WIND_STRONG.includes(mod)) s = 'strong';
+        if (!speed || s === 'strong' || s === 'gale') speed = s;
+        WIND_PHRASE.lastIndex = m.index + m[0].length - 1;
+    }
+    rest = padded.replace(WIND_PHRASE, ' ');
+    return { speed, rest };
+}
 
 const LIGHT = ['light', 'slight', 'gentle', 'soft', 'faint', 'thin', 'patchy', 'partly', 'scattered', 'occasional',
     'brief', 'mild', 'fine', 'little', 'few', 'passing'];
@@ -101,22 +136,34 @@ function modifierIntensity(padded) {
  * The kind and intensity of a weather text.
  * @param {string} text e.g. "Light rain, 12 °C"
  * @param {string} [emoji] the emoji in front of it, used when the words say nothing
- * @returns {{ kind: string, intensity: 'light'|'moderate'|'heavy'|'', word: string }}
+ * @returns {{ kind: string, intensity: 'light'|'moderate'|'heavy'|'', word: string, windSpeed?: string, haze?: boolean }}
+ *   windSpeed: a speed word the engine understands ('light', 'breeze', 'gusty', 'strong', 'gale'...) when the text names a wind;
+ *   haze: true when a clear sky is hazy ("hazy sun"; the engine has no haze over sun, so it draws a light clear sky).
  */
 export function classifyWeather(text, emoji = '') {
     const raw = String(text ?? '');
     const padded = words(raw);
+    const wind = windOf(padded);
+    const extras = () => (wind.speed ? { windSpeed: wind.speed } : {});
     for (const [kind, keys] of TABLE) {
         const found = keys.filter(([key]) => findWord(padded, key) >= 0);
         if (!found.length) continue;
         // "snow flurries": the kind comes from "snow", the intensity from "flurries".
         const owns = found.map(([, own]) => own).filter(Boolean);
         const own = owns.includes('heavy') ? 'heavy' : owns.includes('light') ? 'light' : '';
-        return { kind, intensity: modifierIntensity(padded) || own || 'moderate', word: found[0][0] };
+        // A wind phrase ("light breeze") says how windy it is, not how strong the weather is.
+        const basis = kind === 'wind' ? padded : wind.rest;
+        let intensity = modifierIntensity(basis) || own || 'moderate';
+        const out = { kind, intensity, word: found[0][0], ...extras(kind) };
+        if (kind === 'clear' && (findWord(padded, 'haze') >= 0 || findWord(padded, 'hazy') >= 0)) {
+            out.haze = true;
+            out.intensity = modifierIntensity(basis) || 'light';
+        }
+        return out;
     }
     const marks = `${String(emoji ?? '')}${raw}`;
     for (const [mark, kind, intensity] of EMOJI) {
-        if (marks.includes(mark)) return { kind, intensity: modifierIntensity(padded) || intensity, word: mark };
+        if (marks.includes(mark)) return { kind, intensity: modifierIntensity(padded) || intensity, word: mark, ...extras(kind) };
     }
     return { kind: 'none', intensity: '', word: '' };
 }

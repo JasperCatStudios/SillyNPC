@@ -87,9 +87,11 @@ export function describeScene(scene) {
     const weather = scene.weatherKind && scene.weatherKind !== 'none'
         ? `${scene.weatherKind}${scene.weatherIntensity ? ` (${scene.weatherIntensity})` : ''}`
         : 'unknown';
+    // Where the weather came from, when it did not come from the header.
+    const weatherFrom = scene.weatherSource === 'internal' ? ' [from the Internal States report]' : scene.weatherSource === 'model' ? ' [from the model]' : scene.weatherSource === 'header' ? ' [from the header]' : '';
     const time = [scene.timeText, scene.dateText].filter(Boolean).join(', ') || 'unknown';
     const source = scene.source === 'header'
         ? `scene header${Number.isInteger(scene.messageId) ? ` of message #${scene.messageId}` : ''}`
         : 'device clock (no scene header in this chat)';
-    return `Place: ${place} · Weather: ${weather} · Time: ${time} · From: ${source}`;
+    return `Place: ${place} · Weather: ${weather}${weatherFrom} · Time: ${time} · From: ${source}`;
 }

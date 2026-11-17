@@ -1,6 +1,10 @@
-import { sceneSettings, saveSceneSettings } from './scene-state.js';
-import { syncSceneWeather, weatherStatusText, onWeatherStatus } from './scene-weather.js';
-import { WEATHER_EFFECTS } from './weather-fx-core.js';
+import { sceneSettings, saveSceneSettings, rematchScene } from './scene-state.js';
+import {
+    syncSceneWeather, weatherStatusText, onWeatherStatus, previewWeather, stopPreview, isPreviewing, weatherDiagnostics,
+} from './scene-weather.js';
+import { weatherDetectStatus, onWeatherDetectStatus, askWeatherNow } from './weather-detect.js';
+import { classifyWeather } from './weather-kind.js';
+import { WEATHER_EFFECTS, weatherEffect, normalizeKind } from './weather-fx-core.js';
 import { isEffectEnabled, setEffectEnabled, applyPerfResults, describePerfChanges } from './weather-settings.js';
 
 /**
@@ -45,7 +49,7 @@ export function renderWeatherSection(pane, { makeSwitch }) {
     pane.append(el('h4', 'sillynpc-combat-heading', 'Weather effects'));
     pane.append(el('small', 'notes',
         'Draws the scene\'s weather (rain, snow, clouds, sun and more) over the chat. Off by default. It needs the Scene '
-        + 'module on and uses the weather word from the scene header. Nothing runs while this is off.'));
+        + 'module on. The weather comes from the scene header unless you choose another source below. Nothing runs while this is off.'));
 
     const opt = (label, checked, onChange, hint) => {
         const row = el('label', 'sillynpc-pane-opt sillynpc-scene-opt');
@@ -55,11 +59,131 @@ export function renderWeatherSection(pane, { makeSwitch }) {
     };
 
     const status = el('div', 'notes sillynpc-weather-status');
-    const drawStatus = () => { status.textContent = weatherStatusText(); };
+    status.style.whiteSpace = 'pre-line';
+    const drawStatus = () => {
+        status.textContent = [weatherStatusText(), ...weatherDiagnostics(), weatherDetectStatus()].filter(Boolean).join('\n');
+    };
 
     pane.append(opt('Show weather effects', w.enabled, (on) => { w.enabled = on; change(); drawStatus(); },
         'The master switch. Off removes the effect layer completely.'));
     pane.append(status);
+
+    /* ---- where the weather comes from ---- */
+    const SOURCE_HELP = {
+        header: 'The weather segment of the scene header at the top of a message (for example the last part of '
+            + '[ Time 07:24 AM | Friday, February 07 | Harbour Inn | light rain ]). Nothing extra is asked.',
+        internal: 'The Weather line of the Internal States report under each reply. When Internal States writes the report '
+            + 'as a separate request (the "after the reply" mode), that request is asked to add a Weather line, so there is '
+            + 'no extra call. If the report has no Weather line, its Env line is read instead. Until a report gives a weather, '
+            + 'the header\'s weather is used.',
+        model: 'A small separate request after each new reply asks a model for the current weather, on the Weather connection '
+            + '(Connections tab; empty uses your main API). The answer is kept on the message, so a swipe, a reload or a redraw '
+            + 'never asks twice for the same text, and it asks at most once every 20 seconds. Until it answers, the header\'s '
+            + 'weather is used. Edit the instructions under Prompts, Weather: Detection Instructions.',
+    };
+    const sourceRow = el('div', 'sillynpc-setting-row sillynpc-scene-row');
+    const sourceSelect = el('select', 'text_pole');
+    for (const [value, label] of [['header', 'The scene header'], ['internal', 'The Internal States report'], ['model', 'A model (separate request)']]) {
+        sourceSelect.append(new Option(label, value));
+    }
+    sourceSelect.value = w.source;
+    sourceRow.append(el('label', '', 'Weather comes from'), sourceSelect);
+    const sourceHelp = el('small', 'notes', SOURCE_HELP[w.source]);
+    const modelRow = el('div', 'sillynpc-scene-actions');
+    const checkNow = button('Ask the model now', 'Asks about the newest reply again, ignoring the 20 second wait and any saved answer.', 'fa-cloud-sun');
+    modelRow.append(checkNow);
+    modelRow.style.display = w.source === 'model' ? '' : 'none';
+    sourceSelect.addEventListener('change', () => {
+        w.source = sourceSelect.value;
+        sourceHelp.textContent = SOURCE_HELP[w.source] || '';
+        modelRow.style.display = w.source === 'model' ? '' : 'none';
+        change();
+        try { rematchScene(); } catch (err) { console.warn('[Worldkit] weather source', err); }
+        drawStatus();
+    });
+    checkNow.addEventListener('click', () => {
+        askWeatherNow().catch(err => console.warn('[Worldkit] weather ask', err)).finally(drawStatus);
+    });
+    pane.append(sourceRow, sourceHelp, modelRow);
+
+    /* ---- try it by hand ---- */
+    pane.append(el('h4', 'sillynpc-combat-heading', 'Try a weather'));
+    pane.append(el('small', 'notes',
+        'See an effect without waiting for the story. Pick one and press Preview it: it is drawn now, even if the scene has no '
+        + 'weather, until you press Stop previewing or reload. Nothing is saved.'));
+    const pick = (options, value) => {
+        const s = el('select', 'text_pole');
+        for (const [v, label] of options) s.append(new Option(label, v));
+        s.value = value;
+        return s;
+    };
+    const effectSelect = pick(WEATHER_EFFECTS.map(e => [e.id, e.label]), 'rain');
+    const intensitySelect = pick([['light', 'Light'], ['moderate', 'Moderate'], ['heavy', 'Heavy']], 'moderate');
+    const timeSelect = pick([['dawn', 'Dawn'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']], 'day');
+    const windSelect = pick([['calm', 'Calm'], ['left', 'Wind to the left'], ['right', 'Wind to the right']], 'calm');
+    const labelled = (text, control) => {
+        const row = el('div', 'sillynpc-setting-row sillynpc-scene-row');
+        row.append(el('label', '', text), control);
+        return row;
+    };
+    pane.append(labelled('Weather', effectSelect), labelled('Intensity', intensitySelect),
+        labelled('Time of day', timeSelect), labelled('Wind', windSelect));
+    const windFor = (v) => (v === 'left' || v === 'right' ? { windSpeed: 'windy', windDirection: v } : { windSpeed: 'calm' });
+    const previewActions = el('div', 'sillynpc-scene-actions');
+    const previewBtn = button('Preview it', 'Draws this weather now.', 'fa-play');
+    const stopBtn = button('Stop previewing', 'Gives the effect layer back to the scene.', 'fa-stop');
+    previewActions.append(previewBtn, stopBtn);
+    const previewNote = el('div', 'notes sillynpc-weather-preview-note');
+    const showPreview = (desc) => {
+        const result = previewWeather(desc);
+        previewNote.textContent = result.ok ? `Previewing: ${desc.kind}, ${desc.intensity}, ${desc.timeOfDay}.` : result.reason;
+        drawStatus();
+    };
+    previewBtn.addEventListener('click', () => showPreview({
+        kind: effectSelect.value, intensity: intensitySelect.value, timeOfDay: timeSelect.value, ...windFor(windSelect.value),
+    }));
+    stopBtn.addEventListener('click', () => {
+        stopPreview();
+        previewNote.textContent = 'Back to the scene\'s weather.';
+        drawStatus();
+    });
+    previewNote.textContent = isPreviewing() ? 'A preview is running. Press Stop previewing to go back to the scene.' : '';
+    if (!w.enabled && !previewNote.textContent) previewNote.textContent = 'The "Show weather effects" switch is off: switch it on to see a preview.';
+    pane.append(previewActions, previewNote);
+
+    const wordsRow = el('div', 'sillynpc-setting-row sillynpc-scene-row');
+    const wordsInput = el('input', 'text_pole');
+    wordsInput.type = 'text';
+    wordsInput.placeholder = 'Try some words, e.g. light rain, 54 F';
+    wordsRow.append(el('label', '', 'Try some words'), wordsInput);
+    const wordsResult = el('div', 'notes sillynpc-weather-words-result');
+    const refineKind = (c) => normalizeKind(c.kind, c.word);
+    const readWords = () => {
+        const text = wordsInput.value.trim();
+        if (!text) { wordsResult.textContent = ''; return null; }
+        const c = classifyWeather(text);
+        if (c.kind === 'none') wordsResult.textContent = 'Those words do not name a weather, so nothing would be drawn.';
+        else {
+            wordsResult.textContent = `Read as: ${c.kind}, ${c.intensity || 'moderate'}${c.word ? ` (from the word "${c.word}")` : ''}`
+                + `${c.windSpeed ? `, wind ${c.windSpeed}` : ''}${c.haze ? ', hazy (drawn as a light clear sky)' : ''}`
+                + `${isEffectEnabled(w, refineKind(c)) ? '' : `. ${weatherEffect(refineKind(c))?.label || c.kind} is switched off below, so a lighter one is drawn`}.`;
+        }
+        return c;
+    };
+    // Typing only reads the words; nothing is rebuilt.
+    wordsInput.addEventListener('input', readWords);
+    const wordsBtn = button('Preview these words', 'Draws what these words make.', 'fa-play');
+    wordsBtn.addEventListener('click', () => {
+        const c = readWords();
+        if (!c || c.kind === 'none') { if (c) previewNote.textContent = 'Nothing to preview: those words do not name a weather.'; return; }
+        showPreview({
+            kind: c.kind, word: c.word, intensity: c.intensity || 'moderate', timeOfDay: timeSelect.value,
+            ...(c.windSpeed ? { windSpeed: c.windSpeed } : windFor(windSelect.value)),
+        });
+    });
+    const wordsActions = el('div', 'sillynpc-scene-actions');
+    wordsActions.append(wordsBtn);
+    pane.append(wordsRow, wordsResult, wordsActions);
 
     // Density: saved while dragging; nothing is rebuilt.
     const densityRow = el('div', 'sillynpc-setting-row sillynpc-scene-row sillynpc-weather-density');
@@ -150,7 +274,11 @@ export function renderWeatherSection(pane, { makeSwitch }) {
 
     drawStatus();
     const off = onWeatherStatus(() => {
-        if (!pane.isConnected) { off(); return; }
+        if (!pane.isConnected) { off(); offDetect(); return; }
+        drawStatus();
+    });
+    const offDetect = onWeatherDetectStatus(() => {
+        if (!pane.isConnected) { offDetect(); off(); return; }
         drawStatus();
     });
 }

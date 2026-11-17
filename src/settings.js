@@ -134,6 +134,9 @@ export const defaultSettings = {
     /** Knives (see knives-core.js): the connection profile "Suggest knives" asks on (empty is the main API), and its own prompt (empty is the built-in). The trigger options are resultInjection.knives. */
     knivesProfileId: '',
     knivesPrompt: '',
+    /** Weather detection (see weather-detect-core.js): the connection the "model" weather source asks on (empty is the main API), and its own prompt (empty is the built-in). */
+    weatherProfileId: '',
+    weatherPrompt: '',
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
     threadsEnabled: false,

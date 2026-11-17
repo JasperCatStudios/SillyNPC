@@ -9,13 +9,14 @@
  *       lowPower: false,             // manual low-power mode
  *       autoLowPower: true,          // battery saver / data saver turn low power on by themselves
  *       disabled: { rain: true },    // per weather: true off, false on; missing = the default (heavy ones off)
+ *       source: 'header',            // where the weather comes from: 'header' | 'internal' | 'model'
  *       caps: { snow: 60 },          // per weather: the highest density it is drawn at
  *       lastTest: { at, device, stoppedBecause, results: [{ kind, density, summary }] } | null,
  *   }
  */
 
 import { WEATHER_EFFECTS, weatherEffect, effectFallback, refineWord, timeOfDayFromHour } from './weather-fx-core.js';
-import { bestDensities, verdictFor } from './weather-perf-core.js';
+import { bestDensities, verdictFor, baselineFpsOf } from './weather-perf-core.js';
 
 export const WEATHER_DEFAULTS = Object.freeze({ density: 60, touchDensity: 40, lowPower: false, autoLowPower: true });
 export const MAX_SAVED_RESULTS = 200;
@@ -76,6 +77,8 @@ export function repairWeatherSettings(raw, { touch = false } = {}) {
         else s.caps[k] = clamp(Math.round(n), 5, 100);
     }
     s.lastTest = trimTestResult(s.lastTest);
+    // Where the weather comes from: the scene header (default), the Internal States report, or a model (weather-detect-core.js).
+    s.source = s.source === 'internal' || s.source === 'model' ? s.source : 'header';
     return s;
 }
 
@@ -125,12 +128,13 @@ export function applyPerfResults(settings, results) {
     const out = { disabled: [], capped: {}, cleared: [] };
     if (!isObj(settings.disabled)) settings.disabled = {};
     if (!isObj(settings.caps)) settings.caps = {};
-    const list = (Array.isArray(results) ? results : []).filter(r => r && r.kind && r.summary?.frames > 0);
-    const best = bestDensities(list);
+    const base = baselineFpsOf(results);   // judged against the baseline step when the run has one
+    const list = (Array.isArray(results) ? results : []).filter(r => r && r.kind && r.kind !== 'baseline' && r.summary?.frames > 0);
+    const best = bestDensities(Array.isArray(results) ? results.filter(r => r && r.kind && r.summary?.frames > 0) : []);
     const kinds = [...new Set(list.map(r => r.kind))];
     for (const kind of kinds) {
         const steps = list.filter(r => r.kind === kind).sort((a, b) => a.density - b.density);
-        const verdicts = steps.map(r => verdictFor(r.summary));
+        const verdicts = steps.map(r => verdictFor(r.summary, base));
         if (verdicts.every(v => v === 'poor')) {
             settings.disabled[kind] = true;
             delete settings.caps[kind];
@@ -138,11 +142,11 @@ export function applyPerfResults(settings, results) {
             continue;
         }
         const full = steps.find(r => r.density >= 100);
-        if (full && verdictFor(full.summary) === 'good') {
+        if (full && verdictFor(full.summary, base) === 'good') {
             if (kind in settings.caps) { delete settings.caps[kind]; out.cleared.push(kind); }
             continue;
         }
-        const good = steps.filter(r => verdictFor(r.summary) === 'good').map(r => r.density);
+        const good = steps.filter(r => verdictFor(r.summary, base) === 'good').map(r => r.density);
         let cap = good.length ? Math.max(...good) : (best[kind] < 100 ? best[kind] : steps[0].density);
         cap = clamp(Math.round(cap), 5, 100);
         if (cap >= 100) continue;

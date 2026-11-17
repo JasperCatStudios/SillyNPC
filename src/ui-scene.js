@@ -11,6 +11,7 @@ import {
 } from './scene-locations.js';
 import { describeScene } from './scene-core.js';
 import { renderWeatherSection } from './ui-scene-weather.js';
+import { syncSceneWeather } from './scene-weather.js';
 
 /**
  * The Scene pane on the Modules tab (fork). Draws only: the rules are in scene-locations.js and scene-core.js, the
@@ -63,7 +64,8 @@ export function renderScenePane(pane, { live = true, head, makeSwitch } = {}) {
     // Filled in below for the live pane; the head switch can be clicked before (or without) it.
     let drawStatus = () => {};
     if (head && typeof makeSwitch === 'function') {
-        head.append(makeSwitch(s.enabled, (on) => { setSceneEnabled(on); drawStatus(); }));
+        // The weather follows this switch too: it starts or stops with it.
+        head.append(makeSwitch(s.enabled, (on) => { setSceneEnabled(on); syncSceneWeather(); drawStatus(); }));
     }
 
     pane.append(el('small', 'notes sillynpc-scene-intro',

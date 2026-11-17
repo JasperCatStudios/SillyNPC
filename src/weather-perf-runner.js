@@ -12,13 +12,14 @@
  */
 
 import {
-    normalizePerfOptions, summarizeFrames, shouldStop, goHeavier, startMarker,
+    normalizePerfOptions, summarizeFrames, shouldStop, goHeavier, startMarker, BASELINE_KIND,
 } from './weather-perf-core.js';
 
 export const PERF_MARKER_KEY = 'worldkit-weather-perf-running';
 
-/** The weather drawn for one step: the given kind, heavy, by day (the aurora by night, where it shows). */
+/** The weather drawn for one step: the given kind, heavy, by day (the aurora by night, where it shows). The baseline draws nothing. */
 export function perfDescFor(kind) {
+    if (kind === BASELINE_KIND) return { kind: 'none', intensity: 0, timeOfDay: 'day', hour: 12 };
     const night = kind === 'aurora';
     return { kind, intensity: 4, timeOfDay: night ? 'night' : 'day', hour: night ? 0 : 12 };
 }
@@ -39,7 +40,10 @@ export function perfDescFor(kind) {
  */
 export function createPerfRunner(deps) {
     const o = normalizePerfOptions(deps.options);
-    const steps = (deps.steps || []).slice();
+    // The first step is always the baseline: nothing drawn, so it says how many frames per second the page gets at all.
+    const steps = (deps.steps || []).filter(s => s.kind !== BASELINE_KIND);
+    steps.unshift({ kind: BASELINE_KIND, density: 0 });
+    let baselineFps = 0;
     const stepMs = o.stepSeconds * 1000;
     const warmupMs = o.warmupSeconds * 1000;
     const results = [];
@@ -113,9 +117,10 @@ export function createPerfRunner(deps) {
         const summary = summarizeFrames(frames, { warmupMs });
         results.push({ kind: step.kind, density: step.density, summary });
         inStep = false;
-        const stop = shouldStop({ stepAvgFps: summary.avgFps, heapGrowthMb: heapGrowth() }, o);
+        if (step.kind === BASELINE_KIND) baselineFps = summary.avgFps;
+        const stop = shouldStop({ stepAvgFps: summary.avgFps, heapGrowthMb: heapGrowth(), baselineFps: step.kind === BASELINE_KIND ? 0 : baselineFps }, o);
         if (stop.stop) { finish(stop.reason); return; }
-        if (!goHeavier(summary, o)) skip.add(step.kind);
+        if (step.kind !== BASELINE_KIND && !goHeavier(summary, o, baselineFps)) skip.add(step.kind);
         idx++;
         beginStep();
     }
@@ -148,6 +153,7 @@ export function createPerfRunner(deps) {
                 step: idx + 1,
                 total: steps.length,
                 stepProgress: Math.min(1, (ts - stepStart) / stepMs),
+                baselineFps,
             });
         } catch { /* the screen is gone; the run still ends cleanly */ }
         if (ts - stepStart >= stepMs) { endStep(); return; }
@@ -188,7 +194,8 @@ export function createPerfRunner(deps) {
             rafId = null;
             frames = [];
             inStep = false;
-            try { deps.marker.clear(); } catch { /* storage refused */ }
+            // The crash marker STAYS: a page reload fires "hidden" first, and the next visit must still find the marker.
+            // Only finish() clears it; resume() writes it again as the step restarts.
         },
         /** Starts the dropped step again. */
         resume() {
