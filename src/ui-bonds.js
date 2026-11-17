@@ -1,3 +1,4 @@
+import { redrawWhenIdle } from './ui-edit-guard.js';
 import { eventSource } from '../../../../events.js';
 import { Popup } from '../../../../popup.js';
 import { getActiveCharacters } from './characters.js';
@@ -136,7 +137,7 @@ export function renderBondsView(view) {
         listening = true;
         eventSource.on(BONDS_CHANGED_EVENT, () => {
             if (Date.now() - localEditAt < 800) return;
-            if (currentView?.isConnected && !currentView.contains(document.activeElement)) renderBondsView(currentView);
+            if (currentView?.isConnected) redrawWhenIdle(currentView, () => renderBondsView(currentView));
         });
     }
 

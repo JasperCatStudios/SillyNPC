@@ -1,3 +1,4 @@
+import { redrawWhenIdle } from './ui-edit-guard.js';
 import { buildResultInjectionPanel } from './ui-result-injection.js';
 import { renderVoiceSettings } from './ui-character-extras.js';
 import { getSettings, saveSettings } from './settings.js';
@@ -98,7 +99,7 @@ function watchForMissing(view, mods) {
     let tries = 0;
     const ids = new Set(mods.map(m => m.id));
     const stop = () => { clearInterval(timer); off(); if (watchers.get(view) === stop) watchers.delete(view); };
-    const redraw = () => { stop(); if (view.isConnected) renderModulesView(view); };
+    const redraw = () => { stop(); if (view.isConnected) redrawWhenIdle(view, () => renderModulesView(view)); };
     const off = onModuleLoad((id) => { if (ids.has(id)) redraw(); });
     timer = setInterval(() => {
         if (!view.isConnected || ++tries > 120) { stop(); return; }

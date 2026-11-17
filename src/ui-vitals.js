@@ -1,3 +1,4 @@
+import { redrawWhenIdle } from './ui-edit-guard.js';
 import { eventSource } from '../../../../events.js';
 import { buildSettingToggle, buildSettingSelect, buildSettingNumber, buildSettingTextArea } from './ui-shared.js';
 import { buildConnectionProfilePicker } from './ui-connection-profiles.js';
@@ -105,7 +106,7 @@ export function renderVitalsView(view) {
     if (!listening) {
         listening = true;
         eventSource.on(VITALS_CHANGED_EVENT, () => {
-            if (currentView?.isConnected && !currentView.contains(document.activeElement)) renderVitalsView(currentView);
+            if (currentView?.isConnected) redrawWhenIdle(currentView, () => renderVitalsView(currentView));
         });
     }
     const scroll = view.closest('.sillynpc-tab-panel')?.scrollTop ?? 0;
