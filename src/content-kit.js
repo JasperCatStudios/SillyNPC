@@ -99,7 +99,7 @@ export function scriptsFromFile(data) {
 }
 
 /**
- * Adds regex scripts to SillyTavern's list. A script that is already there (same id) is replaced in place so its
+ * Adds regex scripts to SillyTavern's list. A script that is already there (same id, or same name) is replaced in place so its
  * position and the order it runs in stay as they were; a new one goes on the end. Nothing is ever removed.
  *
  * @returns {{ merged: object[], added: number, replaced: number }}
@@ -108,9 +108,13 @@ export function mergeRegexScripts(existing, incoming) {
     const merged = Array.isArray(existing) ? existing.slice() : [];
     let added = 0;
     let replaced = 0;
+    const nameOf = (s) => String(s?.scriptName ?? '').trim().toLowerCase();
     for (const script of incoming) {
-        const at = script.id ? merged.findIndex(s => s?.id === script.id) : -1;
-        if (at >= 0) { merged[at] = script; replaced++; } else { merged.push(script); added++; }
+        // Same id, or the same name: SillyTavern gives a script a new id when it is imported through its own Regex menu, so
+        // the name is what says it is already there. It keeps the id it has, so nothing that points at it breaks.
+        let at = script.id ? merged.findIndex(s => s?.id === script.id) : -1;
+        if (at < 0 && nameOf(script)) at = merged.findIndex(s => nameOf(s) === nameOf(script));
+        if (at >= 0) { merged[at] = { ...script, id: merged[at].id ?? script.id }; replaced++; } else { merged.push(script); added++; }
     }
     return { merged, added, replaced };
 }

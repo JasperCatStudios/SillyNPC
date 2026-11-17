@@ -77,7 +77,6 @@ export function renderInventoryView(view) {
         help: 'Keep a purse of gold or whatever currency this story uses.', onChange: rerender,
     })));
     if (inventorySettings().trackGold) view.append(currencyRow());
-    view.append(namespaced(buildSettingNumber({ store: STORE, key: 'maxItems', label: 'Most Items Per Person', suffix: 'items', advanced: true })));
 
     renderPeople(view, rerender);
 
@@ -126,7 +125,11 @@ function numberBox(value, onCommit, { min = 0, width = '6em' } = {}) {
     field.min = String(min);
     field.value = String(value);
     field.style.width = width;
-    field.addEventListener('change', () => onCommit(Number(field.value)));
+    field.addEventListener('change', () => {
+        // Emptying the box is not "zero": it keeps what it had.
+        if (field.value.trim() === '') { field.value = String(value); return; }
+        onCommit(Number(field.value));
+    });
     return field;
 }
 

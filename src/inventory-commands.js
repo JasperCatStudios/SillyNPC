@@ -49,10 +49,10 @@ function addItemCommand(args, value) {
     if (amount === null) throw new Error('amount must be a whole number of 1 or more.');
     const name = who(args);
     const given = editInventory(name, (p) => {
-        giveItem(p, { name: itemName, qty: amount, kind: args?.kind, note: args?.note }, { why: 'command', maxItems: inventorySettings().maxItems });
+        giveItem(p, { name: itemName, qty: amount, kind: args?.kind, note: args?.note }, { why: 'command' });
     });
     const held = given?.items.find(i => i.name.toLowerCase() === itemName.toLowerCase());
-    if (!held) throw new Error(`${name} cannot carry more items (the limit is ${inventorySettings().maxItems}).`);
+    if (!held) throw new Error(`Could not add ${itemName}.`);
     return `${name} now has ${held.name} x${held.qty}.`;
 }
 

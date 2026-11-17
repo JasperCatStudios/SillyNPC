@@ -32,7 +32,6 @@ export const BUILTIN_FACTIONS = Object.freeze({
     green_mantis: { label: "Green Mantis", bg: '#0E1710', panel: '#1D3322', accent: '#5FBF6A', accent2: '#C8E6A0', text: '#EAF5EA', tab: '#2F5A38', banner: '' },
     coral_peacocks: { label: "Coral Peacocks", bg: '#171011', panel: '#32201F', accent: '#FF7F6B', accent2: '#3FC1B5', text: '#FAECE6', tab: '#5E3430', banner: '' },
     azure_deer: { label: "Azure Deer", bg: '#0C1620', panel: '#173044', accent: '#3FA9F5', accent2: '#BFE6FF', text: '#EAF6FE', tab: '#1F5078', banner: '' },
-    stormbound_tide: { label: "Stormbound Tide", bg: '#0D1519', panel: '#1A2D36', accent: '#3E8FB0', accent2: '#F0D060', text: '#E6F0F4', tab: '#264F61', banner: '' },
     clover_kingdom: { label: "Clover Kingdom", bg: '#0F1611', panel: '#1E3326', accent: '#3FA066', accent2: '#E3C766', text: '#EDF4EA', tab: '#2D5E40', banner: '' },
     heart_kingdom: { label: "Heart Kingdom", bg: '#1A0E14', panel: '#37192A', accent: '#E0527C', accent2: '#F3C6D3', text: '#FBEAF0', tab: '#6A2745', banner: '' },
     diamond_kingdom: { label: "Diamond Kingdom", bg: '#0D1619', panel: '#1B3139', accent: '#7FD6E8', accent2: '#E8F6FA', text: '#EEF9FB', tab: '#285461', banner: '' },
@@ -63,7 +62,7 @@ export const BUILTIN_FACTIONS = Object.freeze({
 export const FACTION_WORLDS = Object.freeze([
     { id: 'fe', label: 'Fire Emblem: Three Houses', ids: ['golden_deer', 'black_eagles', 'blue_lions', 'ashen_wolves', 'knights_of_seiros'] },
     { id: 'bleach', label: 'Bleach', ids: ['soul_society', 'karakura_town', 'visored', 'quincy', 'bounts', 'xcution', 'mod_souls', 'espada', 'privaron_espada', 'arrancar', 'fraccion', 'hollow'] },
-    { id: 'bc', label: 'Black Clover', ids: ['black_bulls', 'golden_dawn', 'blue_rose', 'crimson_lion_kings', 'silver_eagles', 'purple_orcas', 'green_mantis', 'coral_peacocks', 'azure_deer', 'stormbound_tide', 'clover_kingdom', 'heart_kingdom', 'diamond_kingdom', 'elves', 'enemy', 'commoner_s_tournament', 'independent'] },
+    { id: 'bc', label: 'Black Clover', ids: ['black_bulls', 'golden_dawn', 'blue_rose', 'crimson_lion_kings', 'silver_eagles', 'purple_orcas', 'green_mantis', 'coral_peacocks', 'azure_deer', 'clover_kingdom', 'heart_kingdom', 'diamond_kingdom', 'elves', 'enemy', 'commoner_s_tournament', 'independent'] },
     { id: 'general', label: 'General', ids: ['oc'] },
 ]);
 

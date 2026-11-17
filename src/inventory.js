@@ -96,7 +96,7 @@ export function editInventoryText(text) {
 }
 
 export const setGoldFor = (name, value) => editInventory(name, (p) => { setGold(p, value); });
-export const giveItemFor = (name, item) => editInventory(name, (p) => { giveItem(p, item, { maxItems: inventorySettings().maxItems }); });
+export const giveItemFor = (name, item) => editInventory(name, (p) => { giveItem(p, item); });
 export const takeItemFor = (name, itemName, qty) => editInventory(name, (p) => { takeItem(p, itemName, qty); });
 
 /** The player's own record, created on first use so the screens always have somewhere to show it. */

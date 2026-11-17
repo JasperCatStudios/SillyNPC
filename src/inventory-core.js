@@ -26,7 +26,6 @@ export const INVENTORY_SETTINGS_DEFAULTS = Object.freeze({
     includeNpcs: false,
     trackGold: true,
     currencyName: 'Gold',
-    maxItems: 60,
     inject: Object.freeze({ position: 'chat', depth: 1, role: 'system', trigger: 'scene', scanDepth: 6 }),
 });
 
@@ -51,7 +50,6 @@ export function normalizeInventorySettings(raw) {
         includeNpcs: r.includeNpcs === undefined ? d.includeNpcs : Boolean(r.includeNpcs),
         trackGold: r.trackGold === undefined ? d.trackGold : Boolean(r.trackGold),
         currencyName: clean(r.currencyName, 24) || d.currencyName,
-        maxItems: int(r.maxItems, d.maxItems, 5, 200),
         inject: {
             position: pick(r.inject?.position, INVENTORY_POSITIONS, d.inject.position),
             depth: int(r.inject?.depth, d.inject.depth, 0, 50),
@@ -78,7 +76,7 @@ export function normalizePerson(raw) {
     const p = newPerson(text(raw?.name) || 'Unknown', { player: raw?.player });
     p.tracked = raw?.tracked === undefined ? true : Boolean(raw.tracked);
     p.gold = int(raw?.gold, 0, 0, 999999999);
-    p.items = (Array.isArray(raw?.items) ? raw.items : []).map(normalizeItem).filter(Boolean).slice(0, 200);
+    p.items = (Array.isArray(raw?.items) ? raw.items : []).map(normalizeItem).filter(Boolean);
     p.history = (Array.isArray(raw?.history) ? raw.history : []).filter(h => h && typeof h === 'object').slice(-40);
     p.updated = Number(raw?.updated) || 0;
     return p;
@@ -121,7 +119,7 @@ export function setGold(person, value, { now = Date.now(), why = 'edited' } = {}
 }
 
 /** Adds to a stack, or starts one. Returns the item. */
-export function giveItem(person, raw, { now = Date.now(), why = 'edited', maxItems = 200 } = {}) {
+export function giveItem(person, raw, { now = Date.now(), why = 'edited' } = {}) {
     const item = normalizeItem(raw);
     if (!item) return null;
     const have = findItem(person, item.name);
@@ -132,7 +130,6 @@ export function giveItem(person, raw, { now = Date.now(), why = 'edited', maxIte
         note(person, `+${item.qty} ${item.name}`, why, now);
         return have;
     }
-    if (person.items.length >= maxItems) return null;
     person.items.push(item);
     note(person, `+${item.qty} ${item.name}`, why, now);
     return item;
@@ -204,7 +201,7 @@ export function applyTurn(store, update, settings, ctx = {}) {
             }
         }
         for (const it of Array.isArray(row.add) ? row.add : []) {
-            const given = giveItem(person, it, { now, why: why || 'story', maxItems: settings.maxItems });
+            const given = giveItem(person, it, { now, why: why || 'story' });
             if (given) {
                 changes.push({ name: person.name, stat: 'item', text: `+${clean(it?.name)}`, why });
                 touched = true;
@@ -377,7 +374,7 @@ export function applyInventoryEdit(store, parsed, settings, { now = Date.now() }
             setGold(person, row.gold, { now, why: 'edited' });
             touched = true;
         }
-        const items = row.items.map(normalizeItem).filter(Boolean).slice(0, settings?.maxItems ?? 200);
+        const items = row.items.map(normalizeItem).filter(Boolean);
         if (JSON.stringify(items) !== JSON.stringify(person.items)) {
             person.items = items;
             note(person, 'items edited', 'edited', now);

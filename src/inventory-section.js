@@ -19,6 +19,8 @@ import { inventorySettings, inventoryStore, latestReplyId, runInventoryUpdate, e
 const busy = new Set();
 /** Replies whose block is open for editing, by "id:swipe". Kept here, not in the page, so a redraw cannot lose it. */
 const editing = new Set();
+/** What was typed in each open edit box, by "id:swipe", so a redraw puts it back instead of the saved numbers. */
+const drafts = new Map();
 
 /** Puts the section under the vitals section when there is one, so the three read Bonds, Vitals, Inventory. */
 function place(mesEl, section) {
@@ -101,7 +103,8 @@ export function drawInventorySection(mesEl) {
         const box = document.createElement('textarea');
         box.className = 'text_pole sillynpc-is-edit';
         box.rows = Math.min(16, Math.max(4, box.value.split('\n').length + 1));
-        box.value = inventoryToText(store, settings);
+        box.value = drafts.has(key) ? drafts.get(key) : inventoryToText(store, settings);
+        box.addEventListener('input', () => drafts.set(key, box.value));
         box.rows = Math.min(16, Math.max(4, box.value.split('\n').length + 1));
         const row = document.createElement('div');
         row.className = 'sillynpc-is-edit-row';
@@ -111,6 +114,7 @@ export function drawInventorySection(mesEl) {
         save.title = 'Sets the recorded numbers to these. Only people already tracked can be changed.';
         save.addEventListener('click', (e) => {
             e.stopPropagation();
+            drafts.delete(key);
             try { editInventoryText(box.value); } catch (err) { debugLog('Inventory edit failed', err); } finally {
                 editing.delete(key);
                 drawInventorySection(mesEl);
@@ -119,7 +123,7 @@ export function drawInventorySection(mesEl) {
         const cancel = document.createElement('div');
         cancel.className = 'menu_button';
         cancel.textContent = 'Cancel';
-        cancel.addEventListener('click', (e) => { e.stopPropagation(); editing.delete(key); drawInventorySection(mesEl); });
+        cancel.addEventListener('click', (e) => { e.stopPropagation(); editing.delete(key); drafts.delete(key); drawInventorySection(mesEl); });
         row.append(save, cancel);
         section.append(box, row);
         place(mesEl, section);
@@ -135,6 +139,11 @@ export function drawInventorySection(mesEl) {
     }
 
     place(mesEl, section);
+}
+
+/** Draws the section again on every reply in the chat (the Look changed, so older ones change too). */
+export function redrawAllInventorySections() {
+    try { document.querySelectorAll('#chat .mes').forEach(drawInventorySection); } catch (err) { debugLog('Inventory sections failed', err); }
 }
 
 export function redrawInventorySection(messageId) {

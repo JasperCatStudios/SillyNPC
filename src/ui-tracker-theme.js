@@ -2,6 +2,9 @@ import { eventSource } from '../../../../events.js';
 import { TRACKER_THEMES, THEME_PLAIN } from './tracker-themes.js';
 import { getTrackerTheme, setAllTrackerThemes } from './tracker-theme-setting.js';
 import { drawSection } from './internal-states.js';
+import { redrawAllBondSections } from './bonds.js';
+import { redrawAllVitalsSections } from './vitals-section.js';
+import { redrawAllInventorySections } from './inventory-section.js';
 
 /**
  * The "Look" choice shown at the top of each tracker's menu.
@@ -35,6 +38,9 @@ export function buildThemePicker(tracker, { onChange } = {}) {
     select.addEventListener('change', () => {
         setAllTrackerThemes(select.value);
         // What is already under the replies is drawn again in the new look.
+        redrawAllBondSections();
+        redrawAllVitalsSections();
+        redrawAllInventorySections();
         for (const name of ['sillynpc-bonds-changed', 'sillynpc-vitals-changed', 'sillynpc-inventory-changed']) eventSource.emit(name);
         try { document.querySelectorAll('#chat .mes').forEach(drawSection); } catch { /* chat not open */ }
         onChange?.();

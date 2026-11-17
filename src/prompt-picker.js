@@ -56,9 +56,12 @@ export function textForMode(mode, { stored, custom, defaultText, presets = [] })
  */
 export function chooseMode(mode, { currentMode: from, currentText, custom, defaultText, presets = [] }, opts = {}) {
     const keptCustom = from === MODE_CUSTOM ? String(currentText ?? '') : (custom ?? '');
-    const text = textForMode(mode, { custom: keptCustom, defaultText, presets });
+    let text = textForMode(mode, { custom: keptCustom, defaultText, presets });
+    // A prompt that cannot be empty (the phone's) falls back to the default when it is, so an empty "My own" box would show
+    // nothing while the default is what gets sent. It starts from the default instead, ready to be edited.
+    if (mode === MODE_CUSTOM && opts.storeDefault && !String(text).trim()) text = defaultText ?? '';
     const stored = mode === MODE_DEFAULT && !opts.storeDefault ? '' : text;
-    return { mode, stored, custom: keptCustom, text };
+    return { mode, stored, custom: mode === MODE_CUSTOM ? text : keptCustom, text };
 }
 
 /**

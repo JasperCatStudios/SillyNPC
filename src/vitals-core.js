@@ -366,7 +366,7 @@ export function vitalsLine(person, settings, note = '') {
     const num = (key) => (tracked[key] ? String(person[key]) : '--');
     const mood = tracked.mood ? person.mood : { word: '--', level: 0 };
     const clean = String(note || '').replace(/[|<>\n]/g, ' ').trim();
-    return `- <b>${person.name}</b> | HEALTH: ${num('health')} | HUNGER: ${num('hunger')} | MOOD: ${mood.word} | MOODLEVEL: ${tracked.mood ? mood.level : 0} | ENERGY: ${num('energy')}${clean ? ` | NOTE: ${clean}` : ''}`;
+    return `- <b>${String(person.name).replace(/[|<>\n\r]/g, ' ').replace(/\s+/g, ' ').trim()}</b> | HEALTH: ${num('health')} | HUNGER: ${num('hunger')} | MOOD: ${mood.word} | MOODLEVEL: ${tracked.mood ? mood.level : 0} | ENERGY: ${num('energy')}${clean ? ` | NOTE: ${clean}` : ''}`;
 }
 
 /**

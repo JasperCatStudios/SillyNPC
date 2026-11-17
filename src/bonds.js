@@ -279,6 +279,11 @@ function drawSectionFor(mesEl) {
     });
 }
 
+/** Draws the Bond section again on every reply in the chat (the Look changed, so older ones change too). */
+export function redrawAllBondSections() {
+    try { document.querySelectorAll('#chat .mes').forEach(drawSectionFor); } catch (err) { debugLog('Bond sections failed', err); }
+}
+
 function redrawSection(messageId) {
     try { drawSectionFor(document.querySelector(`#chat .mes[mesid="${messageId}"]`)); } catch (err) { debugLog('Bond section failed', err); }
 }
