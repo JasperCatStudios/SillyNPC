@@ -2933,7 +2933,6 @@ function setupArrivalUI() {
     anum('#rph-ar-chance', 'chance', 0, 100);
     anum('#rph-ar-cooldown', 'cooldown', 0, 50);
     anum('#rph-ar-max', 'maxContacts', 1, 8);
-    $('#rph-ar-notify').prop('checked', !!a.notify).on('change', function () { a.notify = this.checked; save(); });
     $('#rph-ar-instr').val(a.instruction).on('change', function () {
         a.instruction = String(this.value).trim() ? String(this.value).slice(0, 600) : DEFAULT_ARRIVAL_INSTRUCTION;
         $(this).val(a.instruction); save();
@@ -2984,7 +2983,6 @@ function setupBridgeUI() {
     bcheck('#rph-br-inlist', 'inList');
     bcheck('#rph-br-onlynew', 'onlyNew');
     bcheck('#rph-br-onlyscene', 'onlyScene');
-    bcheck('#rph-br-notify', 'notify');
     $('#rph-br-role').val(b.role).on('change', function () { b.role = BRIDGE_ROLES.includes(this.value) ? this.value : 'system'; save(); });
     $('#rph-br-instr').val(b.instruction).on('change', function () {
         b.instruction = String(this.value).trim() ? String(this.value).slice(0, 800) : DEFAULT_BRIDGE_INSTRUCTION;
@@ -4864,7 +4862,6 @@ function settingsHtml() {
             </div>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-onlynew"><span>${t('br_onlynew')}</span></label>
             <label class="checkbox_label rph-br-random"><input type="checkbox" id="rph-br-onlyscene"><span>${t('br_onlyscene')}</span></label>
-            <label class="checkbox_label"><input type="checkbox" id="rph-br-notify"><span>${t('br_notify')}</span></label>
             <label class="checkbox_label"><input type="checkbox" id="rph-br-inlist"><span>${t('br_inlist')}</span></label>
             <small>${t('br_inlist_hint')}</small>
             <div class="rph-row">
@@ -4908,7 +4905,6 @@ function settingsHtml() {
             <div class="rph-row">
                 <div><label for="rph-ar-max" title="${escapeHtml(t('ar_max_hint'))}">${t('ar_max')} ⓘ</label><input type="number" min="1" max="8" id="rph-ar-max" class="text_pole" title="${escapeHtml(t('ar_max_hint'))}"></div>
             </div>
-            <label class="checkbox_label"><input type="checkbox" id="rph-ar-notify"><span>${t('br_notify')}</span></label>
             <small>${t('ar_placement_note')}</small>
             <label for="rph-ar-instr">${t('br_instr')}</label>
             <textarea id="rph-ar-instr" class="text_pole" rows="3" maxlength="600"></textarea>
