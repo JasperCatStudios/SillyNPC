@@ -1,3 +1,4 @@
+import { queueResult, armResult } from '../../src/result-runtime.js';
 import { getContext } from '../../../../../extensions.js';
 import { eventSource, event_types } from '../../../../../../script.js';
 import { getSettings, saveSettings } from '../../src/settings.js';
@@ -359,19 +360,30 @@ function reportText() {
     return lines.join('\n');
 }
 
-async function postReport() {
-    if (!session || session.reported || session.posting) return;
+/**
+ * Keeps the fight's result for the story. It goes into the prompt of a story reply, the way the phone's texts do
+ * (see src/result-runtime.js and the Combat tab in Modules); it is not posted in the chat.
+ * @param {{ force?: boolean }} [options] force is the button: ask for it to go with the next reply.
+ */
+async function postReport({ force = false } = {}) {
+    if (!session || session.posting) return;
+    if (session.reported && !force) return;
     session.posting = true;
     const text = reportText()
         .replace(/\|/g, '/')
         .replace(/\{\{/g, '{ {')
         .replace(/\}\}/g, '} }');
     try {
-        await getContext().executeSlashCommandsWithOptions(`/sys ${text}`, { displayCommand: false, showOutput: false });
-        if (session) session.reported = true;
+        const kept = queueResult('combat', text);
+        session.reported = true;
+        session.kept = kept;
+        if (force) {
+            if (kept) { armResult('combat', true); toastr.info('The next story reply will carry the combat result.', PRODUCT_NAME); }
+            else toastr.warning('Sending the combat result to the story is off. Turn it on in Modules, Combat.', PRODUCT_NAME);
+        }
     } catch (err) {
-        console.error('[Worldkit] combat report failed', err);
-        toastr.error('Could not post the combat report to chat.', PRODUCT_NAME);
+        console.error('[Worldkit] combat result failed', err);
+        toastr.error('Could not keep the combat result for the story.', PRODUCT_NAME);
         if (session) session.failed = true;
     }
     if (session) session.posting = false;
@@ -422,14 +434,16 @@ function drawBattle(body) {
         const end = el('div', 'snpc-fight-result');
         end.append(el('p', 'snpc-fight-end', outcomeWord(state)));
         for (const line of xpLines()) end.append(el('small', 'snpc-fight-xp', line));
-        end.append(el('small', 'notes', session.reported ? 'The combat report was posted to the chat.'
-            : session.posting ? 'Posting the combat report...' : 'The combat report has not been posted.'));
+        end.append(el('small', 'notes', session.posting ? 'Keeping the combat result...'
+            : session.reported ? (session.kept ? 'The combat result is waiting to go to the story (Modules, Combat has the settings).' : 'The combat result is not being sent to the story (it is off in Modules, Combat).')
+            : 'The combat result has not been kept.'));
         body.append(end);
         const row = el('div', 'snpc-fight-actions');
-        if (!session.reported && !session.posting) {
-            const post = el('button', 'menu_button', 'Post report to chat');
+        if (!session.posting) {
+            const post = el('button', 'menu_button', 'Send result to the story');
             post.type = 'button';
-            post.addEventListener('click', () => { session.failed = false; postReport(); });
+            post.title = 'Put the result in the prompt of the next story reply, whatever the mode is (unless sending is off).';
+            post.addEventListener('click', () => { session.failed = false; postReport({ force: true }); });
             row.append(post);
         }
         const again = el('button', 'menu_button', 'New fight');
@@ -1105,14 +1119,16 @@ function drawWatch(body) {
         const end = el('div', 'snpc-fight-result');
         end.append(el('p', 'snpc-fight-end', outcomeWord(state)));
         for (const line of xpLines()) end.append(el('small', 'snpc-fight-xp', line));
-        end.append(el('small', 'notes', session.reported ? 'The combat report was posted to the chat.'
-            : session.posting ? 'Posting the combat report...' : 'The combat report has not been posted.'));
+        end.append(el('small', 'notes', session.posting ? 'Keeping the combat result...'
+            : session.reported ? (session.kept ? 'The combat result is waiting to go to the story (Modules, Combat has the settings).' : 'The combat result is not being sent to the story (it is off in Modules, Combat).')
+            : 'The combat result has not been kept.'));
         body.append(end);
         const row = el('div', 'snpc-fight-actions');
-        if (!session.reported && !session.posting) {
-            const post = el('button', 'menu_button', 'Post report to chat');
+        if (!session.posting) {
+            const post = el('button', 'menu_button', 'Send result to the story');
             post.type = 'button';
-            post.addEventListener('click', () => { session.failed = false; postReport(); });
+            post.title = 'Put the result in the prompt of the next story reply, whatever the mode is (unless sending is off).';
+            post.addEventListener('click', () => { session.failed = false; postReport({ force: true }); });
             row.append(post);
         }
         const again = el('button', 'menu_button', 'New fight');

@@ -38,6 +38,7 @@ import { initInternalStates } from './src/internal-states.js';
 import { initBonds } from './src/bonds.js';
 import { initVitals } from './src/vitals.js';
 import { initThreads } from './src/threads-runtime.js';
+import { initResultInjection } from './src/result-runtime.js';
 import { initVitalsSection } from './src/vitals-section.js';
 import { initVectors } from './src/vectors.js';
 import { recordModuleLoad } from './src/module-panes.js';
@@ -277,6 +278,11 @@ jQuery(async () => {
                 initVitalsSection();
             } catch (vitalsErr) {
                 console.error(LOG_PREFIX, 'initVitals failed', vitalsErr);
+            }
+            try {
+                initResultInjection();
+            } catch (resultErr) {
+                console.error(LOG_PREFIX, 'initResultInjection failed', resultErr);
             }
             try {
                 initThreads();

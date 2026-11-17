@@ -1,3 +1,4 @@
+import { buildResultInjectionPanel } from './ui-result-injection.js';
 import { renderVoiceSettings } from './ui-character-extras.js';
 import { getSettings, saveSettings } from './settings.js';
 import { moduleSends, setModuleSends } from './context-blocks.js';
@@ -44,6 +45,12 @@ export const MODULES = [
         render: true,
     },
 ];
+
+/** Combat and Games send their result to the story like the phone sends its texts; the settings sit on their tab. */
+function addResultPanel(pane, mod) {
+    if (mod.id !== 'combat' && mod.id !== 'games') return;
+    try { pane.append(buildResultInjectionPanel(mod.id)); } catch (err) { console.warn('[Worldkit] result injection settings failed', err); }
+}
 
 /** Where borrowed panels wait while the Modules tab is not open. */
 function holder() {
@@ -274,6 +281,7 @@ export function renderModulesView(view) {
                 } else if (live) {
                     missingNote(pane, mod);
                 }
+                addResultPanel(pane, mod);
                 return;
             }
 
@@ -295,6 +303,7 @@ export function renderModulesView(view) {
             } else if (live) {
                 missingNote(pane, mod);
             }
+            addResultPanel(pane, mod);
         });
     }
 

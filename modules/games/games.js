@@ -1,3 +1,4 @@
+import { queueResult, armResult } from '../../src/result-runtime.js';
 import { getContext, extension_settings } from '../../../../../extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '../../../../../../script.js';
 // Fork: the opponents are SillyNPC's characters, not SillyTavern's cards.
@@ -1626,6 +1627,10 @@ function resolveGame() {
     else if (gameState.winner === 'bot') resultText = t('result_lose', {name: gameState.opponentName});
     else resultText = t('result_draw');
     addGameChatMessage('system', resultText);
+    // Kept for the story as soon as the game is over (when sending is on); the button below asks for it to go at once.
+    try {
+        queueResult('games', gameReportText().replace(/\|/g, '/').replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }'));
+    } catch (err) { console.warn('[Games] could not keep the result for the story', err); }
     $('#rpg-game-summary-btn').fadeIn();
     $('#rpg-replay-btn').fadeIn();
 }
@@ -2765,21 +2770,21 @@ function gameReportText() {
     return lines.join('\n');
 }
 
-/** Posts the report to the chat as a system message (the way the combat report is), not into the input box. */
+/**
+ * Keeps the game's report for the story, to go into the prompt of a story reply the way the phone's texts do (see
+ * src/result-runtime.js and the Games tab in Modules). It is not posted in the chat. The button asks for it to go
+ * with the next reply, whatever the mode is (unless sending is off).
+ */
 async function injectGameSummaryToChat() {
     const text = gameReportText()
         .replace(/\|/g, '/')
         .replace(/\{\{/g, '{ {')
         .replace(/\}\}/g, '} }');
-    try {
-        await getContext().executeSlashCommandsWithOptions(`/sys ${text}`, { displayCommand: false, showOutput: false });
-        toastr.success('Result posted to the chat.');
-    } catch (err) {
-        // never lose it: fall back to the input box, appended so what was being typed stays
-        console.error('[Games] could not post the report to the chat', err);
-        const cur = $('#send_textarea').val();
-        $('#send_textarea').val((cur ? cur + '\n\n' : '') + text).trigger('input');
-        toastr.error('Could not post the result to the chat, so it was put in the input box instead.');
+    if (queueResult('games', text)) {
+        armResult('games', true);
+        toastr.success('The next story reply will carry the game result.');
+    } else {
+        toastr.warning('Sending the game result to the story is off. Turn it on in Modules, Games.');
     }
     $('#rpg-game-modal').removeClass('visible');
     keepTalk({ leaving: true, final: true });
