@@ -120,8 +120,10 @@ export const defaultSettings = {
      * property of the fiction, and a horror world and a comedy one do not agree about it.
      */
     /** The connection profile Threads reads replies on. Empty is the main API. */
-    /** Combat and Games send their result to the story through the prompt (see src/result-injection.js): { combat: {...}, games: {...} }. */
+    /** Combat and Games send their result to the story through the prompt (see src/result-injection.js): { combat: {...}, games: {...}, levelup: {...} }. */
     resultInjection: {},
+    /** Leveling rules (see combat-level.js): { xpBase, xpStep, xpPerEnemy, maxLevel }. An empty object is the starting rules. */
+    leveling: {},
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */
     threadsEnabled: false,

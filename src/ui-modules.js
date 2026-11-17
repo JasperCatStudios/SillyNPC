@@ -1,5 +1,6 @@
 import { redrawWhenIdle } from './ui-edit-guard.js';
 import { buildResultInjectionPanel } from './ui-result-injection.js';
+import { buildLevelingPanel } from './ui-leveling.js';
 import { renderVoiceSettings } from './ui-character-extras.js';
 import { getSettings, saveSettings } from './settings.js';
 import { moduleSends, setModuleSends } from './context-blocks.js';
@@ -51,6 +52,9 @@ export const MODULES = [
 function addResultPanel(pane, mod) {
     if (mod.id !== 'combat' && mod.id !== 'games') return;
     try { pane.append(buildResultInjectionPanel(mod.id)); } catch (err) { console.warn('[Worldkit] result injection settings failed', err); }
+    if (mod.id === 'combat') {
+        try { pane.append(buildLevelingPanel(), buildResultInjectionPanel('levelup')); } catch (err) { console.warn('[Worldkit] leveling settings failed', err); }
+    }
 }
 
 /** Where borrowed panels wait while the Modules tab is not open. */

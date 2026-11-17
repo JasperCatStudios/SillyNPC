@@ -7,7 +7,7 @@ import {
     migrateLegacyWeapon, defaultName, fitsSlot as fits, MAX_BELT,
 } from './combat-gear.js';
 import { MAX_ABILITIES } from './combat-abilities.js';
-import { applyXp, readLevel, hasLevelMeta, XP_PER_LEVEL } from './combat-level.js';
+import { applyXp, readLevel, hasLevelMeta, xpToNext, isMaxLevel } from './combat-level.js';
 import { canonicalAffinity } from './combat-elements.js';
 
 /**
@@ -185,20 +185,22 @@ function writeLevel(data, type, level) {
  * Gives XP. Filling the bar raises the level by one each time, and the level goes where the
  * type keeps it. Returns what happened, for showing.
  */
-export function addXp(record, type, gain, at = Date.now()) {
+export function addXp(record, type, gain, at = Date.now(), cfg) {
     const data = ensureTypeData(record, type.dataKey);
     const before = { level: readLevel(type, data), xp: data.xp || 0 };
-    const next = applyXp(before.level, before.xp, gain);
+    const next = applyXp(before.level, before.xp, gain, cfg);
     data.xp = next.xp;
     writeLevel(data, type, next.level);
     log(data, 'xp', `${before.xp}`, `${next.xp}`, at);
     return { ok: true, gained: Math.max(0, Math.floor(Number(gain)) || 0), level: next.level, xp: next.xp, levelsGained: next.levelsGained };
 }
 
-/** Sets the progress toward the next level by hand, 0 to 199. */
-export function setXp(record, type, xp, at = Date.now()) {
+/** Sets the progress toward the next level by hand: 0 up to one short of what the level takes (0 at the highest level). */
+export function setXp(record, type, xp, at = Date.now(), cfg) {
     const data = ensureTypeData(record, type.dataKey);
-    const next = Math.max(0, Math.min(XP_PER_LEVEL - 1, Math.floor(Number(xp)) || 0));
+    const level = readLevel(type, data);
+    const room = isMaxLevel(level, cfg) ? 0 : xpToNext(level, cfg) - 1;
+    const next = Math.max(0, Math.min(room, Math.floor(Number(xp)) || 0));
     if ((data.xp || 0) !== next) { log(data, 'xp', `${data.xp || 0}`, `${next}`, at); data.xp = next; }
     return { ok: true, xp: next };
 }

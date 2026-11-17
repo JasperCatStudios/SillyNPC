@@ -6,7 +6,8 @@ import { getPlayerCard } from '../../src/status-logic.js';
 import { hasTypeData, getTypeData } from '../../src/combat-store.js';
 import { setStatus, addXp } from '../../src/combat-edit.js';
 import { renderLoadoutPicker } from '../../src/ui-gear.js';
-import { XP_PER_ENEMY } from '../../src/combat-level.js';
+import { levelUpReport } from '../../src/combat-level.js';
+import { levelingSettings } from '../../src/leveling.js';
 import { fractionFromStatus, statusFromFraction, STATUS_DEFAULT } from '../../src/combat-status.js';
 import { project } from '../../src/combat-roles.js';
 import { wheelNote } from '../../src/combat-elements.js';
@@ -140,7 +141,9 @@ function recordFight() {
 /** Everyone who fought gets XP for each enemy, win or lose, spar or fight. Only a sheet can keep it. */
 function awardXp() {
     const { state, type } = session;
+    const rules = levelingSettings();
     session.xp = [];
+    const ups = [];
     for (const fighter of Object.values(state.fighters)) {
         const enemies = Object.values(state.fighters).filter(f => f.side !== fighter.side).length;
         const record = session.records.get(fighter.id);
@@ -148,11 +151,14 @@ function awardXp() {
             session.xp.push({ name: fighter.name, none: true });
             continue;
         }
-        const out = addXp(record, type, XP_PER_ENEMY * enemies);
+        const out = addXp(record, type, rules.xpPerEnemy * enemies, Date.now(), rules);
         session.xp.push({ name: fighter.name, gained: out.gained, level: out.level, levelsGained: out.levelsGained });
+        if (out.levelsGained) ups.push({ name: fighter.name, from: out.level - out.levelsGained, level: out.level });
     }
     saveSettings();
-    for (const x of session.xp) if (x.levelsGained) toastr.success(`${x.name} reached level ${x.level}!`, PRODUCT_NAME);
+    // The level-ups go to the story on their own, with their own wording and placement (Modules, Combat).
+    const report = levelUpReport(ups).replace(/\|/g, '/').replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }');
+    if (report) queueResult('levelup', report, { append: true });
 }
 
 function xpLines() {

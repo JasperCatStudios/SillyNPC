@@ -9,11 +9,11 @@ import { resultSettings, resultStatus, armResult, clearResult, previewResult } f
  * sending its texts: a mode (off, always, random, manual), a chance and cooldown, where the block sits in the
  * prompt, a notice, the wording, and a preview. They apply to the report a finished fight or game leaves.
  *
- * @param {'combat'|'games'} id
+ * @param {'combat'|'games'|'levelup'} id
  * @returns {HTMLElement}
  */
 export function buildResultInjectionPanel(id) {
-    const what = id === 'combat' ? 'fight' : 'game';
+    const what = { combat: 'fight', games: 'game', levelup: 'level-up' }[id] || 'result';
     const cfg = resultSettings(id);
     const save = () => saveSettings();
 
@@ -58,9 +58,11 @@ export function buildResultInjectionPanel(id) {
         return label;
     };
 
-    wrap.append(el('h4', 'sillynpc-combat-heading', `Send the ${what} result to the story`));
+    wrap.append(el('h4', 'sillynpc-combat-heading', id === 'levelup' ? 'Send level-ups to the story' : `Send the ${what} result to the story`));
     wrap.append(el('small', 'notes',
-        `When a ${what} ends, its result goes into the prompt of the next story reply, the way the phone sends its texts. `
+        (id === 'levelup'
+            ? 'When someone levels up after a fight, a line saying who and to what level goes into the prompt of the next story reply, with the instruction below. '
+            : `When a ${what} ends, its result goes into the prompt of the next story reply, the way the phone sends its texts. `)
         + 'It is never posted in the chat. Once a reply has carried it, it is cleared.'));
 
     // Mode.
@@ -103,7 +105,7 @@ export function buildResultInjectionPanel(id) {
     const refreshStatus = () => {
         const s = resultStatus(id);
         status.textContent = s.pending
-            ? `A ${what} result is waiting${s.armed ? ' and will go with the next reply.' : '.'}`
+            ? `A ${what} ${id === 'levelup' ? 'report' : 'result'} is waiting${s.armed ? ' and will go with the next reply.' : '.'}`
             : `No ${what} result is waiting.`;
         ask.textContent = s.armed ? 'Cancel' : 'Bring the result into the next reply';
         clear.style.display = s.pending ? '' : 'none';
@@ -122,7 +124,7 @@ export function buildResultInjectionPanel(id) {
         const { fire, reason, text } = previewResult(id);
         const box = el('div');
         box.style.textAlign = 'left';
-        box.append(el('b', '', `${what === 'fight' ? 'Combat' : 'Game'} result: preview (nothing was sent)`));
+        box.append(el('b', '', `${({ combat: 'Combat result', games: 'Game result', levelup: 'Level-up' })[id]}: preview (nothing was sent)`));
         const info = el('small', '', `${fire ? 'Would fire: yes' : 'Would fire: no'} - Reason: ${reason}`);
         info.style.display = 'block';
         const pre = el('pre', '', text || '(nothing to send)');

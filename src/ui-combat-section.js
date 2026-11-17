@@ -12,7 +12,8 @@ import { generateCombatSheet } from './combat-generate.js';
 import { abilityPicker } from './ui-abilities.js';
 import { renderGearBlock } from './ui-gear.js';
 import { STATUS_RUNGS, STATUS_DEFAULT } from './combat-status.js';
-import { XP_PER_LEVEL, readLevel, hasLevelMeta } from './combat-level.js';
+import { readLevel, hasLevelMeta, xpToNext, isMaxLevel } from './combat-level.js';
+import { levelingSettings } from './leveling.js';
 import { buildArtIcon } from './ui-faction.js';
 
 import { PRODUCT_NAME } from './constants.js';
@@ -236,10 +237,13 @@ function renderType(record, type, rerender, options) {
         body.append(row);
     }
 
-    // Level and experience: 200 XP a level, 15 for every enemy fought.
+    // Level and experience: the rules are set under Modules, Combat, Leveling.
     {
         const row = el('div', 'sillynpc-combat-level');
         const level = readLevel(type, data);
+        const rules = levelingSettings();
+        const need = xpToNext(level, rules);
+        const atMax = isMaxLevel(level, rules);
         // A type with a Level detail already shows it above; this row only adds it when there is none.
         if (!hasLevelMeta(type)) {
             const lv = el('input', 'text_pole');
@@ -249,15 +253,15 @@ function renderType(record, type, rerender, options) {
         }
         const bar = el('div', 'sillynpc-xp');
         const fill = el('div', 'sillynpc-xp-fill');
-        fill.style.width = `${Math.min(100, ((data.xp || 0) / XP_PER_LEVEL) * 100)}%`;
+        fill.style.width = atMax ? '100%' : `${Math.min(100, ((data.xp || 0) / need) * 100)}%`;
         bar.append(fill);
-        const label = el('small', 'notes', `Level ${level}: ${data.xp || 0} / ${XP_PER_LEVEL} XP`);
+        const label = el('small', 'notes', atMax ? `Level ${level} (the highest level)` : `Level ${level}: ${data.xp || 0} / ${need} XP`);
         const xp = el('input', 'text_pole');
-        xp.type = 'number'; xp.min = '0'; xp.max = String(XP_PER_LEVEL - 1); xp.value = data.xp || 0;
-        xp.addEventListener('change', () => { commit(setXp(record, type, xp.value), null); rerender(); });
+        xp.type = 'number'; xp.min = '0'; xp.max = String(atMax ? 0 : need - 1); xp.value = data.xp || 0; xp.disabled = atMax;
+        xp.addEventListener('change', () => { commit(setXp(record, type, xp.value, Date.now(), rules), null); rerender(); });
         const track = el('div', 'sillynpc-xp-wrap');
         track.append(label, bar);
-        row.append(track, field('XP', xp, 'Progress toward the next level, 0 to 199'));
+        row.append(track, field('XP', xp, `Progress toward the next level, 0 to ${atMax ? 0 : need - 1}`));
         body.append(row);
     }
 

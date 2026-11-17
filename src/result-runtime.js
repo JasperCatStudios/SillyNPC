@@ -17,11 +17,12 @@ import {
  * result-injection.js.
  */
 
-export const RESULT_IDS = Object.freeze(['combat', 'games']);
-const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result' };
-const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result' };
+export const RESULT_IDS = Object.freeze(['combat', 'games', 'levelup']);
+const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result', levelup: 'sillynpc_levelup_result' };
+const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result', levelup: 'Worldkit - Level Up' };
+const NOTICES = { combat: 'The combat result', games: 'The game result', levelup: 'The level-up' };
 
-const since = { combat: Infinity, games: Infinity };   // replies since it last went; not saved
+const since = { combat: Infinity, games: Infinity, levelup: Infinity };   // replies since it last went; not saved
 const turns = {};                                      // id -> { key, text } the decision made for the current turn
 
 function box(id) {
@@ -30,7 +31,8 @@ function box(id) {
     const b = root.resultInjection[id] && typeof root.resultInjection[id] === 'object' ? root.resultInjection[id] : (root.resultInjection[id] = {});
     // Repaired in place, so the object the settings panel holds is always the saved one. Replacing it with a copy
     // left the panel editing a stale object, and every change was lost the next time the settings were read.
-    if (!b.cfg || typeof b.cfg !== 'object') b.cfg = {};
+    // A level-up is meant to reach the story, so it starts on Always; a fight or a game starts Off.
+    if (!b.cfg || typeof b.cfg !== 'object') b.cfg = id === 'levelup' ? { mode: 'always' } : {};
     Object.assign(b.cfg, normalizeResultInjection(b.cfg));
     b.pending = normalizePending(b.pending);
     b.armed = b.armed === true;
@@ -51,10 +53,12 @@ export function resultStatus(id) {
  * button in the fight or game window forces it, and the result then goes with the next reply on the default placement.
  * @returns {boolean} Whether it was kept.
  */
-export function queueResult(id, text, { force = false } = {}) {
+export function queueResult(id, text, { force = false, append = false } = {}) {
     const b = box(id);
     if (b.cfg.mode === 'off' && !force) return false;
-    const pending = normalizePending({ text, at: Date.now() });
+    // append: a report that has not gone yet keeps its text and gains this (two fights before one reply)
+    const joined = append && b.pending?.text ? `${b.pending.text}\n${text}` : text;
+    const pending = normalizePending({ text: joined, at: Date.now() });
     if (!pending) return false;
     b.pending = pending;
     saveSettings();
@@ -140,7 +144,7 @@ function onGeneration(id, type, _options, dryRun) {
         since[id] = 0;
         turns[id] = key ? { key, text } : null;
         saveSettings();
-        if (b.cfg.notify && typeof toastr !== 'undefined') toastr.info(`The ${id === 'combat' ? 'combat' : 'game'} result went to the story.`, PRODUCT_NAME);
+        if (b.cfg.notify && typeof toastr !== 'undefined') toastr.info(`${NOTICES[id] || 'The result'} went to the story.`, PRODUCT_NAME);
         debugLog(`Result injected for ${id} (${res.reason})`);
     } catch (err) {
         console.warn('[Worldkit] result injection failed', id, err);
