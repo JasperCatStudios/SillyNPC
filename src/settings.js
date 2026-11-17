@@ -81,6 +81,14 @@ export const defaultSettings = {
     dialogueFormatPrompt: '',
     /** 0 puts it after the newest message - the last thing read before answering. */
     dialogueFormatDepth: 0,
+    /** Delivery tags ([whisper]...[/whisper]): ask the model for them, and show/voice them. Off until switched on. */
+    deliveryTagsEnabled: false,
+    /** Empty means the built-in instruction, built from the tag names. */
+    deliveryTagsPrompt: '',
+    deliveryTagsDepth: 0,
+    /** Take the tags out of what is sent back to the model (older messages), starting this many messages back. */
+    deliverySaverOn: false,
+    deliverySaverDepth: 2,
     /**
      * Whether this block appears in SillyTavern's own prompt list, to be ordered there.
      *

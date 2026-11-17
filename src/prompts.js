@@ -7,6 +7,7 @@ import { INVENTORY_SYSTEM } from './inventory-core.js';
 import { BOND_SYSTEM } from './bonds-core.js';
 import { VITALS_SYSTEM } from './vitals-core.js';
 import { DEFAULT_PROMPT, PROMPT_SHORT } from './phone-prompts.js';
+import { buildDeliveryPrompt } from './delivery-core.js';
 
 /**
  * Every prompt the user can edit, in one list.
@@ -45,6 +46,18 @@ export const PROMPTS = [
         recommended: () => buildDialogueFormatPrompt(getMarkerPair().open, getMarkerPair().close),
         emptyNote: 'The built-in format is sent.',
         available: () => getSettings().dialogueFormatEnabled,
+    },
+    {
+        id: 'deliveryTags',
+        key: 'deliveryTagsPrompt',
+        label: 'Delivery Tags',
+        home: 'Settings',
+        help: 'Sent with every message when Delivery Tags is on, telling the story model to mark how a line is said, '
+            + 'like [whisper]"I know."[/whisper]. The tags are styled by Appearance and passed to voices that understand them. '
+            + 'The built-in text lists the tags in the Delivery table.',
+        recommended: () => buildDeliveryPrompt(getSettings().ttsToneTable),
+        emptyNote: 'The built-in instruction is sent.',
+        available: () => getSettings().deliveryTagsEnabled === true,
     },
     {
         id: 'systemRules',

@@ -2,6 +2,7 @@ import { getSettings, saveSettings } from './settings.js';
 import { pickAndProcessImages, resolveImageFolder, describeSaveDestination } from './utils.js';
 import { promptListAvailable } from './prompt-slot.js';
 import { applyDialogueFormatPrompt } from './dialogue-format.js';
+import { applyDelivery, syncDeliveryScripts } from './delivery.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
 import { buildContextSaverControls } from './ui-context-savers.js';
@@ -194,6 +195,38 @@ export function renderWritingRulesView(view, onReprocessMessages) {
                 + 'before answering - which is where a layout rule holds best, and why it '
                 + 'is the default. Raise it only if it crowds something you would rather '
                 + 'have last.',
+        }));
+    }
+
+    const deliveryHeading = document.createElement('h4');
+    deliveryHeading.className = 'sillynpc-subsection-title';
+    deliveryHeading.textContent = 'Delivery Tags';
+    view.append(deliveryHeading);
+    view.append(buildSettingToggle({
+        key: 'deliveryTagsEnabled',
+        label: 'Ask The Model To Mark How Lines Are Said',
+        help: 'The model wraps a line in a delivery tag when it is said in a notable way, like [whisper]"I know."[/whisper]. '
+            + 'The saved message keeps the tags; two SillyTavern regex scripts (see the Regex list) show them styled and the look '
+            + 'of each is set under Appearance. A voice that understands them (Eleven v4, v4 Turbo, v3) is told the delivery with the '
+            + 'closing tag dropped; any other voice reads only the words. Smaller models sometimes forget a tag, and then the line shows plain.',
+        onChange: () => { applyDelivery(); rerender(); },
+    }));
+    if (getSettings().deliveryTagsEnabled) {
+        view.append(buildPromptEditor(promptById('deliveryTags')));
+        view.append(buildSettingToggle({
+            key: 'deliverySaverOn',
+            label: 'Hide Delivery Tags From The Model In Older Messages',
+            help: 'Takes the tags out of what is sent back to the model, from the depth below. Saves a few tokens a turn; the model then sees '
+                + 'fewer examples of its own tags, so it may use them less.',
+            onChange: () => { syncDeliveryScripts(); },
+        }));
+        view.append(buildSettingNumber({
+            key: 'deliverySaverDepth',
+            advanced: true,
+            label: 'Hide From This Many Messages Back',
+            suffix: 'messages back',
+            help: '2 keeps the tags on the newest reply and removes them from older ones.',
+            onChange: () => { syncDeliveryScripts(); },
         }));
     }
 
