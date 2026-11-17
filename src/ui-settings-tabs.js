@@ -3,6 +3,7 @@ import { pickAndProcessImages, resolveImageFolder, describeSaveDestination } fro
 import { promptListAvailable } from './prompt-slot.js';
 import { applyDialogueFormatPrompt } from './dialogue-format.js';
 import { applyDelivery, syncDeliveryScripts } from './delivery.js';
+import { buildDeliveryPlacement, buildDeliveryChecker } from './ui-delivery-check.js';
 import { buildSettingSelect, buildSettingToggle, buildSettingTextArea, buildSettingSlider, buildSettingNumber, updateAllExtensionThemes, applyPortraitFraming, applySpeechPadding } from './ui-shared.js';
 import { buildPromptEditor, buildPromptBudget } from './ui-prompts.js';
 import { buildContextSaverControls } from './ui-context-savers.js';
@@ -215,6 +216,7 @@ export function renderWritingRulesView(view, onReprocessMessages) {
     }));
     if (getSettings().deliveryTagsEnabled) {
         view.append(buildPromptEditor(promptById('deliveryTags')));
+        view.append(buildDeliveryPlacement(rerender));
         view.append(buildSettingToggle({
             key: 'deliverySaverOn',
             label: 'Hide Delivery Tags From The Model In Older Messages',
@@ -230,6 +232,7 @@ export function renderWritingRulesView(view, onReprocessMessages) {
             help: '2 keeps the tags on the newest reply and removes them from older ones.',
             onChange: () => { syncDeliveryScripts(); },
         }));
+        view.append(buildDeliveryChecker());
     }
 
     const banHeading = document.createElement('h4');

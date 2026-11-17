@@ -132,19 +132,63 @@ export async function speakMessage(mesEl) {
     }
     stopSpeech();
 
-    const settings = getSettings();
     let queued = 0;
-    for (const beat of beatsOfMessage(mesEl)) {
-        const voice = voiceForBeat(beat);
-        if (!voice) continue;
-        for (const segment of spokenSegments(beat)) {
-            if (segment.thought && !settings.ttsSpeakThoughts) continue;
-            if (speakWith(voice, segment.text, { tone: segment.tone })) queued++;
-        }
-    }
+    for (const beat of beatsOfMessage(mesEl)) queued += queueBeat(beat);
     if (!queued) toastr.info('Nothing to read: no "quoted" speech or (thoughts) with a voice set.', PRODUCT_NAME);
     debugLog(`Voices: queued ${queued} piece(s)`);
     return queued;
+}
+
+/** Queues the speech of one beat in its speaker's voice. Returns how many pieces were queued. */
+function queueBeat(beat) {
+    const settings = getSettings();
+    const voice = voiceForBeat(beat);
+    if (!voice) return 0;
+    let queued = 0;
+    for (const segment of spokenSegments(beat)) {
+        if (segment.thought && !settings.ttsSpeakThoughts) continue;
+        if (speakWith(voice, segment.text, { tone: segment.tone })) queued++;
+    }
+    return queued;
+}
+
+/**
+ * Reads just the speaker line a button sits in. The audio of a line that was spoken before is replayed
+ * from the saved copy (see tts-cache.js), so pressing it again costs nothing.
+ */
+export async function speakLineIn(mesEl, button) {
+    if (!ttsEnabled()) return 0;
+    const status = await ttsStatus();
+    if (!status.ready) {
+        toastr.info(status.reason, PRODUCT_NAME);
+        return 0;
+    }
+    stopSpeech();
+    const beat = beatsOfMessage(mesEl).find(b => b.element?.contains?.(button));
+    const queued = beat ? queueBeat(beat) : 0;
+    if (!queued) toastr.info('Nothing to read in this line, or this speaker has no voice set.', PRODUCT_NAME);
+    return queued;
+}
+
+/** A speak button just before the words of each spoken line (the thought lines keep their bubble). */
+function ensureLineButtons(mesEl) {
+    if (!ttsEnabled() || !mesEl?.querySelectorAll) return;
+    for (const name of mesEl.querySelectorAll('.sillynpc-speaker-name[data-marker][data-kind="speech"]')) {
+        if (name.nextElementSibling?.classList?.contains('sillynpc-speak-line')) continue;
+        const btn = document.createElement('span');
+        btn.className = 'sillynpc-speak-line fa-solid fa-volume-low';
+        btn.title = 'Read this line aloud (played from the saved audio if it was spoken before)';
+        btn.setAttribute('role', 'button');
+        btn.tabIndex = 0;
+        const go = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            speakLineIn(mesEl, btn).catch(err => console.warn(LOG_PREFIX, 'Reading the line failed', err));
+        };
+        btn.addEventListener('click', go);
+        btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); });
+        name.after(btn);
+    }
 }
 
 /** Reads a line in somebody's voice, by name. For the phone and the games. */
@@ -199,6 +243,7 @@ let generationEndedAt = 0;
 
 function onMessageDecorated(mesEl) {
     ensureSpeakButton(mesEl);
+    ensureLineButtons(mesEl);
     if (!ttsEnabled() || !getSettings().ttsAutoSpeak) return;
     try {
         const id = Number(mesEl?.getAttribute?.('mesid'));

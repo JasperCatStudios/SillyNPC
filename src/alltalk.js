@@ -1,7 +1,9 @@
 import { getSettings } from './settings.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { applyPhonetics, speechFor, cleanToneTable, DEFAULT_TONE_TAGS } from './tts-text.js';
-import { engineOf, engineReadsAudioTags, generateEleven, generateFal } from './tts-engines.js';
+import { engineOf, engineReadsAudioTags, engineFingerprint, generateEleven, generateFal } from './tts-engines.js';
+import { getCached, putCached } from './tts-cache.js';
+import { contentKey } from './image-dedupe.js';
 
 /** The delivery tags in force: the owner's table when they have edited it, else the starting one. */
 export function toneTable(settings = getSettings()) {
@@ -85,19 +87,31 @@ async function generateAlltalk(text, voice) {
     const url = /^https?:/i.test(path) ? path : `${base()}${path}`;
     const audio = await fetch(url);
     if (!audio.ok) throw new Error(`Could not fetch the audio (${audio.status}).`);
-    return URL.createObjectURL(await audio.blob());
+    return await audio.blob();
 }
 
-/** @type {{ text: string, voice: string, ready: Promise<string>|null }[]} */
+/** @type {{ text: string, voice: string, key: string, ready: Promise<Blob>|null }[]} */
 const queue = [];
 let playing = false;
 let current = null;
 let epoch = 0;
 
-/** Starts generating a piece in the background, once. */
+/** The saved audio when this exact line in this exact voice was made before, else a new request (then saved). */
+async function obtain(item) {
+    const saved = await getCached(item.key);
+    if (saved) {
+        debugLog('Voice: replaying a saved line');
+        return saved;
+    }
+    const blob = await generate(item.text, item.voice);
+    putCached(item.key, blob);
+    return blob;
+}
+
+/** Starts getting a piece in the background, once. */
 function prepare(item) {
     if (!item.ready) {
-        item.ready = generate(item.text, item.voice);
+        item.ready = obtain(item);
         item.ready.catch(() => { /* reported where it is awaited */ });
     }
     return item.ready;
@@ -114,7 +128,7 @@ async function pump() {
             if (queue[0]) prepare(queue[0]);
             let url;
             try {
-                url = await prepare(item);
+                url = URL.createObjectURL(await prepare(item));
             } catch (err) {
                 console.warn(LOG_PREFIX, 'Speech failed', err);
                 toastr.warning(`Voice could not be generated: ${err.message || err}`, PRODUCT_NAME, { preventDuplicates: true });
@@ -150,7 +164,8 @@ export function speakWith(voice, text, { tone = '' } = {}) {
         audioTags: settings.ttsToneTags !== false && engineReadsAudioTags(settings),
     }).trim();
     if (!spoken || !voice) return false;
-    queue.push({ text: spoken, voice, ready: null });
+    const key = contentKey(`${engineFingerprint(settings)}|${voice}|${spoken}`);
+    queue.push({ text: spoken, voice, key, ready: null });
     debugLog(`AllTalk queued ${spoken.length} characters in ${voice}`);
     pump();
     return true;

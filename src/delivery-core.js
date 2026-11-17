@@ -61,6 +61,53 @@ export function buildDeliveryPrompt(table, meanings) {
     ].join('\n');
 }
 
+/** Where the instruction goes in the story prompt, the same choices as the other injected blocks. */
+export const DELIVERY_POSITIONS = Object.freeze({
+    before: 'Before the story prompt',
+    prompt: 'In the prompt',
+    chat: 'In the chat, this many messages back',
+});
+export const DELIVERY_ROLES = Object.freeze({ system: 'System', user: 'User', assistant: 'Assistant' });
+
+export const DELIVERY_INJECT_DEFAULTS = Object.freeze({
+    position: 'chat',
+    depth: 0,
+    role: 'system',
+    /** The injection order a prompt-list entry starts with (blocks at one depth are sorted by it). */
+    order: 110,
+    /** Hand placement to SillyTavern's own prompt list. */
+    inList: false,
+});
+
+const pick = (v, table, d) => (Object.prototype.hasOwnProperty.call(table, v) ? v : d);
+const int = (v, lo, hi, d) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d;
+};
+
+/** The injection settings with every field in range. */
+export function normalizeDeliveryInject(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const d = DELIVERY_INJECT_DEFAULTS;
+    return {
+        position: pick(r.position, DELIVERY_POSITIONS, d.position),
+        depth: int(r.depth, 0, 100, d.depth),
+        role: pick(r.role, DELIVERY_ROLES, d.role),
+        order: int(r.order, 0, 1000, d.order),
+        inList: r.inList === true,
+    };
+}
+
+/** One sentence saying where the instruction goes, for the settings page. */
+export function describeDeliveryPlacement(inject) {
+    const o = normalizeDeliveryInject(inject);
+    if (o.inList) return `In SillyTavern's prompt list (entry "Worldkit - Delivery Tags"); its position, depth, role and order are set there.`;
+    const roleName = DELIVERY_ROLES[o.role].toLowerCase();
+    if (o.position === 'before') return `As a ${roleName} message before the story prompt.`;
+    if (o.position === 'prompt') return `As a ${roleName} message in the prompt.`;
+    return `As a ${roleName} message ${o.depth === 0 ? 'right after the newest message' : `${o.depth} message${o.depth === 1 ? '' : 's'} back`}.`;
+}
+
 export const DELIVERY_SCRIPT_IDS = Object.freeze({
     display: '5b0e6d1c-6c2e-4a52-9d1e-77a1f0a0de11',
     saver: '5b0e6d1c-6c2e-4a52-9d1e-77a1f0a0de12',

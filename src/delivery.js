@@ -1,9 +1,9 @@
-import { saveSettingsDebounced } from '../../../../../script.js';
+import { saveSettingsDebounced, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../script.js';
 import { extension_settings } from '../../../../extensions.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { getSettings } from './settings.js';
 import { mergeRegexScripts } from './content-kit.js';
-import { buildDeliveryPrompt, deliveryScripts, deliveryNames, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
+import { buildDeliveryPrompt, deliveryScripts, deliveryNames, normalizeDeliveryInject, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
 import { deliveryCss, fontsUrl } from './delivery-style.js';
 import { toneTable } from './alltalk.js';
 import { debugLog } from './constants.js';
@@ -27,14 +27,52 @@ export function deliveryPromptText() {
     return String(getSettings().deliveryTagsPrompt ?? '').trim() || buildDeliveryPrompt(toneTable(), getSettings().deliveryMeanings);
 }
 
+const POSITIONS = {
+    before: extension_prompt_types.BEFORE_PROMPT,
+    prompt: extension_prompt_types.IN_PROMPT,
+    chat: extension_prompt_types.IN_CHAT,
+};
+const ROLES = {
+    system: extension_prompt_roles.SYSTEM,
+    user: extension_prompt_roles.USER,
+    assistant: extension_prompt_roles.ASSISTANT,
+};
+
+/** The injection settings (position, depth, role, order, prompt list), always in range. */
+export function deliveryInject() {
+    const settings = getSettings();
+    settings.deliveryInject = normalizeDeliveryInject(settings.deliveryInject);
+    return settings.deliveryInject;
+}
+
 /** Puts the instruction in front of the model, or takes it away. */
 export function applyDeliveryPrompt() {
-    placeWritingPrompt(DELIVERY_KEY, deliveryEnabled() ? deliveryPromptText() : '', {
-        inList: false,
-        depth: Number(getSettings().deliveryTagsDepth ?? 0),
-        name: 'Worldkit - Delivery Tags',
-        order: 110,
-    });
+    const o = deliveryInject();
+    const text = deliveryEnabled() ? deliveryPromptText() : '';
+    const name = 'Worldkit - Delivery Tags';
+    if (o.inList) {
+        placeWritingPrompt(DELIVERY_KEY, text, { inList: true, depth: o.depth, name, order: o.order });
+        return;
+    }
+    // Not in the list: clear any list entry from an earlier choice, then inject it directly.
+    placeWritingPrompt(DELIVERY_KEY, '', { inList: false });
+    if (!text.trim()) return;
+    setExtensionPrompt(DELIVERY_KEY, text, POSITIONS[o.position], o.depth, false, ROLES[o.role]);
+}
+
+/** What is installed and what would be sent, for the settings page. */
+export function deliveryStatus() {
+    const list = Array.isArray(extension_settings.regex) ? extension_settings.regex : [];
+    const find = (id) => list.find(s => s?.id === id) || null;
+    const display = find(DELIVERY_SCRIPT_IDS.display);
+    const saver = find(DELIVERY_SCRIPT_IDS.saver);
+    return {
+        enabled: deliveryEnabled(),
+        display: { script: display, installed: !!display, on: !!display && display.disabled !== true },
+        saver: { script: saver, installed: !!saver, on: !!saver && saver.disabled !== true },
+        text: deliveryPromptText(),
+        inject: deliveryInject(),
+    };
 }
 
 /**

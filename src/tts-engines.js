@@ -96,7 +96,7 @@ export async function generateEleven(text, voiceId) {
         throw new Error(`ElevenLabs refused the request (model ${model}, HTTP ${response.status}). The SillyTavern console prints ElevenLabs' own reason. `
             + 'Common causes: no key or a wrong voice id, or a plan that does not include this model; try Eleven v3 or Flash v2.5 to tell which.');
     }
-    return URL.createObjectURL(await response.blob());
+    return await response.blob();
 }
 
 /* ------------------------------------------------------------------------ fal */
@@ -135,5 +135,13 @@ export async function generateFal(text, voice) {
     if (!url) throw new Error('fal returned no audio.');
     const audio = await fetch(url);
     if (!audio.ok) throw new Error(`Could not fetch the audio (${audio.status}).`);
-    return URL.createObjectURL(await audio.blob());
+    return await audio.blob();
+}
+
+/** What makes one generated line different from another on the same engine: the model and its settings. */
+export function engineFingerprint(settings = getSettings()) {
+    const engine = engineOf(settings);
+    if (engine === 'elevenlabs') return `eleven|${settings.elevenModel}|${settings.elevenStability}|${settings.elevenSimilarity}|${settings.elevenSpeed}`;
+    if (engine === 'fal') return `fal|${settings.falEndpoint}|${settings.elevenStability}|${settings.elevenSimilarity}`;
+    return `alltalk|${settings.alltalkLanguage}`;
 }

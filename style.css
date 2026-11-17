@@ -3857,3 +3857,11 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-dstyle-field input[type="checkbox"] { width: auto; align-self: flex-start; }
 .sillynpc-dstyle-actions, .sillynpc-dstyle-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .sillynpc-dstyle-add input { flex: 1 1 12em; min-width: 0; }
+
+/* A speak button before each spoken line */
+.sillynpc-speak-line { cursor: pointer; margin: 0 0.4em 0 0.2em; opacity: 0.65; font-size: 0.85em; user-select: none; }
+.sillynpc-speak-line:hover, .sillynpc-speak-line:focus-visible { opacity: 1; }
+.sillynpc-delivery-status { margin: 6px 0; padding-left: 1.2em; }
+.sillynpc-delivery-status li[data-ok="0"] { opacity: 0.75; }
+.sillynpc-delivery-block { margin-top: 8px; }
+.sillynpc-delivery-shown { padding: 6px 10px; border-radius: 4px; background: rgba(0,0,0,.18); overflow-wrap: anywhere; }

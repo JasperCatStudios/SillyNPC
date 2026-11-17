@@ -351,9 +351,10 @@ export function renderVoiceSettings(container) {
         key: 'ttsAutoSpeak',
         label: 'Read New Replies Aloud',
         help: 'Reads each new reply as it finishes: only "quoted" speech and (thoughts), each in its '
-            + 'speaker\'s voice. Every message also has a speech-bubble button in its toolbar (the three dots) '
-            + 'to read it on demand. If SillyTavern\'s own TTS is on with Auto Generation, turn that off or '
-            + 'replies are read twice.',
+            + 'speaker\'s voice. Each spoken line also has its own speak button just before its words, and the '
+            + 'message toolbar (the three dots) has one that reads the whole message. A line that has been '
+            + 'spoken before is replayed from the saved audio instead of being requested again. This follows '
+            + 'the Voices settings here only; SillyTavern\'s own TTS is not involved.',
     }));
     container.append(buildSettingToggle({
         key: 'ttsSpeakThoughts',

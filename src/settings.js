@@ -85,7 +85,8 @@ export const defaultSettings = {
     deliveryTagsEnabled: false,
     /** Empty means the built-in instruction, built from the tag names. */
     deliveryTagsPrompt: '',
-    deliveryTagsDepth: 0,
+    /** Where the instruction goes: position, depth, role, order, and whether SillyTavern's prompt list owns it. */
+    deliveryInject: {},
     /** Per tag: how it looks (size, weight, case, spacing, opacity, font, effect). Empty: the starting looks. */
     deliveryStyles: {},
     /** Per tag: what it means, in the words the model is given. Empty: the built-in wording. */
