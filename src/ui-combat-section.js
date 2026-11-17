@@ -51,6 +51,18 @@ const field = (label, input, hint) => {
     return wrap;
 };
 
+/** The "Persona" checkbox: whether this character is somebody the player can play. */
+export function buildPersonaToggle(record) {
+    const wrap = el('label', 'sillynpc-combat-persona');
+    wrap.title = 'A persona is somebody you can play. When your active persona has this name, you fight with the stats on this character. Characters in the OC category are personas automatically.';
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = isPersonaChar(record);
+    box.addEventListener('change', () => setPersonaChar(record, box.checked));
+    wrap.append(el('span', '', 'Persona'), box);
+    return wrap;
+}
+
 /**
  * @param {object} record A character, or the player's card.
  * @param {HTMLElement} container
@@ -65,16 +77,8 @@ export function renderCombatSection(record, container, options = {}) {
     // One line: the heading on the left, "Persona" and its checkbox side by side on the right.
     const headRow = el('div', 'sillynpc-combat-headrow');
     headRow.append(el('span', 'sillynpc-combat-headtitle', 'Combat'));
-    if (!record.isPlayer) {
-        const wrap = el('label', 'sillynpc-combat-persona');
-        wrap.title = 'A persona is somebody you can play. When your active persona has this name, you fight with the stats on this character. Characters in the OC category are personas automatically.';
-        const box = el('input');
-        box.type = 'checkbox';
-        box.checked = isPersonaChar(record);
-        box.addEventListener('change', () => setPersonaChar(record, box.checked));
-        wrap.append(el('span', '', 'Persona'), box);
-        headRow.append(wrap);
-    }
+    // The profile page shows the toggle above the lore link instead (noPersona).
+    if (!record.isPlayer && !options.noPersona) headRow.append(buildPersonaToggle(record));
     container.replaceChildren(...(gearOnly ? [] : [headRow]));
 
     const genType = activeCombatType();

@@ -9,7 +9,7 @@ import { renderLorebookSection, resetLorebookState } from './ui-lorebook-section
 import { renderCombatSection } from './ui-combat-section.js';
 import { readLoreEntry } from './character-fill.js';
 import { buildStatusCard } from './ui-vitals.js';
-import { buildProfileTabs } from './ui-profile-tabs.js';
+import { buildProfileTabs, buildVoiceLine } from './ui-profile-tabs.js';
 import { playerHistory, restorePlayerFromMessage } from './status-snapshots.js';
 import { renderCollectionUI, attachCollectionListeners, resolveCollectionTarget, persistCollectionEdit, updateExtensionTheme } from './ui-shared.js';
 import { buildBulkBar, spliceIndexes } from './ui-bulk-select.js';
@@ -280,7 +280,7 @@ function renderTabExtras(dom) {
             const statusHost = document.createElement('div');
             const drawStatus = () => statusHost.replaceChildren(buildStatusCard({ ...card, isPlayer: true }, { onChange: drawStatus }));
             drawStatus();
-            vitalsHost.replaceChildren(statusHost, buildProfileTabs(card, { onChange: () => refreshModal(dom) }));
+            vitalsHost.replaceChildren(statusHost, buildVoiceLine(card), buildProfileTabs(card, { onChange: () => refreshModal(dom) }));
         } catch (err) { console.warn('[Worldkit] player status failed', err); }
     }
 }

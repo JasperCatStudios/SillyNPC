@@ -1,6 +1,7 @@
 import { renderCombatSection } from './ui-combat-section.js';
 import { renderCharacterExtras } from './ui-character-extras.js';
 import { pickLorebookInto } from './ui-lorebook-section.js';
+import { buildInventoryCard } from './ui-inventory-card.js';
 
 /**
  * The profile page's tab row (fork): Combat, Equipment, Voice and Visual Prompt, and above it
@@ -17,7 +18,7 @@ import { pickLorebookInto } from './ui-lorebook-section.js';
 export const PROFILE_TABS = Object.freeze([
     ['combat', 'Combat', 'fa-khanda', 'Stats, ranks, abilities and condition.'],
     ['equipment', 'Equipment', 'fa-shield-halved', 'Weapons and tools.'],
-    ['voice', 'Voice', 'fa-volume-high', 'Their voice and phone skin.'],
+    ['inventory', 'Inventory', 'fa-bag-shopping', 'What they carry, and their money.'],
     ['visual', 'Visual Prompt', 'fa-image', 'Picture prompts for this character.'],
 ]);
 
@@ -60,6 +61,13 @@ export function buildLoreLinkBar(char, { onChange } = {}) {
     return wrap;
 }
 
+/** The character's voice, as a line of its own under the lorebook link (it used to be a tab). */
+export function buildVoiceLine(char) {
+    const wrap = el('div', 'sillynpc-cv-voiceline');
+    renderCharacterExtras(char, wrap, { part: 'voice' });
+    return wrap;
+}
+
 /**
  * The tab row and the open tab's contents.
  * @param {object} char
@@ -93,9 +101,9 @@ export function buildProfileTabs(char, options = {}) {
         body.append(host);
         const redraw = () => { draw(); options.onChange?.(); };
         try {
-            if (current === 'combat') renderCombatSection(char, host, { parts: 'sheet', onChange: redraw });
+            if (current === 'combat') renderCombatSection(char, host, { parts: 'sheet', noPersona: true, onChange: redraw });
             else if (current === 'equipment') renderCombatSection(char, host, { parts: 'gear', onChange: redraw });
-            else if (current === 'voice') renderCharacterExtras(char, host, { part: 'voice' });
+            else if (current === 'inventory') host.append(buildInventoryCard(char));
             else renderCharacterExtras(char, host, { part: 'visual' });
         } catch (err) {
             console.error('[Worldkit] profile tab failed', current, err);

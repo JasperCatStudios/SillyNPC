@@ -3,7 +3,8 @@ import { readLoreEntry } from './character-fill.js';
 import { openLightbox } from './ui-portrait.js';
 import { bondSettings, getPerson } from './bonds.js';
 import { buildStatusCard } from './ui-vitals.js';
-import { buildProfileTabs, buildLoreLinkBar } from './ui-profile-tabs.js';
+import { buildProfileTabs, buildLoreLinkBar, buildVoiceLine } from './ui-profile-tabs.js';
+import { buildPersonaToggle } from './ui-combat-section.js';
 import { applyFactionTheme, buildFactionBanner, safeWorld } from './ui-faction.js';
 import { activeCombatType } from './combat-access.js';
 import { levelFor, levelName, platonicValue, romanceState, METERS, METER_LABELS } from './bonds-core.js';
@@ -185,7 +186,9 @@ export async function renderProfileView(char, container) {
     // and chips below stay true.
     const redrawProfile = () => { renderProfileView(char, container).catch(err => console.error('[Worldkit] profile redraw failed', err)); };
     try {
+        if (!char.isPlayer) right.append(buildPersonaToggle(char));
         right.append(buildLoreLinkBar(char, { onChange: redrawProfile }));
+        right.append(buildVoiceLine(char));
         right.append(buildProfileTabs(char, { onChange: undefined }));
     } catch (err) {
         console.warn('[Worldkit] could not draw the profile tabs', err);

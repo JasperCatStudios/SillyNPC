@@ -3832,3 +3832,13 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .sillynpc-te-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; }
 .sillynpc-te-thumb { width: 36px; height: 36px; object-fit: contain; border-radius: 4px; flex: none; }
 .sillynpc-te-item .sillynpc-te-row { display: flex; gap: 8px; align-items: center; }
+
+/* Inventory card on a profile (a tab), and the voice line under the lore link */
+.snpc-inv-card { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border: 1px solid var(--sillynpc-border, rgba(128,128,128,.4)); border-radius: var(--sillynpc-radius-md, 6px); background: var(--sillynpc-bg-secondary, rgba(128,128,128,.08)); }
+.snpc-inv-body, .snpc-inv-items { display: flex; flex-direction: column; gap: 6px; }
+.snpc-inv-money, .snpc-inv-item, .snpc-inv-add { display: flex; align-items: center; gap: 8px; }
+.snpc-inv-money-input, .snpc-inv-add-name { flex: 1 1 auto; min-width: 0; }
+.snpc-inv-item-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.snpc-inv-item-kind { opacity: .7; }
+.snpc-inv-btn { padding: 4px 10px; min-height: 32px; }
+.sillynpc-cv-voiceline { margin: 6px 0; }
