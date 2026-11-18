@@ -10,9 +10,10 @@ import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
 import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../../src/activity-tea-core.js';
+import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt,
+    teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus,
 } from './activities-runtime.js';
 
 /**
@@ -31,6 +32,9 @@ const el = (tag, className, text) => {
     return node;
 };
 
+/** The value of "Play alone" in the partner picker. */
+const ALONE = '__alone__';
+
 let win = null;
 let partnerName = '';
 let currentTab = 'study';
@@ -46,10 +50,32 @@ function ensureWindow() {
     return win;
 }
 
+/** Who the player is with: a partner, or { alone: true } (also when there is nobody yet, because the puzzles can be played alone). */
 function pickedPartner() {
+    const alone = { name: '', id: ALONE, avatar: '', alone: true };
+    if (partnerName === ALONE) return alone;
     const list = partnerList();
-    if (!list.length) return null;
+    if (!list.length) return alone;
     return list.find(p => p.name === partnerName) || list[0];
+}
+
+/** Seats the partner (or the player alone) in the window's side panel. */
+function seat(w, partner, sub) {
+    if (partner.alone) {
+        w.setPartner(userName(), '', 'Playing alone');
+        w.setSolo(true);
+    } else {
+        w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', sub);
+        w.setSolo(false);
+    }
+}
+
+/** Disables a Start button and says why when the player is too tired (only while the Vitals Tracker is on). */
+function tiredGuard(activity, box, start) {
+    const es = energyStatus(activity);
+    if (es.ok) return;
+    start.disabled = true;
+    box.append(el('p', 'snpc-act-note is-small', `${tiredText(es.energy, es.cost)}. Rest first, or let the story pass some time.`));
 }
 
 /** A labelled select. */
@@ -81,21 +107,21 @@ function showHub() {
         w.main.replaceChildren(root);
         return;
     }
-    if (!partners.length) {
-        root.append(el('p', 'snpc-act-note', 'There is nobody to spend time with yet. Add a character in the Worldkit menu first.'));
-        w.main.replaceChildren(root);
-        return;
-    }
+    if (!partners.length) root.append(el('p', 'snpc-act-note', 'There is nobody to spend time with yet, but you can still play alone. Add a character in the Worldkit menu to share activities.'));
 
     // Who with.
     const select = el('select', 'snpc-act-select');
     select.setAttribute('aria-label', 'Spend time with');
     for (const p of partners) select.append(new Option(p.name, p.name));
-    select.value = pickedPartner()?.name || partners[0].name;
+    select.append(new Option('Play alone', ALONE));
+    select.value = pickedPartner().alone ? ALONE : pickedPartner().name;
     partnerName = select.value;
-    select.addEventListener('change', () => { partnerName = select.value; });
+    // Tiles depend on who it is with (some need a partner), so they are drawn again.
+    select.addEventListener('change', () => { partnerName = select.value; draw(); });
     const who = el('div', 'snpc-act-who');
     who.append(field('With', select));
+    const energy = energyStatus({});
+    if (energy.active && energy.energy !== null) who.append(el('small', 'snpc-act-energy', `Energy ${Math.round(energy.energy)}`));
     root.append(who);
 
     // Tabs.
@@ -111,15 +137,22 @@ function showHub() {
         grid.replaceChildren();
         const items = activitiesOnTab(preset, currentTab);
         if (!items.length) grid.append(el('p', 'snpc-act-note', 'Nothing here yet.'));
+        const alone = partnerName === ALONE;
         for (const a of items) {
-            const tile = el('button', `snpc-act-tile-card${a.soon ? ' is-soon' : ''}`);
+            const needsPartner = alone && !a.solo && !a.soon;
+            const es = energyStatus(a);
+            const tired = !a.soon && !es.ok;
+            const tile = el('button', `snpc-act-tile-card${a.soon ? ' is-soon' : ''}${needsPartner || tired ? ' is-locked' : ''}`);
             tile.type = 'button';
-            if (a.soon) tile.setAttribute('aria-disabled', 'true');
+            if (a.soon || needsPartner || tired) tile.setAttribute('aria-disabled', 'true');
             tile.append(el('i', `fa-solid ${a.icon}`));
             tile.append(el('strong', '', a.label));
             tile.append(el('small', '', a.soon ? 'Coming soon' : (a.blurb || '')));
+            if (needsPartner) tile.append(el('small', 'snpc-act-lock', 'Needs a partner'));
+            else if (tired) tile.append(el('small', 'snpc-act-lock', tiredText(es.energy, es.cost)));
+            else if (!a.soon && es.active && es.cost > 0) tile.append(el('small', 'snpc-act-cost', `Costs ${es.cost} energy`));
             if (!a.soon) {
-                const info = activityStreakInfo(a, partnerName);
+                const info = activityStreakInfo(a, alone ? '' : partnerName);
                 if (info.text || info.bonus) {
                     const streak = el('small', 'snpc-act-streak');
                     streak.append(el('i', 'fa-solid fa-fire'));
@@ -131,6 +164,8 @@ function showHub() {
             }
             tile.addEventListener('click', () => {
                 if (a.soon) { toast('info', `${a.label} is coming soon.`); return; }
+                if (needsPartner) { toast('info', `${a.label} needs someone to share it with. Pick a partner above.`); return; }
+                if (tired) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); return; }
                 if (a.kind === 'memory') showStudySetup(a);
                 else if (a.kind === 'mastermind') showPotionSetup(a);
                 else if (a.kind === 'tea') showTeaSetup(a);
@@ -178,7 +213,7 @@ function showStudySetup(activity) {
     const box = el('div', 'snpc-act-setup');
     { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
     box.append(el('p', 'snpc-act-note',
-        `${activity.label} with ${partner.name}. Match the runes in pairs. A cursed rune that turns up shuffles the board when you miss, `
+        `${activity.label}${partner.alone ? ', playing alone' : ` with ${partner.name}`}. Match the runes in pairs. A cursed rune that turns up shuffles the board when you miss, `
         + `and every miss costs concentration. What you learn counts as ${term(preset, 'knowledge').toLowerCase()} toward a ${term(preset, 'classWord').toLowerCase()} change.`));
 
     const subjects = studySubjects(preset);
@@ -208,7 +243,7 @@ function showStudySetup(activity) {
         s.pairs = Number(pairs.value);
         s.difficulty = difficulty.value;
         saveActivitySettings();
-        w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', 'Studying together');
+        seat(w, partner, 'Studying together');
         w.userName = userName();
         runStudy(w, {
             partner: partner.name, label: activity.label, pairs: s.pairs, difficulty: s.difficulty,
@@ -222,6 +257,7 @@ function showStudySetup(activity) {
     back.addEventListener('click', showHub);
     row.append(start, back);
     box.append(row);
+    tiredGuard(activity, box, start);
     w.main.replaceChildren(box);
     start.focus();
 }
@@ -240,7 +276,7 @@ function showPotionSetup(activity) {
     const box = el('div', 'snpc-act-setup');
     { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
     box.append(el('p', 'snpc-act-note',
-        `${activity.label} with ${partner.name}. A recipe of four ingredients is hidden. Try combinations and read the answers (how many are right, and how many are in the right place) to work it out before you run out of tries.`));
+        `${activity.label}${partner.alone ? ', playing alone' : ` with ${partner.name}`}. A recipe of four ingredients is hidden. Try combinations and read the answers (how many are right, and how many are in the right place) to work it out before you run out of tries.`));
 
     const subjects = subjectsOf(preset.potion.profs);
     const subject = el('select', 'snpc-act-select');
@@ -261,7 +297,7 @@ function showPotionSetup(activity) {
     start.addEventListener('click', () => {
         s.difficulty = difficulty.value;
         saveActivitySettings();
-        w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', 'Brewing together');
+        seat(w, partner, 'Brewing together');
         w.userName = userName();
         runPotion(w, {
             partner: partner.name, label: activity.label, difficulty: s.difficulty, names: preset.potion.names,
@@ -274,6 +310,7 @@ function showPotionSetup(activity) {
     back.addEventListener('click', showHub);
     row.append(start, back);
     box.append(row);
+    tiredGuard(activity, box, start);
     w.main.replaceChildren(box);
     start.focus();
 }
@@ -286,7 +323,7 @@ function showTeaSetup(activity) {
     const preset = activePreset();
     const s = activitySettings();
     const partner = pickedPartner();
-    if (!partner) { showHub(); return; }
+    if (partner.alone) { toast('info', `${activity.label} needs a guest. Pick a partner first.`); showHub(); return; }
     w.setView('hub');
     w.setTitle(activity.label, activity.icon || 'fa-mug-hot');
     const teaWord = term(preset, 'tea');
@@ -378,7 +415,7 @@ function showTeaSetup(activity) {
             name: sn.name, mark: sn.mark, chosen: sn.name === chosenSnack, kind: 'snack',
             onPick: () => { chosenSnack = chosenSnack === sn.name ? '' : sn.name; if (chosenSnack) bring.value = ''; draw(); },
         })));
-        start.disabled = !teas.length;
+        start.disabled = !teas.length || !energyStatus(activity).ok;
     };
 
     box.append(wrap);
@@ -401,7 +438,7 @@ function showTeaSetup(activity) {
     start.addEventListener('click', () => {
         s.teaRounds = Number(rounds.value) === 5 ? 5 : 3;
         saveActivitySettings();
-        w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', `Sharing a ${teaWord}`);
+        seat(w, partner, `Sharing a ${teaWord}`);
         w.userName = userName();
         const brought = chosenSnack ? { kind: 'food', name: chosenSnack } : (bring.value ? { name: bring.value } : null);
         runTea(w, {

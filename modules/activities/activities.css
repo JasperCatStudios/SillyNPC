@@ -89,7 +89,7 @@
 .snpc-act-chat[data-view="chat"] .snpc-act-msg.system,
 .snpc-act-chat[data-view="log"] .snpc-act-msg:not(.system) { display: none; }
 .snpc-act-help { flex: 1 1 auto; min-height: 90px; overflow-y: auto; padding: 4px 6px; color: #e8dfd0; line-height: 1.45; }
-.snpc-act-help[hidden], .snpc-act-chat[hidden] { display: none; }
+.snpc-act-help[hidden], .snpc-act-chat[hidden], .snpc-act-input[hidden], .snpc-act-tab[hidden] { display: none; }
 .snpc-act-help-title { font-family: Georgia, serif; color: #ede3d2; margin: 8px 0 4px; font-size: 1rem; }
 .snpc-act-help-text { margin: 0 0 8px; font-size: 0.93rem; }
 .snpc-act-input { display: flex; gap: 6px; }
@@ -132,6 +132,10 @@
 .snpc-act-tile-card small { color: #c8bfb2; }
 .snpc-act-tile-card:hover { border-color: #d4b98f; }
 .snpc-act-tile-card.is-soon { opacity: 0.6; cursor: default; }
+.snpc-act-tile-card.is-locked { opacity: 0.65; cursor: not-allowed; }
+.snpc-act-lock { color: #f0c9a0; }
+.snpc-act-cost { color: #c8bfb2; }
+.snpc-act-energy { margin-left: 12px; color: #f0dfbc; }
 .snpc-act-tile-card.is-soon i { color: #b5a58d; }
 
 /* ---- Study board ---- */

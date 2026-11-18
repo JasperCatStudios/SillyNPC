@@ -47,8 +47,10 @@ const GRADE_WORDS = Object.freeze({ perfect: 'went perfectly', good: 'went well'
  */
 export function activityReport({ label, user, partners, grade = 'fair', extra = [] }) {
     const others = uniq(partners).filter(n => n !== user);
-    const list = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : (others[0] || 'someone');
+    const list = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : others[0];
     const head = `[Activity report: ${label}]`;
-    const body = `${user} and ${list} spent time on ${label.toLowerCase()} together, and it ${GRADE_WORDS[grade] || GRADE_WORDS.fair}.`;
+    const body = list
+        ? `${user} and ${list} spent time on ${label.toLowerCase()} together, and it ${GRADE_WORDS[grade] || GRADE_WORDS.fair}.`
+        : `${user} spent time on ${label.toLowerCase()} alone, and it ${GRADE_WORDS[grade] || GRADE_WORDS.fair}.`;
     return [head, body, ...(extra || []).map(s => String(s).trim()).filter(Boolean)].join('\n');
 }

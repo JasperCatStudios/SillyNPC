@@ -163,6 +163,13 @@ export function createActivityWindow({ onClose } = {}) {
             }
         },
         showHelp() { setTab('help'); },
+        /** Playing alone: no chat tab and no box to type in, and the rules open first. Playing with someone puts them back. */
+        setSolo(on) {
+            root.classList.toggle('is-solo', Boolean(on));
+            chatTab.hidden = Boolean(on);
+            inputRow.hidden = Boolean(on);
+            setTab(on ? 'help' : 'chat');
+        },
         /** Starts a new conversation (the talk of a new session). */
         resetTalk() { lines.length = 0; chat.replaceChildren(); },
         /** kind: 'bot' (the partner), 'user', 'system' (shows in the Log tab only), 'typing' (removed by removeTyping). */

@@ -18,12 +18,12 @@ export const FIRE_EMBLEM_PRESET = Object.freeze({
     // The owner's private sound folder in the Fire Emblem profile (music and the activity effects). A missing file is silent.
     soundMap: '/user/files/fe-sounds/map.json',
     activities: [
-        { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes in the library. What you learn counts toward a class change.' },
-        { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues and brew a tonic.' },
+        { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes in the library. What you learn counts toward a class change.', solo: true },
+        { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues and brew a tonic.', solo: true },
         { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup in the garden and see how the talk goes.' },
-        { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Cook something together in the kitchen.', soon: true },
-        { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite at the pond.', soon: true },
-        { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Tend the greenhouse beds together.', soon: true },
+        { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Cook something together in the kitchen.', soon: true, solo: true },
+        { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite at the pond.', soon: true, solo: true },
+        { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Tend the greenhouse beds together.', soon: true, solo: true },
     ],
     // Study trains the magic-like skills. Without runes of its own the generic glyphs are used.
     study: { runes: [], profs: ['reason', 'faith', 'authority'] },

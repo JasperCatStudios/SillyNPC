@@ -64,6 +64,7 @@ export function runStudy(win, ctx) {
 
     /** The partner speaks: a typing line, then the reply (or a canned line). Never blocks the game. */
     const speak = async (beat, playerText = '') => {
+        if (!partner) return;      // played alone: nobody to talk to
         win.addLine(partner, '...', 'typing');
         const out = await askPartner({
             partner, label, beat, stateText: stateText(), playerText, talkSoFar: win.talk(),

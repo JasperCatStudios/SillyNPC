@@ -61,6 +61,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('Tea Time: the guest asks questions', 'teaGuestAsks', 'About one round in three the guest asks you something and your choices become answers.'),
         toggle('Tea Time: show what you have learned', 'teaShowKnown', 'A "Known so far" note about the guest on the Tea Time screen.'),
         toggle('Tea Time music', 'musicOn', 'Plays the music loop from the sound map while Tea Time is open (the tag is set by the world preset). Off means silence.'),
+        toggle('Activities cost energy', 'vitalsOn', 'Each activity costs the player some energy, and one is refused when there is not enough. Only works while the Vitals Tracker is on and tracks energy.'),
         toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),
         toggle('Bond nudges', 'bondOn', 'A good session can warm a tracked bond a little, once a day per person and activity.'),
         toggle('XP for skills used in fights', 'combatProfXp', 'Each fight adds XP to the skills the fighters used, so ranks grow from fighting too.'),
@@ -83,6 +84,12 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     vol.style.cssText = 'width: 9em;';
     vol.addEventListener('input', () => { s.musicVolume = Number(vol.value) / 100; changed(); refreshMusicVolume(activePreset().tea?.music); });
     pane.append(row('Music volume', vol, 'How loud the Tea Time music is, on top of the sound-effects volume.'));
+
+    const cost = el('input', 'text_pole');
+    cost.type = 'number'; cost.min = '0'; cost.max = '100'; cost.style.width = '6em';
+    cost.value = String(s.energyCost);
+    cost.addEventListener('change', () => { const v = Number(cost.value); if (Number.isFinite(v)) { s.energyCost = Math.max(0, Math.min(100, Math.round(v))); changed(); } });
+    pane.append(row('Energy per activity', cost, 'How much energy one activity takes, out of 100. A preset can give an activity its own cost. Only while the Vitals Tracker is on.'));
 
     const mapBox = el('input', 'text_pole');
     mapBox.type = 'text';

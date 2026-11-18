@@ -104,12 +104,12 @@ export const HUB_TABS = Object.freeze([
  * and shown as "coming soon" by the hub, so a preset written today keeps working as phases land.
  */
 export const GENERIC_ACTIVITIES = Object.freeze([
-    { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes. Knowledge feeds a class change.' },
-    { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.' },
+    { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes. Knowledge feeds a class change.', solo: true },
+    { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
     { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
-    { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Cook something together.', soon: true },
-    { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite and reel it in.', soon: true },
-    { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, water and harvest.', soon: true },
+    { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Cook something together.', soon: true, solo: true },
+    { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite and reel it in.', soon: true, solo: true },
+    { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, water and harvest.', soon: true, solo: true },
 ]);
 
 export const GENERIC_PRESET = Object.freeze({
@@ -141,6 +141,10 @@ function normalizeActivity(raw) {
         blurb: text(r.blurb, 120),
         ...(r.soon ? { soon: true } : {}),
         ...(r.off ? { off: true } : {}),
+        // Can be played alone (no partner): the puzzles and the leisure tasks, not the ones that need a guest.
+        ...(r.solo ? { solo: true } : {}),
+        // Its own energy cost (0 to 100); without one the Activities setting is used.
+        ...(Number.isFinite(Number(r.energy)) && String(r.energy ?? '').trim() !== '' ? { energy: Math.max(0, Math.min(100, Math.round(Number(r.energy)))) } : {}),
     };
 }
 

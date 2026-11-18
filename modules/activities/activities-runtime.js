@@ -7,7 +7,8 @@ import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js
 import { hasVoiceFor } from '../../src/tts.js';
 import { addRecord, rivalryBlock } from '../../src/rivalry.js';
 import { giveItemFor, getInventory, databaseItems } from '../../src/inventory.js';
-import { vitalsStore } from '../../src/vitals.js';
+import { vitalsStore, vitalsSettings, getVitals, setVitalFor } from '../../src/vitals.js';
+import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activity-energy-core.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
 import { normalizeKnownStore, mergeKnown, teaPool, snackPool } from '../../src/activity-tea-core.js';
 import { DEFAULT_KIT_URL, kitFolderName, kitFileUrl } from '../../src/content-kit.js';
@@ -143,6 +144,35 @@ export function currentDay() {
     return dayKey(sceneClock()?.dateText || '');
 }
 
+/** Whether energy costs apply: the Vitals Tracker is on and tracks energy, and the Activities setting is on. */
+export function energyActive() {
+    try {
+        const v = vitalsSettings();
+        return Boolean(v.enabled && v.track?.energy !== false && activitySettings().vitalsOn);
+    } catch { return false; }
+}
+
+/** The player's energy in this chat (0 to 100), or null when it is not known yet. */
+export function playerEnergy() {
+    try {
+        const p = getVitals(userName());
+        const e = Number(p?.energy);
+        return p && Number.isFinite(e) ? e : null;
+    } catch { return null; }
+}
+
+/**
+ * What an activity costs and whether the player can pay it now. Without the Vitals Tracker nothing costs anything and nothing is
+ * blocked; an energy that is not known yet never blocks.
+ * @returns {{ active: boolean, cost: number, energy: number|null, ok: boolean }}
+ */
+export function energyStatus(activity) {
+    const active = energyActive();
+    const cost = active ? energyCostOf(activity, activitySettings()) : 0;
+    const energy = active ? playerEnergy() : null;
+    return { active, cost, energy, ok: !active || canAfford(energy, cost) };
+}
+
 /** The activity kinds that train a skill and so earn the streak bonus. */
 const TRAINING_KINDS = ['memory', 'mastermind', 'drill'];
 
@@ -254,12 +284,17 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
     const extra = [...extraReport];
     const bonds = rewards.bonds || [];
     const grade = rewards.grade === 'failed' ? 'poor' : rewards.grade;
+    // An empty partner means the activity was played alone.
+    const alone = !String(partner || '').trim();
     try {
         const id = newTalkId();
         const at = Date.now();
         const date = sceneClock()?.dateText || '';
-        try { addRecord(activityRecord({ id, label, user, partners: [partner], at, summary })); } catch (err) { console.warn('[Worldkit] could not record the activity', err); }
-        recordTalk('activities', activityTalkEntry({ id, at, label, activity: activityId, outcome: grade, user, partners: [partner], date, lines, result: summary }));
+        // Played alone there is nobody to record a game against and no talk to keep.
+        if (!alone) {
+            try { addRecord(activityRecord({ id, label, user, partners: [partner], at, summary })); } catch (err) { console.warn('[Worldkit] could not record the activity', err); }
+            recordTalk('activities', activityTalkEntry({ id, at, label, activity: activityId, outcome: grade, user, partners: [partner], date, lines, result: summary }));
+        }
 
         // The streak: today counts, and a skill-training activity pays a bonus for the days in a row.
         let streakRun = 0;
@@ -277,7 +312,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
 
         const type = activeCombatType();
         const mine = personaRecordFor(user);
-        const theirs = cardOf(partner);
+        const theirs = alone ? null : cardOf(partner);
         if (s.xpOn && type && (rewards.profXp || rewards.levelXp)) {
             const ups = [];
             const credit = (record, name, profXp, levelXp) => {
@@ -316,7 +351,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             } catch (err) { console.warn('[Worldkit] could not give the item', err); }
         }
 
-        if (s.bondOn && bonds.length) {
+        if (s.bondOn && bonds.length && !alone) {
             const store = activityStore();
             const day = dayKey(date);
             const person = getPerson(partner);
@@ -335,7 +370,30 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             }
         }
 
-        queueResult('activities', safe(activityReport({ label, user, partners: [partner], grade, extra })), { append: false });
+        // The energy it cost (only while the Vitals Tracker is on and tracks energy).
+        if (energyActive()) {
+            const act = (activePreset().activities || []).find(a => a.id === activityId);
+            const cost = energyCostOf(act, s);
+            const before = playerEnergy();
+            if (cost > 0 && before !== null) {
+                const after = afterSpend(before, cost);
+                setVitalFor(user, 'energy', after);
+                shown.push(spentText(before, after));
+            }
+            // The partner spends the same amount, when they have a vitals record (nobody is added to the tracker for this).
+            if (cost > 0 && !alone) {
+                try {
+                    const theirEnergy = Number(getVitals(partner)?.energy);
+                    if (getVitals(partner) && Number.isFinite(theirEnergy)) {
+                        const left = afterSpend(theirEnergy, cost);
+                        setVitalFor(partner, 'energy', left);
+                        shown.push(`${partner}: ${spentText(theirEnergy, left).toLowerCase()}`);
+                    }
+                } catch { /* the partner's vitals are optional */ }
+            }
+        }
+
+        queueResult('activities', safe(activityReport({ label, user, partners: alone ? [] : [partner], grade, extra })), { append: false });
         saveSettings();
     } catch (err) {
         console.warn('[Worldkit] could not settle the activity', err);
@@ -347,7 +405,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
 export function settleStudy({ partner, label, subject, game, rewards, lines, activityId = 'study' }) {
     return settleActivity({
         activityId, label, partner, subject, lines,
-        summary: `${label} with ${partner}: ${describeState(game)}.`,
+        summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${describeState(game)}.`,
         rewards: { ...rewards, bonds: rewards.bond ? [rewards.bond] : [] },
     });
 }

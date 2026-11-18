@@ -78,6 +78,7 @@ export function runPotion(win, ctx) {
     const say = (t) => { status.textContent = t; };
 
     const speak = async (beat, playerText = '') => {
+        if (!partner) return;      // played alone: nobody to talk to
         win.addLine(partner, '...', 'typing');
         const out = await askPartner({
             partner, label, beat, stateText: describeState(game), playerText, talkSoFar: win.talk(),
@@ -172,7 +173,7 @@ export function runPotion(win, ctx) {
         if (!rewards.brewed) sfx('activity_potion_fail');
         speak('end');
         setTimeout(() => {
-            const summary = `${label} with ${partner}: ${describeState(game)}.`;
+            const summary = `${label}${partner ? ` with ${partner}` : ' alone'}: ${describeState(game)}.`;
             const lines = settleActivity({
                 activityId: 'potion', label, partner, subject, summary, lines: win.talk(),
                 rewards: { grade: rewards.grade, profXp: rewards.profXp, partnerProfXp: rewards.partnerProfXp, levelXp: rewards.levelXp, bonds: rewards.bond ? [rewards.bond] : [], item: rewards.item },
