@@ -5,7 +5,7 @@ import {
 import { term } from '../../../src/activity-terms.js';
 import { requestStart, requestRound } from '../tea-persona.js';
 import {
-    activitySettings, cardOf, settleActivity, rememberTaste, teaKnown, guestLowMood, askPartner, sfx, speakAsPlayer,
+    activitySettings, cardOf, settleActivity, rememberTaste, teaKnown, guestLowMood, askPartner, sfx, speakAsPlayer, startMusic,
 } from '../activities-runtime.js';
 
 /**
@@ -235,6 +235,7 @@ export function runTea(win, ctx) {
     // Begin: pour, then the greeting and the first openers.
     drawBar();
     sfx('activity_tea_pour');
+    startMusic(preset.tea?.music);
     setBusy(true);
     guestLine.textContent = `${partner} is settling in...`;
     (async () => {

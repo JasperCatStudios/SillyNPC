@@ -1,4 +1,4 @@
-import { matchPref, normKey } from './likes-core.js';
+import { matchPref, normKey, normalizePrefs } from './likes-core.js';
 import { GRADES, GRADE_XP } from './activity-memory-core.js';
 
 /**
@@ -489,4 +489,50 @@ export function seeded(seed) {
         t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+}
+
+/* ------------------------------------------------------------------ the tea list */
+
+/**
+ * The teas to choose from: the item database's teas, plus every tea any character in the cast likes or dislikes, so
+ * nobody's favourite is missing. It is the same list for every guest (it does not show whom a tea suits). Only when
+ * there are none at all does the preset's short built-in list stand in.
+ * @param {string[]} dbNames teas from the item database
+ * @param {object[]} prefsList every card's prefs
+ * @param {string[]} [fallback]
+ * @returns {string[]} sorted, no duplicates (case, spaces and punctuation ignored)
+ */
+export function teaPool(dbNames, prefsList, fallback = []) {
+    const seen = new Map();
+    const add = (name) => {
+        const n = text(name, 40);
+        const key = normKey(n);
+        if (n && key && !seen.has(key)) seen.set(key, n);
+    };
+    for (const n of dbNames || []) add(n);
+    for (const raw of prefsList || []) {
+        const p = normalizePrefs(raw);
+        for (const side of ['likes', 'dislikes']) for (const n of p[side].tea) add(n);
+    }
+    if (!seen.size) for (const n of fallback || []) add(n);
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * A handful of teas to choose from, picked at random each time, so the choice is different every cup. One tea the guest
+ * likes is always among them (when they like any), so a good cup is always possible; nothing says which one it is, and
+ * the rest are drawn from the whole pool, disliked teas included. A pool no bigger than `count` is shown whole, shuffled.
+ * @param {string[]} pool see teaPool
+ * @param {object} prefs the guest's prefs
+ * @param {{ count?: number, rng?: () => number }} [opts]
+ * @returns {string[]}
+ */
+export function teaChoices(pool, prefs, { count = 8, rng = Math.random } = {}) {
+    const all = [...new Set((pool || []).map(n => text(n, 40)).filter(Boolean))];
+    const n = Math.max(1, Math.floor(Number(count)) || 8);
+    if (all.length <= n) return shuffle(all, rng);
+    const liked = all.filter(name => matchPref(prefs, 'tea', name) === 'like');
+    const must = liked.length ? [liked[Math.floor(rng() * liked.length) % liked.length]] : [];
+    const rest = shuffle(all.filter(name => !must.includes(name)), rng);
+    return shuffle([...must, ...rest.slice(0, n - must.length)], rng);
 }

@@ -1,4 +1,5 @@
-import { activitySettings, saveActivitySettings, activePreset } from './activities-runtime.js';
+import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
+import { activitySettings, saveActivitySettings, activePreset, stopMusic, refreshMusicVolume } from './activities-runtime.js';
 
 /**
  * The Activities tab in Modules (fork): the module's switches and the world preset. Written as the other
@@ -34,7 +35,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         return wrap;
     };
     const toggle = (label, key, hint) => {
-        const sw = makeSwitch ? makeSwitch(Boolean(s[key]), (on) => { s[key] = on; changed(); }) : (() => {
+        const sw = makeSwitch ? makeSwitch(Boolean(s[key]), (on) => { s[key] = on; changed(); if (key === 'musicOn' && !on) stopMusic(); }) : (() => {
             const box = el('input');
             box.type = 'checkbox';
             box.checked = Boolean(s[key]);
@@ -59,6 +60,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('Tea Time: type your own words', 'teaFreeText', 'Lets you type a line instead of tapping one of the three openers. Only when the model is on.'),
         toggle('Tea Time: the guest asks questions', 'teaGuestAsks', 'About one round in three the guest asks you something and your choices become answers.'),
         toggle('Tea Time: show what you have learned', 'teaShowKnown', 'A "Known so far" note about the guest on the Tea Time screen.'),
+        toggle('Tea Time music', 'musicOn', 'Plays the music loop from the sound map while Tea Time is open (the tag is set by the world preset). Off means silence.'),
         toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),
         toggle('Bond nudges', 'bondOn', 'A good session can warm a tracked bond a little, once a day per person and activity.'),
         toggle('XP for skills used in fights', 'combatProfXp', 'Each fight adds XP to the skills the fighters used, so ranks grow from fighting too.'),
@@ -74,10 +76,27 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     messages.addEventListener('change', () => { const v = Number(messages.value); if (Number.isFinite(v)) { s.contextMessages = Math.max(0, Math.min(30, Math.round(v))); changed(); } });
     pane.append(row('Story messages sent', messages, 'How many recent chat messages the partner is shown when they talk.'));
 
+    const vol = el('input');
+    vol.type = 'range'; vol.min = '0'; vol.max = '100'; vol.step = '5';
+    vol.value = String(Math.round(s.musicVolume * 100));
+    vol.setAttribute('aria-label', 'Music volume');
+    vol.style.cssText = 'width: 9em;';
+    vol.addEventListener('input', () => { s.musicVolume = Number(vol.value) / 100; changed(); refreshMusicVolume(activePreset().tea?.music); });
+    pane.append(row('Music volume', vol, 'How loud the Tea Time music is, on top of the sound-effects volume.'));
+
+    const mapBox = el('input', 'text_pole');
+    mapBox.type = 'text';
+    mapBox.placeholder = 'Leave empty to use the world preset\'s';
+    mapBox.style.cssText = 'width: 100%; min-width: 12em;';
+    mapBox.value = s.soundMapUrl;
+    mapBox.addEventListener('change', () => { s.soundMapUrl = mapBox.value.trim(); changed(); });
+    pane.append(row('Sound map address', mapBox, 'A sound map just for activities: their music and effects. The Fire Emblem preset points at the fe-sounds folder in your own profile. A missing file is silent.'));
+
     // World preset.
     const presetSel = el('select', 'text_pole');
     presetSel.append(new Option('Pick by the active combat type', ''));
     presetSel.append(new Option('Generic', 'generic'));
+    for (const p of Object.values(BUILT_IN_PRESETS)) presetSel.append(new Option(p.name, p.id));
     for (const p of Object.values(s.presets)) presetSel.append(new Option(p.name, p.id));
     presetSel.value = s.presetId;
     if (presetSel.value !== s.presetId) presetSel.value = '';

@@ -81,13 +81,50 @@ export function loadSoundMap(force = false) {
     return loading;
 }
 
-/** Plays one sound by name. Returns false when the name is not in the map or the browser refuses. */
-export async function playSound(name) {
-    const sound = map?.sounds.get(soundKey(name));
-    if (!sound) return false;
+/** Extra sound maps a module brings along (its own private folder), by address: url -> Promise of the parsed map or null. */
+const extraMaps = new Map();
+
+/** Reads a sound map at an address once; a missing or unreadable one is null (and silent). Never throws. */
+export function loadMapAt(url) {
+    const at = String(url || '').trim();
+    if (!at) return Promise.resolve(null);
+    if (!extraMaps.has(at)) {
+        extraMaps.set(at, (async () => {
+            try {
+                const response = await fetch(at, { cache: 'no-store' });
+                if (!response.ok) return null;
+                return parseSoundMap(await response.text());
+            } catch (err) {
+                debugLog('Extra sound map failed', err);
+                return null;
+            }
+        })());
+    }
+    return extraMaps.get(at);
+}
+
+/** Finds a sound: in the main map, else in the extra map at `extraUrl`. Returns { sound, base } or null. */
+async function findSound(name, extraUrl = '') {
+    const key = soundKey(name);
+    const own = map?.sounds.get(key);
+    if (own) return { sound: own, base: mapUrl };
+    if (!extraUrl) return null;
+    const extra = await loadMapAt(extraUrl);
+    const sound = extra?.sounds.get(key);
+    return sound ? { sound, base: String(extraUrl).trim() } : null;
+}
+
+/**
+ * Plays one sound by name. Returns false when the name is not in the map or the browser refuses.
+ * `mapUrl` (optional): a second map to look in when the main one does not have the name.
+ */
+export async function playSound(name, { mapUrl: extraUrl = '' } = {}) {
+    const found = await findSound(name, extraUrl);
+    if (!found) return false;
+    const { sound, base } = found;
     const file = pickFile(sound, lastFile);
     lastFile = file;
-    const audio = new Audio(soundFileUrl(mapUrl, file));
+    const audio = new Audio(soundFileUrl(base, file));
     audio.volume = Math.min(1, sound.volume * soundSettings().volume);
     playing.add(audio);
     const done = () => playing.delete(audio);
@@ -106,6 +143,86 @@ export async function playSound(name) {
 export function stopSounds() {
     for (const audio of playing) { try { audio.pause(); } catch { /* gone */ } }
     playing.clear();
+}
+
+/* ---- loops (music) ------------------------------------------------------------------------ */
+
+/** Looping sounds that are playing, by sound key: { audio, target, timer }. stopSounds() leaves these alone. */
+const loops = new Map();
+
+/** Moves a loop's volume to `to` over `ms` (at once when ms is 0). Replaces a fade already running. */
+function rampLoop(entry, to, ms, then) {
+    clearInterval(entry.timer);
+    const from = entry.audio.volume;
+    if (!(ms > 0) || from === to) {
+        entry.audio.volume = to;
+        then?.();
+        return;
+    }
+    const started = Date.now();
+    entry.timer = setInterval(() => {
+        const k = Math.min(1, (Date.now() - started) / ms);
+        entry.audio.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+        if (k >= 1) { clearInterval(entry.timer); then?.(); }
+    }, 50);
+}
+
+/**
+ * Starts a looping sound (music) from the sound map, fading in over its `fadeMs`. `volume` (0 to 1) scales the map's own
+ * volume and the sound-effects volume, so a module can have its own music volume. Playing the same loop again only
+ * changes its volume. Returns false when the name is not in the map or the browser refuses (it must follow a tap).
+ * @param {string} name
+ * @param {{ volume?: number, fadeMs?: number }} [opts]
+ */
+export async function playLoop(name, { volume = 1, fadeMs, mapUrl: extraUrl = '' } = {}) {
+    try { await loadSoundMap(); } catch { /* the map may simply be missing */ }
+    const key = soundKey(name);
+    const found = await findSound(name, extraUrl);
+    if (!found) return false;
+    const { sound, base } = found;
+    const target = Math.max(0, Math.min(1, sound.volume * soundSettings().volume * volume));
+    const held = loops.get(key);
+    if (held) { rampLoop(held, target, 300); return true; }
+    const audio = new Audio(soundFileUrl(base, pickFile(sound, '')));
+    audio.loop = true;
+    const fade = fadeMs ?? sound.fadeMs ?? 0;
+    audio.volume = fade > 0 ? 0 : target;
+    // The sound's own volume and fade are kept, because it may come from an extra map the main one does not know.
+    const entry = { audio, timer: null, base: sound.volume, fadeMs: sound.fadeMs ?? 0 };
+    loops.set(key, entry);
+    try {
+        await audio.play();
+    } catch (err) {
+        loops.delete(key);
+        debugLog('Loop refused', err);
+        return false;
+    }
+    // Stopped while it was starting.
+    if (loops.get(key) !== entry) { try { audio.pause(); } catch { /* gone */ } return true; }
+    if (fade > 0) rampLoop(entry, target, fade);
+    return true;
+}
+
+/** Changes the volume of a playing loop (the same scaling as playLoop). */
+export function setLoopVolume(name, volume = 1) {
+    const key = soundKey(name);
+    const held = loops.get(key);
+    if (held) rampLoop(held, Math.max(0, Math.min(1, held.base * soundSettings().volume * volume)), 200);
+}
+
+/** Stops one loop, fading out over `fadeMs` (default: its own fadeMs). */
+export function stopLoop(name, { fadeMs } = {}) {
+    const key = soundKey(name);
+    const held = loops.get(key);
+    if (!held) return;
+    loops.delete(key);
+    const ms = fadeMs ?? held.fadeMs ?? 0;
+    rampLoop(held, 0, ms, () => { try { held.audio.pause(); } catch { /* gone */ } });
+}
+
+/** Stops every loop. */
+export function stopLoops(opts) {
+    for (const key of [...loops.keys()]) stopLoop(key, opts);
 }
 
 /* ---- the instruction to the story model ------------------------------------------------ */

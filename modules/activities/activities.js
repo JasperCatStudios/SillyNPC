@@ -9,10 +9,10 @@ import { runStudy } from './games/memory-ui.js';
 import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
-import { teaMenu } from '../../src/activity-tea-core.js';
+import { teaMenu, teaChoices } from '../../src/activity-tea-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    teaNames, teaKnown, bringChoices,
+    teaNames, teaKnown, bringChoices, stopMusic, preloadSounds,
 } from './activities-runtime.js';
 
 /**
@@ -42,7 +42,7 @@ const chatOpen = () => {
 
 function ensureWindow() {
     if (win) return win;
-    win = createActivityWindow({});
+    win = createActivityWindow({ onClose: () => stopMusic() });
     return win;
 }
 
@@ -66,6 +66,7 @@ function toast(kind, message) {
 /* ------------------------------------------------------------------ views */
 
 function showHub() {
+    stopMusic();
     const w = ensureWindow();
     const preset = activePreset();
     w.setView('hub');
@@ -141,6 +142,7 @@ function showHub() {
 }
 
 function showStudySetup(activity) {
+    stopMusic();
     const w = ensureWindow();
     const preset = activePreset();
     const s = activitySettings();
@@ -201,6 +203,7 @@ function showStudySetup(activity) {
 
 /** Brewing: pick the difficulty (and a skill to train, when the preset names one), then start. */
 function showPotionSetup(activity) {
+    stopMusic();
     const w = ensureWindow();
     const preset = activePreset();
     const s = activitySettings();
@@ -251,6 +254,8 @@ function showPotionSetup(activity) {
 
 /** Tea Time: choose the tea (marked when you already know their taste), optionally bring one thing, then start. */
 function showTeaSetup(activity) {
+    stopMusic();
+    preloadSounds();
     const w = ensureWindow();
     const preset = activePreset();
     const s = activitySettings();
@@ -262,12 +267,16 @@ function showTeaSetup(activity) {
 
     const box = el('div', 'snpc-act-setup');
     box.append(el('p', 'snpc-act-note',
-        `${activity.label} with ${partner.name}. Choose a ${teaWord}, bring something if you like, then talk. Their tastes are not shown: watch how they react, and what you learn is kept for next time.`));
+        `${activity.label} with ${partner.name}. Step 1: choose a ${teaWord} to serve (you are not bringing it; a few different ones are offered each time). Step 2: bring something if you like. Then talk. Their tastes are not shown: watch how they react, and what you learn is kept for next time.`));
 
     // The tea.
-    const menu = teaMenu(teaNames(preset), teaKnown()[partner.name] || []);
+    const pool = teaNames(preset);
+    const known = teaKnown()[partner.name] || [];
+    const prefs = cardOf(partner.name)?.prefs;
+    /** A random handful, with one the guest likes always among them; marks only for what is already known. */
+    let menu = teaMenu(teaChoices(pool, prefs, { count: 8 }), known);
     let chosen = menu[0]?.name || '';
-    box.append(el('strong', 'snpc-act-label', `Choose a ${teaWord}`));
+    box.append(el('strong', 'snpc-act-label', `1. Choose a ${teaWord} to serve`));
     const chips = el('div', 'snpc-act-teachips');
     chips.setAttribute('role', 'radiogroup');
     chips.setAttribute('aria-label', `Choose a ${teaWord}`);
@@ -290,6 +299,16 @@ function showTeaSetup(activity) {
     };
     drawChips();
     box.append(chips);
+    const reroll = el('button', 'snpc-act-btn is-quiet', `Show other ${teaWord}s`);
+    reroll.type = 'button';
+    reroll.disabled = pool.length <= 8;
+    reroll.addEventListener('click', () => {
+        menu = teaMenu(teaChoices(pool, prefs, { count: 8 }), known);
+        chosen = menu[0]?.name || '';
+        drawChips();
+        start.disabled = !menu.length;
+    });
+    if (pool.length > 8) box.append(reroll);
     if (!menu.length) box.append(el('p', 'snpc-act-note is-small', `There is no ${teaWord} to choose from yet.`));
 
     // What to bring.
@@ -303,6 +322,7 @@ function showTeaSetup(activity) {
     rounds.append(new Option('Short (3 rounds)', '3'), new Option('Long (5 rounds)', '5'));
     rounds.value = String(s.teaRounds);
 
+    box.append(el('strong', 'snpc-act-label', '2. Bring something (optional)'));
     box.append(field('Bring', bring), field('Length', rounds));
     if (!s.teaLlm) box.append(el('p', 'snpc-act-note is-small', 'The model is switched off for Tea Time, so the guest uses built-in lines and the best grade is Good.'));
 
@@ -368,6 +388,7 @@ jQuery(() => {
     eventSource.on(event_types.CHAT_CHANGED, () => {
         // A new chat has other people in it: the window closes and the partner pick starts over.
         partnerName = '';
+        stopMusic();
         if (win?.isOpen()) win.close();
         renderActivitiesButton();
     });

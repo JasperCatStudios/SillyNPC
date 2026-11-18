@@ -9,7 +9,7 @@ import { addRecord, rivalryBlock } from '../../src/rivalry.js';
 import { giveItemFor, getInventory, databaseItems } from '../../src/inventory.js';
 import { vitalsStore } from '../../src/vitals.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
-import { normalizeKnownStore, mergeKnown } from '../../src/activity-tea-core.js';
+import { normalizeKnownStore, mergeKnown, teaPool } from '../../src/activity-tea-core.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';
 import { combatPrefs, activeCombatType, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
@@ -19,7 +19,7 @@ import { levelUpReport } from '../../src/combat-level.js';
 import { levelingSettings } from '../../src/leveling.js';
 import { editPerson, getPerson, bondSettings } from '../../src/bonds.js';
 import { likesPromptText } from '../../src/likes-core.js';
-import { playSound } from '../../src/sound-runtime.js';
+import { playSound, playLoop, stopLoops, setLoopVolume, loadSoundMap, loadMapAt } from '../../src/sound-runtime.js';
 import { sceneClock } from '../shim.js';
 import {
     normalizeActivitySettings, presetFor,
@@ -33,6 +33,7 @@ import {
     applyProfXp, unlocksFor, applyUnlocks, progressLine, recordPlay,
 } from '../../src/activity-progress-core.js';
 import { describeState } from '../../src/activity-memory-core.js';
+import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
 
 /**
  * Activities, the SillyTavern side (fork): settings, the chat's activity record, who can be a partner,
@@ -42,8 +43,6 @@ import { describeState } from '../../src/activity-memory-core.js';
 
 const STORE_KEY = 'sillynpc_activities';
 
-/** Built-in presets by id. Only Generic exists so far; the Fire Emblem preset arrives with its activities. */
-const BUILT_IN_PRESETS = {};
 
 export const userName = () => String(getContext()?.name1 || 'Player');
 
@@ -137,9 +136,42 @@ export function speakAsPlayer(text) {
     } catch { /* speech is optional */ }
 }
 
+/** The sound map the activities use: the one typed in the Activities pane, else the world preset's. '' means only the main map. */
+export function activeSoundMap() {
+    return activitySettings().soundMapUrl || activePreset().soundMap || '';
+}
+
+/**
+ * Starts the music loop (tea time) when music is on. It must follow a tap, because browsers refuse sound otherwise, so it is
+ * called from the button that starts the activity. A map without the tag, or no map, is silent.
+ */
+export function startMusic(tag) {
+    const s = activitySettings();
+    if (!s.musicOn || !tag) return;
+    Promise.resolve(playLoop(tag, { volume: s.musicVolume, mapUrl: activeSoundMap() })).catch(() => { });
+}
+
+/** Fades the music out. Safe to call when nothing plays. */
+export function stopMusic() {
+    try { stopLoops(); } catch { /* sound is optional */ }
+}
+
+/** Applies the music volume setting to music that is already playing. */
+export function refreshMusicVolume(tag) {
+    try { if (tag) setLoopVolume(tag, activitySettings().musicVolume); } catch { /* sound is optional */ }
+}
+
+/** Reads the sound map ahead of time, so the music can start at once from the tap that opens the activity. */
+export function preloadSounds() {
+    try {
+        Promise.resolve(loadSoundMap()).catch(() => { });
+        Promise.resolve(loadMapAt(activeSoundMap())).catch(() => { });
+    } catch { /* sound is optional */ }
+}
+
 /** Plays a sound by id; a missing map or tag is silent. */
 export function sfx(name) {
-    try { Promise.resolve(playSound(name)).catch(() => { }); } catch { /* sound is optional */ }
+    try { Promise.resolve(playSound(name, { mapUrl: activeSoundMap() })).catch(() => { }); } catch { /* sound is optional */ }
 }
 
 /* ------------------------------------------------------------------ talk */
@@ -306,7 +338,9 @@ export function teaNames(preset) {
     const want = String(preset?.tea?.category || 'Tea').toLowerCase();
     let names = [];
     try { names = databaseItems().filter(i => String(i.category).toLowerCase() === want).map(i => i.name); } catch { /* no database yet */ }
-    return names.length ? [...new Set(names)] : [...(preset?.tea?.fallback || [])];
+    // Every tea any character in the cast has a taste for is on the list too, so no guest's favourite is missing.
+    const cast = (getSettings().characters || []).map(c => c?.prefs);
+    return teaPool(names, cast, preset?.tea?.fallback || []);
 }
 
 /** What the player can bring to a guest: the items in their inventory in this chat. */

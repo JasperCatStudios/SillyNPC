@@ -36,6 +36,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     combatProfXpCap: 12,
     musicOn: true,
     musicVolume: 0.5,
+    soundMapUrl: '',              // a sound map just for activities (music and effects); '' uses the world preset's
     difficulty: 'normal',
     pairs: 8,                     // Study board size: 4, 8 or 12
     // Tea Time (see docs/TEA-TIME-DESIGN.md)
@@ -72,6 +73,7 @@ export function normalizeActivitySettings(raw) {
         combatProfXpPerUse: int(r.combatProfXpPerUse, 0, 50, d.combatProfXpPerUse),
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
+        soundMapUrl: text(r.soundMapUrl, 300),
         musicVolume: Math.min(1, Math.max(0, Number.isFinite(Number(r.musicVolume)) ? Number(r.musicVolume) : d.musicVolume)),
         difficulty: DIFFICULTY_IDS.includes(r.difficulty) ? r.difficulty : d.difficulty,
         pairs: [4, 8, 12].includes(Number(r.pairs)) ? Number(r.pairs) : d.pairs,
@@ -116,10 +118,11 @@ export const GENERIC_PRESET = Object.freeze({
     id: 'generic',
     name: 'Generic',
     world: '',
+    soundMap: '',
     activities: GENERIC_ACTIVITIES,
     study: Object.freeze({ runes: [], profs: ['reason'] }),
     potion: Object.freeze({ recipe: 'Herbal Tonic', failed: 'Murky Brew', names: {}, profs: [] }),
-    tea: Object.freeze({ category: 'Tea', fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
+    tea: Object.freeze({ category: 'Tea', music: 'activity_tea_music', fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
     classChange: Object.freeze({ mode: 'both', studyKnowledge: 100, rankGate: null }),
     terms: Object.freeze({ examinerRule: 'partner' }),
 });
@@ -162,6 +165,8 @@ export function normalizePreset(raw, idHint = '') {
         id,
         name: text(r.name, 60) || id,
         world: text(r.world, 60),
+        // The address of a sound map for this world's activities (kept in the user's own folder, never in a public pack).
+        soundMap: text(r.soundMap, 300),
         activities,
         study: {
             runes: (Array.isArray(study.runes) ? study.runes : []).map(v => text(v, 4)).filter(Boolean).slice(0, 12),
@@ -175,6 +180,8 @@ export function normalizePreset(raw, idHint = '') {
         },
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
+            // The sound-map name of the tea music loop. Empty means none; a map without it plays nothing.
+            music: obj(r.tea).music === undefined ? 'activity_tea_music' : text(obj(r.tea).music, 60),
             fallback: (Array.isArray(obj(r.tea).fallback) && r.tea.fallback.length ? r.tea.fallback : ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai']).map(v => text(v, 40)).filter(Boolean).slice(0, 30),
         },
         classChange: {
