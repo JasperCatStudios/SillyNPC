@@ -4,6 +4,7 @@ import { pickLorebookInto } from './ui-lorebook-section.js';
 import { buildInventoryCard, inventoryAvailable, NO_CHAT_HINT } from './ui-inventory-card.js';
 import { buildIdentityCard } from './ui-identity.js';
 import { buildKnivesCard } from './ui-knives.js';
+import { buildLikesCard } from './ui-profile-likes.js';
 
 /**
  * The profile page's tab row (fork): Combat, Equipment, Voice and Visual Prompt, and above it
@@ -22,6 +23,7 @@ export const PROFILE_TABS = Object.freeze([
     ['equipment', 'Equipment', 'fa-shield-halved', 'Weapons and tools.'],
     ['knives', 'Knives', 'sillynpc-icon-dagger', 'Story twists this character can bring into the story.'],
     ['inventory', 'Inventory', 'fa-bag-shopping', 'What they carry, and their money.'],
+    ['likes', 'Likes', 'fa-mug-hot', 'What they like and dislike: teas, foods, activities, gifts and topics.'],
     ['identity', 'Identity', 'fa-mask', 'A secret identity: link this card to another one they secretly are.'],
     ['visual', 'Visual Prompt', 'fa-image', 'Picture prompts for this character.'],
 ]);
@@ -117,6 +119,7 @@ export function buildProfileTabs(char, options = {}) {
             else if (current === 'equipment') renderCombatSection(char, host, { parts: 'gear', onChange: redraw });
             else if (current === 'inventory') host.append(buildInventoryCard(char));
             else if (current === 'knives') host.append(buildKnivesCard(char));
+            else if (current === 'likes') host.append(buildLikesCard(char));
             else if (current === 'identity') host.append(buildIdentityCard(char));
             else renderCharacterExtras(char, host, { part: 'visual' });
         } catch (err) {

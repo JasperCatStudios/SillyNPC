@@ -7,6 +7,7 @@ import { loadWorldInfo } from '../../../../world-info.js';
 import { debugLog } from './constants.js';
 import { portableCombat, normalizeCombatBlock } from './combat-store.js';
 import { normalizeKnives } from './knives-core.js';
+import { prefsForExport, prefsFromRecord } from './likes-core.js';
 
 /**
  * Sending one character to somebody else, and taking one in.
@@ -94,6 +95,8 @@ export async function serialiseCharacter(char) {
         // exported before this still imports with its portraits: see restoreImages.
         // Knives: plain story-twist text, with the used flags left behind (a pack starts fresh).
         knives: normalizeKnives(char.knives).map(k => ({ text: k.text, ...(k.theme ? { theme: k.theme } : {}) })),
+        // Likes and dislikes, only when there are any (a card without them is sent without the field).
+        ...prefsForExport(char.prefs),
         // The combat sheets under every world type, so a shared cast can fight at once.
         combat: portableCombat(char.combat),
         lore: await readLoreEntry(char),
@@ -194,6 +197,11 @@ function applyRecord(char, record, name) {
     // Knives, when the file has them (an overwrite replaces the card's list; a file without them leaves it alone).
     if (Array.isArray(record.knives)) char.knives = normalizeKnives(record.knives.map(k => ({ text: k?.text, theme: k?.theme, used: false })));
     else if (!Array.isArray(char.knives)) char.knives = [];
+
+    // Likes and dislikes, when the file has them. A file without them leaves the card's own alone.
+    const likes = prefsFromRecord(record);
+    if (likes.action === 'set') char.prefs = likes.prefs;
+    else if (likes.action === 'clear') delete char.prefs;
 
     // Combat sheets, when the file has them. A file without them leaves the card as it was.
     if (record.combat && typeof record.combat === 'object') char.combat = normalizeCombatBlock(record.combat);
