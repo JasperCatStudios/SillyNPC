@@ -266,3 +266,33 @@ export function progressLine({ name, type, rankUps = [], learned = [] }) {
     const joined = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
     return `${name} ${joined}.`;
 }
+
+/* ------------------------------------------------------------------ play history on a card */
+
+const GRADE_ORDER = ['poor', 'fair', 'good', 'perfect'];
+
+/**
+ * Adds one play to a card's `actStats`: { <activityId>: { plays, best, knowledge? } }. Returns a new object;
+ * what it is given is not changed. `best` is the best grade reached.
+ */
+export function recordPlay(actStats, activityId, grade, knowledge = 0) {
+    const out = { ...obj(actStats) };
+    const held = obj(out[activityId]);
+    const had = GRADE_ORDER.indexOf(held.best);
+    const now = GRADE_ORDER.indexOf(grade);
+    const entry = { plays: whole(held.plays, 0) + 1, best: now > had ? grade : (had >= 0 ? held.best : '') };
+    const k = whole(held.knowledge, 0) + whole(knowledge, 0);
+    if (k > 0 || held.knowledge !== undefined) entry.knowledge = k;
+    out[activityId] = entry;
+    return out;
+}
+
+/** The study knowledge a card has built up, 0 when none. */
+export const knowledgeOfCard = (actStats) => whole(obj(obj(actStats).study).knowledge, 0);
+
+/** Spends all of a card's study knowledge (a class change resets it to 0). Returns a new object. */
+export function resetKnowledge(actStats) {
+    const out = { ...obj(actStats) };
+    if (out.study) out.study = { ...obj(out.study), knowledge: 0 };
+    return out;
+}

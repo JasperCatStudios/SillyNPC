@@ -3615,6 +3615,7 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
     #rpg-buttons-container { flex-direction: column; gap: 10px; }
     #rpg-buttons-container > #rpg-game-btn,
     #rpg-buttons-container > #snpc-combat-btn,
+    #rpg-buttons-container > #snpc-activities-btn,
     #rpg-buttons-container > #rph-btn { width: 44px !important; height: 44px !important; font-size: 18px !important; }
     #rpg-game-modal {
         left: 2vw !important;

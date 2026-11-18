@@ -1,0 +1,191 @@
+/* ============================================================
+   ACTIVITIES (fork)
+   The same black frame as the Games and Combat windows (their dark block: #373532 / #1b1b1d, warm cream text, tan
+   borders), so the three look like one family. The floating button is the only thing with its own colour: green,
+   where Games is blue, Combat is red and the Phone is light blue.
+   ============================================================ */
+
+/* ---- Floating button (green; the others are blue, red and light blue) ---- */
+#snpc-activities-btn {
+    width: 50px;
+    height: 50px;
+    margin: 0;
+    background: linear-gradient(135deg, #1b5e44, #2fa57a);
+    border: 2px solid #6fd6ae;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 21px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+#snpc-activities-btn:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(111, 214, 174, 0.6); }
+#snpc-activities-btn:focus-visible { outline: 3px solid #ead4ae; outline-offset: 3px; }
+
+/* ---- The window ---- */
+.snpc-act {
+    position: fixed;
+    top: 8vh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 980px;
+    max-width: 96vw;
+    height: min(660px, 84vh);
+    z-index: 3001;
+    display: none;
+    flex-direction: column;
+    color: #eee7da;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: linear-gradient(145deg, #373532, #1b1b1d 45%, #252320);
+    border: 1px solid #b5a58d;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 3px #201f20, inset 0 0 0 4px #756c5e, 0 18px 48px #0009;
+    overflow: hidden;
+}
+.snpc-act.is-open { display: flex; }
+
+.snpc-act-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid #a4947d; flex: 0 0 auto;
+}
+.snpc-act-title { font-family: Georgia, serif; font-size: 1.25rem; color: #ede3d2; display: flex; align-items: center; gap: 8px; }
+.snpc-act-close {
+    min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: #e8d6b9; border: 1px solid transparent; border-radius: 6px; font-size: 1.2rem; cursor: pointer;
+}
+.snpc-act-close:hover { border-color: #a4947d; }
+
+.snpc-act-body { display: flex; gap: 12px; padding: 12px; flex: 1 1 auto; min-height: 0; }
+.snpc-act-main {
+    flex: 1 1 auto; min-width: 0; overflow: auto; padding: 12px;
+    border: 1px solid #a4947d; border-radius: 6px; background: linear-gradient(145deg, #34312e, #252426);
+    box-shadow: inset 0 1px 0 #ffffff20;
+}
+.snpc-act-side {
+    flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0;
+    padding: 10px; border: 1px solid #a4947d; border-radius: 6px; background: #252425;
+}
+.snpc-act[data-view="hub"] .snpc-act-side { display: none; }
+.snpc-act-side[hidden] { display: none; }
+
+/* ---- Partner and talk ---- */
+.snpc-act-partner { display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: 44px; }
+.snpc-act-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #b5a58d; background: #3a3733; flex: none; }
+.snpc-act-partner-name { color: #eee7da; font-weight: 600; overflow-wrap: anywhere; }
+.snpc-act-partner-sub { color: #c8bfb2; }
+.snpc-act-tabs { display: flex; gap: 4px; border-bottom: 1px solid #a4947d; padding-bottom: 6px; }
+.snpc-act-tab {
+    min-height: 36px; padding: 6px 12px; background: #292827; color: #eee7da; border: 1px solid #817562; border-radius: 4px; cursor: pointer;
+}
+.snpc-act-tab.is-active { background: #665340; border-color: #d4b98f; color: #fff4df; }
+.snpc-act-chat { flex: 1 1 auto; min-height: 90px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px; }
+.snpc-act-msg { padding: 6px 10px; border-radius: 8px; background: #49443d; color: #eee7da; overflow-wrap: anywhere; }
+.snpc-act-msg b { color: #ead5b1; }
+.snpc-act-msg.user { background: #54544d; align-self: flex-end; }
+.snpc-act-msg.system { background: transparent; color: #f0dfbc; font-style: italic; padding: 2px 4px; }
+.snpc-act-msg.is-typing { opacity: 0.7; }
+.snpc-act-chat[data-view="chat"] .snpc-act-msg.system,
+.snpc-act-chat[data-view="log"] .snpc-act-msg:not(.system) { display: none; }
+.snpc-act-input { display: flex; gap: 6px; }
+.snpc-act-field, .snpc-act-select {
+    min-height: 44px; padding: 6px 10px; color: #eee7da; background: #1f1e1f; border: 1px solid #a4947d; border-radius: 6px; font: inherit; min-width: 0;
+}
+.snpc-act-field { flex: 1; }
+.snpc-act-send {
+    min-width: 44px; min-height: 44px; color: #eee7da; background: linear-gradient(#504b43, #34312d); border: 1px solid #a4947d; border-radius: 6px; cursor: pointer;
+}
+
+/* ---- Buttons ---- */
+.snpc-act-btn {
+    min-height: 44px; padding: 8px 18px; color: #fff4df; background: linear-gradient(#2f7a5a, #1f5a42);
+    border: 1px solid #6fd6ae; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600;
+}
+.snpc-act-btn.is-quiet { color: #eee7da; background: linear-gradient(#504b43, #34312d); border-color: #a4947d; font-weight: 400; }
+.snpc-act-btn:hover { filter: brightness(1.12); }
+.snpc-act :is(button, select, input):focus-visible { outline: 2px solid #ead4ae; outline-offset: 2px; }
+.snpc-act-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ---- Hub ---- */
+.snpc-act-note { color: #e8dfd0; line-height: 1.45; margin: 4px 0 10px; }
+.snpc-act-note.is-small { font-size: 0.9em; color: #c8bfb2; }
+.snpc-act-who { margin-bottom: 10px; }
+.snpc-act-field-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.snpc-act-field-row > span { flex: 0 0 6.5em; color: #e8d6b9; }
+.snpc-act-field-row > select { flex: 1; }
+.snpc-act-hubtabs { display: flex; gap: 6px; border-bottom: 1px solid #a4947d; padding-bottom: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.snpc-act-hubtab {
+    min-height: 44px; padding: 8px 16px; background: #292827; color: #eee7da; border: 1px solid #817562; border-radius: 6px; cursor: pointer;
+}
+.snpc-act-hubtab.is-active { background: #665340; border-color: #d4b98f; color: #fff4df; }
+.snpc-act-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.snpc-act-tile-card {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; min-height: 96px; padding: 12px;
+    color: #eee7da; background: linear-gradient(145deg, #3b3834, #2a2927); border: 1px solid #a4947d; border-radius: 8px; cursor: pointer; font: inherit;
+}
+.snpc-act-tile-card i { font-size: 1.5rem; color: #6fd6ae; }
+.snpc-act-tile-card small { color: #c8bfb2; }
+.snpc-act-tile-card:hover { border-color: #d4b98f; }
+.snpc-act-tile-card.is-soon { opacity: 0.6; cursor: default; }
+.snpc-act-tile-card.is-soon i { color: #b5a58d; }
+
+/* ---- Study board ---- */
+.snpc-act-study { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.snpc-act-gauge { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+.snpc-act-pip { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #b5a58d; background: transparent; }
+.snpc-act-pip.is-on { background: #6fd6ae; border-color: #6fd6ae; }
+.snpc-act-grid {
+    display: grid; gap: 8px; grid-template-columns: repeat(var(--cols, 4), 1fr);
+    width: min(100%, calc((100dvh - 330px) * var(--cols, 4) / var(--rows, 4)));
+    min-width: 220px;
+}
+.snpc-act-tile {
+    aspect-ratio: 1 / 1; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    font-size: clamp(1.1rem, 3.2vw, 2rem); color: #fff4df; cursor: pointer;
+    background: linear-gradient(145deg, #4c4740, #2c2a28); border: 2px solid #8b7962; border-radius: 8px; padding: 0;
+    transition: transform 0.15s, background 0.15s;
+}
+.snpc-act-tile:hover:not(:disabled) { border-color: #d4b98f; }
+.snpc-act-tile.is-up { background: linear-gradient(145deg, #665340, #4a3c2e); border-color: #d4b98f; }
+.snpc-act-tile.is-matched { background: linear-gradient(145deg, #2f7a5a, #1f5a42); border-color: #6fd6ae; cursor: default; }
+/* A cursed rune is purple with a glow and a skull mark, so it reads at a glance and never by colour alone. */
+.snpc-act-tile { position: relative; }
+.snpc-act-tile.is-cursed {
+    background: linear-gradient(145deg, #6a2fb0, #3a1668);
+    border: 2px solid #d3a6ff;
+    color: #fff;
+    box-shadow: 0 0 0 2px #1b1b1d, 0 0 14px 3px rgba(185, 120, 255, 0.75);
+}
+.snpc-act-tile.is-cursed::after { content: "☠"; position: absolute; top: 3px; right: 6px; font-size: 0.9rem; color: #f1deff; }
+.snpc-act-grid.is-shuffled .snpc-act-tile { animation: snpc-act-shake 0.4s; }
+@keyframes snpc-act-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.snpc-act-status { min-height: 1.5em; color: #f0dfbc; text-align: center; }
+
+/* ---- Result ---- */
+.snpc-act-result { max-width: 460px; margin: 0 auto; text-align: center; }
+.snpc-act-result h3 { font-family: Georgia, serif; color: #ede3d2; margin: 4px 0 8px; }
+.snpc-act-grade { color: #f0dfbc; font-size: 1.05rem; }
+.snpc-act-result ul { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 4px; color: #e8dfd0; }
+.snpc-act-result .snpc-act-row { justify-content: center; }
+
+@media (prefers-reduced-motion: reduce) {
+    .snpc-act-grid.is-shuffled .snpc-act-tile { animation: none; }
+    .snpc-act-tile, #snpc-activities-btn { transition: none; }
+}
+
+/* ---- Phone: a sheet that fits the screen; the talk becomes a strip under the activity ---- */
+@media (max-width: 900px) {
+    .snpc-act {
+        top: 0; left: 0; right: 0; bottom: 0; transform: none; width: auto; max-width: none; height: 100vh; height: 100dvh;
+        border-radius: 0; padding-bottom: env(safe-area-inset-bottom);
+    }
+    /* The close button goes to the left, away from a floating button another extension keeps at the top right. */
+    .snpc-act-head { flex-direction: row-reverse; justify-content: flex-end; gap: 12px; padding: 8px 12px; }
+    .snpc-act-body { flex-direction: column; padding: 8px; gap: 8px; }
+    .snpc-act-main { flex: 1 1 auto; min-height: 0; padding: 8px; }
+    .snpc-act-side { flex: 0 0 34%; min-height: 150px; }
+    .snpc-act.is-chat-big .snpc-act-side { flex-basis: 66%; }
+    .snpc-act-grid { width: min(100%, calc((100dvh - 440px) * var(--cols, 4) / var(--rows, 4))); min-width: 200px; }
+    .snpc-act-field-row > span { flex-basis: 5em; }
+}

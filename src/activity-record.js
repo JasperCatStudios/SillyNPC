@@ -38,3 +38,17 @@ export function activityTalkEntry({ id, at = Date.now(), label, activity = '', o
         ...(OUTCOMES.includes(outcome) ? { outcome } : {}),
     };
 }
+
+const GRADE_WORDS = Object.freeze({ perfect: 'went perfectly', good: 'went well', fair: 'went fairly', poor: 'did not go well' });
+
+/**
+ * The story report for a finished activity, one short paragraph with no numbers and no game words, so the story
+ * model can mention it naturally. `extra` lines (a rank reached, something learned) are added as they are.
+ */
+export function activityReport({ label, user, partners, grade = 'fair', extra = [] }) {
+    const others = uniq(partners).filter(n => n !== user);
+    const list = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : (others[0] || 'someone');
+    const head = `[Activity report: ${label}]`;
+    const body = `${user} and ${list} spent time on ${label.toLowerCase()} together, and it ${GRADE_WORDS[grade] || GRADE_WORDS.fair}.`;
+    return [head, body, ...(extra || []).map(s => String(s).trim()).filter(Boolean)].join('\n');
+}

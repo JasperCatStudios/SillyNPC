@@ -1,0 +1,85 @@
+import { activitySettings, saveActivitySettings, activePreset } from './activities-runtime.js';
+
+/**
+ * The Activities tab in Modules (fork): the module's switches and the world preset. Written as the other
+ * module panes are: a row per setting, saved as it changes, nothing redrawn while typing. The connection the
+ * partner talks on is chosen under Connections, and what a finished activity sends to the story is the panel
+ * below this one.
+ */
+
+export const ACTIVITIES_CHANGED_EVENT = 'worldkit-activities-changed';
+
+const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+};
+
+export function renderActivitiesPane(pane, { makeSwitch } = {}) {
+    const s = activitySettings();
+    const changed = () => { saveActivitySettings(); window.dispatchEvent(new CustomEvent(ACTIVITIES_CHANGED_EVENT)); };
+
+    const row = (label, control, hint) => {
+        const wrap = el('div', 'sillynpc-setting-row');
+        const l = el('label', 'sillynpc-setting-label', hint ? `${label} ⓘ` : label);
+        if (hint) l.title = hint;
+        // The control sits in its own box. The settings CSS stretches any label that is a direct child of a row, which
+        // made the switches as wide as the pane; inside a box they keep their size, and selects get a sensible width.
+        const box = el('div', 'snpc-act-ctl');
+        box.style.cssText = 'flex: 0 0 auto; display: flex; justify-content: flex-end; max-width: 60%;';
+        if (control.tagName === 'SELECT') control.style.minWidth = '13em';
+        box.append(control);
+        wrap.append(l, box);
+        return wrap;
+    };
+    const toggle = (label, key, hint) => {
+        const sw = makeSwitch ? makeSwitch(Boolean(s[key]), (on) => { s[key] = on; changed(); }) : (() => {
+            const box = el('input');
+            box.type = 'checkbox';
+            box.checked = Boolean(s[key]);
+            box.addEventListener('change', () => { s[key] = box.checked; changed(); });
+            return box;
+        })();
+        return row(label, sw, hint);
+    };
+    const select = (key, options, hint, parse = (v) => v) => {
+        const sel = el('select', 'text_pole');
+        for (const [value, text] of options) sel.append(new Option(text, String(value)));
+        sel.value = String(s[key]);
+        sel.addEventListener('change', () => { s[key] = parse(sel.value); changed(); });
+        return sel;
+    };
+
+    pane.append(
+        toggle('Activities on', 'enabled', 'Turns the whole module off, including its button.'),
+        toggle('Show the button', 'buttonShown', 'Hides the green floating button but keeps the module on.'),
+        toggle('The partner talks', 'talkOn', 'Off means short built-in lines and no requests to a model.'),
+        toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),
+        toggle('Bond nudges', 'bondOn', 'A good session can warm a tracked bond a little, once a day per person and activity.'),
+        toggle('XP for skills used in fights', 'combatProfXp', 'Each fight adds XP to the skills the fighters used, so ranks grow from fighting too.'),
+    );
+    pane.append(
+        row('Study board', select('pairs', [[4, 'Small (4 pairs)'], [8, 'Medium (8 pairs)'], [12, 'Large (12 pairs)']], '', Number)),
+        row('Difficulty', select('difficulty', [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']])),
+    );
+
+    const messages = el('input', 'text_pole');
+    messages.type = 'number'; messages.min = '0'; messages.max = '30'; messages.style.width = '6em';
+    messages.value = String(s.contextMessages);
+    messages.addEventListener('change', () => { const v = Number(messages.value); if (Number.isFinite(v)) { s.contextMessages = Math.max(0, Math.min(30, Math.round(v))); changed(); } });
+    pane.append(row('Story messages sent', messages, 'How many recent chat messages the partner is shown when they talk.'));
+
+    // World preset.
+    const presetSel = el('select', 'text_pole');
+    presetSel.append(new Option('Pick by the active combat type', ''));
+    presetSel.append(new Option('Generic', 'generic'));
+    for (const p of Object.values(s.presets)) presetSel.append(new Option(p.name, p.id));
+    presetSel.value = s.presetId;
+    if (presetSel.value !== s.presetId) presetSel.value = '';
+    presetSel.addEventListener('change', () => { s.presetId = presetSel.value; changed(); note.textContent = noteText(); });
+    const note = el('small', 'notes');
+    const noteText = () => `In use now: ${activePreset().name}.`;
+    note.textContent = noteText();
+    pane.append(row('World preset', presetSel, 'A preset says which activities a world has and what they are called. With none, Generic is used.'), note);
+}

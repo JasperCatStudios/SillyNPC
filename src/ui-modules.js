@@ -47,6 +47,14 @@ export const MODULES = [
         render: true,
     },
     {
+        id: 'activities',
+        name: 'Activities',
+        icon: 'fa-seedling',
+        blurb: 'Things to do with a character: study together, and soon tea, cooking, fishing, gardening and training.',
+        // Drawn by modules/activities/activities.js through registerModulePane.
+        render: true,
+    },
+    {
         id: 'scene',
         name: 'Scene',
         icon: 'fa-map-location-dot',
@@ -59,7 +67,7 @@ export const MODULES = [
 
 /** Combat and Games send their result to the story like the phone sends its texts; the settings sit on their tab. */
 function addResultPanel(pane, mod) {
-    if (mod.id !== 'combat' && mod.id !== 'games') return;
+    if (mod.id !== 'combat' && mod.id !== 'games' && mod.id !== 'activities') return;
     try { pane.append(buildResultInjectionPanel(mod.id)); } catch (err) { console.warn('[Worldkit] result injection settings failed', err); }
     if (mod.id === 'combat') {
         try { pane.append(buildLevelingPanel(), buildResultInjectionPanel('levelup')); } catch (err) { console.warn('[Worldkit] leveling settings failed', err); }
