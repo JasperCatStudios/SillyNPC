@@ -10,7 +10,7 @@ import { sceneNames, sceneSet } from './scene-cast.js';
 import { charactersMentionedIn } from './mentions.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { registerInventoryCommands } from './inventory-commands.js';
-import { normalizeItemDatabase, allDbItems, allPresets, toInventoryItem, resolvePreset } from './item-database.js';
+import { normalizeItemDatabase, allDbItems, allPresets, toInventoryItem, resolvePreset, isLockedItem, dbItemNamed } from './item-database.js';
 import {
     normalizeInventorySettings, normalizeStore, findPerson, ensurePerson, applyTurn, revertTurn,
     setGold, giveItem, takeItem, editItem, removePerson, parseUpdate, buildMonitorPrompt, selectPeople, buildInjection,
@@ -107,7 +107,17 @@ export function removePersonFor(name) {
 export const setGoldFor = (name, value) => editInventory(name, (p) => { setGold(p, value); });
 export const giveItemFor = (name, item) => editInventory(name, (p) => { giveItem(p, item); });
 export const editItemFor = (name, oldName, item) => editInventory(name, (p) => { editItem(p, oldName, item); });
-export const takeItemFor =(name, itemName, qty) => editInventory(name, (p) => { takeItem(p, itemName, qty); });
+/**
+ * Takes an item away. A locked item (a certification seal) cannot be taken by hand: only the activity that
+ * awarded it spends it, and says so with { award: true }.
+ */
+export function takeItemFor(name, itemName, qty, { award = false } = {}) {
+    if (!award && isLockedItem(dbItemNamed(allDbItems(itemDatabase()), itemName))) {
+        toastr.info(`${itemName} is awarded by a professor and cannot be taken away by hand.`, PRODUCT_NAME);
+        return null;
+    }
+    return editInventory(name, (p) => { takeItem(p, itemName, qty); });
+}
 
 /* ---- the item database and presets ---------------------------------------------------- */
 
@@ -128,7 +138,11 @@ export const databaseItems = () => allDbItems(itemDatabase());
 export const databasePresets = () => allPresets(itemDatabase());
 
 /** Gives one database item, with its kind and note filled in from the database. */
-export function giveDbItemFor(name, dbItem, qty = 1) {
+export function giveDbItemFor(name, dbItem, qty = 1, { award = false } = {}) {
+    if (!award && isLockedItem(dbItem)) {
+        toastr.info(`${dbItem.name} is awarded by a professor for passing a certification exam. It cannot be given by hand.`, PRODUCT_NAME);
+        return null;
+    }
     return editInventory(name, (p) => { giveItem(p, toInventoryItem(dbItem, qty)); });
 }
 

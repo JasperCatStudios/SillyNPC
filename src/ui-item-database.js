@@ -89,18 +89,30 @@ function itemForm(onAdd) {
     const uses = box('Uses', '', 'number', '5em');
     const desc = box('Description'); desc.style.cssText = 'flex:3; min-width:10em;';
     price.min = '0'; uses.min = '1';
+    const tick = (text, title) => {
+        const label = el('label', 'checkbox_label');
+        label.title = title;
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        label.append(input, el('span', '', text));
+        return { label, input };
+    };
+    const locked = tick('Locked', 'Awarded only by an activity (a certification exam). Cannot be given or taken by hand.');
+    const illegal = tick('Illegal', 'Contraband in the story. The narrative sees the label; nothing stops you holding it.');
     const submit = () => {
-        const made = normalizeDbItem({ name: name.value, category: category.value, price: price.value, uses: uses.value, desc: desc.value });
+        const made = normalizeDbItem({ name: name.value, category: category.value, price: price.value, uses: uses.value, desc: desc.value, locked: locked.input.checked, illegal: illegal.input.checked });
         if (!made) { toastr.info('Give the item a name first.', PRODUCT_NAME); return; }
         onAdd(made);
     };
     for (const b of [name, category, price, uses, desc]) b.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
-    form.append(name, category, price, uses, desc, button('Add to the database', submit));
+    form.append(name, category, price, uses, desc, locked.label, illegal.label, button('Add to the database', submit));
     return form;
 }
 
 function itemSummary(item) {
     const bits = [];
+    if (item.locked) bits.push('🔒 awarded only (exam)');
+    if (item.illegal) bits.push('⚠ illegal');
     if (item.stats) bits.push(item.stats);
     if (item.price !== undefined) bits.push(`${item.price} gold`);
     if (item.sell !== undefined) bits.push(`sells ${item.sell}`);
@@ -207,7 +219,7 @@ export function renderItemDatabase(host, rerender) {
                 row.append(el('strong', '', item.name), el('small', 'notes', itemSummary(item)));
                 row.append(button('Give to me', () => {
                     if (giveDbItemFor(playerName(), item, 1)) toastr.success(`${item.name} added.`, PRODUCT_NAME);
-                }, { title: hasChat() ? `Gives one ${item.name} to ${playerName()} in this chat.` : NO_CHAT, disabled: !hasChat() }));
+                }, { title: item.locked ? 'Awarded by a professor for passing a certification exam: it cannot be given by hand.' : (hasChat() ? `Gives one ${item.name} to ${playerName()} in this chat.` : NO_CHAT), disabled: !hasChat() || item.locked === true }));
                 if (!item.builtIn) {
                     row.append(button('Delete', () => {
                         const db = itemDatabase();

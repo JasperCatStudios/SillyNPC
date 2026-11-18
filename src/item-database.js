@@ -26,8 +26,21 @@ export function normalizeDbItem(raw) {
     const grade = whole(raw?.grade, 0, 9); if (grade !== null) item.grade = grade;
     const stats = line(raw?.stats, 80); if (stats) item.stats = stats;
     const owner = line(raw?.owner, 40); if (owner) item.owner = owner;
+    // Locked: only ever handed out by an activity (a certification exam), never given or taken by hand.
+    if (raw?.locked === true) item.locked = true;
+    // Illegal: contraband in the story. A label the narrative sees; nothing in the code stops anyone holding it.
+    if (raw?.illegal === true) item.illegal = true;
     item.desc = line(raw?.desc, 400);
     return item;
+}
+
+/** True when the item may only be awarded by an activity, never given or taken by hand. */
+export const isLockedItem = (item) => item?.locked === true;
+
+/** The database item with this name (case-insensitive, exact), or null. */
+export function dbItemNamed(items, name) {
+    const want = String(name ?? '').trim().toLowerCase();
+    return want ? (items || []).find(i => String(i.name).toLowerCase() === want) || null : null;
 }
 
 /** One preset: a name, an optional gold amount, and items by id or by name. */
@@ -150,6 +163,7 @@ export function findPreset(presets, typed) {
 /** The inventory item (name, qty, kind, note) a database item becomes. The note carries its stats and description. */
 export function toInventoryItem(dbItem, qty = 1) {
     const bits = [];
+    if (dbItem.illegal) bits.push('Illegal');
     if (dbItem.stats) bits.push(dbItem.stats);
     if (dbItem.desc) bits.push(dbItem.desc);
     return { name: dbItem.name, qty, kind: dbItem.category || '', note: line(bits.join('. '), 120) };
@@ -164,7 +178,7 @@ export function resolvePreset(preset, dbItems) {
     const items = (preset?.items || []).map((entry) => {
         const found = findDbItem(dbItems, entry.ref);
         return found ? toInventoryItem(found, entry.qty) : { name: line(entry.ref, 60), qty: entry.qty, kind: '', note: '' };
-    });
+    }).filter(item => !isLockedItem(dbItemNamed(dbItems, item.name))); // a preset never hands out a locked item
     return { items, gold: Number(preset?.gold) || 0 };
 }
 

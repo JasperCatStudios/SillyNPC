@@ -6,7 +6,7 @@ import {
     inventorySettings, inventoryStore, editInventory, playerName, getInventory, databaseItems, databasePresets, givePresetFor,
 } from './inventory.js';
 import { giveItem, takeItem, setGold, clean } from './inventory-core.js';
-import { toInventoryItem, findPreset } from './item-database.js';
+import { toInventoryItem, findPreset, isLockedItem, dbItemNamed } from './item-database.js';
 
 /**
  * Slash commands that change an inventory by hand, by character name:
@@ -53,6 +53,7 @@ function addItemCommand(args, value) {
     const name = who(args);
     // An exact match in the Item Database fills in the kind and note unless they were typed.
     const known = databaseItems().find(i => i.name.toLowerCase() === itemName.toLowerCase());
+    if (isLockedItem(known)) throw new Error(`${known.name} is awarded by a professor for passing a certification exam. It cannot be added by hand.`);
     const fromDb = known ? toInventoryItem(known, amount) : null;
     const given = editInventory(name, (p) => {
         giveItem(p, {
@@ -93,6 +94,7 @@ function removeItemCommand(args, value) {
         const have = items.map(i => i.name).join(', ');
         throw new Error(`${name} has no "${stripWrapping(value)}".${have ? ` They have: ${have}.` : ' They carry nothing.'}`);
     }
+    if (isLockedItem(dbItemNamed(databaseItems(), before.name))) throw new Error(`${before.name} is awarded by a professor and cannot be removed by hand.`);
     editInventory(name, (p) => { takeItem(p, before.name, amount === Infinity ? null : amount, { why: 'command' }); });
     const left = getInventory(name)?.items.find(i => i.name === before.name);
     return left ? `${name} now has ${left.name} x${left.qty}.` : `${name} no longer has ${before.name}.`;
