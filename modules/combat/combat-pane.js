@@ -387,7 +387,7 @@ function renderRoster(host, rerender) {
             tr.append(td);
         }
         for (const m of type.meta) {
-            const v = data.meta[m.id];
+            const v = m.id === 'class' && data.meta.classCustom ? data.meta.classCustom : data.meta[m.id];
             const td = el('td', v === undefined ? 'is-blank' : '', v === undefined ? '-' : String(v));
             makeEditable(td, { record, type, kind: 'meta', id: m.id, legacy, rerender });
             tr.append(td);

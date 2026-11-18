@@ -238,6 +238,8 @@ function renderType(record, type, rerender, options) {
             row.append(field(m.label, input));
         }
         body.append(row);
+        // A class set by a class change can be free text; it is shown here and the pick list above is left alone.
+        if (data.meta.classCustom) body.append(el('small', 'notes', `Current class: ${data.meta.classCustom}`));
     }
 
     // Level and experience: the rules are set under Modules, Combat, Leveling.

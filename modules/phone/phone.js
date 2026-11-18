@@ -1449,7 +1449,7 @@ async function callComfy(prompt, ref, extras = {}) {
         let entry = null;
         while (Date.now() - t0 < limit) {
             await new Promise((res, rej) => {
-                const tm = setTimeout(res, 1000);
+                const tm = setTimeout(res, 300);
                 sig.addEventListener('abort', () => { clearTimeout(tm); rej(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true });
             });
             let hr;

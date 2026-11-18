@@ -44,6 +44,9 @@ function log(data, target, from, to, at) {
     if (data.history.length > HISTORY_CAP) data.history.splice(0, data.history.length - HISTORY_CAP);
 }
 
+/** Writes one edit to a type's history (the progress core uses it for rank and unlock changes). */
+export const logEdit = log;
+
 const blank = (v) => v === '' || v === null || v === undefined;
 
 /**

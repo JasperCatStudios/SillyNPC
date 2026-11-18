@@ -71,6 +71,8 @@ function normalizeTypeData(raw) {
     const style = normalizeStyle(d.style);
     if (style) out.style = style;
     out.abilities = Array.isArray(d.abilities) ? [...new Set(d.abilities.map(String))] : [];
+    // Abilities reached through proficiency ranks; absent until one is (see activity-progress-core.js).
+    if (Array.isArray(d.unlocked) && d.unlocked.length) out.unlocked = [...new Set(d.unlocked.map(String))];
     return out;
 }
 

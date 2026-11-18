@@ -6,6 +6,7 @@ import { ensureButtonRow } from '../../src/floating-buttons.js';
 import { getPlayerCard } from '../../src/status-logic.js';
 import { hasTypeData, getTypeData } from '../../src/combat-store.js';
 import { setStatus, addXp } from '../../src/combat-edit.js';
+import { profUsesFromLog, passiveProfsFor, combatProfXp, applyProfXp, unlocksFor, applyUnlocks, progressLine, PROF_XP_DEFAULTS } from '../../src/activity-progress-core.js';
 import { renderLoadoutPicker } from '../../src/ui-gear.js';
 import { levelUpReport, xpForFight } from '../../src/combat-level.js';
 import { levelingSettings } from '../../src/leveling.js';
@@ -169,13 +170,47 @@ function awardXp() {
     }
 }
 
+/**
+ * Proficiency XP from the fight (Activities module): each fighter's uses of a proficiency, counted from the log,
+ * capped per proficiency, the losing side at half. A rank-up can unlock abilities. Runs once, right after the level XP.
+ */
+function awardProfXp() {
+    const { state, type } = session;
+    const cfg = getSettings().activities || {};
+    if (cfg.combatProfXp === false) return;
+    const rules = { perUse: cfg.combatProfXpPerUse ?? PROF_XP_DEFAULTS.perUse, cap: cfg.combatProfXpCap ?? PROF_XP_DEFAULTS.cap };
+    const uses = profUsesFromLog(state.log);
+    const lines = [];
+    session.profXp = [];
+    for (const fighter of Object.values(state.fighters)) {
+        const record = session.records.get(fighter.id);
+        if (!record || !hasTypeData(record, type.dataKey)) continue;
+        const won = !state.over || state.over.loser !== fighter.side;
+        const xp = combatProfXp(uses[fighter.id], passiveProfsFor(getTypeData(record, type.dataKey), type), { won }, rules);
+        const rankUps = [];
+        for (const [profId, gain] of Object.entries(xp)) {
+            const res = applyProfXp(record, type, profId, gain);
+            if (res.ok) rankUps.push(...res.rankUps);
+        }
+        if (!Object.keys(xp).length) continue;
+        const labelOf = (id) => (type.proficiencies || []).find(p => p.id === id)?.label || id;
+        session.profXp.push(`${fighter.name}: ${Object.entries(xp).map(([id, g]) => `+${g} ${labelOf(id)}`).join(', ')}${rankUps.length ? ` (${rankUps.map(r => `${labelOf(r.prof)} ${r.to}`).join(', ')})` : ''}`);
+        const learned = rankUps.length ? applyUnlocks(record, type, unlocksFor(getTypeData(record, type.dataKey), type)).added : [];
+        const line = progressLine({ name: fighter.name, type, rankUps, learned });
+        if (line) lines.push(line);
+    }
+    saveSettings();
+    if (lines.length) queueResult('activities', lines.join(' ').replace(/\|/g, '/').replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }'), { append: true });
+}
+
 /** Who has levelled since the last reply carried the level-up report (so several fights make one listing). */
 let waitingUps = new Map();
 
 function xpLines() {
-    return (session?.xp || []).map(x => (x.none
+    const level = (session?.xp || []).map(x => (x.none
         ? `${x.name}: no combat sheet, so no XP kept.`
         : `${x.name}: +${x.gained} XP${x.levelsGained ? `, level ${x.level}!` : ''}`));
+    return [...level, ...(session?.profXp || [])];
 }
 
 /*
@@ -199,6 +234,7 @@ function persistAll() {
     if (!session?.state.over || session.saved) return;
     session.saved = true;
     awardXp();
+    awardProfXp();
     recordFight();
     keepTalk();
     for (const fighter of Object.values(session.state.fighters)) {

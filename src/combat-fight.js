@@ -739,6 +739,7 @@ export function takeTurn(type, state, actionKey, targetId) {
         if (action.form) actor.form = { ...action.form };
         events.push({
             actor: actor.id, target: actor.id, action: action.key, label: action.label, ability: true,
+            ...(action.prof ? { prof: action.prof } : {}),
             healed, braced: block > 0 ? block : 0, ...(evade > 0 ? { evading: evade } : {}), pool: 'health', band: '', taken: 0, down: false,
             ...(action.form ? { form: action.form.label } : {}),
         });
@@ -810,6 +811,7 @@ export function takeTurn(type, state, actionKey, targetId) {
         }
         events.push({
             actor: actor.id, target: target.id, action: action.key, label: off ? off.name : action.label,
+            ...(action.prof ? { prof: action.prof } : {}),
             // A weapon attack is already named after the weapon; other actions keep the weapon beside them.
             weapon: actor.weaponName || '', follow, band: result.band,
             ...(action.weapon ? { tier: actor.loadout.main.tierLabel } : {}),
@@ -833,6 +835,7 @@ export function takeTurn(type, state, actionKey, targetId) {
                 const hitBack = applyDamage(actor, dealt, state.mode);
                 events.push({
                     actor: target.id, target: actor.id, action: back.key, label: 'Riposte', counter: true, riposte: true,
+                    ...(back.prof ? { prof: back.prof } : {}),
                     weapon: target.weaponName || '', follow: false, band: r.band, total: r.total, natural: r.natural,
                     damage: dealt, advantage: [], pool: hitBack.pool, taken: hitBack.taken, down: hitBack.down,
                     passives: [], blocked: 0, healed: 0, drained: 0,
@@ -853,6 +856,7 @@ export function takeTurn(type, state, actionKey, targetId) {
                 const hitBack = applyDamage(actor, dealt, state.mode);
                 events.push({
                     actor: target.id, target: actor.id, action: back.key, label: ab.label, counter: true,
+                    ...(back.prof ? { prof: back.prof } : {}),
                     weapon: back.weapon ? '' : (target.weaponName || ''), follow: false, band: r.band, total: r.total, natural: r.natural,
                     damage: dealt, advantage: [], pool: hitBack.pool, taken: hitBack.taken, down: hitBack.down,
                     passives: [], blocked: 0, healed: 0, drained: 0,
