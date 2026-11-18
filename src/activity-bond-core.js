@@ -1,4 +1,5 @@
 import { clampGrowth, syncValue, METERS } from './bonds-core.js';
+import { normalizeStreaks } from './activity-streak-core.js';
 
 /**
  * How an activity touches a bond, and the once-a-day rule (fork): the rules, without the I/O.
@@ -33,7 +34,8 @@ export function normalizeActivityStore(raw) {
             if (name && list.length) daily[key][name] = list;
         }
     }
-    return { version: STORE_VERSION, daily, open: null };
+    // How many days in a row each activity has been done (see activity-streak-core.js).
+    return { version: STORE_VERSION, daily, streaks: normalizeStreaks(r.streaks), open: null };
 }
 
 /**

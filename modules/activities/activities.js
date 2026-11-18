@@ -9,10 +9,10 @@ import { runStudy } from './games/memory-ui.js';
 import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
-import { teaMenu, teaChoices } from '../../src/activity-tea-core.js';
+import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../../src/activity-tea-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    teaNames, teaKnown, bringChoices, stopMusic, preloadSounds,
+    teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt,
 } from './activities-runtime.js';
 
 /**
@@ -118,6 +118,17 @@ function showHub() {
             tile.append(el('i', `fa-solid ${a.icon}`));
             tile.append(el('strong', '', a.label));
             tile.append(el('small', '', a.soon ? 'Coming soon' : (a.blurb || '')));
+            if (!a.soon) {
+                const info = activityStreakInfo(a, partnerName);
+                if (info.text || info.bonus) {
+                    const streak = el('small', 'snpc-act-streak');
+                    streak.append(el('i', 'fa-solid fa-fire'));
+                    const bits = [info.run > 0 ? `${info.text}` : info.text];
+                    if (info.bonus) bits.push(`${info.doneToday ? 'Bonus today' : 'Bonus if you play today'}: +${info.bonus}% skill XP`);
+                    streak.append(document.createTextNode(` ${bits.filter(Boolean).join(' · ')}`));
+                    tile.append(streak);
+                }
+            }
             tile.addEventListener('click', () => {
                 if (a.soon) { toast('info', `${a.label} is coming soon.`); return; }
                 if (a.kind === 'memory') showStudySetup(a);
@@ -141,6 +152,19 @@ function showHub() {
     draw();
 }
 
+/** The streak line on a setup screen: days in a row with this partner, and the skill XP bonus a play earns today. */
+function streakNote(activity, partner) {
+    const info = activityStreakInfo(activity, partner.name);
+    const parts = [];
+    if (info.withText) parts.push(`With ${partner.name}: ${info.withText}`);
+    else if (info.text) parts.push(`Overall: ${info.text}`);
+    if (info.bonus) parts.push(`skill XP bonus today: +${info.bonus}%`);
+    if (!parts.length) return null;
+    const note = el('p', 'snpc-act-streak-note');
+    note.append(el('i', 'fa-solid fa-fire'), document.createTextNode(` ${parts.join(' · ')}`));
+    return note;
+}
+
 function showStudySetup(activity) {
     stopMusic();
     const w = ensureWindow();
@@ -152,6 +176,7 @@ function showStudySetup(activity) {
     w.setTitle(activity.label, activity.icon || 'fa-book-open');
 
     const box = el('div', 'snpc-act-setup');
+    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
     box.append(el('p', 'snpc-act-note',
         `${activity.label} with ${partner.name}. Match the runes in pairs. A cursed rune that turns up shuffles the board when you miss, `
         + `and every miss costs concentration. What you learn counts as ${term(preset, 'knowledge').toLowerCase()} toward a ${term(preset, 'classWord').toLowerCase()} change.`));
@@ -213,6 +238,7 @@ function showPotionSetup(activity) {
     w.setTitle(activity.label, activity.icon || 'fa-flask');
 
     const box = el('div', 'snpc-act-setup');
+    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
     box.append(el('p', 'snpc-act-note',
         `${activity.label} with ${partner.name}. A recipe of four ingredients is hidden. Try combinations and read the answers (how many are right, and how many are in the right place) to work it out before you run out of tries.`));
 
@@ -252,7 +278,7 @@ function showPotionSetup(activity) {
     start.focus();
 }
 
-/** Tea Time: choose the tea (marked when you already know their taste), optionally bring one thing, then start. */
+/** Tea Time: pick a tea and, if you like, a snack from a random spread on a table (hover to highlight), then start. */
 function showTeaSetup(activity) {
     stopMusic();
     preloadSounds();
@@ -266,77 +292,120 @@ function showTeaSetup(activity) {
     const teaWord = term(preset, 'tea');
 
     const box = el('div', 'snpc-act-setup');
+    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
     box.append(el('p', 'snpc-act-note',
-        `${activity.label} with ${partner.name}. Step 1: choose a ${teaWord} to serve (you are not bringing it; a few different ones are offered each time). Step 2: bring something if you like. Then talk. Their tastes are not shown: watch how they react, and what you learn is kept for next time.`));
+        `${activity.label} with ${partner.name}. Choose a ${teaWord} to serve, and a snack if you like. A different spread is laid out each time. Their tastes are not shown: watch how they react, and what you learn is kept for next time.`));
 
-    // The tea.
-    const pool = teaNames(preset);
+    const teaPool = teaNames(preset);
+    const foodPool = snackNames(preset);
     const known = teaKnown()[partner.name] || [];
     const prefs = cardOf(partner.name)?.prefs;
-    /** A random handful, with one the guest likes always among them; marks only for what is already known. */
-    let menu = teaMenu(teaChoices(pool, prefs, { count: 8 }), known);
-    let chosen = menu[0]?.name || '';
-    box.append(el('strong', 'snpc-act-label', `1. Choose a ${teaWord} to serve`));
-    const chips = el('div', 'snpc-act-teachips');
-    chips.setAttribute('role', 'radiogroup');
-    chips.setAttribute('aria-label', `Choose a ${teaWord}`);
-    const drawChips = () => {
-        chips.replaceChildren();
-        for (const t of menu) {
-            const b = el('button', `snpc-act-teachip${t.name === chosen ? ' is-chosen' : ''}`);
-            b.type = 'button';
-            b.setAttribute('role', 'radio');
-            b.setAttribute('aria-checked', String(t.name === chosen));
-            b.append(document.createTextNode(t.name));
-            if (t.mark) {
-                const mark = el('small', 'snpc-act-teamark', t.mark === 'like' ? 'Likes' : 'Dislikes');
-                mark.prepend(el('i', `fa-solid ${t.mark === 'like' ? 'fa-heart' : 'fa-heart-crack'}`), document.createTextNode(' '));
-                b.append(mark);
-            }
-            b.addEventListener('click', () => { chosen = t.name; drawChips(); });
-            chips.append(b);
-        }
+    const sameName = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+    const markOf = (cat, name) => {
+        const hit = known.find(k => k.cat === cat && sameName(k.value, name));
+        return hit ? (hit.side === 'likes' ? 'like' : 'dislike') : null;
     };
-    drawChips();
-    box.append(chips);
-    const reroll = el('button', 'snpc-act-btn is-quiet', `Show other ${teaWord}s`);
-    reroll.type = 'button';
-    reroll.disabled = pool.length <= 8;
-    reroll.addEventListener('click', () => {
-        menu = teaMenu(teaChoices(pool, prefs, { count: 8 }), known);
-        chosen = menu[0]?.name || '';
-        drawChips();
-        start.disabled = !menu.length;
-    });
-    if (pool.length > 8) box.append(reroll);
-    if (!menu.length) box.append(el('p', 'snpc-act-note is-small', `There is no ${teaWord} to choose from yet.`));
 
-    // What to bring.
+    let teas = [];
+    let snacks = [];
+    let chosenTea = '';
+    let chosenSnack = '';
+    const deal = () => {
+        teas = teaMenu(teaChoices(teaPool, prefs, { count: 8 }), known);
+        snacks = snackChoices(foodPool, prefs, { count: 4 }).map(name => ({ name, mark: markOf('food', name) }));
+        chosenTea = teas[0]?.name || '';
+        chosenSnack = '';
+    };
+    deal();
+
+    // The table: the picture, with the items laid on it.
+    const wrap = el('div', 'snpc-act-tablewrap');
+    const tabletop = el('img', 'snpc-act-tabletop');
+    tabletop.alt = '';
+    tabletop.draggable = false;
+    loadArt(tabletop, 'tabletop.webp', () => { tabletop.remove(); wrap.classList.add('is-plain'); });
+    wrap.append(tabletop);
+    const overlay = el('div', 'snpc-act-tableoverlay');
+    const teaBox = el('div', 'snpc-act-teas');
+    teaBox.setAttribute('role', 'radiogroup');
+    teaBox.setAttribute('aria-label', `Choose a ${teaWord}`);
+    const snackBox = el('div', 'snpc-act-snacks');
+    snackBox.setAttribute('role', 'group');
+    snackBox.setAttribute('aria-label', 'Choose a snack (optional)');
+    overlay.append(teaBox, snackBox);
+    wrap.append(overlay);
+
+    const item = ({ name, mark, chosen, kind, onPick }) => {
+        const b = el('button', `snpc-act-tableitem${chosen ? ' is-chosen' : ''}`);
+        b.type = 'button';
+        if (kind === 'tea') { b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(chosen)); } else b.setAttribute('aria-pressed', String(chosen));
+        const sprite = kind === 'tea' ? teaSprite(name) : snackSprite(name);
+        const img = el('img', 'snpc-act-sprite');
+        img.alt = '';
+        img.draggable = false;
+        loadArt(img, `${kind === 'tea' ? 'teas' : 'snacks'}/${sprite}.webp`, () => {
+            const icon = el('i', `fa-solid ${kind === 'tea' ? 'fa-mug-hot' : 'fa-cookie-bite'} snpc-act-sprite-icon`);
+            img.replaceWith(icon);
+        });
+        b.append(img, el('span', 'snpc-act-itemname', name));
+        if (mark) {
+            const badge = el('span', 'snpc-act-itemmark');
+            badge.append(el('i', `fa-solid ${mark === 'like' ? 'fa-heart' : 'fa-heart-crack'}`));
+            b.append(badge);
+        }
+        if (chosen) { const tick = el('span', 'snpc-act-itemcheck'); tick.append(el('i', 'fa-solid fa-check')); b.append(tick); }
+        const words = [name];
+        if (mark) words.push(`you know they ${mark === 'like' ? 'like' : 'dislike'} this`);
+        if (chosen) words.push('chosen');
+        b.setAttribute('aria-label', words.join(', '));
+        b.title = name;
+        b.addEventListener('click', onPick);
+        return b;
+    };
+
+    // What to bring from the pack.
     const bring = el('select', 'snpc-act-select');
-    bring.setAttribute('aria-label', 'Bring something');
-    bring.append(new Option('Nothing', ''));
-    for (const item of bringChoices()) bring.append(new Option(item.qty > 1 ? `${item.name} (x${item.qty})` : item.name, item.name));
+    bring.setAttribute('aria-label', 'Bring something from your pack');
+    bring.append(new Option('Nothing from my pack', ''));
+    for (const it of bringChoices()) bring.append(new Option(it.qty > 1 ? `${it.name} (x${it.qty})` : it.name, it.name));
+    bring.addEventListener('change', () => { if (bring.value) { chosenSnack = ''; draw(); } });
+
+    const draw = () => {
+        teaBox.replaceChildren(...teas.map(t => item({
+            name: t.name, mark: t.mark, chosen: t.name === chosenTea, kind: 'tea', onPick: () => { chosenTea = t.name; draw(); },
+        })));
+        snackBox.replaceChildren(...snacks.map(sn => item({
+            name: sn.name, mark: sn.mark, chosen: sn.name === chosenSnack, kind: 'snack',
+            onPick: () => { chosenSnack = chosenSnack === sn.name ? '' : sn.name; if (chosenSnack) bring.value = ''; draw(); },
+        })));
+        start.disabled = !teas.length;
+    };
+
+    box.append(wrap);
+    const reroll = el('button', 'snpc-act-btn is-quiet', 'Lay out a different spread');
+    reroll.type = 'button';
+    reroll.disabled = teaPool.length <= 8 && foodPool.length <= 4;
+    reroll.addEventListener('click', () => { deal(); draw(); });
+    box.append(reroll);
 
     const rounds = el('select', 'snpc-act-select');
     rounds.setAttribute('aria-label', 'Rounds');
     rounds.append(new Option('Short (3 rounds)', '3'), new Option('Long (5 rounds)', '5'));
     rounds.value = String(s.teaRounds);
-
-    box.append(el('strong', 'snpc-act-label', '2. Bring something (optional)'));
-    box.append(field('Bring', bring), field('Length', rounds));
+    box.append(field('Or bring', bring), field('Length', rounds));
     if (!s.teaLlm) box.append(el('p', 'snpc-act-note is-small', 'The model is switched off for Tea Time, so the guest uses built-in lines and the best grade is Good.'));
 
     const row = el('div', 'snpc-act-row');
     const start = el('button', 'snpc-act-btn', 'Pour');
     start.type = 'button';
-    start.disabled = !menu.length;
     start.addEventListener('click', () => {
         s.teaRounds = Number(rounds.value) === 5 ? 5 : 3;
         saveActivitySettings();
         w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', `Sharing a ${teaWord}`);
         w.userName = userName();
+        const brought = chosenSnack ? { kind: 'food', name: chosenSnack } : (bring.value ? { name: bring.value } : null);
         runTea(w, {
-            partner: partner.name, label: activity.label, preset, tea: chosen, bring: bring.value ? { name: bring.value } : null,
+            partner: partner.name, label: activity.label, preset, tea: chosenTea, bring: brought,
             onLeave: () => showHub(), onAgain: () => showTeaSetup(activity),
         });
     });
@@ -345,6 +414,7 @@ function showTeaSetup(activity) {
     back.addEventListener('click', showHub);
     row.append(start, back);
     box.append(row);
+    draw();
     w.main.replaceChildren(box);
     start.focus();
 }

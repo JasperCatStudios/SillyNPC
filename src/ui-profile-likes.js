@@ -194,7 +194,40 @@ export function buildLikesCard(char, { suggestions } = {}) {
     });
     suggest.append(go, clear, status);
 
-    card.append(rowsHost, noteWrap, suggest);
+    // The Tea Time portrait: a picture of this character for the Tea Time screen. Without one, their ordinary portrait is used.
+    const portraitWrap = el('div');
+    portraitWrap.style.cssText = 'margin-top: 12px;';
+    portraitWrap.append(el('strong', '', 'Tea Time portrait'));
+    const portraitRow = el('div');
+    portraitRow.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px;';
+    const portraitInput = el('input', 'text_pole');
+    portraitInput.type = 'text';
+    portraitInput.maxLength = 300;
+    portraitInput.placeholder = 'An image address, e.g. /user/images/sillynpc/tea-portrait.png';
+    portraitInput.style.cssText = 'flex:1; min-width:14em;';
+    portraitInput.value = char.teaPortrait || '';
+    portraitInput.setAttribute('aria-label', 'Tea Time portrait address');
+    const thumb = el('img');
+    thumb.alt = '';
+    thumb.style.cssText = 'width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #a4947d;';
+    const showThumb = () => {
+        const v = portraitInput.value.trim();
+        thumb.style.display = v ? '' : 'none';
+        if (v) thumb.src = v;
+    };
+    thumb.addEventListener('error', () => { thumb.style.display = 'none'; });
+    // Saved as typed; nothing is redrawn from here.
+    portraitInput.addEventListener('input', () => {
+        const v = portraitInput.value.trim().slice(0, 300);
+        if (v) char.teaPortrait = v; else delete char.teaPortrait;
+        saveSettings();
+        showThumb();
+    });
+    portraitRow.append(portraitInput, thumb);
+    portraitWrap.append(portraitRow, el('small', 'notes', 'Shown beside the table on the Tea Time screen instead of the usual portrait. Leave it empty to use the usual one.'));
+    showThumb();
+
+    card.append(rowsHost, noteWrap, portraitWrap, suggest);
     draw();
     return card;
 }

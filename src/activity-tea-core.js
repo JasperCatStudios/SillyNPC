@@ -519,20 +519,88 @@ export function teaPool(dbNames, prefsList, fallback = []) {
 }
 
 /**
- * A handful of teas to choose from, picked at random each time, so the choice is different every cup. One tea the guest
- * likes is always among them (when they like any), so a good cup is always possible; nothing says which one it is, and
- * the rest are drawn from the whole pool, disliked teas included. A pool no bigger than `count` is shown whole, shuffled.
- * @param {string[]} pool see teaPool
+ * A random handful from a pool, for the tea table. One entry the guest likes (in this category) is always among them when
+ * they like any in the pool, so a good choice is always possible; nothing says which one it is, and the rest are drawn from
+ * the whole pool, disliked ones included. A pool no bigger than `count` is shown whole, shuffled.
+ * @param {string[]} pool
  * @param {object} prefs the guest's prefs
+ * @param {'tea'|'food'|'gift'} category which of their lists decides "liked"
  * @param {{ count?: number, rng?: () => number }} [opts]
  * @returns {string[]}
  */
-export function teaChoices(pool, prefs, { count = 8, rng = Math.random } = {}) {
+export function choicesFrom(pool, prefs, category, { count = 8, rng = Math.random } = {}) {
     const all = [...new Set((pool || []).map(n => text(n, 40)).filter(Boolean))];
     const n = Math.max(1, Math.floor(Number(count)) || 8);
     if (all.length <= n) return shuffle(all, rng);
-    const liked = all.filter(name => matchPref(prefs, 'tea', name) === 'like');
+    const liked = all.filter(name => matchPref(prefs, category, name) === 'like');
     const must = liked.length ? [liked[Math.floor(rng() * liked.length) % liked.length]] : [];
     const rest = shuffle(all.filter(name => !must.includes(name)), rng);
     return shuffle([...must, ...rest.slice(0, n - must.length)], rng);
 }
+
+/** A random handful of teas (see choicesFrom). */
+export const teaChoices = (pool, prefs, opts) => choicesFrom(pool, prefs, 'tea', opts);
+
+/** A random handful of snacks (see choicesFrom); the default is 4. */
+export const snackChoices = (pool, prefs, { count = 4, rng = Math.random } = {}) => choicesFrom(pool, prefs, 'food', { count, rng });
+
+/**
+ * The snacks to choose from: the preset's own tea-time snacks, plus every food any character in the cast likes or dislikes,
+ * so nobody's favourite is missing. The same pool for every guest.
+ * @param {object[]} prefsList every card's prefs
+ * @param {string[]} [builtIn] the preset's snacks
+ * @returns {string[]} sorted, no duplicates
+ */
+export function snackPool(prefsList, builtIn = []) {
+    const seen = new Map();
+    const add = (name) => {
+        const n = text(name, 40);
+        const key = normKey(n);
+        if (n && key && !seen.has(key)) seen.set(key, n);
+    };
+    for (const n of builtIn || []) add(n);
+    for (const raw of prefsList || []) {
+        const p = normalizePrefs(raw);
+        for (const side of ['likes', 'dislikes']) for (const n of p[side].food) add(n);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/* ------------------------------------------------------------------ what each one looks like on the table */
+
+/** The pictures there are: eight cups of tea and ten snacks (art/activities/tea in the Content pack). */
+export const TEA_SPRITES = Object.freeze(['berry', 'citrus', 'flower', 'herb', 'spice', 'apple', 'black', 'leaf']);
+export const SNACK_SPRITES = Object.freeze(['shortcake', 'macarons', 'cookies', 'tart', 'scone', 'honeycake', 'sandwiches', 'cheese', 'pastry', 'skewer']);
+
+// The first rule that matches wins, so the more particular words come first.
+const TEA_RULES = [
+    ['apple', /apple|pear|quince/], ['berry', /berr|cherry|currant|pomegranate|plum/], ['citrus', /lemon|orange|citrus|lime|fruit|peach|mango|honey/],
+    ['flower', /rose|lavender|flower|floral|blossom|violet|petal|jasmine|chamomile|lily|moon/], ['herb', /mint|herb|basil|sage|thyme|pine|needle|green/],
+    ['spice', /ginger|cinnamon|spice|chai|clove|pepper|cardamom|almond|nut|vanilla/], ['black', /black|dark|bitter|strong|smok|coffee|cocoa|roast|malt/],
+    ['leaf', /leaf|leaves|plain|tea of/],
+];
+const SNACK_RULES = [
+    ['honeycake', /honey/], ['macarons', /macaron|candy|sweets|sugar|confection|chocolate/], ['shortcake', /shortcake|strawberr|cake|sponge|gateau/],
+    ['cookies', /cookie|biscuit|cracker|shortbread|wafer/], ['tart', /tart|pie|berry|berries|fruit/], ['scone', /scone|jam|cream|muffin|crumpet/],
+    ['sandwiches', /sandwich|salad|vegetable|produce|cucumber|toast/], ['cheese', /cheese|dairy|grape|butter/],
+    ['pastry', /pastry|baked|bun|roll|bread|dough|croissant|danish|treat/], ['skewer', /meat|jerky|smok|sausage|skewer|fish|ham|bacon/],
+];
+
+/** A steady pick from a list for a name no rule knows (the same name always looks the same). */
+function steady(list, name) {
+    let h = 0;
+    for (const ch of normKey(name)) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+    return list[h % list.length];
+}
+
+const pick = (rules, list, name) => {
+    const n = String(name ?? '').toLowerCase();
+    const hit = rules.find(([, re]) => re.test(n));
+    return hit ? hit[0] : steady(list, name);
+};
+
+/** The picture for a tea, by what it is called. Always one of TEA_SPRITES. */
+export const teaSprite = (name) => pick(TEA_RULES, TEA_SPRITES, name);
+
+/** The picture for a snack, by what it is called. Always one of SNACK_SPRITES. */
+export const snackSprite = (name) => pick(SNACK_RULES, SNACK_SPRITES, name);

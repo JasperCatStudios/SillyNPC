@@ -204,6 +204,51 @@
 .snpc-act-teachip.is-chosen { background: linear-gradient(145deg, #2f7a5a, #1f5a42); border-color: #6fd6ae; color: #fff4df; }
 .snpc-act-teamark { color: #f0dfbc; font-size: 0.78em; }
 
+/* ---- Tea Time: the table to choose from (items are cut-out pictures: hover or focus lights them up) ---- */
+.snpc-act-tablewrap { position: relative; width: 100%; max-width: 760px; margin: 6px auto 10px; aspect-ratio: 3 / 2; border: 1px solid #a4947d; border-radius: 12px; overflow: hidden; background: #d9cfba; }
+.snpc-act-tablewrap.is-plain { background: radial-gradient(circle at 50% 50%, #f7f2ea 0 46%, #cdbf9f 47% 100%); }
+.snpc-act-tabletop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.snpc-act-tableoverlay { position: absolute; left: 20%; right: 20%; top: 9%; bottom: 9%; display: flex; flex-direction: column; justify-content: space-between; gap: 2%; }
+.snpc-act-teas { flex: 2 1 0; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 2% 3%; }
+.snpc-act-snacks { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3%; }
+.snpc-act-tableitem {
+    position: relative; min-width: 44px; min-height: 44px; padding: 0; background: none; border: 0; cursor: pointer; font: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 0;
+    transition: transform 0.15s, filter 0.15s;
+}
+.snpc-act-sprite { max-width: 100%; max-height: 74%; object-fit: contain; filter: drop-shadow(0 3px 3px rgba(60, 40, 20, 0.35)); pointer-events: none; }
+.snpc-act-sprite-icon { font-size: 2rem; color: #7a6a52; }
+.snpc-act-tableitem:hover, .snpc-act-tableitem:focus-visible { transform: translateY(-3px) scale(1.08); z-index: 2; }
+.snpc-act-tableitem:hover .snpc-act-sprite, .snpc-act-tableitem:focus-visible .snpc-act-sprite { filter: drop-shadow(0 0 7px #ffe08a) drop-shadow(0 0 2px #fff); }
+.snpc-act-tableitem:focus-visible { outline: 2px solid #ead4ae; outline-offset: 2px; border-radius: 10px; }
+.snpc-act-tableitem.is-chosen .snpc-act-sprite { filter: drop-shadow(0 0 9px #46c394) drop-shadow(0 0 2px #fff); }
+.snpc-act-tableitem.is-chosen::after { content: ""; position: absolute; inset: -2px; border: 3px solid #2fa57a; border-radius: 12px; background: rgba(111, 214, 174, 0.16); pointer-events: none; }
+.snpc-act-itemname { max-width: 100%; padding: 1px 7px; border-radius: 9px; background: rgba(27, 27, 29, 0.82); color: #fff4df; font-size: 0.72rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snpc-act-itemmark, .snpc-act-itemcheck { position: absolute; top: 0; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.7rem; color: #fff; z-index: 3; }
+.snpc-act-itemmark { left: 4%; background: #c0504d; }
+.snpc-act-itemcheck { right: 4%; background: #2fa57a; }
+
+/* ---- Tea Time: the scene above the options (the table with what was served, and the guest beside it) ---- */
+.snpc-act-teastage { display: flex; gap: 10px; align-items: stretch; height: clamp(150px, 30dvh, 280px); }
+.snpc-act-scene { position: relative; flex: 0 1 auto; aspect-ratio: 3 / 2; height: 100%; border: 1px solid #a4947d; border-radius: 10px; overflow: hidden; background: #d9cfba; }
+.snpc-act-scene.is-plain { background: radial-gradient(circle at 50% 62%, #f7f2ea 0 38%, #cdbf9f 39% 100%); }
+.snpc-act-scene-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.snpc-act-served { position: absolute; transform: translate(-50%, -50%); filter: drop-shadow(0 2px 2px rgba(60, 40, 20, 0.4)); pointer-events: none; }
+.snpc-act-portrait { position: relative; flex: 1 1 0; min-width: 90px; border: 1px solid #a4947d; border-radius: 10px; overflow: hidden; background: #3a3733; }
+.snpc-act-portrait.is-plain { background: linear-gradient(145deg, #4c4740, #2c2a28); }
+.snpc-act-portrait-img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+.snpc-act-portrait-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)); color: #fff4df; font-family: Georgia, serif; text-align: center; }
+
+@media (max-width: 900px) {
+    .snpc-act-tablewrap { aspect-ratio: 4 / 5; }
+    .snpc-act-tableoverlay { left: 8%; right: 8%; top: 9%; bottom: 9%; }
+    .snpc-act-teas { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+    .snpc-act-snacks { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+    .snpc-act-snacks { flex: 1.3 1 0; }
+    .snpc-act-teastage { height: clamp(120px, 24dvh, 200px); }
+}
+@media (prefers-reduced-motion: reduce) { .snpc-act-tableitem { transition: none; } .snpc-act-tableitem:hover, .snpc-act-tableitem:focus-visible { transform: none; } }
+
 /* ---- Tea Time ---- */
 .snpc-act-tea { display: flex; flex-direction: column; gap: 10px; max-width: 620px; margin: 0 auto; }
 .snpc-act-teabar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -266,3 +311,9 @@
     .snpc-act-counters { gap: 12px; }
     .snpc-act-tray { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* ---- Streaks: days in a row, in an orange that reads on the black frame; always with words and a flame icon ---- */
+.snpc-act-streak, .snpc-act-streak-note { color: #f5b97a; }
+.snpc-act-streak { font-size: 0.82em; }
+.snpc-act-streak i, .snpc-act-streak-note i { color: #f08a3c; }
+.snpc-act-streak-note { margin: 2px 0 8px; font-size: 0.95em; }

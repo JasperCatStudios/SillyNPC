@@ -1,11 +1,11 @@
 import {
     newSession, judgeRound, gradeOf, rewardsOf, totalOf, knownFrom, knownLine, askThisRound, fillOpeners, neutralOpeners, neutralLine,
-    moodWord, describeState, REACTION_DELTA, GRADES,
+    moodWord, describeState, REACTION_DELTA, GRADES, teaSprite, snackSprite,
 } from '../../../src/activity-tea-core.js';
 import { term } from '../../../src/activity-terms.js';
 import { requestStart, requestRound } from '../tea-persona.js';
 import {
-    activitySettings, cardOf, settleActivity, rememberTaste, teaKnown, guestLowMood, askPartner, sfx, speakAsPlayer, startMusic,
+    activitySettings, cardOf, settleActivity, rememberTaste, teaKnown, guestLowMood, askPartner, sfx, speakAsPlayer, startMusic, loadArt,
 } from '../activities-runtime.js';
 
 /**
@@ -64,6 +64,39 @@ export function runTea(win, ctx) {
     ]);
 
     const wrap = el('div', 'snpc-act-tea');
+
+    // The scene, above the options: the table with what was served on it, and the guest beside it. The guest's tea-time picture is
+    // used when their card has one (`teaPortrait`), otherwise their ordinary portrait.
+    const stage = el('div', 'snpc-act-teastage');
+    const scene = el('div', 'snpc-act-scene');
+    const sceneImg = el('img', 'snpc-act-scene-img');
+    sceneImg.alt = '';
+    sceneImg.draggable = false;
+    loadArt(sceneImg, 'table.webp', () => { sceneImg.remove(); scene.classList.add('is-plain'); });
+    scene.append(sceneImg);
+    const lay = (file, x, y, w, label) => {
+        const img = el('img', 'snpc-act-served');
+        img.alt = label;
+        img.draggable = false;
+        img.style.cssText = `left: ${x}%; top: ${y}%; width: ${w}%;`;
+        loadArt(img, file, () => img.remove());
+        scene.append(img);
+    };
+    lay(`teas/${teaSprite(tea)}.webp`, 38, 60, 19, tea);
+    if (bring?.kind === 'food') lay(`snacks/${snackSprite(bring.name)}.webp`, 62, 66, 20, bring.name);
+    const portrait = el('div', 'snpc-act-portrait');
+    const pic = card?.teaPortrait || card?.imageUrl || '';
+    if (pic) {
+        const face = el('img', 'snpc-act-portrait-img');
+        face.alt = partner;
+        face.draggable = false;
+        face.src = pic;
+        face.addEventListener('error', () => { face.remove(); portrait.classList.add('is-plain'); });
+        portrait.append(face);
+    } else portrait.classList.add('is-plain');
+    portrait.append(el('div', 'snpc-act-portrait-name', partner));
+    stage.append(scene, portrait);
+    wrap.append(stage);
     const bar = el('div', 'snpc-act-teabar');
     const pips = el('div', 'snpc-act-gauge');
     pips.setAttribute('role', 'img');

@@ -9,7 +9,8 @@ import { addRecord, rivalryBlock } from '../../src/rivalry.js';
 import { giveItemFor, getInventory, databaseItems } from '../../src/inventory.js';
 import { vitalsStore } from '../../src/vitals.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
-import { normalizeKnownStore, mergeKnown, teaPool } from '../../src/activity-tea-core.js';
+import { normalizeKnownStore, mergeKnown, teaPool, snackPool } from '../../src/activity-tea-core.js';
+import { DEFAULT_KIT_URL, kitFolderName, kitFileUrl } from '../../src/content-kit.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';
 import { combatPrefs, activeCombatType, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
@@ -34,6 +35,7 @@ import {
 } from '../../src/activity-progress-core.js';
 import { describeState } from '../../src/activity-memory-core.js';
 import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
+import { touchStreak, streakView, streakBonus, boostXp, runText, totalText } from '../../src/activity-streak-core.js';
 
 /**
  * Activities, the SillyTavern side (fork): settings, the chat's activity record, who can be a partner,
@@ -136,6 +138,33 @@ export function speakAsPlayer(text) {
     } catch { /* speech is optional */ }
 }
 
+/** Today's day key: the story's date when the chat has one, else the device's. */
+export function currentDay() {
+    return dayKey(sceneClock()?.dateText || '');
+}
+
+/** The activity kinds that train a skill and so earn the streak bonus. */
+const TRAINING_KINDS = ['memory', 'mastermind', 'drill'];
+
+/**
+ * What the screens show about an activity's streak: the days in a row (overall and with this partner), how many times in all,
+ * and for a skill-training activity the bonus the next play earns.
+ * @returns {{ run: number, withRun: number, total: number, withTotal: number, doneToday: boolean, trains: boolean, bonus: number, text: string, withText: string }}
+ */
+export function activityStreakInfo(activity, partner) {
+    const store = activityStore();
+    const v = streakView(store?.streaks, activity.id, partner, currentDay());
+    const trains = TRAINING_KINDS.includes(activity.kind);
+    // Today's play extends the run by one when it was not done yet today.
+    const next = v.doneToday ? v.run : v.run + 1;
+    const bonus = trains ? streakBonus(next) : 0;
+    return {
+        run: v.run, withRun: v.withRun, total: v.total, withTotal: v.withTotal, doneToday: v.doneToday, trains, bonus,
+        text: [runText(v.run), totalText(v.total)].filter(Boolean).join(' · '),
+        withText: [runText(v.withRun), totalText(v.withTotal)].filter(Boolean).join(' · '),
+    };
+}
+
 /** The sound map the activities use: the one typed in the Activities pane, else the world preset's. '' means only the main map. */
 export function activeSoundMap() {
     return activitySettings().soundMapUrl || activePreset().soundMap || '';
@@ -232,6 +261,20 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
         try { addRecord(activityRecord({ id, label, user, partners: [partner], at, summary })); } catch (err) { console.warn('[Worldkit] could not record the activity', err); }
         recordTalk('activities', activityTalkEntry({ id, at, label, activity: activityId, outcome: grade, user, partners: [partner], date, lines, result: summary }));
 
+        // The streak: today counts, and a skill-training activity pays a bonus for the days in a row.
+        let streakRun = 0;
+        const streakStore = activityStore();
+        if (streakStore) {
+            const touched = touchStreak(streakStore.streaks, activityId, partner, dayKey(date));
+            streakStore.streaks = touched.streaks;
+            streakRun = touched.run;
+            saveStore();
+            if (touched.newDay && touched.run > 1) shown.push(`${runText(touched.run)} for ${label}.`);
+        }
+        const trains = Boolean(subject) && (rewards.profXp || 0) > 0;
+        const profXp = trains ? boostXp(rewards.profXp, streakRun) : (rewards.profXp || 0);
+        if (trains && streakBonus(streakRun) > 0) shown.push(`Streak bonus: +${streakBonus(streakRun)}% skill XP.`);
+
         const type = activeCombatType();
         const mine = personaRecordFor(user);
         const theirs = cardOf(partner);
@@ -252,14 +295,14 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
                     if (out.levelsGained) ups.push({ name, from: out.level - out.levelsGained, level: out.level });
                 }
             };
-            credit(mine, user, rewards.profXp || 0, rewards.levelXp || 0);
+            credit(mine, user, profXp, rewards.levelXp || 0);
             credit(theirs, partner, rewards.partnerProfXp || 0, 0);
             if (ups.length) {
                 const report = safe(levelUpReport(ups));
                 if (report) queueResult('levelup', report, { append: true });
             }
             if (!mine || !hasTypeData(mine, type.dataKey)) shown.push('You have no combat sheet, so no XP was kept.');
-            else if (subject && rewards.profXp) shown.push(`+${rewards.profXp} XP in ${(type.proficiencies || []).find(p => p.id === subject)?.label || 'your subject'}`);
+            else if (subject && profXp) shown.push(`+${profXp} XP in ${(type.proficiencies || []).find(p => p.id === subject)?.label || 'your subject'}`);
             else if (rewards.levelXp) shown.push(`+${rewards.levelXp} XP`);
         }
         if (mine) mine.actStats = recordPlay(mine.actStats, activityId, grade, rewards.knowledge || 0);
@@ -341,6 +384,35 @@ export function teaNames(preset) {
     // Every tea any character in the cast has a taste for is on the list too, so no guest's favourite is missing.
     const cast = (getSettings().characters || []).map(c => c?.prefs);
     return teaPool(names, cast, preset?.tea?.fallback || []);
+}
+
+/** The snacks to choose from: the preset's own tea-time snacks plus every food the cast has a taste for. */
+export function snackNames(preset) {
+    const cast = (getSettings().characters || []).map(c => c?.prefs);
+    return snackPool(cast, preset?.tea?.snacks || []);
+}
+
+/**
+ * The places a Tea Time picture may be found, best first: the art folder in the user's own profile (where the README says to copy
+ * it) and the installed Content Kit. `file` is relative to art/activities/tea/.
+ */
+export function teaArtUrls(file) {
+    const kit = String(getSettings().contentKitUrl || '').trim() || DEFAULT_KIT_URL;
+    return [`/user/images/worldkit-art/activities/tea/${file}`, kitFileUrl(kitFolderName(kit), `art/activities/tea/${file}`)];
+}
+
+/**
+ * Puts a Tea Time picture in an <img>, trying each place in turn; when none has it, calls onMissing (the screen then shows a plain
+ * icon instead, so a missing art folder never breaks anything).
+ */
+export function loadArt(img, file, onMissing) {
+    const urls = teaArtUrls(file);
+    let at = 0;
+    img.addEventListener('error', () => {
+        at += 1;
+        if (at < urls.length) img.src = urls[at]; else onMissing?.();
+    });
+    img.src = urls[0];
 }
 
 /** What the player can bring to a guest: the items in their inventory in this chat. */

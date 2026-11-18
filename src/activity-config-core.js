@@ -122,7 +122,7 @@ export const GENERIC_PRESET = Object.freeze({
     activities: GENERIC_ACTIVITIES,
     study: Object.freeze({ runes: [], profs: ['reason'] }),
     potion: Object.freeze({ recipe: 'Herbal Tonic', failed: 'Murky Brew', names: {}, profs: [] }),
-    tea: Object.freeze({ category: 'Tea', music: 'activity_tea_music', fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
+    tea: Object.freeze({ category: 'Tea', music: 'activity_tea_music', snacks: ['Strawberry shortcake', 'Macarons', 'Butter cookies', 'Fruit tart', 'Scones with jam', 'Honey cake', 'Finger sandwiches', 'Cheese and grapes', 'Sweet pastry', 'Smoked skewer'], fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
     classChange: Object.freeze({ mode: 'both', studyKnowledge: 100, rankGate: null }),
     terms: Object.freeze({ examinerRule: 'partner' }),
 });
@@ -180,6 +180,7 @@ export function normalizePreset(raw, idHint = '') {
         },
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
+            snacks: (Array.isArray(obj(r.tea).snacks) ? r.tea.snacks : ['Strawberry shortcake', 'Macarons', 'Butter cookies', 'Fruit tart', 'Scones with jam', 'Honey cake', 'Finger sandwiches', 'Cheese and grapes', 'Sweet pastry', 'Smoked skewer']).map(v => text(v, 40)).filter(Boolean).slice(0, 30),
             // The sound-map name of the tea music loop. Empty means none; a map without it plays nothing.
             music: obj(r.tea).music === undefined ? 'activity_tea_music' : text(obj(r.tea).music, 60),
             fallback: (Array.isArray(obj(r.tea).fallback) && r.tea.fallback.length ? r.tea.fallback : ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai']).map(v => text(v, 40)).filter(Boolean).slice(0, 30),
