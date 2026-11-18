@@ -38,6 +38,14 @@ export function runStudy(win, ctx) {
     win.resetTalk();
     win.setView('play');
     win.setTitle(label, 'fa-book-open');
+    win.setHelp([
+        { title: 'The goal', text: 'Find every pair of matching runes before your concentration runs out.' },
+        { title: 'How a turn works', text: 'Tap two tiles to turn them over. If the runes match, they stay open. If not, they turn back and you lose one point of concentration (the dots above the board).' },
+        { title: 'Cursed runes', text: 'On the medium and large boards one or two runes are cursed. When one turns up it is marked in purple with a skull. If you miss while a cursed rune is one of the two tiles, every tile that is not matched yet is shuffled, so what you remembered is lost. Matching the cursed pair lifts the curse and gives a point of concentration back.' },
+        { title: 'When it ends', text: 'The board is cleared (you win), or concentration reaches zero (the session ends early, and you keep credit for the pairs you found).' },
+        { title: 'What you gain', text: 'Knowledge for a class change, skill XP in the subject you chose, and a little level XP. A cleared board with plenty of concentration left earns the best grade. Your partner talks along the way, and you can chat with them in the Chat tab.' },
+        { title: 'Keyboard', text: 'Arrow keys move between tiles. Enter or Space turns one over. Escape closes the window.' },
+    ]);
 
     const wrap = el('div', 'snpc-act-study');
     const status = el('div', 'snpc-act-status');

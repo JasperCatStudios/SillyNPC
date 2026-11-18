@@ -236,6 +236,11 @@ export async function speakNamed(name, text) {
     return speakWith(voice, text);
 }
 
+/** Whether this person has a voice to read lines in (their own, or the default one). */
+export function hasVoiceFor(name) {
+    return Boolean(recordVoice(name) || String(getSettings()[VOICE_KEYS.default] || '').trim());
+}
+
 /** Reads one line in a voice file. For the test buttons. tone: a delivery tag to read it in (for engines that understand audio tags). */
 export async function previewVoice(voice, line = 'This is what I sound like.', { tone = '' } = {}) {
     if (!ttsEnabled()) {

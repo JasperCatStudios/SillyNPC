@@ -56,16 +56,23 @@ export function createActivityWindow({ onClose } = {}) {
     tabs.setAttribute('role', 'tablist');
     const chatTab = el('button', 'snpc-act-tab is-active', 'Chat');
     const logTab = el('button', 'snpc-act-tab', 'Log');
-    for (const [b, v] of [[chatTab, 'chat'], [logTab, 'log']]) {
+    const helpTab = el('button', 'snpc-act-tab', 'How to play');
+    for (const [b, v] of [[chatTab, 'chat'], [logTab, 'log'], [helpTab, 'help']]) {
         b.type = 'button'; b.setAttribute('role', 'tab'); b.dataset.view = v;
         b.setAttribute('aria-selected', String(v === 'chat'));
     }
-    tabs.append(chatTab, logTab);
+    tabs.append(chatTab, logTab, helpTab);
 
     const chat = el('div', 'snpc-act-chat');
     chat.dataset.view = 'chat';
     chat.setAttribute('role', 'log');
     chat.setAttribute('aria-live', 'polite');
+
+    // How to play: the rules of the activity on screen, written by the activity (setHelp). Shown in place of the chat.
+    const help = el('div', 'snpc-act-help');
+    help.hidden = true;
+    help.setAttribute('role', 'tabpanel');
+    help.tabIndex = 0;
 
     const inputRow = el('div', 'snpc-act-input');
     const input = el('input', 'snpc-act-field');
@@ -78,7 +85,7 @@ export function createActivityWindow({ onClose } = {}) {
     send.append(el('i', 'fa-solid fa-paper-plane'));
     inputRow.append(input, send);
 
-    side.append(partnerRow, tabs, chat, inputRow);
+    side.append(partnerRow, tabs, chat, help, inputRow);
     body.append(main, side);
     root.append(head, body);
 
@@ -88,8 +95,11 @@ export function createActivityWindow({ onClose } = {}) {
     let returnFocus = null;
 
     const setTab = (view) => {
-        chat.dataset.view = view;
-        for (const b of [chatTab, logTab]) {
+        const showHelp = view === 'help';
+        chat.hidden = showHelp;
+        help.hidden = !showHelp;
+        if (!showHelp) chat.dataset.view = view;
+        for (const b of [chatTab, logTab, helpTab]) {
             const on = b.dataset.view === view;
             b.classList.toggle('is-active', on);
             b.setAttribute('aria-selected', String(on));
@@ -97,6 +107,7 @@ export function createActivityWindow({ onClose } = {}) {
     };
     chatTab.addEventListener('click', () => setTab('chat'));
     logTab.addEventListener('click', () => setTab('log'));
+    helpTab.addEventListener('click', () => setTab('help'));
 
     const submit = () => {
         const text = input.value.trim();
@@ -140,6 +151,18 @@ export function createActivityWindow({ onClose } = {}) {
             if (picture) { avatar.src = picture; avatar.style.display = ''; } else { avatar.removeAttribute('src'); avatar.style.display = 'none'; }
         },
         setSub(text) { whoSub.textContent = text; },
+        /**
+         * The How to play tab: a list of { title, text } sections (text may have several paragraphs separated by a blank line).
+         * Called by each activity when it starts. The tab the player is on does not change.
+         */
+        setHelp(sections) {
+            help.replaceChildren();
+            for (const s of sections || []) {
+                if (s.title) help.append(el('h4', 'snpc-act-help-title', s.title));
+                for (const para of String(s.text || '').split(/\n\s*\n/)) if (para.trim()) help.append(el('p', 'snpc-act-help-text', para.trim()));
+            }
+        },
+        showHelp() { setTab('help'); },
         /** Starts a new conversation (the talk of a new session). */
         resetTalk() { lines.length = 0; chat.replaceChildren(); },
         /** kind: 'bot' (the partner), 'user', 'system' (shows in the Log tab only), 'typing' (removed by removeTyping). */

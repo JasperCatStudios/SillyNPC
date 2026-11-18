@@ -38,6 +38,15 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     musicVolume: 0.5,
     difficulty: 'normal',
     pairs: 8,                     // Study board size: 4, 8 or 12
+    // Tea Time (see docs/TEA-TIME-DESIGN.md)
+    teaLlm: true,                 // off: built-in openers and lines, no request
+    teaRounds: 3,                 // 3 or 5
+    teaFreeText: true,
+    teaGuestAsks: true,           // the guest sometimes asks the player a question
+    teaShowKnown: true,           // the "Known so far" note
+    teaBatchOpeners: false,       // lite mode: one request for all the openers
+    teaMaxTokens: 700,            // room for the JSON reply (a model that thinks first needs it)
+    teaContextMessages: 6,
     presetId: '',                 // '' means pick by the active combat type
     presets: {},                  // user presets by id (imported or edited)
 });
@@ -66,6 +75,11 @@ export function normalizeActivitySettings(raw) {
         musicVolume: Math.min(1, Math.max(0, Number.isFinite(Number(r.musicVolume)) ? Number(r.musicVolume) : d.musicVolume)),
         difficulty: DIFFICULTY_IDS.includes(r.difficulty) ? r.difficulty : d.difficulty,
         pairs: [4, 8, 12].includes(Number(r.pairs)) ? Number(r.pairs) : d.pairs,
+        teaLlm: bool('teaLlm'),
+        teaRounds: Number(r.teaRounds) === 5 ? 5 : 3,
+        teaFreeText: bool('teaFreeText'), teaGuestAsks: bool('teaGuestAsks'), teaShowKnown: bool('teaShowKnown'), teaBatchOpeners: bool('teaBatchOpeners'),
+        teaMaxTokens: int(r.teaMaxTokens, 500, 2000, d.teaMaxTokens),
+        teaContextMessages: int(r.teaContextMessages, 0, 30, d.teaContextMessages),
         presetId: text(r.presetId, 60),
         presets,
     };
@@ -89,8 +103,8 @@ export const HUB_TABS = Object.freeze([
  */
 export const GENERIC_ACTIVITIES = Object.freeze([
     { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes. Knowledge feeds a class change.' },
-    { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', soon: true },
-    { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Pour a cup and find a topic they enjoy.', soon: true },
+    { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.' },
+    { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
     { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Cook something together.', soon: true },
     { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite and reel it in.', soon: true },
     { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, water and harvest.', soon: true },
@@ -104,6 +118,8 @@ export const GENERIC_PRESET = Object.freeze({
     world: '',
     activities: GENERIC_ACTIVITIES,
     study: Object.freeze({ runes: [], profs: ['reason'] }),
+    potion: Object.freeze({ recipe: 'Herbal Tonic', failed: 'Murky Brew', names: {}, profs: [] }),
+    tea: Object.freeze({ category: 'Tea', fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
     classChange: Object.freeze({ mode: 'both', studyKnowledge: 100, rankGate: null }),
     terms: Object.freeze({ examinerRule: 'partner' }),
 });
@@ -150,6 +166,16 @@ export function normalizePreset(raw, idHint = '') {
         study: {
             runes: (Array.isArray(study.runes) ? study.runes : []).map(v => text(v, 4)).filter(Boolean).slice(0, 12),
             profs: (Array.isArray(study.profs) ? study.profs : ['reason']).map(v => text(v, 40)).filter(Boolean).slice(0, 6),
+        },
+        potion: {
+            recipe: text(obj(r.potion).recipe, 40) || 'Herbal Tonic',
+            failed: text(obj(r.potion).failed, 40) || 'Murky Brew',
+            names: Object.fromEntries(Object.entries(obj(obj(r.potion).names)).map(([k, v]) => [text(k, 20).toLowerCase(), text(v, 24)]).filter(([k, v]) => k && v)),
+            profs: (Array.isArray(obj(r.potion).profs) ? r.potion.profs : []).map(v => text(v, 40)).filter(Boolean).slice(0, 6),
+        },
+        tea: {
+            category: text(obj(r.tea).category, 24) || 'Tea',
+            fallback: (Array.isArray(obj(r.tea).fallback) && r.tea.fallback.length ? r.tea.fallback : ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai']).map(v => text(v, 40)).filter(Boolean).slice(0, 30),
         },
         classChange: {
             mode: ['presets', 'free', 'both'].includes(obj(r.classChange).mode) ? r.classChange.mode : 'both',

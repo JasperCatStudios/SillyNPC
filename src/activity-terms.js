@@ -24,6 +24,8 @@ export const DEFAULT_TERMS = Object.freeze({
     changeClass: 'Change class',
     knowledge: 'Knowledge',
     studyPlace: 'the study room',
+    tea: 'tea',
+    guest: 'guest',
 });
 
 /** Tier names, lowest first. A preset may list as many as it has credentials. */

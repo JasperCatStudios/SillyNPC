@@ -4,7 +4,12 @@ import { queueResult } from '../../src/result-runtime.js';
 import { requestOnConnection } from '../../src/connections.js';
 import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
+import { hasVoiceFor } from '../../src/tts.js';
 import { addRecord, rivalryBlock } from '../../src/rivalry.js';
+import { giveItemFor, getInventory, databaseItems } from '../../src/inventory.js';
+import { vitalsStore } from '../../src/vitals.js';
+import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
+import { normalizeKnownStore, mergeKnown } from '../../src/activity-tea-core.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';
 import { combatPrefs, activeCombatType, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
@@ -105,6 +110,33 @@ export function studySubjects(preset) {
     return (type.proficiencies || []).filter(p => want.has(p.id)).map(p => ({ id: p.id, label: p.label }));
 }
 
+/** The proficiencies of the active combat type that are in this list of ids, as { id, label }. */
+export function subjectsOf(ids) {
+    const type = activeCombatType();
+    if (!type) return [];
+    const want = new Set(ids || []);
+    return (type.proficiencies || []).filter(p => want.has(p.id)).map(p => ({ id: p.id, label: p.label }));
+}
+
+let warnedNoVoice = false;
+
+/**
+ * Reads the player's own line aloud in their voice, when voices and auto-speak are on. If their character has no voice
+ * (and no default voice is set), it says so once instead of staying silent without a reason.
+ */
+export function speakAsPlayer(text) {
+    try {
+        const s = getSettings();
+        if (!s.ttsEnabled || !s.ttsAutoSpeak || !text) return;
+        const me = userName();
+        if (hasVoiceFor(me)) { speakLine(me, text); return; }
+        if (!warnedNoVoice) {
+            warnedNoVoice = true;
+            toastr.info(`${me} has no voice yet, so your lines are not read aloud. Pick one on their Worldkit page, or set a default voice.`, 'Worldkit');
+        }
+    } catch { /* speech is optional */ }
+}
+
 /** Plays a sound by id; a missing map or tag is silent. */
 export function sfx(name) {
     try { Promise.resolve(playSound(name)).catch(() => { }); } catch { /* sound is optional */ }
@@ -147,29 +179,31 @@ export async function askPartner({ partner, label, beat, stateText = '', playerT
 const safe = (text) => String(text).replace(/\|/g, '/').replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }');
 
 /**
- * Writes what a finished Study session leaves behind: the history records, XP and ranks, knowledge, a bond nudge,
- * and the story report. Never throws; returns the lines to show on the result panel.
+ * Writes what any finished activity leaves behind: the history records, XP and ranks, play tally, a bond nudge, an
+ * item, and the story report. Never throws; returns the lines to show on the result panel.
  *
- * @param {{ partner: string, label: string, subject: string, game: object, rewards: object, lines: {who:string,text:string}[], activityId?: string }} a
+ * rewards: { grade, profXp?, partnerProfXp?, levelXp?, knowledge?, bonds?: { meter, amount }[], item?: { name, qty, kind, note } }
+ * @param {{ activityId: string, label: string, partner: string, subject?: string, summary: string, rewards: object, lines: {who:string,text:string}[], extra?: string[] }} a
  * @returns {string[]}
  */
-export function settleStudy({ partner, label, subject, game, rewards, lines, activityId = 'study' }) {
+export function settleActivity({ activityId, label, partner, subject = '', summary, rewards, lines, extra: extraReport = [] }) {
     const s = activitySettings();
     const user = userName();
     const shown = [];
-    const extra = [];
+    const extra = [...extraReport];
+    const bonds = rewards.bonds || [];
+    const grade = rewards.grade === 'failed' ? 'poor' : rewards.grade;
     try {
         const id = newTalkId();
         const at = Date.now();
         const date = sceneClock()?.dateText || '';
-        const summary = `${label} with ${partner}: ${describeState(game)}.`;
         try { addRecord(activityRecord({ id, label, user, partners: [partner], at, summary })); } catch (err) { console.warn('[Worldkit] could not record the activity', err); }
-        recordTalk('activities', activityTalkEntry({ id, at, label, activity: activityId, outcome: rewards.grade, user, partners: [partner], date, lines, result: summary }));
+        recordTalk('activities', activityTalkEntry({ id, at, label, activity: activityId, outcome: grade, user, partners: [partner], date, lines, result: summary }));
 
         const type = activeCombatType();
         const mine = personaRecordFor(user);
         const theirs = cardOf(partner);
-        if (s.xpOn && type) {
+        if (s.xpOn && type && (rewards.profXp || rewards.levelXp)) {
             const ups = [];
             const credit = (record, name, profXp, levelXp) => {
                 if (!record || !hasTypeData(record, type.dataKey)) return;
@@ -186,19 +220,28 @@ export function settleStudy({ partner, label, subject, game, rewards, lines, act
                     if (out.levelsGained) ups.push({ name, from: out.level - out.levelsGained, level: out.level });
                 }
             };
-            credit(mine, user, rewards.profXp, rewards.levelXp);
-            credit(theirs, partner, rewards.partnerProfXp, 0);
+            credit(mine, user, rewards.profXp || 0, rewards.levelXp || 0);
+            credit(theirs, partner, rewards.partnerProfXp || 0, 0);
             if (ups.length) {
                 const report = safe(levelUpReport(ups));
                 if (report) queueResult('levelup', report, { append: true });
             }
             if (!mine || !hasTypeData(mine, type.dataKey)) shown.push('You have no combat sheet, so no XP was kept.');
-            else shown.push(`+${rewards.profXp} XP in ${(type.proficiencies || []).find(p => p.id === subject)?.label || 'your subject'}`);
+            else if (subject && rewards.profXp) shown.push(`+${rewards.profXp} XP in ${(type.proficiencies || []).find(p => p.id === subject)?.label || 'your subject'}`);
+            else if (rewards.levelXp) shown.push(`+${rewards.levelXp} XP`);
         }
-        if (mine) mine.actStats = recordPlay(mine.actStats, activityId, rewards.grade, rewards.knowledge);
+        if (mine) mine.actStats = recordPlay(mine.actStats, activityId, grade, rewards.knowledge || 0);
         if (mine && rewards.knowledge > 0) shown.push(`+${rewards.knowledge} knowledge`);
 
-        if (s.bondOn && rewards.bond) {
+        if (s.itemsOn && rewards.item) {
+            try {
+                giveItemFor(user, rewards.item);
+                shown.push(`You received ${rewards.item.name}${rewards.item.note ? ` (${rewards.item.note})` : ''}.`);
+                extra.push(`${user} came away with ${rewards.item.name}${rewards.item.note ? `, ${rewards.item.note}` : ''}.`);
+            } catch (err) { console.warn('[Worldkit] could not give the item', err); }
+        }
+
+        if (s.bondOn && bonds.length) {
             const store = activityStore();
             const day = dayKey(date);
             const person = getPerson(partner);
@@ -206,19 +249,80 @@ export function settleStudy({ partner, label, subject, game, rewards, lines, act
                 if (gainedToday(store, day, partner, activityId)) {
                     shown.push(`${partner} has already shared this with you today, so the bond holds steady.`);
                 } else {
-                    let result = null;
-                    editPerson(partner, (p, bondStore) => { result = applyActivityNudge(p, rewards.bond, bondSettings().growth, bondStore.turn); });
+                    const results = [];
+                    editPerson(partner, (p, bondStore) => {
+                        for (const nudge of bonds) results.push(applyActivityNudge(p, nudge, bondSettings().growth, bondStore.turn));
+                    });
                     markGained(store, day, partner, activityId);
                     saveStore();
-                    if (result?.delta) shown.push(`${partner} warmed to you a little (${result.meter}).`);
+                    if (results.some(r => r?.delta)) shown.push(`${partner} warmed to you a little.`);
                 }
             }
         }
 
-        queueResult('activities', safe(activityReport({ label, user, partners: [partner], grade: rewards.grade, extra })), { append: false });
+        queueResult('activities', safe(activityReport({ label, user, partners: [partner], grade, extra })), { append: false });
         saveSettings();
     } catch (err) {
         console.warn('[Worldkit] could not settle the activity', err);
     }
-    return [...shown, ...extra];
+    return shown;
+}
+
+/** Study: the rune memory game's settle step. */
+export function settleStudy({ partner, label, subject, game, rewards, lines, activityId = 'study' }) {
+    return settleActivity({
+        activityId, label, partner, subject, lines,
+        summary: `${label} with ${partner}: ${describeState(game)}.`,
+        rewards: { ...rewards, bonds: rewards.bond ? [rewards.bond] : [] },
+    });
+}
+
+/* ------------------------------------------------------------------ tea: what is known, the tea list, what can be brought */
+
+const KNOWN_KEY = 'sillynpc_tea_known';
+
+/** What this chat has learned about each guest's tastes: { guest: [{ cat, value, side }] }. */
+export function teaKnown() {
+    const ctx = getContext();
+    const meta = ctx?.chatMetadata;
+    if (!meta || !ctx.chatId) return {};
+    meta[KNOWN_KEY] = normalizeKnownStore(meta[KNOWN_KEY]);
+    return meta[KNOWN_KEY];
+}
+
+/** Adds what a session revealed to this chat's record. Returns the entries that were new. */
+export function rememberTaste(guest, entries) {
+    const ctx = getContext();
+    const meta = ctx?.chatMetadata;
+    if (!meta || !ctx.chatId || !entries?.length) return [];
+    const { store, added } = mergeKnown(meta[KNOWN_KEY], guest, entries);
+    meta[KNOWN_KEY] = store;
+    if (added.length) saveStore();
+    return added;
+}
+
+/** The tea names for the picker: the item database's items in the preset's tea category, else the preset's own short list. */
+export function teaNames(preset) {
+    const want = String(preset?.tea?.category || 'Tea').toLowerCase();
+    let names = [];
+    try { names = databaseItems().filter(i => String(i.category).toLowerCase() === want).map(i => i.name); } catch { /* no database yet */ }
+    return names.length ? [...new Set(names)] : [...(preset?.tea?.fallback || [])];
+}
+
+/** What the player can bring to a guest: the items in their inventory in this chat. */
+export function bringChoices() {
+    try {
+        return (getInventory(userName())?.items || []).filter(i => i?.name).map(i => ({ name: i.name, qty: i.qty }));
+    } catch { return []; }
+}
+
+/** Whether the guest is in a low mood (halves positive gains): a plainly gloomy mood word held fairly strongly. */
+export function guestLowMood(name) {
+    try {
+        const store = vitalsStore();
+        const p = store && findVitalsPerson(store, name);
+        if (!p) return false;
+        const gloomy = /\b(sad|gloomy|miserable|depress|upset|angry|furious|anxious|grief|despair|sorrow|bitter|hurt)/i.test(p.mood?.word || '');
+        return gloomy && (p.mood?.level || 0) >= 40;
+    } catch { return false; }
 }

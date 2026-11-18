@@ -88,6 +88,10 @@
 .snpc-act-msg.is-typing { opacity: 0.7; }
 .snpc-act-chat[data-view="chat"] .snpc-act-msg.system,
 .snpc-act-chat[data-view="log"] .snpc-act-msg:not(.system) { display: none; }
+.snpc-act-help { flex: 1 1 auto; min-height: 90px; overflow-y: auto; padding: 4px 6px; color: #e8dfd0; line-height: 1.45; }
+.snpc-act-help[hidden], .snpc-act-chat[hidden] { display: none; }
+.snpc-act-help-title { font-family: Georgia, serif; color: #ede3d2; margin: 8px 0 4px; font-size: 1rem; }
+.snpc-act-help-text { margin: 0 0 8px; font-size: 0.93rem; }
 .snpc-act-input { display: flex; gap: 6px; }
 .snpc-act-field, .snpc-act-select {
     min-height: 44px; padding: 6px 10px; color: #eee7da; background: #1f1e1f; border: 1px solid #a4947d; border-radius: 6px; font: inherit; min-width: 0;
@@ -188,4 +192,77 @@
     .snpc-act.is-chat-big .snpc-act-side { flex-basis: 66%; }
     .snpc-act-grid { width: min(100%, calc((100dvh - 440px) * var(--cols, 4) / var(--rows, 4))); min-width: 200px; }
     .snpc-act-field-row > span { flex-basis: 5em; }
+}
+
+/* ---- Setup: tea chips ---- */
+.snpc-act-label { display: block; color: #e8d6b9; margin: 10px 0 6px; }
+.snpc-act-teachips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.snpc-act-teachip {
+    min-height: 44px; padding: 6px 12px; display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
+    color: #eee7da; background: linear-gradient(145deg, #3b3834, #2a2927); border: 1px solid #817562; border-radius: 8px; cursor: pointer; font: inherit; text-align: left;
+}
+.snpc-act-teachip.is-chosen { background: linear-gradient(145deg, #2f7a5a, #1f5a42); border-color: #6fd6ae; color: #fff4df; }
+.snpc-act-teamark { color: #f0dfbc; font-size: 0.78em; }
+
+/* ---- Tea Time ---- */
+.snpc-act-tea { display: flex; flex-direction: column; gap: 10px; max-width: 620px; margin: 0 auto; }
+.snpc-act-teabar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.snpc-act-moodword { color: #f0dfbc; font-style: italic; }
+.snpc-act-modelnote { color: #f0c9a0; font-size: 0.88em; padding: 4px 8px; border-left: 3px solid #e07a5f; }
+.snpc-act-modelnote[hidden] { display: none; }
+.snpc-act-source { color: #c8bfb2; font-size: 0.8em; width: 100%; }
+.snpc-act-known { color: #c8bfb2; font-size: 0.9em; }
+.snpc-act-guestline { padding: 10px 12px; border-radius: 8px; background: #49443d; color: #eee7da; min-height: 3em; overflow-wrap: anywhere; }
+.snpc-act-reaction { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 4px 12px; border-radius: 16px; background: #1f1e1f; border: 1px solid #a4947d; color: #f0dfbc; }
+.snpc-act-reaction[hidden] { display: none; }
+.snpc-act-reaction i { font-size: 1.3rem; }
+.snpc-act-openers { display: flex; flex-direction: column; gap: 8px; }
+.snpc-act-opener {
+    display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 12px; text-align: left;
+    color: #eee7da; background: linear-gradient(145deg, #3b3834, #2a2927); border: 1px solid #a4947d; border-radius: 8px; cursor: pointer; font: inherit;
+}
+.snpc-act-opener i { font-size: 1.2rem; color: #6fd6ae; flex: none; width: 1.4em; text-align: center; }
+.snpc-act-opener-text { display: flex; flex-direction: column; }
+.snpc-act-opener-text small { color: #c8bfb2; }
+.snpc-act-opener:hover:not(:disabled) { border-color: #d4b98f; }
+.snpc-act-opener:disabled { opacity: 0.6; cursor: default; }
+.snpc-act-sayrow { display: flex; gap: 8px; }
+.snpc-act-sayrow[hidden] { display: none; }
+
+/* ---- Brewing ---- */
+.snpc-act-brew { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 560px; margin: 0 auto; }
+.snpc-act-brewlog { list-style: none; padding: 0; margin: 0; width: 100%; max-height: 32vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.snpc-act-brewrow { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid #5e5547; border-radius: 10px; background: #2a2927; }
+.snpc-act-brewrow small { color: #c8bfb2; }
+.snpc-act-divider { align-self: stretch; height: 1px; background: #5e5547; }
+.snpc-act-counters { display: flex; gap: 18px; flex-wrap: wrap; }
+.snpc-act-counter { display: flex; align-items: center; gap: 10px; }
+.snpc-act-count { min-width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 700; font-size: 1.15rem; color: #fff; }
+.snpc-act-count.is-exact { background: #4a9d73; }
+.snpc-act-count.is-wrong { background: #b88a4c; }
+.snpc-act-counter-words { display: flex; flex-direction: column; line-height: 1.25; }
+.snpc-act-counter-words strong { color: #eee7da; font-weight: 600; }
+.snpc-act-chips { display: inline-flex; gap: 4px; }
+.snpc-act-chip {
+    display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 40px; height: 36px; padding: 0 6px;
+    border-radius: 18px; background: var(--chip, #444); color: #111; font-size: 0.95rem; border: 2px solid #ffffff55;
+}
+.snpc-act-chip b { font-size: 0.85rem; }
+.snpc-act-chip.is-empty { background: transparent; color: #8b7962; border: 2px dashed #8b7962; }
+.snpc-act-slots { display: flex; gap: 8px; }
+.snpc-act-slot { min-width: 54px; min-height: 48px; padding: 4px; background: #1f1e1f; border: 2px solid #a4947d; border-radius: 10px; cursor: pointer; }
+.snpc-act-slot.is-filled { border-color: #d4b98f; }
+.snpc-act-tray { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; width: 100%; }
+.snpc-act-ingredient {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 6px;
+    color: #eee7da; background: linear-gradient(145deg, #3b3834, #2a2927); border: 1px solid #817562; border-radius: 8px; cursor: pointer; font: inherit;
+}
+.snpc-act-ingredient small { color: #c8bfb2; }
+.snpc-act-ingredient:hover:not(:disabled) { border-color: #d4b98f; }
+.snpc-act-ingredient:disabled { opacity: 0.6; cursor: default; }
+
+@media (max-width: 900px) {
+    .snpc-act-brewlog { max-height: 30vh; }
+    .snpc-act-counters { gap: 12px; }
+    .snpc-act-tray { grid-template-columns: repeat(4, 1fr); }
 }

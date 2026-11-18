@@ -6,9 +6,13 @@ import { activitiesOnTab, HUB_TABS } from '../../src/activity-config-core.js';
 import { term } from '../../src/activity-terms.js';
 import { createActivityWindow } from './activity-window.js';
 import { runStudy } from './games/memory-ui.js';
+import { runPotion } from './games/potion-ui.js';
+import { runTea } from './games/tea-ui.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
+import { teaMenu } from '../../src/activity-tea-core.js';
 import {
-    activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, userName,
+    activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
+    teaNames, teaKnown, bringChoices,
 } from './activities-runtime.js';
 
 /**
@@ -116,6 +120,9 @@ function showHub() {
             tile.addEventListener('click', () => {
                 if (a.soon) { toast('info', `${a.label} is coming soon.`); return; }
                 if (a.kind === 'memory') showStudySetup(a);
+                else if (a.kind === 'mastermind') showPotionSetup(a);
+                else if (a.kind === 'tea') showTeaSetup(a);
+                else toast('info', `${a.label} is coming soon.`);
             });
             grid.append(tile);
         }
@@ -181,6 +188,136 @@ function showStudySetup(activity) {
             runes: preset.study.runes, subject: subject.value || '',
             onLeave: () => showHub(),
             onAgain: () => showStudySetup(activity),
+        });
+    });
+    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
+    back.type = 'button';
+    back.addEventListener('click', showHub);
+    row.append(start, back);
+    box.append(row);
+    w.main.replaceChildren(box);
+    start.focus();
+}
+
+/** Brewing: pick the difficulty (and a skill to train, when the preset names one), then start. */
+function showPotionSetup(activity) {
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    if (!partner) { showHub(); return; }
+    w.setView('hub');
+    w.setTitle(activity.label, activity.icon || 'fa-flask');
+
+    const box = el('div', 'snpc-act-setup');
+    box.append(el('p', 'snpc-act-note',
+        `${activity.label} with ${partner.name}. A recipe of four ingredients is hidden. Try combinations and read the answers (how many are right, and how many are in the right place) to work it out before you run out of tries.`));
+
+    const subjects = subjectsOf(preset.potion.profs);
+    const subject = el('select', 'snpc-act-select');
+    subject.setAttribute('aria-label', 'Skill');
+    for (const p of subjects) subject.append(new Option(p.label, p.id));
+    if (!subjects.length) subject.append(new Option('No skill set for brewing', ''));
+    subject.disabled = !subjects.length;
+
+    const difficulty = el('select', 'snpc-act-select');
+    difficulty.setAttribute('aria-label', 'Difficulty');
+    for (const [d, text] of [['easy', 'Easy (6 ingredients, no repeats, 10 tries)'], ['normal', 'Normal (6 ingredients, repeats, 8 tries)'], ['hard', 'Hard (8 ingredients, repeats, 6 tries)']]) difficulty.append(new Option(text, d));
+    difficulty.value = s.difficulty;
+
+    box.append(field('Skill', subject), field('Difficulty', difficulty));
+    const row = el('div', 'snpc-act-row');
+    const start = el('button', 'snpc-act-btn', 'Start');
+    start.type = 'button';
+    start.addEventListener('click', () => {
+        s.difficulty = difficulty.value;
+        saveActivitySettings();
+        w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', 'Brewing together');
+        w.userName = userName();
+        runPotion(w, {
+            partner: partner.name, label: activity.label, difficulty: s.difficulty, names: preset.potion.names,
+            recipe: preset.potion.recipe, failed: preset.potion.failed, subject: subject.value || '',
+            onLeave: () => showHub(), onAgain: () => showPotionSetup(activity),
+        });
+    });
+    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
+    back.type = 'button';
+    back.addEventListener('click', showHub);
+    row.append(start, back);
+    box.append(row);
+    w.main.replaceChildren(box);
+    start.focus();
+}
+
+/** Tea Time: choose the tea (marked when you already know their taste), optionally bring one thing, then start. */
+function showTeaSetup(activity) {
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    if (!partner) { showHub(); return; }
+    w.setView('hub');
+    w.setTitle(activity.label, activity.icon || 'fa-mug-hot');
+    const teaWord = term(preset, 'tea');
+
+    const box = el('div', 'snpc-act-setup');
+    box.append(el('p', 'snpc-act-note',
+        `${activity.label} with ${partner.name}. Choose a ${teaWord}, bring something if you like, then talk. Their tastes are not shown: watch how they react, and what you learn is kept for next time.`));
+
+    // The tea.
+    const menu = teaMenu(teaNames(preset), teaKnown()[partner.name] || []);
+    let chosen = menu[0]?.name || '';
+    box.append(el('strong', 'snpc-act-label', `Choose a ${teaWord}`));
+    const chips = el('div', 'snpc-act-teachips');
+    chips.setAttribute('role', 'radiogroup');
+    chips.setAttribute('aria-label', `Choose a ${teaWord}`);
+    const drawChips = () => {
+        chips.replaceChildren();
+        for (const t of menu) {
+            const b = el('button', `snpc-act-teachip${t.name === chosen ? ' is-chosen' : ''}`);
+            b.type = 'button';
+            b.setAttribute('role', 'radio');
+            b.setAttribute('aria-checked', String(t.name === chosen));
+            b.append(document.createTextNode(t.name));
+            if (t.mark) {
+                const mark = el('small', 'snpc-act-teamark', t.mark === 'like' ? 'Likes' : 'Dislikes');
+                mark.prepend(el('i', `fa-solid ${t.mark === 'like' ? 'fa-heart' : 'fa-heart-crack'}`), document.createTextNode(' '));
+                b.append(mark);
+            }
+            b.addEventListener('click', () => { chosen = t.name; drawChips(); });
+            chips.append(b);
+        }
+    };
+    drawChips();
+    box.append(chips);
+    if (!menu.length) box.append(el('p', 'snpc-act-note is-small', `There is no ${teaWord} to choose from yet.`));
+
+    // What to bring.
+    const bring = el('select', 'snpc-act-select');
+    bring.setAttribute('aria-label', 'Bring something');
+    bring.append(new Option('Nothing', ''));
+    for (const item of bringChoices()) bring.append(new Option(item.qty > 1 ? `${item.name} (x${item.qty})` : item.name, item.name));
+
+    const rounds = el('select', 'snpc-act-select');
+    rounds.setAttribute('aria-label', 'Rounds');
+    rounds.append(new Option('Short (3 rounds)', '3'), new Option('Long (5 rounds)', '5'));
+    rounds.value = String(s.teaRounds);
+
+    box.append(field('Bring', bring), field('Length', rounds));
+    if (!s.teaLlm) box.append(el('p', 'snpc-act-note is-small', 'The model is switched off for Tea Time, so the guest uses built-in lines and the best grade is Good.'));
+
+    const row = el('div', 'snpc-act-row');
+    const start = el('button', 'snpc-act-btn', 'Pour');
+    start.type = 'button';
+    start.disabled = !menu.length;
+    start.addEventListener('click', () => {
+        s.teaRounds = Number(rounds.value) === 5 ? 5 : 3;
+        saveActivitySettings();
+        w.setPartner(partner.name, partner.avatar || cardOf(partner.name)?.imageUrl || '', `Sharing a ${teaWord}`);
+        w.userName = userName();
+        runTea(w, {
+            partner: partner.name, label: activity.label, preset, tea: chosen, bring: bring.value ? { name: bring.value } : null,
+            onLeave: () => showHub(), onAgain: () => showTeaSetup(activity),
         });
     });
     const back = el('button', 'snpc-act-btn is-quiet', 'Back');
