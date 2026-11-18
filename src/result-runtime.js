@@ -19,12 +19,12 @@ import { drawKnife, spendKnife } from './knives-runtime.js';
  */
 
 // 'knives' has no stored report: a knife is drawn from the characters in the scene at the moment it fires.
-export const RESULT_IDS = Object.freeze(['combat', 'games', 'levelup', 'knives']);
-const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result', levelup: 'sillynpc_levelup_result', knives: 'sillynpc_knives_result' };
-const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result', levelup: 'Worldkit - Level Up', knives: 'Worldkit - Twist' };
-const NOTICES = { combat: 'The combat result', games: 'The game result', levelup: 'The level-up', knives: 'A twist' };
+export const RESULT_IDS = Object.freeze(['combat', 'games', 'levelup', 'knives', 'activities']);
+const KEYS = { combat: 'sillynpc_combat_result', games: 'sillynpc_games_result', levelup: 'sillynpc_levelup_result', knives: 'sillynpc_knives_result', activities: 'sillynpc_activities_result' };
+const NAMES = { combat: 'Worldkit - Combat Result', games: 'Worldkit - Game Result', levelup: 'Worldkit - Level Up', knives: 'Worldkit - Twist', activities: 'Worldkit - Activity Result' };
+const NOTICES = { combat: 'The combat result', games: 'The game result', levelup: 'The level-up', knives: 'A twist', activities: 'The activity result' };
 
-const since = { combat: Infinity, games: Infinity, levelup: Infinity, knives: Infinity };   // replies since it last went; not saved
+const since = { combat: Infinity, games: Infinity, levelup: Infinity, knives: Infinity, activities: Infinity };   // replies since it last went; not saved
 const turns = {};                                      // id -> { key, text } the decision made for the current turn
 
 function box(id) {

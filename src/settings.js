@@ -138,6 +138,8 @@ export const defaultSettings = {
     sound: {},
     /** Knives (see knives-core.js): the connection profile "Suggest knives" asks on (empty is the main API), and its own prompt (empty is the built-in). The trigger options are resultInjection.knives. */
     knivesProfileId: '',
+    /** Activities (see activity-terms.js, activity-record.js): the connection profile for the talk. Empty is the main API. */
+    activitiesProfileId: '',
     knivesPrompt: '',
     threadsProfileId: '',
     /** Threads: things said and done that are not finished with (promises, threats, debts, secrets, deadlines, plans). Off by default. */

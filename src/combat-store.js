@@ -40,6 +40,9 @@ export function normalizeWeapon(raw) {
     return name || prof || power ? { name, prof, power } : null;
 }
 
+/** The most level XP a card can hold. Matches normalizeLeveling's xpBase limit. */
+export const XP_CEILING = 1000000;
+
 function normalizeTypeData(raw) {
     const d = obj(raw);
     const out = emptyTypeData();
@@ -61,7 +64,8 @@ function normalizeTypeData(raw) {
     const gear = normalizeCharGear(d.gear);
     if (gear) out.gear = gear;
     out.status = isStatus(d.status) ? d.status : null;
-    out.xp = Math.max(0, Math.min(199, Math.floor(Number(d.xp)) || 0));
+    // A ceiling only for nonsense: a world's xpBase can be far above 200, and the XP held is below that level's need.
+    out.xp = Math.max(0, Math.min(XP_CEILING, Math.floor(Number(d.xp)) || 0));
     out.level = Number(d.level) >= 1 ? Math.floor(Number(d.level)) : null;
     // A combat style written on the character (combat-style.js); absent means the default for their sheet.
     const style = normalizeStyle(d.style);

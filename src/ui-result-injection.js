@@ -9,11 +9,11 @@ import { resultSettings, resultStatus, armResult, clearResult, previewResult } f
  * sending its texts: a mode (off, always, random, manual), a chance and cooldown, where the block sits in the
  * prompt, a notice, the wording, and a preview. They apply to the report a finished fight or game leaves.
  *
- * @param {'combat'|'games'|'levelup'|'knives'} id
+ * @param {'combat'|'games'|'levelup'|'knives'|'activities'} id
  * @returns {HTMLElement}
  */
 export function buildResultInjectionPanel(id) {
-    const what = { combat: 'fight', games: 'game', levelup: 'level-up', knives: 'twist' }[id] || 'result';
+    const what = { combat: 'fight', games: 'game', levelup: 'level-up', knives: 'twist', activities: 'activity' }[id] || 'result';
     const cfg = resultSettings(id);
     const save = () => saveSettings();
 

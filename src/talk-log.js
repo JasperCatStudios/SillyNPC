@@ -7,7 +7,7 @@
  * scene can recall the game where something was said.
  *
  * Store shape (chat metadata `sillynpc_talk`):
- *   { games: [entry], combat: [entry] }, oldest first, at most TALK_MAX_ENTRIES per kind.
+ *   { games: [entry], combat: [entry], activities: [entry] }, oldest first, at most TALK_MAX_ENTRIES per kind.
  *   entry = { id, at, title, with: [name], date, lines: [{ who, text }], result, sideA?, sideB?, spectators? }
  *   with is everyone at the table but the player. sideA / sideB, when present, say who stood
  *   where (the player's side first); older entries have none and read exactly as before.
@@ -19,7 +19,11 @@
 import { fitWhole, estimateTokens } from './vector-core.js';
 
 export const TALK_KEY = 'sillynpc_talk';
+/** The kinds the vectors follow (see vectors.js, which keeps a setting row for each). */
 export const TALK_KINDS = Object.freeze(['games', 'combat']);
+/** Activities (tea, study, drills) are stored with the others; their vector row comes with the module. */
+export const ACTIVITY_KIND = 'activities';
+export const STORED_KINDS = Object.freeze([...TALK_KINDS, ACTIVITY_KIND]);
 export const TALK_MAX_ENTRIES = 100;
 /* Storage limits, generous on purpose: a line is kept as it was said, so recall never has less. */
 export const TALK_MAX_LINES = 200;
@@ -28,7 +32,7 @@ export const TALK_LINE_CHARS = 2000;
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const str = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
-export const isTalkKind = (kind) => TALK_KINDS.includes(kind);
+export const isTalkKind = (kind) => STORED_KINDS.includes(kind);
 
 /** A fresh entry id: time plus a little noise, so two entries in one millisecond still differ. */
 export function newTalkId(at = Date.now(), rng = Math.random) {
@@ -65,6 +69,8 @@ export function normalizeTalkEntry(raw) {
     // Sides only when both are known: one side alone says nothing about who faced whom.
     const sides = sideA.length && sideB.length ? { sideA, sideB } : {};
     const spectators = side(r.spectators).filter(n => !sideA.includes(n) && !sideB.includes(n));
+    const activity = str(r.activity, 40);
+    const outcome = ['perfect', 'good', 'fair', 'poor'].includes(r.outcome) ? r.outcome : '';
     return {
         id,
         at: Number.isFinite(at) && at > 0 ? at : 0,
@@ -75,6 +81,8 @@ export function normalizeTalkEntry(raw) {
         result,
         ...sides,
         ...(spectators.length ? { spectators } : {}),
+        ...(activity ? { activity } : {}),
+        ...(outcome ? { outcome } : {}),
     };
 }
 
@@ -82,7 +90,11 @@ export function normalizeTalkEntry(raw) {
 export function normalizeTalkStore(raw) {
     const r = obj(raw);
     const out = {};
-    for (const kind of TALK_KINDS) {
+    // A kind this build does not know (a newer build wrote it) is kept as it came, so nothing is lost.
+    for (const [kind, list] of Object.entries(r)) {
+        if (!STORED_KINDS.includes(kind) && Array.isArray(list)) out[kind] = list;
+    }
+    for (const kind of STORED_KINDS) {
         const seen = new Map();
         for (const e of Array.isArray(r[kind]) ? r[kind] : []) {
             const entry = normalizeTalkEntry(e);
@@ -143,7 +155,7 @@ const company = (e, joiner) => {
 export function talkEmbedText(entry, kind = 'games') {
     const e = normalizeTalkEntry(entry);
     if (!e) return '';
-    const what = kind === 'combat' ? 'Fight' : 'Game';
+    const what = kind === 'combat' ? 'Fight' : kind === ACTIVITY_KIND ? 'Activity' : 'Game';
     const head = `${what}: ${e.title}${company(e, ', ')}${e.date ? ` (${e.date})` : ''}.`;
     const out = [head];
     if (e.result) out.push(`Result: ${e.result}`);
@@ -161,6 +173,7 @@ export function talkImportance(entry) {
 export const TALK_HEADINGS = Object.freeze({
     games: '[EARLIER GAMES THAT MAY MATTER]',
     combat: '[EARLIER FIGHTS THAT MAY MATTER]',
+    activities: '[TIME SPENT TOGETHER THAT MAY MATTER]',
 });
 
 /** One recalled game or fight as written: its head line, then every line said, whole. */
