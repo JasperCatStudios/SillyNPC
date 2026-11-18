@@ -2,6 +2,7 @@ import { queueResult, armResult, resultStatus } from '../../src/result-runtime.j
 import { getContext } from '../../../../../extensions.js';
 import { eventSource, event_types } from '../../../../../../script.js';
 import { getSettings, saveSettings } from '../../src/settings.js';
+import { ensureButtonRow } from '../../src/floating-buttons.js';
 import { getPlayerCard } from '../../src/status-logic.js';
 import { hasTypeData, getTypeData } from '../../src/combat-store.js';
 import { setStatus, addXp } from '../../src/combat-edit.js';
@@ -73,14 +74,7 @@ function chatOpen() {
 }
 
 function buttonRow() {
-    let row = document.getElementById('rpg-buttons-container');
-    if (!row) {
-        row = document.createElement('div');
-        row.id = 'rpg-buttons-container';
-        row.style.cssText = 'position:fixed; bottom:20px; right:20px; display:flex; gap:15px; z-index:3000;';
-        document.body.append(row);
-    }
-    return row;
+    return ensureButtonRow();
 }
 
 function difficultyRows(type) {

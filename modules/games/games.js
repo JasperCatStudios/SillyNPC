@@ -1,4 +1,5 @@
 import { queueResult, armResult } from '../../src/result-runtime.js';
+import { ensureButtonRow } from '../../src/floating-buttons.js';
 import { buildPersonaWarning } from '../../src/ui-persona-warning.js';
 import { textFromRaw } from '../../src/raw-text.js';
 import { getContext, extension_settings } from '../../../../../extensions.js';
@@ -2905,11 +2906,7 @@ function renderSettingsUI() {
 }
 
 function initUI() {
-    let container = $('#rpg-buttons-container');
-    if (container.length === 0) {
-        container = $('<div id="rpg-buttons-container" style="position:fixed; bottom:20px; right:20px; display:flex; gap:15px; z-index:3000;"></div>');
-        $('body').append(container);
-    }
+    const container = $(ensureButtonRow());
     let btn = $('#rpg-game-btn');
     if (btn.length === 0) {
         btn = $(`<div class="rpg-floating-btn" id="rpg-game-btn" title="Games with the bot" style="position:static; width:50px; height:50px; margin:0; display:flex;"><i class="fa-solid fa-gamepad"></i></div>`);

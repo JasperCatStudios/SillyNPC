@@ -1,5 +1,6 @@
 import { getRequestHeaders, eventSource, event_types, saveSettingsDebounced, name1, substituteParams, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../../../script.js';
 import { placeWritingPrompt, promptListAvailable } from '../../src/prompt-slot.js';
+import { ensureButtonRow } from '../../src/floating-buttons.js';
 import { SlashCommand } from '../../../../../slash-commands/SlashCommand.js';
 import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../../../slash-commands/SlashCommandArgument.js';
 import { SlashCommandParser } from '../../../../../slash-commands/SlashCommandParser.js';
@@ -4285,11 +4286,7 @@ function onStackClick(e) {
 function openPhone() { settings.enabled = true; settings.phoneMin = false; saveSettings(); renderBubbles(); renderButton(); }
 
 function renderButton() {
-    let container = $('#rpg-buttons-container');
-    if (container.length === 0) {
-        container = $('<div id="rpg-buttons-container" style="position:fixed; bottom:20px; right:20px; display:flex; gap:15px; z-index:3000;"></div>');
-        $('body').append(container);
-    }
+    const container = $(ensureButtonRow());
     let btn = $('#rph-btn');
     if (btn.length === 0) {
         btn = $(`<div class="rpg-floating-btn" id="rph-btn" title="${escapeHtml(t('hdr'))}" style="position:static; margin:0;"><i class="fa-solid fa-mobile-screen-button"></i></div>`);

@@ -3592,12 +3592,30 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
     .sillynpc-editor-header .sillynpc-editor-title { flex: 1 1 70px; }
 }
 
-/* Games, Combat and the Phone on a small screen. The corner button row is hidden (the wand menu
-   opens each one instead), and each window becomes a sheet that fits the screen. The games window
-   was placed with left: calc(50vw - 480px), which is off the left edge on a phone: only a dark
-   sliver showed and it could not be tapped. */
+/* The floating buttons for Games, Combat and the Phone (src/floating-buttons.js): one draggable holder that
+   snaps to a screen edge. The position is set by the script. On a phone the buttons stack and are a little smaller. */
+#rpg-buttons-container {
+    position: fixed;
+    display: flex;
+    gap: 15px;
+    z-index: 3000;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: left 0.25s ease, right 0.25s ease, top 0.25s ease;
+}
+#rpg-buttons-container.is-dragging { transition: none; cursor: grabbing; }
+#rpg-buttons-container.is-dragging > * { pointer-events: none; }
+#rpg-buttons-container > * { touch-action: none; -webkit-tap-highlight-color: transparent; }
+
+/* Games, Combat and the Phone on a small screen. The buttons stack in a column, and each window becomes
+   a sheet that fits the screen. The games window was placed with left: calc(50vw - 480px), which is off
+   the left edge on a phone: only a dark sliver showed and it could not be tapped. */
 @media (max-width: 900px) {
-    #rpg-buttons-container { display: none !important; }
+    #rpg-buttons-container { flex-direction: column; gap: 10px; }
+    #rpg-buttons-container > #rpg-game-btn,
+    #rpg-buttons-container > #snpc-combat-btn,
+    #rpg-buttons-container > #rph-btn { width: 44px !important; height: 44px !important; font-size: 18px !important; }
     #rpg-game-modal {
         left: 2vw !important;
         right: 2vw;
