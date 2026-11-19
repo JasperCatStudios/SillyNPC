@@ -33,7 +33,7 @@ import {
 import { buildTalkRequest, cannedLine, talkDecision, cooldownOk, hasBuiltIn } from '../../src/activity-talk-core.js';
 import { activityRecord, activityTalkEntry, activityReport } from '../../src/activity-record.js';
 import {
-    applyProfXp, unlocksFor, applyUnlocks, progressLine, recordPlay,
+    applyProfXp, unlocksFor, applyUnlocks, progressLine, recordPlay, noteCooked,
 } from '../../src/activity-progress-core.js';
 import { describeState } from '../../src/activity-memory-core.js';
 import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
@@ -366,6 +366,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             else if (rewards.levelXp) shown.push(`+${rewards.levelXp} XP`);
         }
         if (mine) mine.actStats = recordPlay(mine.actStats, activityId, grade, rewards.knowledge || 0);
+        if (mine && rewards.recipeId) mine.actStats = noteCooked(mine.actStats, activityId, rewards.recipeId);
         if (mine && rewards.knowledge > 0) shown.push(`+${rewards.knowledge} ${term(activePreset(), 'knowledge').toLowerCase()}`);
 
         if (s.itemsOn) {

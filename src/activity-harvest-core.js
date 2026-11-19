@@ -1,4 +1,4 @@
-import { matchPref, normKey } from './likes-core.js';
+import { matchPref, normKey, isFavoriteMeal } from './likes-core.js';
 import { GRADE_XP, seeded } from './activity-memory-core.js';
 
 /**
@@ -123,6 +123,25 @@ export function availableRecipes(recipes, pack) {
     return rows.map(r => ({ ...r, ok: r.missing.length === 0 })).sort((a, b) => Number(b.ok) - Number(a.ok));
 }
 
+/**
+ * The recipe book: every recipe of the preset with what it needs, how often it has been cooked, whether it can be cooked now
+ * (only judged when `tracked`, the Inventory is on) and whose favourite meal it is. `cards` are character cards (their `prefs`).
+ * @returns {{ id: string, name: string, desc: string, needs: string[], made: number, known: boolean, ok: boolean, missing: string[], favoriteOf: string[] }[]}
+ */
+export function recipeBook(recipes, { made = {}, pack = [], tracked = false, cards = [] } = {}) {
+    return (recipes || []).map(recipe => {
+        const missing = tracked ? missingIngredients(recipe, pack).map(m => m.label) : [];
+        const count = whole(made?.[recipe.id], 0);
+        return {
+            id: recipe.id, name: recipe.name, desc: recipe.desc || '',
+            needs: (recipe.needs || []).map(n => n.label),
+            made: count, known: count > 0,
+            ok: missing.length === 0, missing,
+            favoriteOf: (cards || []).filter(c => c?.name && isFavoriteMeal(c.prefs, recipe.name)).map(c => c.name),
+        };
+    });
+}
+
 /** A new dish: three steps, each with a zone somewhere along the bar. */
 export function newCook({ recipe, difficulty = 'normal', rng = Math.random } = {}) {
     return {
@@ -162,12 +181,13 @@ export function cookRewards(state, { prefs, partner = true, pack = [] } = {}) {
     const grade = cookGrade(state);
     const failed = grade === 'failed';
     const mult = failed ? GRADE_XP.poor : GRADE_XP[grade];
-    const liked = Boolean(partner) && !failed && matchPref(prefs, 'food', state.recipe?.name) === 'like';
+    const favorite = Boolean(partner) && !failed && isFavoriteMeal(prefs, state.recipe?.name);
+    const liked = Boolean(partner) && !failed && (favorite || matchPref(prefs, 'food', state.recipe?.name) === 'like');
     const bonds = [];
     if (partner && (grade === 'perfect' || grade === 'good')) bonds.push({ meter: 'trust', amount: grade === 'perfect' ? 1 : 0.5 });
-    if (liked && (grade === 'perfect' || grade === 'good')) bonds.push({ meter: 'affection', amount: grade === 'perfect' ? 2 : 1 });
+    if (liked && (grade === 'perfect' || grade === 'good')) bonds.push({ meter: 'affection', amount: (grade === 'perfect' ? 2 : 1) * (favorite ? 2 : 1) });
     return {
-        grade, liked, bonds,
+        grade, liked, favorite, bonds,
         levelXp: Math.round(8 * mult),
         item: failed
             ? { name: FAILED_DISH, qty: 1, kind: 'food', note: DISH_NOTE.failed }

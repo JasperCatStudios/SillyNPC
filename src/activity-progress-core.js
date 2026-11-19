@@ -287,6 +287,24 @@ export function recordPlay(actStats, activityId, grade, knowledge = 0) {
     return out;
 }
 
+/** Notes one finished dish on a card's `actStats` for the recipe book: { <activityId>: { made: { <recipeId>: count } } }. Returns a new object. */
+export function noteCooked(actStats, activityId, recipeId) {
+    const id = String(recipeId ?? '').trim();
+    if (!id) return { ...obj(actStats) };
+    const out = { ...obj(actStats) };
+    const held = obj(out[activityId]);
+    const made = { ...obj(held.made) };
+    made[id] = whole(made[id], 0) + 1;
+    out[activityId] = { ...held, made };
+    return out;
+}
+
+/** How many times a dish has been cooked: { <recipeId>: count } from a card's actStats (empty when none). */
+export function cookedCounts(actStats, activityId) {
+    const made = obj(obj(obj(actStats)[activityId]).made);
+    return Object.fromEntries(Object.entries(made).map(([k, v]) => [k, whole(v, 0)]).filter(([, v]) => v > 0));
+}
+
 /** The study knowledge a card has built up, 0 when none. */
 export const knowledgeOfCard = (actStats) => whole(obj(obj(actStats).study).knowledge, 0);
 

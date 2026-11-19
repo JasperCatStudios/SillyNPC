@@ -3,7 +3,7 @@ import { requestOnConnection } from './connections.js';
 import { profileText } from './profile-text.js';
 import {
     PREF_CATEGORIES, PREF_LABELS, PREF_MAX_CHARS, PREF_NOTE_MAX, GENERIC_SUGGESTIONS,
-    normalizePrefs, addPref, removePref, setNote, hasPrefs, buildPrefsRequest, parsePrefSuggestion,
+    normalizePrefs, addPref, removePref, setNote, setFavoriteMeal, hasPrefs, buildPrefsRequest, parsePrefSuggestion,
 } from './likes-core.js';
 
 /**
@@ -136,6 +136,18 @@ export function buildLikesCard(char, { suggestions } = {}) {
         }
     };
 
+    // The favourite meal: a dish the character loves most. A cooked dish with this name earns a bigger bond bonus.
+    const favWrap = el('div');
+    favWrap.append(el('strong', '', 'Favourite meal'));
+    const fav = el('input', 'text_pole');
+    fav.type = 'text';
+    fav.maxLength = PREF_MAX_CHARS;
+    fav.placeholder = 'One dish they love most, e.g. Roast fish';
+    fav.setAttribute('aria-label', 'Favourite meal');
+    fav.value = current().favoriteMeal;
+    fav.addEventListener('input', () => { commit(setFavoriteMeal(char.prefs, fav.value)); });
+    favWrap.append(fav);
+
     // The free note.
     const noteWrap = el('div');
     noteWrap.append(el('strong', '', 'Note'));
@@ -162,6 +174,8 @@ export function buildLikesCard(char, { suggestions } = {}) {
             const raw = await requestOnConnection('activitiesProfileId', system, user, 800);
             const found = parsePrefSuggestion(raw);
             if (!found) { say('The model gave nothing that could be read. Try again.'); return; }
+            // A favourite meal fills an empty box (visible and editable); it never replaces one you set.
+            if (found.favoriteMeal && !current().favoriteMeal) { commit(setFavoriteMeal(char.prefs, found.favoriteMeal)); fav.value = found.favoriteMeal; }
             const have = current();
             pending = [];
             for (const side of ['likes', 'dislikes']) {
@@ -189,6 +203,7 @@ export function buildLikesCard(char, { suggestions } = {}) {
         commit(normalizePrefs(null));
         pending = [];
         note.value = '';
+        fav.value = '';
         say('Cleared.');
         draw();
     });
@@ -227,7 +242,7 @@ export function buildLikesCard(char, { suggestions } = {}) {
     portraitWrap.append(portraitRow, el('small', 'notes', 'Shown beside the table on the Tea Time screen instead of the usual portrait. Leave it empty to use the usual one.'));
     showThumb();
 
-    card.append(rowsHost, noteWrap, portraitWrap, suggest);
+    card.append(rowsHost, favWrap, noteWrap, portraitWrap, suggest);
     draw();
     return card;
 }

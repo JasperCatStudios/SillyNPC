@@ -9,7 +9,8 @@ import { runStudy } from './games/memory-ui.js';
 import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
-import { availableRecipes } from '../../src/activity-harvest-core.js';
+import { availableRecipes, recipeBook } from '../../src/activity-harvest-core.js';
+import { cookedCounts } from '../../src/activity-progress-core.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
 import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../../src/activity-tea-core.js';
 import { tiredText } from '../../src/activity-energy-core.js';
@@ -509,6 +510,30 @@ function showCookSetup(activity) {
     };
     draw();
     box.append(list);
+
+    // The recipe book: every dish, what it needs, how often you made it, and whose favourite it is.
+    const book = el('details', 'snpc-act-book');
+    book.append(el('summary', '', 'Recipe book'));
+    const fillBook = () => {
+        for (const old of [...book.querySelectorAll('.snpc-act-book-list')]) old.remove();
+        const mine = cardOf(userName());
+        const cards = partnerList().map(p => cardOf(p.name)).filter(Boolean);
+        const entries = recipeBook(preset.harvest.recipes, { made: cookedCounts(mine?.actStats, activity.id), pack: tracked ? packItems() : [], tracked, cards });
+        const ul = el('ul', 'snpc-act-book-list');
+        for (const e of entries) {
+            const li = el('li', e.known ? 'is-known' : '');
+            li.append(el('strong', '', e.name));
+            if (e.desc) li.append(el('small', '', e.desc));
+            li.append(el('small', '', e.needs.length ? `Ingredients: ${e.needs.join(', ')}` : 'No ingredients needed'));
+            li.append(el('small', '', e.known ? `Cooked ${e.made} time${e.made === 1 ? '' : 's'}` : 'Not cooked yet'));
+            if (tracked && !e.ok) li.append(el('small', 'snpc-act-lock', `You lack: ${e.missing.join(', ')}`));
+            if (e.favoriteOf.length) li.append(el('small', 'snpc-act-streak', `Favourite meal of ${e.favoriteOf.join(', ')}`));
+            ul.append(li);
+        }
+        book.append(ul);
+    };
+    book.addEventListener('toggle', () => { if (book.open) fillBook(); });
+    box.append(book);
 
     const difficulty = el('select', 'snpc-act-select');
     difficulty.setAttribute('aria-label', 'Difficulty');

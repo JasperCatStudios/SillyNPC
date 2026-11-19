@@ -29,7 +29,7 @@ export const normKey = (v) => String(v ?? '').toLowerCase().replace(/[^\p{L}\p{N
 const emptySide = () => Object.fromEntries(PREF_CATEGORIES.map(c => [c, []]));
 
 export function emptyPrefs() {
-    return { version: 1, likes: emptySide(), dislikes: emptySide(), note: '' };
+    return { version: 1, likes: emptySide(), dislikes: emptySide(), favoriteMeal: '', note: '' };
 }
 
 function normalizeSide(raw) {
@@ -61,13 +61,13 @@ export function normalizePrefs(raw) {
         const liked = new Set(likes[c].map(normKey));
         dislikes[c] = dislikes[c].filter(v => !liked.has(normKey(v)));
     }
-    return { version: 1, likes, dislikes, note: String(r.note ?? '').replace(/\s+/g, ' ').trim().slice(0, PREF_NOTE_MAX) };
+    return { version: 1, likes, dislikes, favoriteMeal: clean(r.favoriteMeal), note: String(r.note ?? '').replace(/\s+/g, ' ').trim().slice(0, PREF_NOTE_MAX) };
 }
 
 /** Whether there is anything worth keeping or sending. */
 export function hasPrefs(raw) {
     const p = normalizePrefs(raw);
-    return Boolean(p.note) || PREF_CATEGORIES.some(c => p.likes[c].length || p.dislikes[c].length);
+    return Boolean(p.note) || Boolean(p.favoriteMeal) || PREF_CATEGORIES.some(c => p.likes[c].length || p.dislikes[c].length);
 }
 
 /**
@@ -99,6 +99,23 @@ export function removePref(raw, side, category, value) {
     const before = prefs[side][category].length;
     prefs[side][category] = prefs[side][category].filter(v => normKey(v) !== key);
     return { prefs, changed: prefs[side][category].length !== before };
+}
+
+/** The character's favourite meal (one dish name; empty clears it). */
+export function setFavoriteMeal(raw, text) {
+    const prefs = normalizePrefs(raw);
+    prefs.favoriteMeal = clean(text);
+    return prefs;
+}
+
+/** Whether a dish is this character's favourite meal: the same name, or one containing the other as whole words. */
+export function isFavoriteMeal(raw, dish) {
+    const fav = normalizePrefs(raw).favoriteMeal;
+    const key = normKey(dish);
+    if (!fav || !key) return false;
+    if (normKey(fav) === key) return true;
+    const words = (v) => ` ${String(v).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+    return words(dish).includes(words(fav)) || words(fav).includes(words(dish));
 }
 
 /** The free-text note. */
@@ -146,6 +163,7 @@ export function likesPromptText(raw) {
     const dislikes = flat('dislikes');
     if (likes.length) parts.push(`Likes: ${join(likes)}.`);
     if (dislikes.length) parts.push(`Dislikes: ${join(dislikes)}.`);
+    if (p.favoriteMeal) parts.push(`Favourite meal: ${p.favoriteMeal}.`);
     if (p.note) parts.push(`Note: ${p.note}`);
     return parts.join(' ');
 }
@@ -179,7 +197,8 @@ export function buildPrefsRequest({ name, profile, existing, system } = {}) {
         '',
         `Suggest what ${name || 'this character'} likes and dislikes. Use these keys for each side: ${PREF_CATEGORIES.join(', ')}.`,
         `Each value is a short word or phrase (at most ${PREF_MAX_CHARS} characters). At most 5 per key; leave a key empty when the description gives no hint.`,
-        'Answer only with JSON of this shape: {"likes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"dislikes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]}}',
+        'Also name their single favourite meal (one dish) as "favoriteMeal", or leave it empty.',
+        'Answer only with JSON of this shape: {"likes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"dislikes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"favoriteMeal":""}',
     ];
     return { system: system || PREFS_SYSTEM, user: lines.filter((l, i) => l || lines[i - 1]).join('\n') };
 }
@@ -196,7 +215,7 @@ export function parsePrefSuggestion(reply) {
     try {
         const parsed = JSON.parse(text.slice(start, end + 1));
         if (!parsed || typeof parsed !== 'object') return null;
-        const p = normalizePrefs({ likes: parsed.likes, dislikes: parsed.dislikes });
+        const p = normalizePrefs({ likes: parsed.likes, dislikes: parsed.dislikes, favoriteMeal: parsed.favoriteMeal });
         return hasPrefs(p) ? p : null;
     } catch {
         return null;
@@ -210,6 +229,7 @@ export function parsePrefSuggestion(reply) {
 export function mergePrefs(raw, suggested) {
     let prefs = normalizePrefs(raw);
     const s = normalizePrefs(suggested);
+    if (!prefs.favoriteMeal && s.favoriteMeal) prefs.favoriteMeal = s.favoriteMeal;
     for (const side of PREF_SIDES) {
         for (const c of PREF_CATEGORIES) {
             for (const v of s[side][c]) {

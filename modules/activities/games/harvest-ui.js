@@ -228,9 +228,10 @@ export function runCook(win, ctx) {
         const lines = settleActivity({
             activityId: 'cook', label, partner, lines: win.talk(),
             summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${recipe.name}, ${GRADE_TEXT[rewards.grade].toLowerCase()}.`,
-            rewards: { grade: rewards.grade, levelXp: rewards.levelXp, bonds: rewards.bonds, item: rewards.item, consume: rewards.consume },
+            rewards: { grade: rewards.grade, levelXp: rewards.levelXp, bonds: rewards.bonds, item: rewards.item, consume: rewards.consume, recipeId: rewards.grade === 'failed' ? '' : recipe.id },
         });
-        if (rewards.liked && rewards.bonds.length) lines.push(`${partner} loved the ${recipe.name}.`);
+        if (rewards.favorite && rewards.bonds.length) lines.push(`${recipe.name} is ${partner}'s favourite meal, and it shows.`);
+        else if (rewards.liked && rewards.bonds.length) lines.push(`${partner} loved the ${recipe.name}.`);
         setTimeout(() => resultCard({
             title: rewards.grade === 'failed' ? 'It burnt' : `${recipe.name} is ready`, grade: rewards.grade, extra: `${state.steps.filter(s => s.quality === 'perfect').length} perfect steps`,
             lines, again: 'Cook again', onAgain, onLeave, win,
