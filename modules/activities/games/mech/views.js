@@ -421,12 +421,12 @@ function plateView(svg) {
     // One item: its picture when it has one (by its `art` name), else a plain shape; both centred on the item's position.
     const drawItem = (parent, it, look, ghost) => {
         const shape = S('g', {}, parent);
-        look.draw(ghost ? { fill: 'rgba(255,255,255,0.15)' } : look, shape);
-        if (ghost) shape.querySelectorAll('*').forEach(n => { n.setAttribute('fill', 'rgba(255,255,255,0.15)'); n.setAttribute('stroke', '#fff'); n.setAttribute('stroke-dasharray', '1.5 1.5'); });
+        look.draw(ghost ? { fill: 'rgba(0,0,0,0.1)' } : look, shape);
+        if (ghost) shape.querySelectorAll('*').forEach(n => { n.setAttribute('fill', 'rgba(0,0,0,0.1)'); n.setAttribute('stroke', '#5a4a36'); n.setAttribute('stroke-dasharray', '1.5 1.5'); });
         if (it.art) {
             const sz = look.size;
             const im = food(it.art, parent, { x: -sz / 2, y: -sz / 2, width: sz, height: sz }, () => set(shape, { opacity: 0 }));
-            if (ghost) im.el.style.filter = 'brightness(0) invert(1)';
+            if (ghost) im.el.style.filter = 'brightness(0)';
         }
         return shape;
     };
@@ -438,9 +438,10 @@ function plateView(svg) {
                     const at = plateToStage(it.spot.u, it.spot.v);
                     const look = PLATE_LOOK[i % PLATE_LOOK.length];
                     const gh = S('g', { transform: `translate(${X(at.x)} ${Y(at.y)})`, opacity: 0.4 }, g);
+                    gh.dataset.ghost = '1';
                     drawItem(gh, it, look, true);
                     ghosts.push(gh);
-                    const lab = S('text', { x: X(at.x), y: Y(at.y) + 11, 'text-anchor': 'middle', 'font-size': 3.6, fill: '#fff', opacity: 0.8 }, g);
+                    const lab = S('text', { x: X(at.x), y: Y(at.y) + 11, 'text-anchor': 'middle', 'font-size': 3.6, fill: '#3a3128', opacity: 0.8 }, g);
                     lab.textContent = name(it.id);
                     labels.push(lab);
                     const piece = S('g', {}, g);
@@ -457,6 +458,7 @@ function plateView(svg) {
                 else if (current && (v.carrying || v.controls === 'button')) { const at = plateToStage(v.pos.u, v.pos.v); px = X(at.x); py = Y(at.y); }
                 set(pieces[i], { transform: `translate(${px} ${py})`, opacity: placed || current ? 1 : 0 });
                 set(ghosts[i], { opacity: placed ? 0.1 : current ? 0.6 : 0.3 });
+                ghosts[i].dataset.current = current ? '1' : '0';
                 set(labels[i], { opacity: placed ? 0 : current ? 0.95 : 0.5, 'font-weight': current ? 'bold' : 'normal' });
                 const ring = GRADE_RING[it.grade];
                 pieces[i].style.filter = ring ? `drop-shadow(0 0 1.6px ${ring})` : '';

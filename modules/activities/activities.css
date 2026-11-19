@@ -425,3 +425,4 @@
     .snpc-act-hostportrait { height: clamp(120px, 22dvh, 190px); }
 }
 .snpc-act-itemmark[hidden], .snpc-act-itemcheck[hidden] { display: none; }
+.snpc-act-hostgroup .snpc-act-itemname { white-space: normal; text-align: center; line-height: 1.15; max-width: 100%; }
