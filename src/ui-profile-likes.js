@@ -3,7 +3,7 @@ import { requestOnConnection } from './connections.js';
 import { profileText } from './profile-text.js';
 import {
     PREF_CATEGORIES, PREF_LABELS, PREF_MAX_CHARS, PREF_NOTE_MAX, GENERIC_SUGGESTIONS,
-    normalizePrefs, addPref, removePref, setNote, setFavoriteMeal, hasPrefs, buildPrefsRequest, parsePrefSuggestion,
+    normalizePrefs, addPref, removePref, setNote, setFavoriteMeal, FEEDBACK_KEYS, FEEDBACK_LABELS, FEEDBACK_STYLES, setFeedbackTaste, applyFeedbackStyle, feedbackStyleOf, hasPrefs, buildPrefsRequest, parsePrefSuggestion,
 } from './likes-core.js';
 
 /**
@@ -148,6 +148,41 @@ export function buildLikesCard(char, { suggestions } = {}) {
     fav.addEventListener('input', () => { commit(setFavoriteMeal(char.prefs, fav.value)); });
     favWrap.append(fav);
 
+    // How they take feedback: used when they help with a craft and the player answers their work.
+    const fbWrap = el('div');
+    fbWrap.style.cssText = 'margin-top:10px;';
+    fbWrap.append(el('strong', '', 'How they take feedback'));
+    const fbHelp = el('small', 'notes', 'When they help you craft and you answer their work, this decides what lands. Pick a style to start, then adjust any answer. Example: a proud character wants critique or nothing and hates pity.');
+    fbHelp.style.display = 'block';
+    fbWrap.append(fbHelp);
+    const styleSel = el('select', 'text_pole');
+    styleSel.setAttribute('aria-label', 'Feedback style');
+    const fbRows = el('div');
+    fbRows.style.cssText = 'display:flex; flex-direction:column; gap:4px; margin-top:6px;';
+    const selects = {};
+    const drawFeedback = () => {
+        const p = current();
+        styleSel.value = feedbackStyleOf(p) || '__custom';
+        for (const k of FEEDBACK_KEYS) selects[k].value = p.feedback[k] || '';
+    };
+    styleSel.append(Object.assign(el('option'), { value: '__custom', textContent: 'Custom' }));
+    for (const [id, st] of Object.entries(FEEDBACK_STYLES)) styleSel.append(Object.assign(el('option'), { value: id, textContent: st.label }));
+    styleSel.addEventListener('change', () => { if (styleSel.value !== '__custom') { commit(applyFeedbackStyle(char.prefs, styleSel.value)); drawFeedback(); } });
+    for (const k of FEEDBACK_KEYS) {
+        const row = el('div');
+        row.style.cssText = 'display:flex; gap:8px; align-items:center; justify-content:space-between;';
+        row.append(el('span', '', FEEDBACK_LABELS[k]));
+        const sel = el('select', 'text_pole');
+        sel.setAttribute('aria-label', FEEDBACK_LABELS[k]);
+        for (const [v, t] of [['', 'Neutral'], ['like', 'Likes it'], ['dislike', 'Dislikes it']]) sel.append(Object.assign(el('option'), { value: v, textContent: t }));
+        sel.addEventListener('change', () => { commit(setFeedbackTaste(char.prefs, k, sel.value)); drawFeedback(); });
+        selects[k] = sel;
+        row.append(sel);
+        fbRows.append(row);
+    }
+    fbWrap.append(styleSel, fbRows);
+    drawFeedback();
+
     // The free note.
     const noteWrap = el('div');
     noteWrap.append(el('strong', '', 'Note'));
@@ -176,6 +211,8 @@ export function buildLikesCard(char, { suggestions } = {}) {
             if (!found) { say('The model gave nothing that could be read. Try again.'); return; }
             // A favourite meal fills an empty box (visible and editable); it never replaces one you set.
             if (found.favoriteMeal && !current().favoriteMeal) { commit(setFavoriteMeal(char.prefs, found.favoriteMeal)); fav.value = found.favoriteMeal; }
+            // Suggested feedback tastes fill only the answers you have not set.
+            if (Object.keys(found.feedback || {}).length) { const before = JSON.stringify(current().feedback); commit({ ...current(), feedback: { ...found.feedback, ...current().feedback } }); if (JSON.stringify(current().feedback) !== before) drawFeedback(); }
             const have = current();
             pending = [];
             for (const side of ['likes', 'dislikes']) {
@@ -204,6 +241,7 @@ export function buildLikesCard(char, { suggestions } = {}) {
         pending = [];
         note.value = '';
         fav.value = '';
+        drawFeedback();
         say('Cleared.');
         draw();
     });
@@ -242,7 +280,7 @@ export function buildLikesCard(char, { suggestions } = {}) {
     portraitWrap.append(portraitRow, el('small', 'notes', 'Shown beside the table on the Tea Time screen instead of the usual portrait. Leave it empty to use the usual one.'));
     showThumb();
 
-    card.append(rowsHost, favWrap, noteWrap, portraitWrap, suggest);
+    card.append(rowsHost, favWrap, fbWrap, noteWrap, portraitWrap, suggest);
     draw();
     return card;
 }

@@ -253,11 +253,13 @@ export function runCraft(win, ctx) {
                 const box = el('div', 'snpc-act-row');
                 box.style.cssText = 'flex-wrap:wrap; gap:8px; margin-top:10px;';
                 const choose = (choice) => {
-                    const fx = choice ? reactionEffect(result, choice) : { meter: '', amount: 0 };
+                    const taste = (ctx.partnerFeedback || {})[choice] || '';
+                    const fx = choice ? reactionEffect(result, choice, taste) : { meter: '', amount: 0, verdict: '' };
                     if (fx.amount > 0) helpBonds.push({ meter: fx.meter, amount: fx.amount });
-                    const verb = { praise: 'praised', critique: 'critiqued', empathize: 'comforted' }[choice] || 'said nothing to';
-                    status.textContent = `${said} You ${verb} ${partner}.${fx.amount > 0 ? ` It meant something (${fx.meter}).` : choice ? ' It did not really land.' : ''}`;
-                    speak('moment', '', '', `${partner} prepared ${helper.name} and ${result === 'perfect' ? 'did it perfectly' : result === 'normal' ? 'did an ordinary job' : 'made a mess of it'}; the player ${verb} them`);
+                    const verb = { praise: 'praised', critique: 'critiqued', empathize: 'comforted', silence: 'left it to' }[choice] || 'said nothing to';
+                    const feel = fx.verdict === 'disliked' ? ` ${partner} did not like that.` : fx.verdict === 'liked' ? ` ${partner} appreciated that.` : fx.amount > 0 ? ' It meant something.' : ' It did not really land.';
+                    status.textContent = `${said} You ${verb} ${partner}.${feel}`;
+                    speak('moment', '', '', `${partner} prepared ${helper.name} and ${result === 'perfect' ? 'did it perfectly' : result === 'normal' ? 'did an ordinary job' : 'made a mess of it'}; the player ${verb} them${fx.verdict === 'disliked' ? ', which they disliked' : fx.verdict === 'liked' ? ', which they appreciated' : ''}`);
                     box.querySelectorAll('button').forEach(b => { b.disabled = true; });
                     setTimeout(finishPrep, 900);
                 };
@@ -265,9 +267,9 @@ export function runCraft(win, ctx) {
                     ['praise', 'Praise', 'Tell them they did well.'],
                     ['critique', 'Critique', 'Point out what to do better.'],
                     ['empathize', 'Empathize', 'Show understanding, whatever happened.'],
-                    ['', 'Say nothing', 'Move on.'],
+                    ['silence', 'Say nothing', 'Leave them to it.'],
                 ]) {
-                    const b = el('button', choice ? 'snpc-act-btn' : 'snpc-act-btn is-quiet', text);
+                    const b = el('button', choice !== 'silence' ? 'snpc-act-btn' : 'snpc-act-btn is-quiet', text);
                     b.type = 'button';
                     b.title = hint;
                     b.addEventListener('click', () => choose(choice));

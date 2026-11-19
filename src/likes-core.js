@@ -26,10 +26,66 @@ const clean = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, PREF_M
 /** The key two spellings of one thing share: lower case, no punctuation or spaces. */
 export const normKey = (v) => String(v ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
+/* ------------------------------------------------------------------ how a character takes feedback */
+
+/** The four ways to answer someone's work, as the crafting help offers them. */
+export const FEEDBACK_KEYS = Object.freeze(['praise', 'critique', 'empathize', 'silence']);
+export const FEEDBACK_LABELS = Object.freeze({ praise: 'Praise', critique: 'Critique', empathize: 'Empathy or pity', silence: 'Saying nothing' });
+
+/**
+ * Ready-made styles to start from. Each says which answers the character likes ('like') or dislikes ('dislike'); anything not named is
+ * neutral, which means the answer counts the way the moment calls for.
+ */
+export const FEEDBACK_STYLES = Object.freeze({
+    balanced: { label: 'Balanced (no strong feelings)', taste: {} },
+    proud: { label: 'Proud: wants critique or nothing, hates pity', taste: { critique: 'like', silence: 'like', empathize: 'dislike' } },
+    driven: { label: 'Driven: wants honest critique', taste: { critique: 'like', praise: 'dislike' } },
+    gentle: { label: 'Gentle: likes praise and kindness, dislikes harshness', taste: { praise: 'like', empathize: 'like', critique: 'dislike' } },
+    insecure: { label: 'Needs reassurance: likes praise and comfort', taste: { praise: 'like', empathize: 'like', silence: 'dislike' } },
+    independent: { label: 'Independent: prefers to be left alone', taste: { silence: 'like', praise: 'dislike', empathize: 'dislike' } },
+});
+
+/** The feedback tastes repaired: only known answers, only 'like' or 'dislike'. */
+export function normalizeFeedback(raw) {
+    const r = obj(raw);
+    const out = {};
+    for (const k of FEEDBACK_KEYS) if (r[k] === 'like' || r[k] === 'dislike') out[k] = r[k];
+    return out;
+}
+
+/** One taste: 'like', 'dislike' or '' (neutral). */
+export const feedbackTaste = (raw, key) => normalizeFeedback(obj(raw).feedback)[key] || '';
+
+/** Sets one taste ('' clears it). Returns new prefs. */
+export function setFeedbackTaste(raw, key, taste) {
+    const prefs = normalizePrefs(raw);
+    if (!FEEDBACK_KEYS.includes(key)) return prefs;
+    const fb = { ...prefs.feedback };
+    if (taste === 'like' || taste === 'dislike') fb[key] = taste; else delete fb[key];
+    prefs.feedback = fb;
+    return prefs;
+}
+
+/** Applies a ready-made style (all four tastes at once). An unknown id changes nothing. */
+export function applyFeedbackStyle(raw, styleId) {
+    const prefs = normalizePrefs(raw);
+    const style = FEEDBACK_STYLES[styleId];
+    if (!style) return prefs;
+    prefs.feedback = normalizeFeedback(style.taste);
+    return prefs;
+}
+
+/** The id of the ready-made style these tastes match exactly, or '' when custom. */
+export function feedbackStyleOf(raw) {
+    const fb = normalizeFeedback(obj(raw).feedback);
+    const key = (o) => JSON.stringify(FEEDBACK_KEYS.map(k => o[k] || ''));
+    return Object.entries(FEEDBACK_STYLES).find(([, s]) => key(normalizeFeedback(s.taste)) === key(fb))?.[0] || '';
+}
+
 const emptySide = () => Object.fromEntries(PREF_CATEGORIES.map(c => [c, []]));
 
 export function emptyPrefs() {
-    return { version: 1, likes: emptySide(), dislikes: emptySide(), favoriteMeal: '', note: '' };
+    return { version: 1, likes: emptySide(), dislikes: emptySide(), favoriteMeal: '', feedback: {}, note: '' };
 }
 
 function normalizeSide(raw) {
@@ -61,13 +117,13 @@ export function normalizePrefs(raw) {
         const liked = new Set(likes[c].map(normKey));
         dislikes[c] = dislikes[c].filter(v => !liked.has(normKey(v)));
     }
-    return { version: 1, likes, dislikes, favoriteMeal: clean(r.favoriteMeal), note: String(r.note ?? '').replace(/\s+/g, ' ').trim().slice(0, PREF_NOTE_MAX) };
+    return { version: 1, likes, dislikes, favoriteMeal: clean(r.favoriteMeal), feedback: normalizeFeedback(r.feedback), note: String(r.note ?? '').replace(/\s+/g, ' ').trim().slice(0, PREF_NOTE_MAX) };
 }
 
 /** Whether there is anything worth keeping or sending. */
 export function hasPrefs(raw) {
     const p = normalizePrefs(raw);
-    return Boolean(p.note) || Boolean(p.favoriteMeal) || PREF_CATEGORIES.some(c => p.likes[c].length || p.dislikes[c].length);
+    return Boolean(p.note) || Boolean(p.favoriteMeal) || Object.keys(p.feedback).length > 0 || PREF_CATEGORIES.some(c => p.likes[c].length || p.dislikes[c].length);
 }
 
 /**
@@ -164,6 +220,10 @@ export function likesPromptText(raw) {
     if (likes.length) parts.push(`Likes: ${join(likes)}.`);
     if (dislikes.length) parts.push(`Dislikes: ${join(dislikes)}.`);
     if (p.favoriteMeal) parts.push(`Favourite meal: ${p.favoriteMeal}.`);
+    const liked = FEEDBACK_KEYS.filter(k => p.feedback[k] === 'like').map(k => FEEDBACK_LABELS[k].toLowerCase());
+    const disliked = FEEDBACK_KEYS.filter(k => p.feedback[k] === 'dislike').map(k => FEEDBACK_LABELS[k].toLowerCase());
+    if (liked.length) parts.push(`Responds well to: ${join(liked)}.`);
+    if (disliked.length) parts.push(`Dislikes being met with: ${join(disliked)}.`);
     if (p.note) parts.push(`Note: ${p.note}`);
     return parts.join(' ');
 }
@@ -198,7 +258,8 @@ export function buildPrefsRequest({ name, profile, existing, system } = {}) {
         `Suggest what ${name || 'this character'} likes and dislikes. Use these keys for each side: ${PREF_CATEGORIES.join(', ')}.`,
         `Each value is a short word or phrase (at most ${PREF_MAX_CHARS} characters). At most 5 per key; leave a key empty when the description gives no hint.`,
         'Also name their single favourite meal (one dish) as "favoriteMeal", or leave it empty.',
-        'Answer only with JSON of this shape: {"likes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"dislikes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"favoriteMeal":""}',
+        'Also say how they take feedback on their work, as "feedback": for each of praise, critique, empathize (pity or comfort) and silence (being left alone), "like" if they would welcome it, "dislike" if it would annoy them, or "" if neither.',
+        'Answer only with JSON of this shape: {"likes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"dislikes":{"tea":[],"food":[],"activity":[],"gift":[],"topic":[]},"favoriteMeal":"","feedback":{"praise":"","critique":"","empathize":"","silence":""}}',
     ];
     return { system: system || PREFS_SYSTEM, user: lines.filter((l, i) => l || lines[i - 1]).join('\n') };
 }
@@ -215,7 +276,7 @@ export function parsePrefSuggestion(reply) {
     try {
         const parsed = JSON.parse(text.slice(start, end + 1));
         if (!parsed || typeof parsed !== 'object') return null;
-        const p = normalizePrefs({ likes: parsed.likes, dislikes: parsed.dislikes, favoriteMeal: parsed.favoriteMeal });
+        const p = normalizePrefs({ likes: parsed.likes, dislikes: parsed.dislikes, favoriteMeal: parsed.favoriteMeal, feedback: parsed.feedback });
         return hasPrefs(p) ? p : null;
     } catch {
         return null;
@@ -230,6 +291,8 @@ export function mergePrefs(raw, suggested) {
     let prefs = normalizePrefs(raw);
     const s = normalizePrefs(suggested);
     if (!prefs.favoriteMeal && s.favoriteMeal) prefs.favoriteMeal = s.favoriteMeal;
+    // A suggested taste fills a gap and never overrules one that is set.
+    prefs.feedback = { ...s.feedback, ...prefs.feedback };
     for (const side of PREF_SIDES) {
         for (const c of PREF_CATEGORIES) {
             for (const v of s[side][c]) {

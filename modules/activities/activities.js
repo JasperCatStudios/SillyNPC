@@ -13,6 +13,7 @@ import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { runCraft } from './games/craft-ui.js';
+import { normalizePrefs } from '../../src/likes-core.js';
 import { availableRecipes, recipeBook } from '../../src/activity-harvest-core.js';
 import { allRecipes } from '../../src/activity-recipe-creator-core.js';
 import { renderRecipeCreator } from './activities-recipe-creator.js';
@@ -644,6 +645,11 @@ function showFishSetup(activity) {
     start.focus();
 }
 
+/** How a character takes feedback (their Likes tab): { praise, critique, empathize, silence } of 'like' or 'dislike'. */
+function feedbackOf(name) {
+    try { return normalizePrefs(cardOf(name)?.prefs).feedback; } catch { return {}; }
+}
+
 /** A craft: the craft type is the preset's (or the built-in) one named by the activity; the skill tier comes from the player's rank. */
 function showCraft(activity) {
     stopMusic();
@@ -659,7 +665,7 @@ function showCraft(activity) {
     w.userName = userName();
     const start = () => runCraft(w, {
         partner: partner.name, activityId: activity.id, label: activity.label, craft, difficulty: s.difficulty, assist: s.assist,
-        tier: craftTier(craft.prof), partnerTier: partner.alone ? 0 : craftTier(craft.prof, partner.name), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
+        tier: craftTier(craft.prof), partnerTier: partner.alone ? 0 : craftTier(craft.prof, partner.name), partnerFeedback: partner.alone ? {} : feedbackOf(partner.name), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
     });
     start();
 }

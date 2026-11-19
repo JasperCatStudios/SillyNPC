@@ -336,23 +336,30 @@ export function rollHelp(tier, rng = Math.random) {
     return r < o.perfect ? 'perfect' : r < o.perfect + o.normal ? 'normal' : 'fail';
 }
 
-export const REACTIONS = Object.freeze(['praise', 'critique', 'empathize']);
+export const REACTIONS = Object.freeze(['praise', 'critique', 'empathize', 'silence']);
 
 /**
  * What the player's answer to the partner's work does. Each answer speaks to a different bond, and is worth most when it fits what
- * happened: praise a perfect job (affection), critique a failure so they learn (respect), empathize with a failure (trust). An
- * answer that does not fit is worth little or nothing. Bond nudges are only ever positive.
- * @returns {{ meter: string, amount: number }}
+ * happened: praise a perfect job (affection), critique a failure so they learn (respect), empathize with a failure (trust). Saying
+ * nothing is worth nothing, unless they like being left alone (respect). Then the CHARACTER decides: `taste` is how they take that
+ * answer ('like', 'dislike' or '' for neutral, from their Likes tab). An answer they like is always welcome (worth at least half a
+ * point, and half again more when it also fits the moment); one they dislike is worth nothing and is flagged. Bond nudges are only
+ * ever positive.
+ * @returns {{ meter: string, amount: number, verdict: 'liked' | 'disliked' | '' }}
  */
-export function reactionEffect(result, choice) {
+export function reactionEffect(result, choice, taste = '') {
     const table = {
         praise: { meter: 'affection', perfect: 1, normal: 0.5, fail: 0 },
         critique: { meter: 'respect', perfect: 0, normal: 0.5, fail: 1 },
         empathize: { meter: 'trust', perfect: 0, normal: 0.5, fail: 1 },
+        silence: { meter: 'respect', perfect: 0, normal: 0, fail: 0 },
     };
     const row = table[choice];
-    if (!row) return { meter: '', amount: 0 };
-    return { meter: row.meter, amount: row[result] ?? 0 };
+    if (!row) return { meter: '', amount: 0, verdict: '' };
+    const base = row[result] ?? 0;
+    if (taste === 'dislike') return { meter: row.meter, amount: 0, verdict: 'disliked' };
+    if (taste === 'like') return { meter: row.meter, amount: Math.round(Math.max(0.5, base * 1.5) * 10) / 10, verdict: 'liked' };
+    return { meter: row.meter, amount: base, verdict: '' };
 }
 
 /* ------------------------------------------------------------------ the shelf */
