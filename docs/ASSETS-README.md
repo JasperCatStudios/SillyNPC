@@ -51,6 +51,29 @@ A snack or small dish, cut out on a transparent background.
 - File: `tea/food/cheese.webp`, `tea/food/cookies.webp`, `tea/food/honeycake.webp`, `tea/food/macarons.webp`, `tea/food/pastry.webp`, `tea/food/sandwiches.webp`, `tea/food/scone.webp`, `tea/food/shortcake.webp`, `tea/food/skewer.webp`, `tea/food/tart.webp`
 - Older names that also work: `tea/snacks/cheese.webp`, `tea/snacks/cookies.webp`, `tea/snacks/honeycake.webp`, `tea/snacks/macarons.webp`, `tea/snacks/pastry.webp`, `tea/snacks/sandwiches.webp`, `tea/snacks/scone.webp`, `tea/snacks/shortcake.webp`, `tea/snacks/skewer.webp`, `tea/snacks/tart.webp`
 
+## Kitchen
+
+### `mech.bench`
+
+The kitchen counter behind the cooking steps. Leave the middle empty: the props are drawn on it.
+
+- Size: 1376x768, opaque.
+- File: `bench/kitchen.webp`
+
+### `mech.prop`
+
+A prop of the cooking steps, cut out on a transparent background, seen from slightly above. The set is the prop family (kitchen).
+
+- Size: 320x290, transparent background.
+- File: `props/kitchen/board.webp`, `props/kitchen/knife.webp`, `props/kitchen/saucepan.webp`, `props/kitchen/spoon.webp`, `props/kitchen/pan.webp`, `props/kitchen/stove.webp`, `props/kitchen/shaker.webp`, `props/kitchen/plate.webp`
+
+### `mech.food`
+
+A food shown in the cooking steps, cut out on a transparent background: raw and golden-cooked fillet, whole and chopped herbs.
+
+- Size: 320x290, transparent background.
+- File: `food/fish-fillet.webp`, `food/fish-fillet-cooked.webp`, `food/herbs.webp`, `food/herbs-cut.webp`
+
 ## Hub
 
 ### `hub.bg` (reserved)
@@ -187,3 +210,20 @@ Sounds come from your sound map today: set its address under Activities settings
 | `activity_garden_dig` | `activity-garden-dig.mp3` |
 | `activity_garden_water` | `activity-garden-water.mp3` |
 | `activity_garden_harvest` | `activity-garden-harvest.mp3` |
+| `activity_mech_perfect` | `activity-mech-perfect.mp3` |
+| `activity_mech_good` | `activity-mech-good.mp3` |
+| `activity_mech_miss` | `activity-mech-miss.mp3` |
+| `activity_mech_streak` | `activity-mech-streak.mp3` |
+| `activity_mech_flow_up` | `activity-mech-flow-up.mp3` |
+| `activity_mech_step_done` | `activity-mech-step-done.mp3` |
+| `activity_mech_serve` | `activity-mech-serve.mp3` |
+| `activity_mech_ruin_comic` | `activity-mech-ruin-comic.mp3` |
+| `activity_mech_slice_cut` | `activity-mech-slice-cut.mp3` |
+| `activity_mech_slice_guard` | `activity-mech-slice-guard.mp3` |
+| `activity_mech_stir_loop` | `activity-mech-stir-loop.mp3` |
+| `activity_mech_stir_splash` | `activity-mech-stir-splash.mp3` |
+| `activity_mech_sear_sizzle` | `activity-mech-sear-sizzle.mp3` |
+| `activity_mech_sear_flip` | `activity-mech-sear-flip.mp3` |
+| `activity_mech_sear_land` | `activity-mech-sear-land.mp3` |
+| `activity_mech_sear_warn` | `activity-mech-sear-warn.mp3` |
+| `activity_mech_sprinkle_shake` | `activity-mech-sprinkle-shake.mp3` |
