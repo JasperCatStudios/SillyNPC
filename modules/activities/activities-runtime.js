@@ -7,7 +7,7 @@ import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
 import { hasVoiceFor } from '../../src/tts.js';
 import { addRecord, rivalryBlock } from '../../src/rivalry.js';
-import { giveItemFor, takeItemFor, getInventory, databaseItems } from '../../src/inventory.js';
+import { giveItemFor, takeItemFor, getInventory, databaseItems, inventorySettings } from '../../src/inventory.js';
 import { vitalsStore, vitalsSettings, getVitals, setVitalFor } from '../../src/vitals.js';
 import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activity-energy-core.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
@@ -509,6 +509,14 @@ export function loadArt(img, file, onMissing) {
 
 /* ------------------------------------------------------------------ cooking, fishing and gardening */
 
+/**
+ * Whether activities use the inventory: the Inventory tracker is on and the Activities item setting is on. When it is off,
+ * cooking needs and uses no ingredients (every dish can be cooked, nothing is taken from the pack).
+ */
+export function inventoryActive() {
+    try { return Boolean(getSettings().enabled) && Boolean(inventorySettings().enabled) && Boolean(activitySettings().itemsOn); } catch { return false; }
+}
+
 /** The player's inventory as [{ name, qty }] (empty with no chat). */
 export function packItems() {
     try { return (getInventory(userName())?.items || []).filter(i => i?.name).map(i => ({ name: i.name, qty: i.qty || 1 })); } catch { return []; }
@@ -565,7 +573,7 @@ export function availableSeeds(preset) {
     const known = new Set();
     for (const seed of preset?.harvest?.seeds || []) {
         known.add(seed.name.toLowerCase());
-        if (seed.free) out.push({ seed, qty: null });
+        if (seed.free || !inventoryActive()) out.push({ seed, qty: null });
         else if (have(seed.name) > 0) out.push({ seed, qty: have(seed.name) });
     }
     try {

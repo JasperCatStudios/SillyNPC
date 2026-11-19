@@ -6,7 +6,7 @@ import {
 import { normalizeActionKey, actionKeyLabel } from '../../../src/activity-config-core.js';
 import { term } from '../../../src/activity-terms.js';
 import {
-    askPartner, settleActivity, sfx, activitySettings, cardOf, packItems, availableSeeds, gardenState, saveGarden, giveItemsNow, takeItemNow, currentDay, talkAllowed,
+    askPartner, settleActivity, sfx, inventoryActive, activitySettings, cardOf, packItems, availableSeeds, gardenState, saveGarden, giveItemsNow, takeItemNow, currentDay, talkAllowed,
 } from '../activities-runtime.js';
 
 /**
@@ -220,7 +220,9 @@ export function runCook(win, ctx) {
     function finish() {
         finished = true;
         press.destroy();
-        const rewards = cookRewards(state, { prefs, partner: Boolean(partner), pack: packItems() });
+        const tracked = inventoryActive();
+        const rewards = cookRewards(state, { prefs, partner: Boolean(partner), pack: tracked ? packItems() : [] });
+        if (!tracked) rewards.consume = [];
         sfx(rewards.grade === 'failed' ? 'activity_potion_fail' : 'activity_cook_done');
         speak('end', '', rewards.grade === 'failed' ? 'poor' : rewards.grade);
         const lines = settleActivity({

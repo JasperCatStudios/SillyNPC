@@ -15,7 +15,7 @@ import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../..
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
+    inventoryActive, teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -479,7 +479,8 @@ function showCookSetup(activity) {
     box.append(el('p', 'snpc-act-note',
         `${activity.label}${partner.alone ? ', cooking alone' : ` with ${partner.name}`}. Choose a dish. Some need ingredients from your pack, which are used up; the simple ones need nothing. Then time three steps: chop, heat and season.`));
 
-    const rows = availableRecipes(preset.harvest.recipes, packItems());
+    const tracked = inventoryActive();
+    const rows = tracked ? availableRecipes(preset.harvest.recipes, packItems()) : preset.harvest.recipes.map(recipe => ({ recipe, missing: [], ok: true }));
     let chosen = rows.find(r => r.ok)?.recipe.id || '';
     const list = el('div', 'snpc-act-recipes');
     list.setAttribute('role', 'radiogroup');
@@ -494,6 +495,7 @@ function showCookSetup(activity) {
             b.setAttribute('aria-disabled', String(!r.ok));
             b.append(el('strong', '', r.recipe.name), el('small', '', r.recipe.desc || ''));
             const needs = r.recipe.needs.length === 0 ? 'No ingredients needed'
+                : !tracked ? `Ingredients: ${r.recipe.needs.map(n => n.label).join(' and ')} (not tracked, the Inventory is off)`
                 : r.ok ? `Uses ${r.recipe.needs.map(n => n.label).join(' and ')}`
                     : `Needs ${r.missing.map(m => `${m.label}${m.have ? ` (you have ${m.have})` : ''}`).join(' and ')}`;
             b.append(el('small', 'snpc-act-recipe-needs', needs));
