@@ -13,6 +13,7 @@ import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { runCraft } from './games/craft-ui.js';
+import { runKitchen } from './games/mech/kitchen-ui.js';
 import { normalizePrefs } from '../../src/likes-core.js';
 import { availableRecipes, recipeBook } from '../../src/activity-harvest-core.js';
 import { allRecipes } from '../../src/activity-recipe-creator-core.js';
@@ -581,7 +582,15 @@ function showCookSetup(activity) {
         saveActivitySettings();
         seat(w, partner, 'Cooking together');
         w.userName = userName();
-        runCook(w, { partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, onLeave: () => showHub(), onAgain: () => showCookSetup(activity) });
+        // The hands-on kitchen, unless the player chose the classic three-tap cooking (kept as a fallback).
+        if (s.classicCooking) {
+            runCook(w, { partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, onLeave: () => showHub(), onAgain: () => showCookSetup(activity) });
+        } else {
+            runKitchen(w, {
+                partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, assist: s.assist, tier: craftTier('cooking'),
+                pack: tracked ? packItems() : null, prefs: partner.alone ? undefined : cardOf(partner.name)?.prefs, onLeave: () => showHub(), onAgain: () => showCookSetup(activity),
+            });
+        }
     });
     const back = el('button', 'snpc-act-btn is-quiet', 'Back');
     back.type = 'button';

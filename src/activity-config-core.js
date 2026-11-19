@@ -48,6 +48,8 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     combatProfXpCap: 12,
     musicOn: true,
     scripts: [],                  // the activity files the player added: [{ name, url }]
+    classicCooking: false,        // the old three-tap cooking instead of the hands-on kitchen (kept as a fallback)
+    controls: 'auto',             // how the hands-on games are played: auto, pointer (mouse and touch) or button (one key or button)
     myRecipes: [],                // dishes the player made in the recipe creator (see activity-recipe-creator-core.js)
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker
@@ -109,6 +111,8 @@ export function normalizeActivitySettings(raw) {
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
         scripts: normalizeScripts(r.scripts),
+        classicCooking: bool('classicCooking'),
+        controls: ['auto', 'pointer', 'button'].includes(r.controls) ? r.controls : 'auto',
         myRecipes: normalizeMyRecipes(r.myRecipes, normalizeRecipe),
         assist: bool('assist'),
         actionKey: normalizeActionKey(r.actionKey, d.actionKey),

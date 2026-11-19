@@ -178,23 +178,50 @@ const DISH_NOTE = Object.freeze({ perfect: 'perfectly cooked', good: 'well cooke
  * @returns {{ grade: string, levelXp: number, item: object, consume: object[], bonds: object[], liked: boolean }}
  */
 export function cookRewards(state, { prefs, partner = true, pack = [] } = {}) {
-    const grade = cookGrade(state);
+    return cookRewardsForGrade(state.recipe, cookGrade(state), { prefs, partner, pack });
+}
+
+/** XP by how hard it was played: easy a little less, hard a little more. */
+export const DIFFICULTY_XP = Object.freeze({ easy: 0.8, normal: 1, hard: 1.3 });
+
+/**
+ * What a dish of a given grade is worth. The grade comes from the old three-tap game or the new step game; everything after it is the
+ * same: the dish and its quantity, the bonds (more for a food they like, double for their favourite meal), level XP, and cooking skill
+ * XP (more for a harder recipe and a harder difficulty, half when the recipe is far below the cook's tier so it cannot be farmed).
+ * @param {object} recipe
+ * @param {string} grade perfect | good | fair | poor | failed
+ * @param {{ prefs?: object, partner?: boolean, pack?: object[], difficulty?: string, tier?: number }} [opts]
+ */
+export function cookRewardsForGrade(recipe, grade, { prefs, partner = true, pack = [], difficulty = 'normal', tier = 0 } = {}) {
     const failed = grade === 'failed';
     const mult = failed ? GRADE_XP.poor : GRADE_XP[grade];
-    const favorite = Boolean(partner) && !failed && isFavoriteMeal(prefs, state.recipe?.name);
-    const liked = Boolean(partner) && !failed && (favorite || matchPref(prefs, 'food', state.recipe?.name) === 'like');
+    const level = recipeLevel(recipe);
+    const farm = level < (Number(tier) || 0) ? 0.5 : 1;
+    const hard = DIFFICULTY_XP[difficulty] ?? 1;
+    const favorite = Boolean(partner) && !failed && isFavoriteMeal(prefs, recipe?.name);
+    const liked = Boolean(partner) && !failed && (favorite || matchPref(prefs, 'food', recipe?.name) === 'like');
     const bonds = [];
     if (partner && (grade === 'perfect' || grade === 'good')) bonds.push({ meter: 'trust', amount: grade === 'perfect' ? 1 : 0.5 });
     if (liked && (grade === 'perfect' || grade === 'good')) bonds.push({ meter: 'affection', amount: (grade === 'perfect' ? 2 : 1) * (favorite ? 2 : 1) });
+    const profXp = Math.round(10 * (0.6 + 0.2 * level) * mult * hard * farm);
     return {
-        grade, liked, favorite, bonds,
-        levelXp: Math.round(8 * mult),
+        grade, liked, favorite, bonds, subject: 'cooking', recipeId: recipe?.id || '',
+        levelXp: Math.round(8 * mult * hard * farm),
+        profXp, partnerProfXp: partner ? Math.floor(profXp / 2) : 0,
         item: failed
             ? { name: FAILED_DISH, qty: 1, kind: 'food', note: DISH_NOTE.failed }
-            : { name: text(state.recipe?.name, 60) || 'Meal', qty: grade === 'perfect' ? 2 : 1, kind: 'food', note: DISH_NOTE[grade] },
+            : { name: text(recipe?.name, 60) || 'Meal', qty: grade === 'perfect' ? 2 : 1, kind: 'food', note: DISH_NOTE[grade] },
         // The ingredients are used up whatever happens: a burnt dish still cost them.
-        consume: takeIngredients(state.recipe, pack),
+        consume: takeIngredients(recipe, pack),
     };
+}
+
+/** A recipe's level, 1 to 5: its own `level`, else harder when it needs ingredients. */
+export function recipeLevel(recipe) {
+    const own = Number(recipe?.level);
+    if (Number.isFinite(own) && own >= 1) return Math.min(5, Math.round(own));
+    const needs = (recipe?.needs || []).length;
+    return needs >= 2 ? 3 : needs === 1 ? 2 : 1;
 }
 
 /* ------------------------------------------------------------------ fishing */

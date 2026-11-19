@@ -285,7 +285,7 @@ const FALLBACK_ICONS = Object.freeze({
     axe: 'fa-axe', lance: 'fa-location-arrow', spear: 'fa-location-arrow', bow: 'fa-bullseye', arrow: 'fa-bullseye',
     tome: 'fa-book', grimoire: 'fa-book', magic: 'fa-wand-sparkles', faith: 'fa-hands-praying', reason: 'fa-book',
     gauntlets: 'fa-hand-fist', fists: 'fa-hand-fist', brawling: 'fa-hand-fist', hakuda: 'fa-hand-fist',
-    dagger: 'fa-dagger', riding: 'fa-horse', alchemy: 'fa-flask', smithing: 'fa-hammer', flying: 'fa-dove', heavyarmor: 'fa-shield-halved', authority: 'fa-crown',
+    dagger: 'fa-dagger', riding: 'fa-horse', alchemy: 'fa-flask', smithing: 'fa-hammer', cooking: 'fa-utensils', flying: 'fa-dove', heavyarmor: 'fa-shield-halved', authority: 'fa-crown',
 });
 export const NEUTRAL_ICON = 'fa-circle-dot';
 

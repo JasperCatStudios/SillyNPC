@@ -95,6 +95,7 @@ const FE = {
         // Crafting skills (no part in a fight): they rise by making things in the Crafting tab of the Activities hub.
         { id: 'alchemy', label: 'Alchemy', ladder: 'rank', roles: ['crafting'] },
         { id: 'smithing', label: 'Smithing', ladder: 'rank', roles: ['crafting'] },
+        { id: 'cooking', label: 'Cooking', ladder: 'rank', roles: ['crafting'] },
     ],
     skillCards: null,
     /* The weapon triangle: red beats green beats blue beats red. */
