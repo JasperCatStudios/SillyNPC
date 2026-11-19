@@ -49,10 +49,14 @@ const pending = new Map();                 // key + vars -> Promise
 
 /** The first address for a manifest key that really loads, or null. Settled answers are remembered for the session. */
 export function firstArt(key, vars = {}) {
-    const id = `${key}|${JSON.stringify(vars)}`;
+    return firstOf(`${key}|${JSON.stringify(vars)}`, () => artUrls(key, vars));
+}
+
+/** The first address that really loads from a list a function makes (cached under `id`), or null. */
+function firstOf(id, makeUrls) {
     if (found.has(id)) return Promise.resolve(found.get(id));
     if (pending.has(id)) return pending.get(id);
-    const urls = artUrls(key, vars);
+    const urls = makeUrls();
     const p = new Promise((resolve) => {
         let at = 0;
         const next = () => {
@@ -72,10 +76,11 @@ export function firstArt(key, vars = {}) {
  * Adds an SVG <image> for a manifest key, invisible until its picture loads. `onLoad` runs then (hide the plain shape there).
  * Returns { el, loaded }.
  */
-function artImage(parent, key, vars, attrs, onLoad) {
+function artImage(parent, key, vars, attrs, onLoad, alsoKey = null) {
     const el = S('image', { ...attrs, opacity: 0, 'pointer-events': 'none' }, parent);
     const handle = { el, loaded: false };
-    firstArt(key, vars).then((url) => {
+    const lookup = alsoKey ? firstOf(`${key}+${alsoKey}|${JSON.stringify(vars)}`, () => [...artUrls(key, vars), ...artUrls(alsoKey, vars)]) : firstArt(key, vars);
+    lookup.then((url) => {
         if (!url || !el.isConnected) return;
         el.setAttribute('href', url);
         el.setAttribute('opacity', attrs.opacity ?? 1);
@@ -86,18 +91,29 @@ function artImage(parent, key, vars, attrs, onLoad) {
 }
 
 const prop = (part, parent, attrs, onLoad) => artImage(parent, 'mech.prop', { set: 'kitchen', part }, { preserveAspectRatio: 'xMidYMid meet', ...attrs }, onLoad);
-const food = (item, parent, attrs, onLoad) => artImage(parent, 'mech.food', { item }, { preserveAspectRatio: 'xMidYMid meet', ...attrs }, onLoad);
+const food = (item, parent, attrs, onLoad) => artImage(parent, 'mech.food', { item }, { preserveAspectRatio: 'xMidYMid meet', ...attrs }, onLoad, 'mech.item');
 
 /** Puts the kitchen background behind a stage element when its picture is there. */
 export function paintBench(stageEl) {
     firstArt('mech.bench', {}).then((url) => { if (url && stageEl.isConnected) stageEl.style.background = `#23262b url("${url}") center / cover`; });
 }
 
+/** A plain colour for a food by its picture name, used when there is no picture of it. */
+export function itemColor(item) {
+    const n = String(item || '');
+    if (/fish|trout|salmon|carp/.test(n)) return '#e58f7a';
+    if (/veg|carrot|onion|potato|tomato|cabbage/.test(n)) return '#e08a3a';
+    if (/fruit|berr|plum|apple/.test(n)) return '#b0407a';
+    if (/bread|grain|oat|rice|dough/.test(n)) return '#d9b061';
+    return '#6aa84f';
+}
+
 const COLORS = { board: '#a8794a', herb: '#6aa84f', cut: '#3b2a1a', pot: '#3a3f4a', pan: '#2a2a2e', dish: '#f4efe6', hand: '#e8b4a0' };
 
 /* ------------------------------------------------------------------ slice */
 
-function sliceView(svg) {
+function sliceView(svg, step) {
+    const item = step?.art?.item || 'herbs';
     const g = S('g', {}, svg);
     // A plain cutting board (a picture of one is diagonal and does not frame a cutting area, so none is used here).
     S('rect', { x: 40, y: 12, width: 116, height: 82, rx: 8, fill: '#8a5f36' }, g);
@@ -115,12 +131,12 @@ function sliceView(svg) {
                 const b = v.board;
                 const w = X(b.x1 - b.x0);
                 const h = Y(b.y1 - b.y0);
-                ingredient = S('rect', { x: X(b.x0), y: Y(b.y0), width: w, height: h, rx: 5, fill: COLORS.herb }, g);
-                // The herbs are a row of bunches tiled across the cutting area, so the cut lines are on the herbs.
+                ingredient = S('rect', { x: X(b.x0), y: Y(b.y0), width: w, height: h, rx: 5, fill: itemColor(item) }, g);
+                // The food is a row of pieces tiled across the cutting area, so the cut lines are on the food.
                 const id = `herbs-${Math.random().toString(36).slice(2, 7)}`;
                 const defs = S('defs', {}, g);
                 const pat = S('pattern', { id, patternUnits: 'userSpaceOnUse', x: X(b.x0), y: Y(b.y0), width: h, height: h }, defs);
-                food('herbs', pat, { x: 1, y: 1, width: h - 2, height: h - 2 }, () => set(ingredient, { fill: `url(#${id})` }));
+                food(item, pat, { x: 1, y: 1, width: h - 2, height: h - 2 }, () => set(ingredient, { fill: `url(#${id})` }));
                 lines = v.lines.map(() => S('line', { stroke: '#fff', 'stroke-dasharray': '2 2', 'stroke-width': 0.8, y1: Y(b.y0) - 2, y2: Y(b.y1) + 2 }, g));
                 if (v.controls === 'button') {
                     S('rect', { x: X(b.knifeX) - 1, y: 6, width: 2, height: 88, fill: '#cfd4da' }, g);
@@ -201,7 +217,8 @@ const PAN_AT = { x: 70, y: 66 };       // the middle of the inside of the frying
 const PAN_SCALE = 0.46;
 const FISH_SCALE = 62 / 270;
 
-function searView(svg) {
+function searView(svg, step) {
+    const item = step?.art?.item || 'fish-fillet';
     const g = S('g', {}, svg);
     const panShapes = [
         S('ellipse', { cx: PAN_AT.x, cy: PAN_AT.y + 2, rx: 52, ry: 28, fill: '#bfc3c8' }, g),
@@ -213,14 +230,14 @@ function searView(svg) {
     const stove = prop('stove', g, place('stove', PAN_AT.x, PAN_AT.y - 1, 0.62), () => flames.forEach(f => set(f, { opacity: 0 })));
     prop('pan', g, place('pan', PAN_AT.x, PAN_AT.y, PAN_SCALE), () => panShapes.forEach(p => set(p, { opacity: 0 })));
     const fish = S('g', {}, g);
-    const body = S('rect', { x: -22, y: -7, width: 44, height: 14, rx: 7, fill: DONE_COLOR.pale }, fish);
+    const body = S('rect', { x: -22, y: -7, width: 44, height: 14, rx: 7, fill: itemColor(item) }, fish);
     const tail = S('polygon', { points: '22,0 30,-7 30,7', fill: '#d9a441', opacity: 0.8 }, fish);
     const eye = S('circle', { cx: -15, cy: -1, r: 1.4, fill: '#333' }, fish);
     const hideFish = () => [body, tail, eye].forEach(n => set(n, { opacity: 0 }));
     // The fillet: raw underneath, cooked fading in on top as it browns. The middle of the fillet is the middle of the group.
     const fishBox = place('fish', 0, 0, FISH_SCALE);
-    const raw = food('fish-fillet', fish, fishBox, hideFish);
-    const cooked = food('fish-fillet-cooked', fish, { ...fishBox, opacity: 0 });
+    const raw = food(item, fish, fishBox, hideFish);
+    const cooked = food(`${item}-cooked`, fish, { ...fishBox, opacity: 0 });
     const smoke = Array.from({ length: 4 }, (_, i) => S('circle', { cx: 60 + i * 8, cy: 34 - i * 4, r: 3 + i, fill: '#ddd', opacity: 0 }, g));
     const ringEl = S('circle', { cx: PAN_AT.x, cy: PAN_AT.y, r: 14, fill: 'none', stroke: '#6aa84f', 'stroke-width': 1.4, opacity: 0 }, g);
     const knob = S('g', {}, svg);
@@ -236,7 +253,7 @@ function searView(svg) {
             const lift = flight === null ? 0 : Math.sin(flight * Math.PI) * 38;
             const flip = flight === null ? 0 : flight * 360;
             set(fish, { transform: `translate(${PAN_AT.x} ${PAN_AT.y - lift}) rotate(${flip})` });
-            set(body, { fill: DONE_COLOR[f.word] || DONE_COLOR.pale });
+            set(body, { fill: f.word === 'pale' ? itemColor(item) : (DONE_COLOR[f.word] || DONE_COLOR.pale) });
             if (cooked.loaded) {
                 const done = clamp((f.d[f.side] - (v.window[0] - 0.3)) / 0.3, 0, 1);
                 set(cooked.el, { opacity: done });
@@ -253,7 +270,7 @@ function searView(svg) {
             set(handle, { cy: 82 - v.heat * 64 });
             const last = f.side >= 1;
             label.textContent = `Side ${f.side + 1} of 2: ${f.word}`;
-            hint.textContent = flight !== null ? (flight > 0.5 ? 'Catch it now! (tap)' : '') : last ? (f.word === 'golden' ? 'Golden! Tap the fish to serve it.' : 'Tap the fish when it is golden to serve it.') : (v.controls === 'button' ? 'Hold or tap the action button to heat. Flip button or second action key flips.' : 'Drag the knob. Tap the fish or flick it up to flip.');
+            hint.textContent = flight !== null ? (flight > 0.5 ? 'Catch it now! (tap)' : '') : last ? (f.word === 'golden' ? 'Golden! Tap the food to serve it.' : 'Tap the food when it is golden to serve it.') : (v.controls === 'button' ? 'Hold or tap the action button to heat. Flip button or second action key flips.' : 'Drag the knob. Tap the food or flick it up to flip.');
         },
     };
 }
@@ -421,17 +438,17 @@ function plateView(svg) {
 export const VIEWS = Object.freeze({ slice: sliceView, stir: stirView, sear: searView, sprinkle: sprinkleView, pour: pourView, plate: plateView });
 
 /** A plain dish drawing for the serve reveal: a plate with a shape coloured by how well it went (the cooked fillet picture when it exists). */
-export function dishDrawing(parent, grade) {
+export function dishDrawing(parent, grade, item = 'fish-fillet') {
     const svg = S('svg', { viewBox: '0 0 160 100', width: '100%', role: 'img', 'aria-label': `The finished dish, ${grade}` }, parent);
     const plate = S('g', {}, svg);
     S('ellipse', { cx: 80, cy: 52, rx: 40, ry: 40, fill: '#e9e4da' }, plate);
     S('ellipse', { cx: 80, cy: 52, rx: 31, ry: 31, fill: '#f8f5ee' }, plate);
     prop('plate', svg, place('plate', 80, 52, 0.4), () => plate.childNodes.forEach(n => n.setAttribute?.('opacity', 0)));
-    const color = { perfect: '#d9a441', good: '#d9b061', fair: '#cfa06a', poor: '#9a6a3a', failed: '#222' }[grade] || '#d9a441';
+    const color = ({ perfect: '#d9a441', good: '#d9b061', fair: '#cfa06a', poor: '#9a6a3a', failed: '#222' })[grade] || '#d9a441';
     const shape = S('g', {}, svg);
     S('rect', { x: 52, y: 44, width: 56, height: 18, rx: 9, fill: color }, shape);
     S('circle', { cx: 60, cy: 50, r: 1.6, fill: '#333' }, shape);
     if (grade === 'perfect' || grade === 'good') for (const [dx, dy] of [[-30, -8], [32, -6], [10, 14], [-20, 12]]) S('circle', { cx: 80 + dx, cy: 52 + dy, r: 2.4, fill: '#6aa84f' }, svg);
-    if (grade !== 'failed') food('fish-fillet-cooked', svg, place('fish', 80, 52, 0.23), () => shape.setAttribute('opacity', 0));
+    if (grade !== 'failed') food(`${item}-cooked`, svg, place('fish', 80, 52, 0.23), () => shape.setAttribute('opacity', 0));
     return svg;
 }

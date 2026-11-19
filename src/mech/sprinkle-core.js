@@ -14,14 +14,14 @@ export const meta = {
     id: 'sprinkle',
     input: { pointer: 'oscillate', button: 'sweep+tap' },
     events: ['shake', 'clump', 'even', 'done'],
-    defaults: { grid: 5, band: [2, 4], over: 6, perShake: 1.5, clumpChance: 0, timeLimitMs: 12000, heatmap: false },
+    defaults: { grid: 5, band: [2, 5], over: 8, perShake: 1.2, clumpChance: 0, timeLimitMs: 12000, heatmap: false },
 };
 
 /** The dish: its box on the stage (the stage is 16:10, so the dish is a circle about 0.6 tall and 0.375 wide in x units). */
 export const DISH = Object.freeze({ x0: 0.3125, x1: 0.6875, y0: 0.2, y1: 0.8 });
 
 const BLOB = 1.2;
-const SHAKE_TRAVEL = 0.04;
+const SHAKE_TRAVEL = 0.025;
 const STREAM_PER_SEC = 5;
 
 export function newRun(params = {}, rng = Math.random, ctx = {}) {
@@ -127,9 +127,20 @@ export function share(s) {
 
 export const isOver = (s) => s.over;
 
+/** One cell's worth: full in the band, a little less when over the band, a half when nearly there, nothing when salty or bare. */
+export function cellScore(s, amount) {
+    if (amount > s.overAt * 1.5) return 0;
+    if (amount > s.overAt) return 0.3;
+    if (amount > s.band[1]) return 0.75;
+    if (amount >= s.band[0]) return 1;
+    if (amount >= s.band[0] * 0.5) return 0.5;
+    return amount > 0 ? 0.15 : 0;
+}
+
 export function performance(s) {
-    const r = share(s);
-    return clamp(r.good - 0.5 * r.over, 0, 1);
+    const cells = s.cells.filter(c => c.in);
+    if (!cells.length) return 0;
+    return clamp(cells.reduce((n, c) => n + cellScore(s, c.amount), 0) / cells.length, 0, 1);
 }
 
 export function describeState(s, words = {}) {

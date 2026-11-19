@@ -1,4 +1,4 @@
-import { scriptFor } from '../../../../src/mech/script-core.js';
+import { scriptFor, mainItem } from '../../../../src/mech/script-core.js';
 import { createSession, beginNext, stepSession, sessionResult, gradeOfP, skipStep, describeSession } from '../../../../src/mech/session-core.js';
 import { mechanicOf } from '../../../../src/mech/registry.js';
 import { flickUp, inRect, knobValue, toStage } from '../../../../src/mech/input.js';
@@ -74,7 +74,7 @@ export function runKitchen(win, ctx) {
     win.setHelp([
         { title: 'The goal', text: `Cook ${recipe.name}. It is a few steps, each a little game: ${script.steps.map(s => s.words?.title || s.id).join(', ')}.` },
         { title: 'Your action key', text: `The action key is ${actionKeyLabel(settings.actionKey)} (Space works too). It is the button for action-button play: press or hold it where a step says so. You can change it in the Activities settings.` },
-        { title: 'Flipping the fish', text: `Press ${actionKeyLabel(settings.flipKey)} (the second action key), or the Flip button under the stage, to flip the fish. On the second side the same press serves it. Tapping the action key only keeps the heat up, so you can pulse it without flipping by mistake.` },
+        { title: 'Flipping the food', text: `Press ${actionKeyLabel(settings.flipKey)} (the second action key), or the Flip button under the stage, to flip the food. On the second side the same press serves it. Tapping the action key only keeps the heat up, so you can pulse it without flipping by mistake.` },
         { title: 'Two ways to play', text: 'With a mouse or finger you swipe, circle, drag and shake. If you prefer to use the action button, press "Use action button" under the stage: every step has an action-button version that scores about the same. The action key and Space work too.' },
         { title: 'Pouring and plating', text: 'Pouring: press and drag DOWN to tip the jug, further for a faster pour, and let go to stop. It keeps pouring a moment after you stop, so let go early. With the action button, hold it to pour. Plating: press, drag each item to its faint spot and let go. With the action button a marker sweeps the plate: press once to stop it across, once more to stop it down.' },
         { title: 'Pause', text: 'Press Pause to stop the clock while you talk to your partner. Typing in the chat pauses the game by itself, and it carries on when you leave the box.' },
@@ -304,7 +304,7 @@ export function runKitchen(win, ctx) {
         bar.replaceChildren();
         // Controls for this step.
         const mech = step.mech;
-        if (mech === 'sear') { const flipBtn = el('button', 'snpc-act-btn', 'Flip'); flipBtn.type = 'button'; flipBtn.title = 'Or tap the fish, or flick it up. On the last side it serves the fish.'; flipBtn.addEventListener('click', () => { if (!flying()) inp.pick = 'flip'; }); bar.append(flipBtn); }
+        if (mech === 'sear') { const flipBtn = el('button', 'snpc-act-btn', 'Flip'); flipBtn.type = 'button'; flipBtn.title = 'Or tap the food, or flick it up. On the last side it serves it.'; flipBtn.addEventListener('click', () => { if (!flying()) inp.pick = 'flip'; }); bar.append(flipBtn); }
         if (mech === 'sear') { const plate = el('button', 'snpc-act-btn', 'Plate it'); plate.type = 'button'; plate.addEventListener('click', () => { inp.pick = 'plate'; }); bar.append(plate); }
         if (mech === 'sprinkle' || mech === 'pour' || mech === 'plate') { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); bar.append(done); }
         if (controls === 'button') {
@@ -380,7 +380,7 @@ export function runKitchen(win, ctx) {
         box.append(el('h3', '', grade === 'failed' ? 'A bit of a mess' : recipe.name));
         const art = el('div');
         art.style.cssText = 'max-width:320px; margin:0 auto;';
-        dishDrawing(art, grade);
+        dishDrawing(art, grade, mainItem(recipe));
         box.append(art, el('p', 'snpc-act-grade', `${GRADE_TEXT[grade]}${res.bonus >= 0.02 ? ' (flow bonus!)' : ''}`));
         const list = el('ul');
         for (const r of res.results) list.append(el('li', '', `${session.script.steps.find(s => s.id === r.id)?.words.title || r.id}: ${Math.round(r.performance * 100)}%`));

@@ -35,10 +35,13 @@ export const ASSET_MANIFEST = Object.freeze([
     // ---- The hands-on kitchen (used now). Every piece has a plain-shape fallback, so the game plays with no art.
     img('mech.bench', 'Kitchen', 'bench/kitchen.webp', 'The kitchen counter behind the cooking steps. Leave the middle empty: the props are drawn on it.', '1376x768', false, { used: true }),
     img('mech.prop', 'Kitchen', 'props/{set}/{part}.webp', 'A prop of the cooking steps, cut out on a transparent background, seen from slightly above. The set is the prop family (kitchen).', '320x290', true, {
-        used: true, values: { set: ['kitchen'], part: ['board', 'knife', 'saucepan', 'spoon', 'pan', 'stove', 'shaker', 'plate'] },
+        used: true, values: { set: ['kitchen'], part: ['board', 'knife', 'saucepan', 'spoon', 'pan', 'stove', 'shaker', 'plate', 'bowl', 'jug'] },
     }),
     img('mech.food', 'Kitchen', 'food/{item}.webp', 'A food shown in the cooking steps, cut out on a transparent background: raw and golden-cooked fillet, whole and chopped herbs.', '320x290', true, {
-        used: true, values: { item: ['fish-fillet', 'fish-fillet-cooked', 'herbs', 'herbs-cut'] },
+        used: true, values: { item: ['fish-fillet', 'fish-fillet-cooked', 'herbs', 'herbs-cooked', 'vegetables', 'vegetables-cooked', 'fruit', 'fruit-cooked', 'bread', 'bread-cooked', 'grain-cooked', 'soup-cooked', 'pie-cooked'] },
+    }),
+    img('mech.item', 'Kitchen', 'items/{item}.webp', 'A picture of any ingredient or dish, named by its Item Database id (so a fish called "trout" is items/trout.webp). Looked for after the kitchen food folder, so it also works for crafting and for items of your own. Same cut-out style as the kitchen food.', '320x290', true, {
+        used: true, values: { item: ['trout', 'carrot', 'iron-ore'] },
     }),
 
     // ---- Reserved for the coming steps (the Content Kit already holds art under the older names)

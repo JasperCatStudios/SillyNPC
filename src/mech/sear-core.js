@@ -18,7 +18,7 @@ export const meta = {
     id: 'sear',
     input: { pointer: 'knob+flick', button: 'hold+flip-key' },
     events: ['golden', 'smoke', 'burnt', 'flip', 'land', 'ruin', 'done'],
-    defaults: { items: 1, sides: 2, rate: 0.09, window: [0.62, 0.82], burnAt: 0.95, heatStart: 0.5, flipArcMs: 700, catchMs: 150, timeLimitMs: 45000 },
+    defaults: { items: 1, sides: 2, rate: 0.09, window: [0.62, 0.82], burnAt: 0.95, heatStart: 0.5, flipArcMs: 700, catchMs: 260, timeLimitMs: 45000 },
 };
 
 const FLIP_SCORE = Object.freeze({ perfect: 1, good: 0.7, miss: 0.4 });
@@ -125,7 +125,7 @@ export const isOver = (s) => s.over;
 export function performance(s) {
     const per = s.fillets.map(f => {
         const fits = f.d.map(d => sideFit(s, d));
-        const flips = f.flips.length ? mean(f.flips) : 0;
+        const flips = f.flips.length ? mean(f.flips.map(g => Math.max(g, 0.3))) : 0;     // a late catch still counts for something
         const value = 0.75 * mean(fits) + 0.25 * flips;
         return f.burnt.some(Boolean) ? Math.min(value, 0.2) : value;
     });

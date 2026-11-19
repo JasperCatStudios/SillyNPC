@@ -59,29 +59,58 @@ export const ROAST_FISH = Object.freeze({
     ],
 });
 
-/** Steps for a dish with no script of its own, from what the recipe is made of. Plain, neutral words. */
-export function defaultScriptFor(recipe) {
+/** The picture name of the main food of a recipe: its own `art.item`, else from what it is made of or called. */
+export function mainItem(recipe) {
+    const own = slug(obj(recipe?.art).item, 40);
+    if (own) return own;
+    const words = [String(recipe?.name || ''), ...(recipe?.needs || []).flatMap(n => [n?.label, ...(Array.isArray(n?.any) ? n.any : [])])].join(' ').toLowerCase();
+    if (/fish|trout|carp|salmon|perch|pike|eel|herring|bass/.test(words)) return 'fish-fillet';
+    if (/berr|fruit|plum|peach|apple|currant/.test(words)) return 'fruit';
+    if (/carrot|cabbage|onion|turnip|tomato|potato|pumpkin|veg|radish|chickpea/.test(words)) return 'vegetables';
+    if (/herb|salad|lettuce|basil|mint/.test(words)) return 'herbs';
+    if (/toast|bread/.test(words)) return 'bread';
+    if (/porridge|oat|grain|rice/.test(words)) return 'grain';
+    return 'food';
+}
+
+/** What kind of dish a recipe is, for choosing its steps: a soup or stew (wet), something grilled or roasted, a salad, a bake, or plain. */
+export function dishKind(recipe) {
     const name = String(recipe?.name || '').toLowerCase();
+    if (/soup|stew|sauce|porridge|broth|chowder/.test(name)) return 'wet';
+    if (/salad/.test(name)) return 'salad';
+    if (/grill|roast|toast|bread|fried|seared|sear\b/.test(name)) return 'grill';
+    if (/pie|tart|bake|pudding/.test(name)) return 'bake';
+    return 'plain';
+}
+
+/** Steps for a dish with no script of its own, from its kind and what it is made of. Plain, neutral words. */
+export function defaultScriptFor(recipe) {
     const needs = (recipe?.needs || []).length;
-    const wet = /soup|stew|sauce|porridge|broth/.test(name);
+    const kind = dishKind(recipe);
+    const item = mainItem(recipe);
+    const wet = kind === 'wet';
+    const art = { item };
+    // What lies on the plate while it is seasoned: the cooked dish (a soup is a bowl of soup, a pie is a pie).
+    const dish = wet ? 'soup' : kind === 'bake' && item !== 'fruit' ? 'pie' : item;
     const steps = [];
-    if (needs || /salad|tart|pie|roast/.test(name)) steps.push({ id: 'prep', mech: 'slice', weight: 1, params: { lines: needs > 1 ? 5 : 4 }, words: { title: 'Prepare the ingredients', hint: 'Swipe down across each dotted line.' } });
-    steps.push({ id: 'cook', mech: 'stir', weight: 2, params: { revs: wet ? 9 : 6, heat: wet }, words: { title: wet ? 'Simmer and stir' : 'Mix and stir', hint: 'Stir in circles. Keep it moving, but do not splash.' } });
-    steps.push({ id: 'season', mech: 'sprinkle', weight: 1, words: { title: 'Season it', hint: 'Shake evenly over the dish.' } });
+    if (needs && kind !== 'plain') steps.push({ id: 'prep', mech: 'slice', weight: 1, params: { lines: needs > 1 ? 5 : 4 }, art, words: { title: 'Prepare the ingredients', hint: 'Swipe down across each dotted line.' } });
+    if (kind === 'grill') steps.push({ id: 'cook', mech: 'sear', weight: 3, art: { ...art, vessel: 'pan', heat: 'stove' }, words: { title: 'Cook it', hint: 'Set the heat, tap the food to flip it, tap again to catch it. Golden, not black.' } });
+    else if (kind !== 'salad') steps.push({ id: 'cook', mech: 'stir', weight: 2, params: { revs: wet ? 9 : 6, heat: wet }, art: { vessel: 'saucepan', tool: 'spoon' }, words: { title: wet ? 'Simmer and stir' : 'Mix and stir', hint: 'Stir in circles inside the pot. Keep it moving, but do not splash.' } });
+    steps.push({ id: 'season', mech: 'sprinkle', weight: 1, art: { item: dish, tool: 'shaker' }, words: { title: 'Season it', hint: 'Shake evenly over the dish.' } });
     if (wet) steps.push({ id: 'serve', mech: 'pour', weight: 1, params: { target: 0.7 }, art: { vessel: 'bowl' }, words: { title: 'Ladle it into the bowl', hint: 'Drag down to tip the jug. Stop at the line: it keeps pouring a moment after you stop.', done: 'Just the right amount.' } });
     else steps.push({ id: 'plate', mech: 'plate', weight: 1, params: { items: needs > 1 ? ['main', 'garnish', 'sauce'] : ['main', 'garnish'] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.' } });
     return { set: 'kitchen', steps };
 }
 
 /**
- * The script a recipe plays: its own `steps` when it has them, else a built-in script for fish dishes, else the default for its kind.
- * Always a valid script (the default is used when the recipe's own steps are unusable).
+ * The script a recipe plays: its own `steps` when it has them, else the grilled-fish script for a grilled or roasted fish, else the
+ * default for its kind. Always a valid script (the default is used when the recipe's own steps are unusable).
  */
 export function scriptFor(recipe) {
     if (Array.isArray(recipe?.steps) && recipe.steps.length) {
         const own = normalizeScript({ set: recipe.set, steps: recipe.steps });
         if (own.script) return own.script;
     }
-    const fish = /fish|trout|carp|salmon/.test(String(recipe?.name || '').toLowerCase());
-    return normalizeScript(fish ? ROAST_FISH : defaultScriptFor(recipe)).script;
+    const fishGrill = dishKind(recipe) === 'grill' && mainItem(recipe) === 'fish-fillet';
+    return normalizeScript(fishGrill ? ROAST_FISH : defaultScriptFor(recipe)).script;
 }

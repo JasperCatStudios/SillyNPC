@@ -65,14 +65,21 @@ The kitchen counter behind the cooking steps. Leave the middle empty: the props 
 A prop of the cooking steps, cut out on a transparent background, seen from slightly above. The set is the prop family (kitchen).
 
 - Size: 320x290, transparent background.
-- File: `props/kitchen/board.webp`, `props/kitchen/knife.webp`, `props/kitchen/saucepan.webp`, `props/kitchen/spoon.webp`, `props/kitchen/pan.webp`, `props/kitchen/stove.webp`, `props/kitchen/shaker.webp`, `props/kitchen/plate.webp`
+- File: `props/kitchen/board.webp`, `props/kitchen/knife.webp`, `props/kitchen/saucepan.webp`, `props/kitchen/spoon.webp`, `props/kitchen/pan.webp`, `props/kitchen/stove.webp`, `props/kitchen/shaker.webp`, `props/kitchen/plate.webp`, `props/kitchen/bowl.webp`, `props/kitchen/jug.webp`
 
 ### `mech.food`
 
 A food shown in the cooking steps, cut out on a transparent background: raw and golden-cooked fillet, whole and chopped herbs.
 
 - Size: 320x290, transparent background.
-- File: `food/fish-fillet.webp`, `food/fish-fillet-cooked.webp`, `food/herbs.webp`, `food/herbs-cut.webp`
+- File: `food/fish-fillet.webp`, `food/fish-fillet-cooked.webp`, `food/herbs.webp`, `food/herbs-cooked.webp`, `food/vegetables.webp`, `food/vegetables-cooked.webp`, `food/fruit.webp`, `food/fruit-cooked.webp`, `food/bread.webp`, `food/bread-cooked.webp`, `food/grain-cooked.webp`, `food/soup-cooked.webp`, `food/pie-cooked.webp`
+
+### `mech.item`
+
+A picture of any ingredient or dish, named by its Item Database id (so a fish called "trout" is items/trout.webp). Looked for after the kitchen food folder, so it also works for crafting and for items of your own. Same cut-out style as the kitchen food.
+
+- Size: 320x290, transparent background.
+- File: `items/trout.webp`, `items/carrot.webp`, `items/iron-ore.webp`
 
 ## Hub
 
