@@ -126,7 +126,7 @@ async function converse(system, user, { expectOpeners, last, guest, player }) {
 export async function requestStart({ state, preset }) {
     const { parsed, why } = await converse(teaSystem({ state, preset }), startPrompt({ state, preset }), { expectOpeners: true, last: false, guest: state.guest, player: userName() });
     if (!parsed || !parsed.line) return { line: '', openers: [], why: why || 'the greeting was missing' };
-    speakLine(state.guest, parsed.line);
+    speakLine(state.guest, parsed.line, { save: false });
     return { line: parsed.line, openers: parsed.openers, why: '' };
 }
 
@@ -137,6 +137,6 @@ export async function requestStart({ state, preset }) {
 export async function requestRound({ state, preset, said, askNext }) {
     const last = state.round + 1 >= state.rounds;
     const res = await converse(teaSystem({ state, preset }), roundPrompt({ state, said, ask: askNext }), { expectOpeners: !last, last, guest: state.guest, player: userName() });
-    if (res.parsed?.line) speakLine(state.guest, res.parsed.line);
+    if (res.parsed?.line) speakLine(state.guest, res.parsed.line, { save: false });
     return res;
 }

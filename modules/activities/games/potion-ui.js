@@ -1,7 +1,7 @@
 import {
     newGame, submit, feedbackText, rewardsOf, describeState, CODE_LENGTH, ALLOW_REPEATS,
 } from '../../../src/activity-mastermind-core.js';
-import { askPartner, settleActivity, sfx } from '../activities-runtime.js';
+import { askPartner, settleActivity, sfx, talkAllowed } from '../activities-runtime.js';
 
 /**
  * The Brewing screen (fork): draws the recipe game into the activity window and runs it. The rules are in
@@ -78,14 +78,14 @@ export function runPotion(win, ctx) {
     const say = (t) => { status.textContent = t; };
 
     const speak = async (beat, playerText = '') => {
-        if (!partner) return;      // played alone: nobody to talk to
+        if (!partner || !talkAllowed(beat)) return;      // played alone, or nothing would be said
         win.addLine(partner, '...', 'typing');
         const out = await askPartner({
             partner, label, beat, stateText: describeState(game), playerText, talkSoFar: win.talk(),
             outcome: beat === 'end' ? rewardsOf(game, { recipe: ctx.recipe, failed: ctx.failed }).grade.replace('failed', 'poor') : '',
         });
         win.removeTyping();
-        if (win.isOpen()) win.addLine(partner, out.text, 'bot');
+        if (win.isOpen() && out.text) win.addLine(partner, out.text, 'bot');
     };
     win.onSay((text) => { speak('chat', text); });
 

@@ -6,7 +6,7 @@ import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
 import { hasVoiceFor } from '../../src/tts.js';
 import { addRecord, rivalryBlock } from '../../src/rivalry.js';
-import { giveItemFor, getInventory, databaseItems } from '../../src/inventory.js';
+import { giveItemFor, takeItemFor, getInventory, databaseItems } from '../../src/inventory.js';
 import { vitalsStore, vitalsSettings, getVitals, setVitalFor } from '../../src/vitals.js';
 import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activity-energy-core.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
@@ -29,7 +29,7 @@ import {
 import {
     normalizeActivityStore, dayKey, gainedToday, markGained, applyActivityNudge,
 } from '../../src/activity-bond-core.js';
-import { buildTalkRequest, cannedLine } from '../../src/activity-talk-core.js';
+import { buildTalkRequest, cannedLine, talkDecision, cooldownOk, hasBuiltIn } from '../../src/activity-talk-core.js';
 import { activityRecord, activityTalkEntry, activityReport } from '../../src/activity-record.js';
 import {
     applyProfXp, unlocksFor, applyUnlocks, progressLine, recordPlay,
@@ -131,7 +131,7 @@ export function speakAsPlayer(text) {
         const s = getSettings();
         if (!s.ttsEnabled || !s.ttsAutoSpeak || !text) return;
         const me = userName();
-        if (hasVoiceFor(me)) { speakLine(me, text); return; }
+        if (hasVoiceFor(me)) { speakLine(me, text, { save: false }); return; }
         if (!warnedNoVoice) {
             warnedNoVoice = true;
             toastr.info(`${me} has no voice yet, so your lines are not read aloud. Pick one on their Worldkit page, or set a default voice.`, 'Worldkit');
@@ -235,28 +235,51 @@ export function sfx(name) {
 
 /* ------------------------------------------------------------------ talk */
 
-/**
- * One line from the partner, or a canned one. Never throws. Returns { text, canned }.
- * With talk off the line is canned; a failed request falls back to a canned line too.
- */
-export async function askPartner({ partner, label, beat, stateText = '', playerText = '', talkSoFar = [], outcome = '' }) {
+let lastAskAt = 0;
+let lastSpokeAt = 0;
+
+/** What the settings say about one beat right now: 'model', 'canned' or 'skip' (see talkDecision). */
+function decide(beat) {
     const s = activitySettings();
-    const canned = () => ({ text: cannedLine(beat, outcome), canned: true });
-    if (!s.talkOn) return canned();
+    return talkDecision({
+        beat, talkOn: s.talkOn, showTalk: s.showTalk, cannedLines: s.cannedLines, cooldownSec: s.talkCooldownSec, lastAskAt, now: Date.now(),
+    });
+}
+
+/** Whether the partner would say anything for this beat right now (so a screen can skip the "..." and the wait). */
+export function talkAllowed(beat) {
+    return decide(beat) !== 'skip';
+}
+
+/**
+ * One line from the partner. Never throws. Returns { text, canned }; text is '' when nothing is to be said (a beat held back by the
+ * cooldown, the table talk switched off, or a moment with no model to voice it).
+ * With the partner's talk off, or after a failed request, a beat falls back to a built-in line if that setting allows it.
+ * `event` (for the 'moment' beat) says what just happened.
+ */
+export async function askPartner({ partner, label, beat, stateText = '', playerText = '', talkSoFar = [], outcome = '', event = '' }) {
+    const s = activitySettings();
+    const mode = decide(beat);
+    const none = { text: '', canned: false };
+    const canned = () => (s.cannedLines && hasBuiltIn(beat) ? { text: cannedLine(beat, outcome), canned: true } : none);
+    if (mode === 'skip') return none;
+    if (mode === 'canned') { lastAskAt = Date.now(); return canned(); }
+    lastAskAt = Date.now();
     try {
         const ctx = getContext();
         const chat = (ctx?.chat || []).filter(m => !m.is_system).slice(-Math.max(0, s.contextMessages));
         const story = chat.map(m => `${m.name}: ${m.mes}`).join('\n\n');
         const card = cardOf(partner);
         const req = buildTalkRequest({
-            partner, user: userName(), activity: label.toLowerCase(), beat, stateText, playerText, talkSoFar,
+            partner, user: userName(), activity: label.toLowerCase(), beat, stateText, playerText, talkSoFar, event,
             story, blocks: contextBlocks('activities'), rivalry: rivalryBlock(partner, userName()),
             likes: card ? likesPromptText(card.prefs) : '', rule: DIALOGUE_RULE,
         });
         const raw = await requestOnConnection('activitiesProfileId', req.system, req.user, s.talkTokens);
         const line = dialogueOnly(raw, partner);
         if (!line) return canned();
-        speakLine(partner, line);
+        // Spoken aloud only when enough time has passed since the last spoken line, so quick moments do not talk over each other.
+        if (cooldownOk(lastSpokeAt, Date.now(), s.speakCooldownSec)) { speakLine(partner, line, { save: false }); lastSpokeAt = Date.now(); }
         return { text: line, canned: false };
     } catch (err) {
         console.warn('[Worldkit] activity talk failed', err);
@@ -277,7 +300,7 @@ const safe = (text) => String(text).replace(/\|/g, '/').replace(/\{\{/g, '{ {').
  * @param {{ activityId: string, label: string, partner: string, subject?: string, summary: string, rewards: object, lines: {who:string,text:string}[], extra?: string[] }} a
  * @returns {string[]}
  */
-export function settleActivity({ activityId, label, partner, subject = '', summary, rewards, lines, extra: extraReport = [] }) {
+export function settleActivity({ activityId, label, partner, subject = '', summary, rewards, lines, extra: extraReport = [], winners = [] }) {
     const s = activitySettings();
     const user = userName();
     const shown = [];
@@ -292,7 +315,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
         const date = sceneClock()?.dateText || '';
         // Played alone there is nobody to record a game against and no talk to keep.
         if (!alone) {
-            try { addRecord(activityRecord({ id, label, user, partners: [partner], at, summary })); } catch (err) { console.warn('[Worldkit] could not record the activity', err); }
+            try { addRecord(activityRecord({ id, label, user, partners: [partner], at, summary, winners })); } catch (err) { console.warn('[Worldkit] could not record the activity', err); }
             recordTalk('activities', activityTalkEntry({ id, at, label, activity: activityId, outcome: grade, user, partners: [partner], date, lines, result: summary }));
         }
 
@@ -343,12 +366,19 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
         if (mine) mine.actStats = recordPlay(mine.actStats, activityId, grade, rewards.knowledge || 0);
         if (mine && rewards.knowledge > 0) shown.push(`+${rewards.knowledge} knowledge`);
 
-        if (s.itemsOn && rewards.item) {
-            try {
-                giveItemFor(user, rewards.item);
-                shown.push(`You received ${rewards.item.name}${rewards.item.note ? ` (${rewards.item.note})` : ''}.`);
-                extra.push(`${user} came away with ${rewards.item.name}${rewards.item.note ? `, ${rewards.item.note}` : ''}.`);
-            } catch (err) { console.warn('[Worldkit] could not give the item', err); }
+        if (s.itemsOn) {
+            // What was used up (the ingredients of a dish) goes first, then what the activity made.
+            for (const used of rewards.consume || []) {
+                try { takeItemFor(user, used.name, used.qty); } catch (err) { console.warn('[Worldkit] could not take an ingredient', err); }
+            }
+            const made = [...(rewards.items || []), ...(rewards.item ? [rewards.item] : [])];
+            for (const it of made) {
+                try {
+                    giveItemFor(user, it);
+                    shown.push(`You received ${it.qty > 1 ? `${it.qty} x ` : ''}${it.name}${it.note ? ` (${it.note})` : ''}.`);
+                    extra.push(`${user} came away with ${it.qty > 1 ? `${it.qty} ` : ''}${it.name}${it.note ? `, ${it.note}` : ''}.`);
+                } catch (err) { console.warn('[Worldkit] could not give the item', err); }
+            }
         }
 
         if (s.bondOn && bonds.length && !alone) {
@@ -393,7 +423,9 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             }
         }
 
-        queueResult('activities', safe(activityReport({ label, user, partners: alone ? [] : [partner], grade, extra })), { append: false });
+        const act = (activePreset().activities || []).find(a => a.id === activityId);
+        const minutes = Number.isFinite(Number(act?.minutes)) ? act.minutes : s.activityMinutes;
+        queueResult('activities', safe(activityReport({ label, user, partners: alone ? [] : [partner], grade, extra, minutes })), { append: false });
         saveSettings();
     } catch (err) {
         console.warn('[Worldkit] could not settle the activity', err);
@@ -471,6 +503,80 @@ export function loadArt(img, file, onMissing) {
         if (at < urls.length) img.src = urls[at]; else onMissing?.();
     });
     img.src = urls[0];
+}
+
+/* ------------------------------------------------------------------ cooking, fishing and gardening */
+
+/** The player's inventory as [{ name, qty }] (empty with no chat). */
+export function packItems() {
+    try { return (getInventory(userName())?.items || []).filter(i => i?.name).map(i => ({ name: i.name, qty: i.qty || 1 })); } catch { return []; }
+}
+
+/** Gives items to the player right now (a harvest). Never throws. */
+export function giveItemsNow(items) {
+    if (!activitySettings().itemsOn) return;
+    for (const it of items || []) { try { giveItemFor(userName(), it); } catch (err) { console.warn('[Worldkit] could not give the item', err); } }
+}
+
+/** Takes one item from the player (a seed). Never throws. */
+export function takeItemNow(name, qty = 1) {
+    if (!activitySettings().itemsOn) return;
+    try { takeItemFor(userName(), name, qty); } catch (err) { console.warn('[Worldkit] could not take the item', err); }
+}
+
+/** This chat's garden. */
+export function gardenState() {
+    return activityStore()?.garden || { plots: [], next: 1 };
+}
+
+/** Saves the garden in the chat. */
+export function saveGarden(garden) {
+    const store = activityStore();
+    if (!store) return;
+    store.garden = garden;
+    saveStore();
+}
+
+const hashOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
+
+/** The fish that can be caught: the preset's, plus every fish item in the item database (steady, from its name). */
+export function fishTable(preset) {
+    const list = (preset?.harvest?.fish || []).map(f => ({ ...f }));
+    try {
+        for (const item of databaseItems().filter(i => String(i.category).toLowerCase() === 'fish')) {
+            if (list.some(f => f.name.toLowerCase() === item.name.toLowerCase())) continue;
+            const h = hashOf(item.name);
+            list.push({ name: item.name, weight: 8, difficulty: 1 + (h % 3), size: 2 + (h % 5) });
+        }
+    } catch { /* no database yet */ }
+    return list;
+}
+
+/**
+ * The seeds that can be planted now: the free ones, and any seed in the pack (the preset's, or a seed item of the item database).
+ * @returns {{ seed: object, qty: number|null }[]} qty is null for a free seed
+ */
+export function availableSeeds(preset) {
+    const pack = packItems();
+    const have = (name) => pack.filter(i => i.name.toLowerCase() === name.toLowerCase()).reduce((n, i) => n + i.qty, 0);
+    const out = [];
+    const known = new Set();
+    for (const seed of preset?.harvest?.seeds || []) {
+        known.add(seed.name.toLowerCase());
+        if (seed.free) out.push({ seed, qty: null });
+        else if (have(seed.name) > 0) out.push({ seed, qty: have(seed.name) });
+    }
+    try {
+        for (const item of databaseItems().filter(i => String(i.category).toLowerCase() === 'seeds')) {
+            if (known.has(item.name.toLowerCase()) || have(item.name) < 1) continue;
+            const h = hashOf(item.name);
+            out.push({
+                seed: { name: item.name, produce: item.name.replace(/\s+seeds?$/i, ''), needs: 1 + (h % 3), yield: 2, kind: /flower/i.test(item.name) ? 'plant' : 'food' },
+                qty: have(item.name),
+            });
+        }
+    } catch { /* no database yet */ }
+    return out;
 }
 
 /** What the player can bring to a guest: the items in their inventory in this chat. */

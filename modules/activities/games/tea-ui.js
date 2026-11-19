@@ -259,7 +259,7 @@ export function runTea(win, ctx) {
         win.addLine(partner, '...', 'typing');
         const out = await askPartner({ partner, label, beat: 'chat', stateText: describeState(state), playerText: said, talkSoFar: win.talk() });
         win.removeTyping();
-        if (win.isOpen()) win.addLine(partner, out.text, 'bot');
+        if (win.isOpen() && out.text) win.addLine(partner, out.text, 'bot');
     });
 
     sayBtn.addEventListener('click', () => { const v = sayInput.value; sayInput.value = ''; choose('question', v, true); });

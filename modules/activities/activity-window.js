@@ -94,6 +94,10 @@ export function createActivityWindow({ onClose } = {}) {
     let sayHandler = null;
     let returnFocus = null;
 
+    /** Which side-panel parts the player wants (settings): the table talk and the How to play tab. Both on by default. */
+    let panels = { talk: true, howTo: true };
+    let isPlay = false;
+
     const setTab = (view) => {
         const showHelp = view === 'help';
         chat.hidden = showHelp;
@@ -105,6 +109,25 @@ export function createActivityWindow({ onClose } = {}) {
             b.setAttribute('aria-selected', String(on));
         }
     };
+    /**
+     * Shows or hides the parts of the side panel: the chat and its box need the table talk on and someone to talk to; the Log goes with
+     * the table talk; the rules tab has its own switch. With both off the whole panel is gone and the activity has the full width.
+     */
+    const applyPanels = () => {
+        const solo = root.classList.contains('is-solo');
+        const talk = panels.talk && !solo;
+        chatTab.hidden = !talk;
+        logTab.hidden = !panels.talk;
+        inputRow.hidden = !talk;
+        helpTab.hidden = !panels.howTo;
+        tabs.hidden = !(panels.talk || panels.howTo);
+        side.hidden = !isPlay || !(panels.talk || panels.howTo);
+        // The tab on show must be one that can be seen.
+        const visible = [[chatTab, 'chat'], [logTab, 'log'], [helpTab, 'help']].filter(([b]) => !b.hidden);
+        const active = [chatTab, logTab, helpTab].find(b => b.classList.contains('is-active'));
+        if (visible.length && (!active || active.hidden)) setTab(visible[0][1]);
+    };
+
     chatTab.addEventListener('click', () => setTab('chat'));
     logTab.addEventListener('click', () => setTab('log'));
     helpTab.addEventListener('click', () => setTab('help'));
@@ -142,8 +165,14 @@ export function createActivityWindow({ onClose } = {}) {
         setView(view) {
             const play = view === 'play';
             root.dataset.view = play ? 'play' : 'hub';
-            // The talk belongs to the play view only; it must come back whenever a game starts.
-            side.hidden = !play;
+            // The side panel belongs to the play view only; it must come back whenever a game starts.
+            isPlay = play;
+            applyPanels();
+        },
+        /** The player's choices for the side panel: { talk, howTo }. Applied at once and kept for the next game. */
+        setPanels({ talk = true, howTo = true } = {}) {
+            panels = { talk: Boolean(talk), howTo: Boolean(howTo) };
+            applyPanels();
         },
         setPartner(name, picture = '', sub = '') {
             whoName.textContent = name || '';
@@ -166,9 +195,8 @@ export function createActivityWindow({ onClose } = {}) {
         /** Playing alone: no chat tab and no box to type in, and the rules open first. Playing with someone puts them back. */
         setSolo(on) {
             root.classList.toggle('is-solo', Boolean(on));
-            chatTab.hidden = Boolean(on);
-            inputRow.hidden = Boolean(on);
             setTab(on ? 'help' : 'chat');
+            applyPanels();
         },
         /** Starts a new conversation (the talk of a new session). */
         resetTalk() { lines.length = 0; chat.replaceChildren(); },

@@ -39,18 +39,31 @@ export function activityTalkEntry({ id, at = Date.now(), label, activity = '', o
     };
 }
 
+/** 30 -> "30 minutes", 60 -> "an hour", 90 -> "an hour and a half", 120 -> "2 hours". */
+export function timeWords(minutes) {
+    const m = Math.max(0, Math.round(Number(minutes) || 0));
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'}`;
+    const h = Math.floor(m / 60);
+    const rest = m % 60;
+    const hours = h === 1 ? 'an hour' : `${h} hours`;
+    if (rest === 0) return hours;
+    if (rest === 30) return h === 1 ? 'an hour and a half' : `${h} and a half hours`;
+    return `${hours} and ${rest} minutes`;
+}
+
 const GRADE_WORDS = Object.freeze({ perfect: 'went perfectly', good: 'went well', fair: 'went fairly', poor: 'did not go well' });
 
 /**
  * The story report for a finished activity, one short paragraph with no numbers and no game words, so the story
  * model can mention it naturally. `extra` lines (a rank reached, something learned) are added as they are.
  */
-export function activityReport({ label, user, partners, grade = 'fair', extra = [] }) {
+export function activityReport({ label, user, partners, grade = 'fair', extra = [], minutes = 0 }) {
     const others = uniq(partners).filter(n => n !== user);
     const list = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : others[0];
     const head = `[Activity report: ${label}]`;
     const body = list
         ? `${user} and ${list} spent time on ${label.toLowerCase()} together, and it ${GRADE_WORDS[grade] || GRADE_WORDS.fair}.`
         : `${user} spent time on ${label.toLowerCase()} alone, and it ${GRADE_WORDS[grade] || GRADE_WORDS.fair}.`;
-    return [head, body, ...(extra || []).map(s => String(s).trim()).filter(Boolean)].join('\n');
+    const time = Number(minutes) > 0 ? `About ${timeWords(minutes)} of story time passed.` : '';
+    return [head, body, time, ...(extra || []).map(s => String(s).trim())].filter(Boolean).join('\n');
 }

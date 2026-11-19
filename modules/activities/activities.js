@@ -8,12 +8,14 @@ import { createActivityWindow } from './activity-window.js';
 import { runStudy } from './games/memory-ui.js';
 import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
+import { runCook, runFish, runGarden } from './games/harvest-ui.js';
+import { availableRecipes } from '../../src/activity-harvest-core.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
 import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../../src/activity-tea-core.js';
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus,
+    teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -61,6 +63,8 @@ function pickedPartner() {
 
 /** Seats the partner (or the player alone) in the window's side panel. */
 function seat(w, partner, sub) {
+    const s = activitySettings();
+    w.setPanels({ talk: s.showTalk, howTo: s.showHowTo });
     if (partner.alone) {
         w.setPartner(userName(), '', 'Playing alone');
         w.setSolo(true);
@@ -169,6 +173,9 @@ function showHub() {
                 if (a.kind === 'memory') showStudySetup(a);
                 else if (a.kind === 'mastermind') showPotionSetup(a);
                 else if (a.kind === 'tea') showTeaSetup(a);
+                else if (a.kind === 'harvest' && a.id === 'cook') showCookSetup(a);
+                else if (a.kind === 'harvest' && a.id === 'fish') showFishSetup(a);
+                else if (a.kind === 'harvest' && a.id === 'garden') showGardenScreen(a);
                 else toast('info', `${a.label} is coming soon.`);
             });
             grid.append(tile);
@@ -454,6 +461,143 @@ function showTeaSetup(activity) {
     draw();
     w.main.replaceChildren(box);
     start.focus();
+}
+
+/** Cooking: choose a recipe (the ones you can cook now first), then play the three steps. */
+function showCookSetup(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    w.setView('hub');
+    w.setTitle(activity.label, activity.icon || 'fa-utensils');
+
+    const box = el('div', 'snpc-act-setup');
+    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
+    box.append(el('p', 'snpc-act-note',
+        `${activity.label}${partner.alone ? ', cooking alone' : ` with ${partner.name}`}. Choose a dish. Some need ingredients from your pack, which are used up; the simple ones need nothing. Then time three steps: chop, heat and season.`));
+
+    const rows = availableRecipes(preset.harvest.recipes, packItems());
+    let chosen = rows.find(r => r.ok)?.recipe.id || '';
+    const list = el('div', 'snpc-act-recipes');
+    list.setAttribute('role', 'radiogroup');
+    list.setAttribute('aria-label', 'Choose a dish');
+    const draw = () => {
+        list.replaceChildren();
+        for (const r of rows) {
+            const b = el('button', `snpc-act-recipe${r.recipe.id === chosen ? ' is-chosen' : ''}${r.ok ? '' : ' is-missing'}`);
+            b.type = 'button';
+            b.setAttribute('role', 'radio');
+            b.setAttribute('aria-checked', String(r.recipe.id === chosen));
+            b.setAttribute('aria-disabled', String(!r.ok));
+            b.append(el('strong', '', r.recipe.name), el('small', '', r.recipe.desc || ''));
+            const needs = r.recipe.needs.length === 0 ? 'No ingredients needed'
+                : r.ok ? `Uses ${r.recipe.needs.map(n => n.label).join(' and ')}`
+                    : `Needs ${r.missing.map(m => `${m.label}${m.have ? ` (you have ${m.have})` : ''}`).join(' and ')}`;
+            b.append(el('small', 'snpc-act-recipe-needs', needs));
+            b.addEventListener('click', () => {
+                if (!r.ok) { toast('info', `${r.recipe.name}: ${needs}.`); return; }
+                chosen = r.recipe.id;
+                draw();
+            });
+            list.append(b);
+        }
+    };
+    draw();
+    box.append(list);
+
+    const difficulty = el('select', 'snpc-act-select');
+    difficulty.setAttribute('aria-label', 'Difficulty');
+    for (const d of ['easy', 'normal', 'hard']) difficulty.append(new Option(d[0].toUpperCase() + d.slice(1), d));
+    difficulty.value = s.difficulty;
+    box.append(field('Difficulty', difficulty));
+
+    const row = el('div', 'snpc-act-row');
+    const start = el('button', 'snpc-act-btn', 'Start cooking');
+    start.type = 'button';
+    start.addEventListener('click', () => {
+        const recipe = rows.find(r => r.recipe.id === chosen)?.recipe;
+        if (!recipe) return;
+        s.difficulty = difficulty.value;
+        saveActivitySettings();
+        seat(w, partner, 'Cooking together');
+        w.userName = userName();
+        runCook(w, { partner: partner.name, label: activity.label, recipe, difficulty: s.difficulty, onLeave: () => showHub(), onAgain: () => showCookSetup(activity) });
+    });
+    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
+    back.type = 'button';
+    back.addEventListener('click', showHub);
+    row.append(start, back);
+    box.append(row);
+    tiredGuard(activity, box, start);
+    w.main.replaceChildren(box);
+    start.focus();
+}
+
+/** Fishing: choose the difficulty, and a contest if there is a partner, then go. */
+function showFishSetup(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    w.setView('hub');
+    w.setTitle(activity.label, activity.icon || 'fa-fish');
+
+    const box = el('div', 'snpc-act-setup');
+    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
+    box.append(el('p', 'snpc-act-note',
+        `${activity.label}${partner.alone ? ', fishing alone' : ` with ${partner.name}`}. Cast your line three times. Wait for a bite without tapping, hook it the moment it twitches, then keep the cursor on the fish while you reel. Every fish you land goes in your pack.`));
+
+    const difficulty = el('select', 'snpc-act-select');
+    difficulty.setAttribute('aria-label', 'Difficulty');
+    for (const d of ['easy', 'normal', 'hard']) difficulty.append(new Option(d[0].toUpperCase() + d.slice(1), d));
+    difficulty.value = s.difficulty;
+    box.append(field('Difficulty', difficulty));
+
+    const contestBox = el('input');
+    contestBox.type = 'checkbox';
+    contestBox.disabled = partner.alone;
+    contestBox.setAttribute('aria-label', 'A contest with your partner');
+    const contestRow = el('label', 'snpc-act-field-row');
+    contestRow.append(el('span', '', 'Contest'), contestBox, el('small', 'snpc-act-note is-small', partner.alone ? 'Needs a partner.' : `Fish against ${partner.name}: the heavier catch wins.`));
+    box.append(contestRow);
+
+    const row = el('div', 'snpc-act-row');
+    const start = el('button', 'snpc-act-btn', 'Go fishing');
+    start.type = 'button';
+    start.addEventListener('click', () => {
+        s.difficulty = difficulty.value;
+        saveActivitySettings();
+        seat(w, partner, 'Fishing together');
+        w.userName = userName();
+        runFish(w, {
+            partner: partner.name, label: activity.label, difficulty: s.difficulty, contest: contestBox.checked, table: fishTable(preset),
+            onLeave: () => showHub(), onAgain: () => showFishSetup(activity),
+        });
+    });
+    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
+    back.type = 'button';
+    back.addEventListener('click', showHub);
+    row.append(start, back);
+    box.append(row);
+    tiredGuard(activity, box, start);
+    w.main.replaceChildren(box);
+    start.focus();
+}
+
+/** Gardening: straight into the greenhouse (the plots are the screen). */
+function showGardenScreen(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const partner = pickedPartner();
+    const es = energyStatus(activity);
+    if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
+    seat(w, partner, 'In the greenhouse');
+    w.userName = userName();
+    runGarden(w, { partner: partner.name, label: activity.label, preset, onLeave: () => showHub() });
 }
 
 function openHub(from) {

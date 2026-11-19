@@ -1,5 +1,5 @@
 import { newGame, flip, hideMiss, canFlip, rewardsOf, describeState, knowledgeOf, GRADES } from '../../../src/activity-memory-core.js';
-import { askPartner, settleStudy, sfx } from '../activities-runtime.js';
+import { askPartner, settleStudy, sfx, talkAllowed } from '../activities-runtime.js';
 
 /**
  * The Study board (fork): draws the rune memory game into the activity window and runs it. The rules are in
@@ -64,14 +64,14 @@ export function runStudy(win, ctx) {
 
     /** The partner speaks: a typing line, then the reply (or a canned line). Never blocks the game. */
     const speak = async (beat, playerText = '') => {
-        if (!partner) return;      // played alone: nobody to talk to
+        if (!partner || !talkAllowed(beat)) return;      // played alone, or nothing would be said
         win.addLine(partner, '...', 'typing');
         const out = await askPartner({
             partner, label, beat, stateText: stateText(), playerText, talkSoFar: win.talk(),
             outcome: beat === 'end' ? rewardsOf(game).grade : '',
         });
         win.removeTyping();
-        if (win.isOpen()) win.addLine(partner, out.text, 'bot');
+        if (win.isOpen() && out.text) win.addLine(partner, out.text, 'bot');
     };
     win.onSay((text) => { speak('chat', text); });
 

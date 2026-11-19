@@ -89,7 +89,7 @@
 .snpc-act-chat[data-view="chat"] .snpc-act-msg.system,
 .snpc-act-chat[data-view="log"] .snpc-act-msg:not(.system) { display: none; }
 .snpc-act-help { flex: 1 1 auto; min-height: 90px; overflow-y: auto; padding: 4px 6px; color: #e8dfd0; line-height: 1.45; }
-.snpc-act-help[hidden], .snpc-act-chat[hidden], .snpc-act-input[hidden], .snpc-act-tab[hidden] { display: none; }
+.snpc-act-help[hidden], .snpc-act-chat[hidden], .snpc-act-input[hidden], .snpc-act-tab[hidden], .snpc-act-tabs[hidden] { display: none; }
 .snpc-act-help-title { font-family: Georgia, serif; color: #ede3d2; margin: 8px 0 4px; font-size: 1rem; }
 .snpc-act-help-text { margin: 0 0 8px; font-size: 0.93rem; }
 .snpc-act-input { display: flex; gap: 6px; }
@@ -321,3 +321,64 @@
 .snpc-act-streak { font-size: 0.82em; }
 .snpc-act-streak i, .snpc-act-streak-note i { color: #f08a3c; }
 .snpc-act-streak-note { margin: 2px 0 8px; font-size: 0.95em; }
+
+/* ---- Cooking, fishing and gardening ---- */
+.snpc-act-meter { position: relative; width: 100%; max-width: 520px; height: 38px; margin: 10px auto; border: 2px solid #a4947d; border-radius: 19px; background: #1f1e1f; overflow: hidden; }
+.snpc-act-meter-zone { position: absolute; top: 0; bottom: 0; background: rgba(70, 195, 148, 0.55); border-left: 2px solid #6fd6ae; border-right: 2px solid #6fd6ae; }
+.snpc-act-meter-marker { position: absolute; top: 3px; bottom: 3px; width: 8px; margin-left: -4px; border-radius: 4px; background: #fff4df; box-shadow: 0 0 6px #fff; }
+.snpc-act-bigtap {
+    display: block; width: min(100%, 320px); min-height: 68px; margin: 8px auto; padding: 12px 20px; font: inherit; font-size: 1.3rem; font-weight: 700; color: #fff4df;
+    background: linear-gradient(#2f7a5a, #1f5a42); border: 2px solid #6fd6ae; border-radius: 14px; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.snpc-act-bigtap:active { filter: brightness(1.15); transform: scale(0.98); }
+.snpc-act-bigtap:focus-visible { outline: 3px solid #ead4ae; outline-offset: 3px; }
+.snpc-act-cook, .snpc-act-fish, .snpc-act-garden { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 600px; margin: 0 auto; }
+.snpc-act-cookname { font-family: Georgia, serif; color: #ede3d2; margin: 0; }
+.snpc-act-cooksteps { list-style: none; display: flex; gap: 8px; padding: 0; margin: 0; width: 100%; justify-content: center; flex-wrap: wrap; }
+.snpc-act-cookstep { display: flex; flex-direction: column; align-items: center; min-width: 88px; padding: 6px 12px; border: 1px solid #817562; border-radius: 10px; background: #2a2927; color: #eee7da; }
+.snpc-act-cookstep small { color: #c8bfb2; }
+.snpc-act-cookstep.is-now { border-color: #d4b98f; background: #3b3834; }
+.snpc-act-cookstep.is-perfect { border-color: #6fd6ae; background: #1f5a42; }
+.snpc-act-cookstep.is-good { border-color: #d4b98f; background: #4a3c2e; }
+.snpc-act-cookstep.is-miss { border-color: #e07a5f; background: #4a2a24; }
+
+.snpc-act-recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin: 8px 0; }
+.snpc-act-recipe { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 76px; padding: 10px; text-align: left; font: inherit; color: #eee7da; background: linear-gradient(145deg, #3b3834, #2a2927); border: 1px solid #a4947d; border-radius: 8px; cursor: pointer; }
+.snpc-act-recipe small { color: #c8bfb2; }
+.snpc-act-recipe .snpc-act-recipe-needs { color: #f0dfbc; }
+.snpc-act-recipe.is-chosen { border: 2px solid #6fd6ae; background: linear-gradient(145deg, #2f7a5a, #1f5a42); }
+.snpc-act-recipe.is-missing { opacity: 0.6; cursor: not-allowed; }
+.snpc-act-recipe.is-missing .snpc-act-recipe-needs { color: #f0c9a0; }
+
+.snpc-act-fishcount { color: #f0dfbc; font-size: 1.05rem; }
+.snpc-act-pond { position: relative; width: 100%; min-height: 190px; padding: 10px; border-radius: 12px; border: 1px solid #a4947d; background: linear-gradient(#5aa6c8, #2f6f96); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.snpc-act-pond-note { text-align: center; text-shadow: 0 1px 3px #0008; }
+.snpc-act-reel { display: flex; gap: 14px; align-items: stretch; height: 170px; }
+.snpc-act-reel[hidden] { display: none; }
+.snpc-act-reel-track { position: relative; width: 56px; height: 100%; border: 2px solid #ffffffaa; border-radius: 10px; background: #0b3550aa; overflow: hidden; }
+.snpc-act-reel-band { position: absolute; left: 0; right: 0; background: rgba(70, 195, 148, 0.45); border-top: 2px solid #6fd6ae; border-bottom: 2px solid #6fd6ae; }
+.snpc-act-reel-fish { position: absolute; left: 50%; transform: translate(-50%, 50%); font-size: 1.3rem; color: #ffe08a; }
+.snpc-act-reel-cursor { position: absolute; left: 2px; right: 2px; height: 10px; margin-bottom: -5px; border-radius: 5px; background: #fff4df; border: 2px solid #1b1b1d; }
+.snpc-act-reel-cursor.is-on { background: #6fd6ae; }
+.snpc-act-reel-progress { width: 18px; height: 100%; border: 2px solid #ffffffaa; border-radius: 9px; background: #0b3550aa; position: relative; overflow: hidden; }
+.snpc-act-reel-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #ffe08a; }
+.snpc-act-fishlog { list-style: none; padding: 0; margin: 0; width: 100%; color: #e8dfd0; display: flex; flex-direction: column; gap: 2px; }
+.snpc-act-fishlog .is-caught::before { content: "\2713  "; color: #6fd6ae; }
+.snpc-act-fishlog .is-lost::before { content: "\2717  "; color: #e07a5f; }
+
+.snpc-act-plots { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; width: 100%; }
+.snpc-act-plot { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px; text-align: center; color: #eee7da; background: linear-gradient(145deg, #3b3834, #2a2927); border: 1px solid #a4947d; border-radius: 10px; }
+.snpc-act-plot i { font-size: 1.6rem; color: #6fd6ae; }
+.snpc-act-plot small { color: #c8bfb2; }
+.snpc-act-plot.is-ready { border: 2px solid #ffe08a; }
+.snpc-act-plot.is-ready i { color: #ffe08a; }
+.snpc-act-plot.is-empty { border-style: dashed; }
+.snpc-act-plot.is-empty i { color: #b5a58d; }
+.snpc-act-plot-done { color: #f0dfbc; }
+.snpc-act-plot .snpc-act-meter { height: 30px; }
+
+@media (max-width: 900px) {
+    .snpc-act-reel { height: 150px; }
+    .snpc-act-recipes { grid-template-columns: 1fr 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .snpc-act-bigtap:active { transform: none; } }

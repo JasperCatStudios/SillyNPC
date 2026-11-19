@@ -13,7 +13,32 @@
 const DEFAULT_RULE = 'Reply with ONLY the words you say out loud: one or two short sentences of plain speech. No narration, no actions, no asterisks, no parentheses, no quotation marks. Never mention numbers or game terms.';
 
 /** The moments the partner may speak at. */
-export const BEATS = Object.freeze(['start', 'curse', 'halfway', 'end', 'chat']);
+export const BEATS = Object.freeze(['start', 'curse', 'halfway', 'end', 'chat', 'moment']);
+
+/** Beats that are never held back by the cooldown: the opening, the ending and a reply to what the player typed. */
+export const FREE_BEATS = Object.freeze(['start', 'end', 'chat']);
+
+/** Whether a beat has a built-in line to fall back on. A 'moment' (something that just happened) has none: it is spoken by the model or not at all. */
+export const hasBuiltIn = (beat) => beat !== 'moment';
+
+/** Whether enough time has passed since the last one. No limit (0 or less) or nothing before it always passes. */
+export function cooldownOk(lastAt, now, seconds) {
+    const gap = Number(seconds);
+    if (!(gap > 0) || !(Number(lastAt) > 0)) return true;
+    return Number(now) - Number(lastAt) >= gap * 1000;
+}
+
+/**
+ * What to do about one line of table talk: ask the model ('model'), use a built-in line ('canned'), or say nothing ('skip').
+ * Nobody sees the panel with the table talk off, so nothing is asked. The cooldown holds back every beat except the free ones. With the
+ * partner's talk off a beat uses its built-in line when the setting allows it, and a moment has none.
+ */
+export function talkDecision({ beat, talkOn = true, showTalk = true, cannedLines = true, cooldownSec = 0, lastAskAt = 0, now = Date.now() }) {
+    if (!showTalk) return 'skip';
+    if (!FREE_BEATS.includes(beat) && !cooldownOk(lastAskAt, now, cooldownSec)) return 'skip';
+    if (!talkOn) return cannedLines && hasBuiltIn(beat) ? 'canned' : 'skip';
+    return 'model';
+}
 
 const REACTIONS = Object.freeze({
     start: 'The activity is just beginning. Say something short to start it.',
@@ -21,6 +46,7 @@ const REACTIONS = Object.freeze({
     halfway: 'You are about halfway through. Say something about how it is going.',
     end: 'It is over. React to how it went.',
     chat: 'Answer what was just said.',
+    moment: 'Something just happened. React to it briefly, in a line.',
 });
 
 /**
@@ -51,7 +77,7 @@ const clip = (s, n) => String(s ?? '').replace(/\r/g, '').trim().slice(0, n);
 /**
  * The request for one line.
  * @param {{
- *   partner: string, user: string, activity: string, beat: string, stateText?: string, playerText?: string, rule?: string,
+ *   partner: string, user: string, activity: string, beat: string, stateText?: string, playerText?: string, event?: string, rule?: string,
  *   story?: string, blocks?: string[], rivalry?: string, likes?: string, talkSoFar?: {who:string,text:string}[], language?: string
  * }} a
  * @returns {{ system: string, user: string }}
@@ -66,7 +92,7 @@ export function buildTalkRequest(a) {
         a.likes ? `About you: ${clip(a.likes, 400)}` : '',
         a.stateText ? `How it stands: ${clip(a.stateText, 300)}.` : '',
         (a.talkSoFar || []).length ? `What was said so far:\n${a.talkSoFar.slice(-6).map(l => `${l.who}: ${clip(l.text, 200)}`).join('\n')}` : '',
-        `Task: ${REACTIONS[beat]}${a.playerText ? `\n${a.user} said: ${clip(a.playerText, 300)}` : ''}`,
+        `Task: ${REACTIONS[beat]}${beat === 'moment' && a.event ? `\nWhat happened: ${clip(a.event, 200)}.` : ''}${a.playerText ? `\n${a.user} said: ${clip(a.playerText, 300)}` : ''}`,
         `Rules:\n1. Speak as "${a.partner}"${a.language ? `, in ${a.language}` : ''}, in character.\n2. Very short (1-2 sentences).\n3. ${a.rule || DEFAULT_RULE}`,
     ];
     return { system: sections.filter(Boolean).join('\n\n'), user: beat === 'chat' && a.playerText ? clip(a.playerText, 300) : `(${beat})` };

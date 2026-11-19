@@ -1,4 +1,5 @@
 import { DEFAULT_TERMS, normalizeTerms } from './activity-terms.js';
+import { GENERIC_RECIPES, GENERIC_FISH, GENERIC_SEEDS } from './activity-harvest-data.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -25,17 +26,24 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     buttonShown: true,
     contextMessages: 6,
     talkOn: true,                 // the off switch for the partner's AI talk
+    showTalk: true,               // the table talk part of the side panel (Chat and Log)
+    talkCooldownSec: 8,           // at least this many seconds between the partner's table-talk requests (not for the start, the end or your own message)
+    speakCooldownSec: 6,          // at least this many seconds between lines the partner speaks aloud
+    cannedLines: true,            // built-in lines for the partner when the model is off (off means silence)
+    showHowTo: true,              // the How to play tab
     talkTokens: 120,
     bondOn: true,
     xpOn: true,
     itemsOn: true,
     vitalsOn: true,
     energyCost: 10,
+    activityMinutes: 30,          // story minutes an activity takes (0 says nothing about time)
     combatProfXp: true,
     combatProfXpPerUse: 2,
     combatProfXpCap: 12,
     musicOn: true,
     musicVolume: 0.5,
+    assist: false,                // timing games: a wider zone and a slower marker
     soundMapUrl: '',              // a sound map just for activities (music and effects); '' uses the world preset's
     difficulty: 'normal',
     pairs: 8,                     // Study board size: 4, 8 or 12
@@ -65,14 +73,17 @@ export function normalizeActivitySettings(raw) {
     return {
         enabled: bool('enabled'), buttonShown: bool('buttonShown'),
         contextMessages: int(r.contextMessages, 0, 30, d.contextMessages),
-        talkOn: bool('talkOn'),
+        talkOn: bool('talkOn'), showTalk: bool('showTalk'), cannedLines: bool('cannedLines'),
+        talkCooldownSec: int(r.talkCooldownSec, 0, 300, d.talkCooldownSec), speakCooldownSec: int(r.speakCooldownSec, 0, 300, d.speakCooldownSec), showHowTo: bool('showHowTo'),
         talkTokens: int(r.talkTokens, 30, 400, d.talkTokens),
         bondOn: bool('bondOn'), xpOn: bool('xpOn'), itemsOn: bool('itemsOn'), vitalsOn: bool('vitalsOn'),
         energyCost: int(r.energyCost, 0, 100, d.energyCost),
+        activityMinutes: int(r.activityMinutes, 0, 600, d.activityMinutes),
         combatProfXp: bool('combatProfXp'),
         combatProfXpPerUse: int(r.combatProfXpPerUse, 0, 50, d.combatProfXpPerUse),
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
+        assist: bool('assist'),
         soundMapUrl: text(r.soundMapUrl, 300),
         musicVolume: Math.min(1, Math.max(0, Number.isFinite(Number(r.musicVolume)) ? Number(r.musicVolume) : d.musicVolume)),
         difficulty: DIFFICULTY_IDS.includes(r.difficulty) ? r.difficulty : d.difficulty,
@@ -107,9 +118,9 @@ export const GENERIC_ACTIVITIES = Object.freeze([
     { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes. Knowledge feeds a class change.', solo: true },
     { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
     { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
-    { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Cook something together.', soon: true, solo: true },
-    { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite and reel it in.', soon: true, solo: true },
-    { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, water and harvest.', soon: true, solo: true },
+    { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
+    { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite, hook it and reel it in.', solo: true },
+    { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, tend and harvest. Plants grow as you tend them on different days.', solo: true },
 ]);
 
 export const GENERIC_PRESET = Object.freeze({
@@ -122,6 +133,7 @@ export const GENERIC_PRESET = Object.freeze({
     activities: GENERIC_ACTIVITIES,
     study: Object.freeze({ runes: [], profs: ['reason'] }),
     potion: Object.freeze({ recipe: 'Herbal Tonic', failed: 'Murky Brew', names: {}, profs: [] }),
+    harvest: Object.freeze({ recipes: GENERIC_RECIPES, fish: GENERIC_FISH, seeds: GENERIC_SEEDS }),
     tea: Object.freeze({ category: 'Tea', music: 'activity_tea_music', snacks: ['Strawberry shortcake', 'Macarons', 'Butter cookies', 'Fruit tart', 'Scones with jam', 'Honey cake', 'Finger sandwiches', 'Cheese and grapes', 'Sweet pastry', 'Smoked skewer'], fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
     classChange: Object.freeze({ mode: 'both', studyKnowledge: 100, rankGate: null }),
     terms: Object.freeze({ examinerRule: 'partner' }),
@@ -143,8 +155,47 @@ function normalizeActivity(raw) {
         ...(r.off ? { off: true } : {}),
         // Can be played alone (no partner): the puzzles and the leisure tasks, not the ones that need a guest.
         ...(r.solo ? { solo: true } : {}),
+        // Story minutes this activity takes; without it the Activities setting is used.
+        ...(Number.isFinite(Number(r.minutes)) && String(r.minutes ?? '').trim() !== '' ? { minutes: Math.max(0, Math.min(600, Math.round(Number(r.minutes)))) } : {}),
         // Its own energy cost (0 to 100); without one the Activities setting is used.
         ...(Number.isFinite(Number(r.energy)) && String(r.energy ?? '').trim() !== '' ? { energy: Math.max(0, Math.min(100, Math.round(Number(r.energy)))) } : {}),
+    };
+}
+
+function normalizeRecipe(raw) {
+    const r = obj(raw);
+    const name = text(r.name, 50);
+    if (!name) return null;
+    const needs = (Array.isArray(r.needs) ? r.needs : []).slice(0, 4).map(n => {
+        const q = obj(n);
+        const any = (Array.isArray(q.any) ? q.any : []).map(w => text(w, 30).toLowerCase()).filter(Boolean).slice(0, 20);
+        return any.length ? { label: text(q.label, 40) || 'an ingredient', any, qty: int(q.qty, 1, 9, 1) } : null;
+    }).filter(Boolean);
+    return { id: text(r.id, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '') || name.toLowerCase().replace(/[^a-z0-9]+/g, ''), name, needs, desc: text(r.desc, 90) };
+}
+
+/**
+ * The lists for cooking, fishing and gardening. A list the preset leaves out, or that has nothing usable in it, is the built-in one,
+ * so a preset that only changes wording still works.
+ */
+export function normalizeHarvest(raw) {
+    const r = obj(raw);
+    const recipes = (Array.isArray(r.recipes) ? r.recipes : []).map(normalizeRecipe).filter(Boolean).slice(0, 40);
+    const fish = (Array.isArray(r.fish) ? r.fish : []).map(f => {
+        const q = obj(f);
+        const name = text(q.name, 50);
+        return name ? { name, weight: int(q.weight, 1, 100, 10), difficulty: int(q.difficulty, 1, 3, 1), size: int(q.size, 1, 9, 2) } : null;
+    }).filter(Boolean).slice(0, 40);
+    const seeds = (Array.isArray(r.seeds) ? r.seeds : []).map(s => {
+        const q = obj(s);
+        const name = text(q.name, 50);
+        const produce = text(q.produce, 50);
+        return name && produce ? { name, produce, needs: int(q.needs, 1, 3, 2), yield: int(q.yield, 1, 5, 2), kind: text(q.kind, 24) || 'food', ...(q.free ? { free: true } : {}) } : null;
+    }).filter(Boolean).slice(0, 40);
+    return {
+        recipes: recipes.length ? recipes : GENERIC_RECIPES.map(normalizeRecipe),
+        fish: fish.length ? fish : GENERIC_FISH.map(f => ({ ...f })),
+        seeds: seeds.length ? seeds : GENERIC_SEEDS.map(s => ({ ...s })),
     };
 }
 
@@ -182,6 +233,7 @@ export function normalizePreset(raw, idHint = '') {
             names: Object.fromEntries(Object.entries(obj(obj(r.potion).names)).map(([k, v]) => [text(k, 20).toLowerCase(), text(v, 24)]).filter(([k, v]) => k && v)),
             profs: (Array.isArray(obj(r.potion).profs) ? r.potion.profs : []).map(v => text(v, 40)).filter(Boolean).slice(0, 6),
         },
+        harvest: normalizeHarvest(r.harvest),
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
             snacks: (Array.isArray(obj(r.tea).snacks) ? r.tea.snacks : ['Strawberry shortcake', 'Macarons', 'Butter cookies', 'Fruit tart', 'Scones with jam', 'Honey cake', 'Finger sandwiches', 'Cheese and grapes', 'Sweet pastry', 'Smoked skewer']).map(v => text(v, 40)).filter(Boolean).slice(0, 30),

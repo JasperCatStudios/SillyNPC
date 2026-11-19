@@ -55,6 +55,9 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     pane.append(
         toggle('Activities on', 'enabled', 'Turns the whole module off, including its button.'),
         toggle('Show the button', 'buttonShown', 'Hides the green floating button but keeps the module on.'),
+        toggle('Show the table talk', 'showTalk', 'The Chat and Log tabs beside each activity. Off hides them (and nothing is asked of the model for them).'),
+        toggle('Show How to play', 'showHowTo', 'The How to play tab beside each activity.'),
+        toggle('Built-in lines when the model is off', 'cannedLines', 'Short ready-made lines for the partner at the start, the end and a few turning points when the partner\'s talk is off or a request fails. Off means silence instead. Moments (a fish bites, a harvest) never use built-in lines.'),
         toggle('The partner talks', 'talkOn', 'Off means short built-in lines and no requests to a model.'),
         toggle('Tea Time uses the model', 'teaLlm', 'On: the guest voices the conversation and proposes things to say. Off: built-in lines, and the best grade is Good.'),
         toggle('Tea Time: type your own words', 'teaFreeText', 'Lets you type a line instead of tapping one of the three openers. Only when the model is on.'),
@@ -62,6 +65,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('Tea Time: show what you have learned', 'teaShowKnown', 'A "Known so far" note about the guest on the Tea Time screen.'),
         toggle('Tea Time music', 'musicOn', 'Plays the music loop from the sound map while Tea Time is open (the tag is set by the world preset). Off means silence.'),
         toggle('Activities cost energy', 'vitalsOn', 'Each activity costs the player some energy, and one is refused when there is not enough. Only works while the Vitals Tracker is on and tracks energy.'),
+        toggle('Easier timing (assist)', 'assist', 'Cooking, fishing and gardening: a wider zone and a slower marker.'),
         toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),
         toggle('Bond nudges', 'bondOn', 'A good session can warm a tracked bond a little, once a day per person and activity.'),
         toggle('XP for skills used in fights', 'combatProfXp', 'Each fight adds XP to the skills the fighters used, so ranks grow from fighting too.'),
@@ -90,6 +94,22 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     cost.value = String(s.energyCost);
     cost.addEventListener('change', () => { const v = Number(cost.value); if (Number.isFinite(v)) { s.energyCost = Math.max(0, Math.min(100, Math.round(v))); changed(); } });
     pane.append(row('Energy per activity', cost, 'How much energy one activity takes, out of 100. A preset can give an activity its own cost. Only while the Vitals Tracker is on.'));
+
+    const minutes = el('input', 'text_pole');
+    minutes.type = 'number'; minutes.min = '0'; minutes.max = '600'; minutes.style.width = '6em';
+    minutes.value = String(s.activityMinutes);
+    minutes.addEventListener('change', () => { const v = Number(minutes.value); if (Number.isFinite(v)) { s.activityMinutes = Math.max(0, Math.min(600, Math.round(v))); changed(); } });
+    pane.append(row('Story minutes per activity', minutes, 'How much story time an activity takes. It is added to the report the story model gets, with an instruction to let that time pass. 0 says nothing about time.'));
+
+    const numberField = (key, label, hint, max = 300) => {
+        const input = el('input', 'text_pole');
+        input.type = 'number'; input.min = '0'; input.max = String(max); input.style.width = '6em';
+        input.value = String(s[key]);
+        input.addEventListener('change', () => { const v = Number(input.value); if (Number.isFinite(v)) { s[key] = Math.max(0, Math.min(max, Math.round(v))); changed(); } });
+        pane.append(row(label, input, hint));
+    };
+    numberField('talkCooldownSec', 'Seconds between partner requests', 'The least time between two table-talk requests to the model, so a busy moment does not send one after another. The start, the end and your own typed messages are never held back. 0 means no limit.');
+    numberField('speakCooldownSec', 'Seconds between spoken lines', 'The least time between two lines the partner speaks aloud (text-to-speech). The text still appears; only the voice waits. 0 means no limit.');
 
     const mapBox = el('input', 'text_pole');
     mapBox.type = 'text';
