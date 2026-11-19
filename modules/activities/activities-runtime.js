@@ -167,14 +167,14 @@ export function energyActive() {
 
 /** The player's energy in this chat (0 to 100), or null when it is not known yet. */
 /**
- * The player's tier (0 novice to 4 master) in a crafting skill, from its rank on the active combat type's ladder. 0 when there is no
+ * The player's (or, with `who`, a character's) tier (0 novice to 4 master) in a crafting skill, from its rank on the active combat type's ladder. 0 when there is no
  * combat type, no such skill, or the player has no combat sheet yet.
  */
-export function craftTier(profId) {
+export function craftTier(profId, who = '') {
     try {
         const type = activeCombatType();
         const prof = type && profId ? (type.proficiencies || []).find(p => p.id === profId) : null;
-        const record = prof ? personaRecordFor(userName()) : null;
+        const record = prof ? (who ? cardOf(who) : personaRecordFor(userName())) : null;
         if (!prof || !record || !hasTypeData(record, type.dataKey)) return 0;
         const ladder = ladderOf(type, prof.ladder);
         const rank = getTypeData(record, type.dataKey)?.profs?.[profId]?.rank;

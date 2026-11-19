@@ -24,7 +24,7 @@ export const GENERIC_ALCHEMY = Object.freeze({
         { id: 'moon-blossom', name: 'Moon Blossom', match: ['moon blossom', 'blossom'], category: 'Herb', props: { potency: 7, purity: 8, volatility: 2 }, tags: ['herb'], tier: 3, shape: '★', letter: 'B', color: '#b4a7d6' },
         { id: 'fire-pepper', name: 'Fire Pepper', match: ['fire pepper', 'pepper'], category: 'Herb', props: { potency: 6, purity: 3, volatility: 6 }, tags: ['herb', 'spice'], tier: 2, shape: '▲', letter: 'F', color: '#e06666' },
         { id: 'night-berry', name: 'Night Berry', match: ['night berry', 'berry'], category: 'Herb', props: { potency: 8, purity: 3, volatility: 7 }, tags: ['herb'], tier: 2, shape: '●', letter: 'N', color: '#674ea7' },
-        { id: 'spring-water', name: 'Spring Water', match: ['spring water', 'water'], category: 'Liquid', props: { potency: 1, purity: 9, volatility: 0 }, tags: ['water', 'liquid'], tier: 1, shape: '■', letter: 'W', color: '#4fa3d1' },
+        { id: 'spring-water', name: 'Spring Water', match: ['spring water', 'water'], category: 'Liquid', props: { potency: 1, purity: 9, volatility: 0 }, tags: ['water', 'liquid'], tier: 1, starter: true, shape: '■', letter: 'W', color: '#4fa3d1' },
         { id: 'rain-water', name: 'Rain Water', match: ['rain water'], category: 'Liquid', props: { potency: 2, purity: 7, volatility: 1 }, tags: ['water', 'liquid'], tier: 1, shape: '⬟', letter: 'R', color: '#76a5af' },
         { id: 'honey', name: 'Honey', match: ['honey'], category: 'Liquid', props: { potency: 2, purity: 8, volatility: 0 }, tags: ['liquid', 'sweet'], tier: 2, shape: '♥', letter: 'H', color: '#f1c232' },
     ],

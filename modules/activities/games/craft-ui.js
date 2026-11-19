@@ -1,6 +1,6 @@
 import {
     mixture, mixtureFit, slotAccepts, checkStart, difficultyScale, effectScale, effectForecasts, qualityScore, processScore, craftQuality, craftRewards,
-    consumeFor, shelf, outputNamesOf, outputFor,
+    consumeFor, shelf, outputNamesOf, outputFor, autofillStarters, rollHelp, HELP_SCORE, reactionEffect,
 } from '../../../src/craft/craft-core.js';
 import { newTend, stepTend, tendParams, performance as tendPerformance, describeState as describeTend } from '../../../src/craft/tend-core.js';
 import { settleActivity, sfx } from '../activities-runtime.js';
@@ -89,7 +89,7 @@ export function runCraft(win, ctx) {
             b.setAttribute('role', 'radio');
             b.setAttribute('aria-checked', String(recipe?.id === r.id));
             b.append(el('strong', '', r.name), el('small', '', r.desc || ''), el('small', 'snpc-act-recipe-needs', `Level ${r.level}${r.level > tier + 2 ? ' (hard for you)' : ''}`));
-            b.addEventListener('click', () => { recipe = r; filled = {}; showSelect(); });
+            b.addEventListener('click', () => { recipe = r; filled = autofillStarters(craft, r, {}); showSelect(); });
             recipes.append(b);
         }
         wrap.append(recipes);
@@ -183,6 +183,7 @@ export function runCraft(win, ctx) {
     /* ------------------------------------------------------------------ the stages */
 
     let results = [];
+    let helpBonds = [];
     let prep = 'good';
     let ruined = false;
     let picks = [];
@@ -190,6 +191,7 @@ export function runCraft(win, ctx) {
 
     function begin() {
         results = [];
+        helpBonds = [];
         prep = 'good';
         ruined = false;
         picks = recipe.slots.filter(s => filled[s.id]).map(s => ({ material: filled[s.id], qty: s.qty }));
@@ -216,24 +218,74 @@ export function runCraft(win, ctx) {
         else stageFinish(stage, next);
     }
 
-    /** One timing tap for each different material. */
+    /**
+     * One timing tap for each different material. With a partner, the last material is theirs: they get the task, it goes perfectly,
+     * normally or badly (by their skill), and the player answers (praise, critique or empathize), which nudges a bond.
+     */
     function stagePrep(stage, next) {
-        const mats = [...new Map(picks.map(p => [p.material.id, p.material])).values()];
+        const all = [...new Map(picks.map(p => [p.material.id, p.material])).values()];
+        const helper = partner && all.length >= 2 ? all[all.length - 1] : null;
+        const mats = helper ? all.slice(0, -1) : all;
         const scores = [];
         let i = 0;
         const scale = difficultyScale(recipe.level, tier);
+
+        const finishPrep = () => {
+            const avg = scores.reduce((n, v) => n + v, 0) / Math.max(1, scores.length);
+            prep = avg >= 0.8 ? 'perfect' : avg >= 0.4 ? 'good' : 'miss';
+            mix = mixture(craft, picks, prep);
+            results.push({ stage: 'prep', weight: stage.weight, performance: avg });
+            speak('moment', '', '', `the ${say('prep', 'preparing').toLowerCase()} was ${prep === 'perfect' ? 'perfect' : prep === 'good' ? 'fine' : 'clumsy'}`);
+            next();
+        };
+
+        /** The partner's task, then the player's answer. */
+        const partnerTask = () => {
+            const status = stageBox(`${partner} lends a hand`, `${partner} takes ${helper.name}.`);
+            wrap.append(status);
+            setTimeout(() => {
+                if (!alive()) return;
+                const result = rollHelp(ctx.partnerTier || 0, Math.random);
+                scores.push(HELP_SCORE[result]);
+                sfx(result === 'fail' ? 'activity_potion_fail' : 'activity_cook_chop');
+                const said = result === 'perfect' ? `${partner} did it perfectly.` : result === 'normal' ? `${partner} did a decent job.` : `${partner} botched it.`;
+                status.textContent = said;
+                const box = el('div', 'snpc-act-row');
+                box.style.cssText = 'flex-wrap:wrap; gap:8px; margin-top:10px;';
+                const choose = (choice) => {
+                    const fx = choice ? reactionEffect(result, choice) : { meter: '', amount: 0 };
+                    if (fx.amount > 0) helpBonds.push({ meter: fx.meter, amount: fx.amount });
+                    const verb = { praise: 'praised', critique: 'critiqued', empathize: 'comforted' }[choice] || 'said nothing to';
+                    status.textContent = `${said} You ${verb} ${partner}.${fx.amount > 0 ? ` It meant something (${fx.meter}).` : choice ? ' It did not really land.' : ''}`;
+                    speak('moment', '', '', `${partner} prepared ${helper.name} and ${result === 'perfect' ? 'did it perfectly' : result === 'normal' ? 'did an ordinary job' : 'made a mess of it'}; the player ${verb} them`);
+                    box.querySelectorAll('button').forEach(b => { b.disabled = true; });
+                    setTimeout(finishPrep, 900);
+                };
+                for (const [choice, text, hint] of [
+                    ['praise', 'Praise', 'Tell them they did well.'],
+                    ['critique', 'Critique', 'Point out what to do better.'],
+                    ['empathize', 'Empathize', 'Show understanding, whatever happened.'],
+                    ['', 'Say nothing', 'Move on.'],
+                ]) {
+                    const b = el('button', choice ? 'snpc-act-btn' : 'snpc-act-btn is-quiet', text);
+                    b.type = 'button';
+                    b.title = hint;
+                    b.addEventListener('click', () => choose(choice));
+                    box.append(b);
+                }
+                wrap.append(box);
+                (box.firstChild)?.focus();
+            }, 900);
+        };
+
         const one = () => {
+            if (!alive()) return;
             if (i >= mats.length) {
-                const avg = scores.reduce((n, v) => n + v, 0) / Math.max(1, scores.length);
-                prep = avg >= 0.8 ? 'perfect' : avg >= 0.4 ? 'good' : 'miss';
-                mix = mixture(craft, picks, prep);
-                results.push({ stage: 'prep', weight: stage.weight, performance: avg });
-                speak('moment', '', '', `the ${say('prep', 'preparing').toLowerCase()} was ${prep === 'perfect' ? 'perfect' : prep === 'good' ? 'fine' : 'clumsy'}`);
-                next();
+                if (helper) partnerTask(); else finishPrep();
                 return;
             }
             const m = mats[i];
-            const status = stageBox(`${say('prep', 'Prepare')}: ${m.name}`, `Tap when the marker is in the green zone. ${i + 1} of ${mats.length}.`);
+            const status = stageBox(`${say('prep', 'Prepare')}: ${m.name}`, `Tap when the marker is in the green zone. ${i + 1} of ${mats.length}.${helper ? ` ${partner} will take ${helper.name}.` : ''}`);
             const meter = createMeter({ difficulty, assist, scale });
             meter.setCenter(0.25 + Math.random() * 0.5);
             const press = bigButton(win, say('prep', 'Prepare'), () => {
@@ -341,7 +393,7 @@ export function runCraft(win, ctx) {
         const lines = settleActivity({
             activityId: ctx.activityId || craft.id, label, partner, subject: rewards.subject,
             summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${recipe.name}, ${GRADE_TEXT[grade].toLowerCase()}${ruined ? ` (${say('tended', 'the work')} was ruined)` : ''}.`,
-            rewards: { grade, levelXp: rewards.levelXp, profXp: rewards.profXp, partnerProfXp: rewards.partnerProfXp, bonds: rewards.bonds, items: rewards.items, consume: rewards.consume },
+            rewards: { grade, levelXp: rewards.levelXp, profXp: rewards.profXp, partnerProfXp: rewards.partnerProfXp, bonds: [...rewards.bonds, ...helpBonds], items: rewards.items, consume: rewards.consume },
         });
         const box = el('div', 'snpc-act-result');
         box.append(el('h3', '', out ? `${out.name}` : 'Nothing was made'));

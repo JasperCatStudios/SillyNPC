@@ -149,7 +149,7 @@ export const GENERIC_ACTIVITIES = Object.freeze([
     { id: 'potion', label: 'Brewing', kind: 'mastermind', off: true, tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
     { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
     { id: 'alchemy', label: 'Alchemy', kind: 'craft', craft: 'alchemy', tab: 'crafting', icon: 'fa-flask', blurb: 'Choose herbs and water, grind, simmer and seal a potion.', solo: true },
-    { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
+    { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'crafting', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
     { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite, hook it and reel it in.', solo: true },
     { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, tend and harvest. Plants grow as you tend them on different days.', solo: true },
 ]);

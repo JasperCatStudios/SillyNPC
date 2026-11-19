@@ -54,6 +54,8 @@ function normalizeMaterial(raw, at, propIds) {
         category: text(r.category, 24),
         props, tags: list(r.tags).map(t => slug(t, 20)).filter(Boolean).slice(0, 8),
         tier: clamp(Math.round(num(r.tier, 1)), 1, 3),
+        // A starter is always on the shelf, free, and fills the first empty slot it fits when a recipe is chosen (water in alchemy).
+        starter: r.starter === true,
         shape: text(r.shape, 2) || DEFAULT_SHAPES[at % DEFAULT_SHAPES.length],
         letter: text(r.letter, 1).toUpperCase() || name[0].toUpperCase(),
         color: /^#[0-9a-fA-F]{6}$/.test(String(r.color || '')) ? r.color : DEFAULT_COLORS[at % DEFAULT_COLORS.length],
@@ -299,6 +301,60 @@ export function craftRewards({ craft, recipe, grade, tier = 0, difficulty = 'nor
     };
 }
 
+/**
+ * Puts the starter materials in the empty required slots they fit, in order. Returns a new `filled` ({ <slotId>: material }); what is
+ * already chosen is kept.
+ */
+export function autofillStarters(craft, recipe, filled = {}) {
+    const out = { ...filled };
+    const starters = (craft?.materials || []).filter(m => m.starter);
+    for (const slot of recipe?.slots || []) {
+        if (out[slot.id] || slot.optional) continue;
+        const m = starters.find(s => slotAccepts(slot, s));
+        if (m) out[slot.id] = m;
+    }
+    return out;
+}
+
+/* ------------------------------------------------------------------ a partner's help */
+
+/** How well a partner's help goes: a task is done perfectly, normally, or fails. */
+export const HELP_SCORE = Object.freeze({ perfect: 1, normal: 0.6, fail: 0 });
+
+/** The chances for a partner of a given skill tier (0 to 4): the better they are, the likelier a perfect and the rarer a failure. */
+export function helpOdds(tier) {
+    const t = clamp(Math.floor(Number(tier) || 0), 0, 4);
+    const perfect = 0.1 + 0.1 * t;
+    const fail = 0.35 - 0.07 * t;
+    return { perfect, normal: 1 - perfect - fail, fail };
+}
+
+/** Rolls the partner's task with an injected random source. */
+export function rollHelp(tier, rng = Math.random) {
+    const o = helpOdds(tier);
+    const r = rng();
+    return r < o.perfect ? 'perfect' : r < o.perfect + o.normal ? 'normal' : 'fail';
+}
+
+export const REACTIONS = Object.freeze(['praise', 'critique', 'empathize']);
+
+/**
+ * What the player's answer to the partner's work does. Each answer speaks to a different bond, and is worth most when it fits what
+ * happened: praise a perfect job (affection), critique a failure so they learn (respect), empathize with a failure (trust). An
+ * answer that does not fit is worth little or nothing. Bond nudges are only ever positive.
+ * @returns {{ meter: string, amount: number }}
+ */
+export function reactionEffect(result, choice) {
+    const table = {
+        praise: { meter: 'affection', perfect: 1, normal: 0.5, fail: 0 },
+        critique: { meter: 'respect', perfect: 0, normal: 0.5, fail: 1 },
+        empathize: { meter: 'trust', perfect: 0, normal: 0.5, fail: 1 },
+    };
+    const row = table[choice];
+    if (!row) return { meter: '', amount: 0 };
+    return { meter: row.meter, amount: row[result] ?? 0 };
+}
+
 /* ------------------------------------------------------------------ the shelf */
 
 /**
@@ -309,8 +365,9 @@ export function craftRewards({ craft, recipe, grade, tier = 0, difficulty = 'nor
 export function shelf(craft, pack, { outputNames = [] } = {}) {
     const blocked = new Set((outputNames || []).map(key));
     if (!pack) return (craft?.materials || []).map(m => ({ material: m, count: null }));
-    const found = [];
-    for (const m of craft?.materials || []) {
+    // Starters are free even with the Inventory on, and are listed first.
+    const found = (craft?.materials || []).filter(m => m.starter).map(m => ({ material: m, count: null }));
+    for (const m of (craft?.materials || []).filter(x => !x.starter)) {
         let count = 0;
         for (const item of pack) {
             const name = String(item?.name || '').toLowerCase();
@@ -332,6 +389,7 @@ export function consumeFor(picks, pack, { outputNames = [] } = {}) {
     const left = pack.map(i => ({ name: i.name, qty: Math.max(1, Number(i.qty) || 1), kind: i.kind }));
     const used = new Map();
     for (const { material, qty } of picks || []) {
+        if (material?.starter) continue;          // a starter is provided, never taken from the pack
         let want = Math.max(1, Math.round(Number(qty) || 1));
         for (const item of left) {
             if (want <= 0) break;

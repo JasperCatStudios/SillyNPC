@@ -659,7 +659,7 @@ function showCraft(activity) {
     w.userName = userName();
     const start = () => runCraft(w, {
         partner: partner.name, activityId: activity.id, label: activity.label, craft, difficulty: s.difficulty, assist: s.assist,
-        tier: craftTier(craft.prof), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
+        tier: craftTier(craft.prof), partnerTier: partner.alone ? 0 : craftTier(craft.prof, partner.name), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
     });
     start();
 }
