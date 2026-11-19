@@ -50,7 +50,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     scripts: [],                  // the activity files the player added: [{ name, url }]
     classicCooking: false,        // the old three-tap cooking instead of the hands-on kitchen (kept as a fallback)
     mechControls: {},             // the way you last played each kind of step: { stir: 'button', ... }
-    controls: 'auto',             // how the hands-on games are played: auto, pointer (mouse and touch) or button (one key or button)
+    controls: 'auto',             // how the hands-on games are played: auto, pointer (mouse and touch) or button (the action button or key)
     myRecipes: [],                // dishes the player made in the recipe creator (see activity-recipe-creator-core.js)
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker

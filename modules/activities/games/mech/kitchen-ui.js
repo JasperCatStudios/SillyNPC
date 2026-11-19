@@ -13,7 +13,7 @@ import { VIEWS, dishDrawing, paintBench } from './views.js';
  * The hands-on kitchen (fork): plays a recipe's script of steps (chop, stir, sear, season...) on a plain-shape stage.
  *
  * Every step works two ways, and scores about the same in both: with the pointer (mouse or touch: swipe, circle, drag a knob, shake)
- * or with ONE button or key (the action key, Space, or the big on-screen button). The rules are in src/mech (pure, tested with
+ * or with the action button (the action key, Space, or the big on-screen button). The rules are in src/mech (pure, tested with
  * simulated players); this file draws the state and turns pointer and key events into the input frame the rules read.
  */
 
@@ -71,8 +71,8 @@ export function runKitchen(win, ctx) {
     win.setTitle(label, 'fa-utensils');
     win.setHelp([
         { title: 'The goal', text: `Cook ${recipe.name}. It is a few steps, each a little game: ${script.steps.map(s => s.words?.title || s.id).join(', ')}.` },
-        { title: 'Your action key', text: `The action key is ${actionKeyLabel(settings.actionKey)} (Space works too). It is the button for one-button play: press or hold it where a step says so. You can change it in the Activities settings.` },
-        { title: 'Two ways to play', text: 'With a mouse or finger you swipe, circle, drag and shake. If you prefer one button, press "Play with one button" under the stage: every step has a one-button version that scores about the same. The action key and Space work too.' },
+        { title: 'Your action key', text: `The action key is ${actionKeyLabel(settings.actionKey)} (Space works too). It is the button for action-button play: press or hold it where a step says so. You can change it in the Activities settings.` },
+        { title: 'Two ways to play', text: 'With a mouse or finger you swipe, circle, drag and shake. If you prefer to use the action button, press "Use action button" under the stage: every step has an action-button version that scores about the same. The action key and Space work too.' },
         { title: 'Pause', text: 'Press Pause to stop the clock while you talk to your partner. Typing in the chat pauses the game by itself, and it carries on when you leave the box.' },
         { title: 'Flow', text: 'Good moves in a row fill the flow bar. A full bar gives your dish a small bonus. A miss costs some of it.' },
         { title: 'Mistakes', text: 'Nothing here is dangerous. A careless swipe makes a comic "Careful!", a burnt side just makes a mess, and the dish still counts for what you did.' },
@@ -259,14 +259,14 @@ export function runKitchen(win, ctx) {
     cleanups.push(() => { win.root.removeEventListener('focusin', onFocusIn); win.root.removeEventListener('focusout', onFocusOut); });
 
     function toggleControls(mech) {
-        const b = el('button', 'snpc-act-btn is-quiet', controls === 'button' ? 'Play with the pointer' : 'Play with one button');
+        const b = el('button', 'snpc-act-btn is-quiet', controls === 'button' ? 'Play with the pointer' : 'Use action button');
         b.type = 'button';
         b.addEventListener('click', () => {
             controls = controls === 'button' ? 'pointer' : 'button';
             // Remembered for this kind of step (unless the settings force one way for everything).
             settings.mechControls = { ...(settings.mechControls || {}), [mech]: controls };
             saveActivitySettings();
-            b.textContent = controls === 'button' ? 'Play with the pointer' : 'Play with one button';
+            b.textContent = controls === 'button' ? 'Play with the pointer' : 'Use action button';
         });
         return b;
     }

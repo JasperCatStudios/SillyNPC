@@ -13,7 +13,7 @@ import { createMeter, bigButton, talker } from './harvest-ui.js';
  * src/craft/craft-core.js and src/craft/tend-core.js; a craft type is data (see src/activity-craft-data.js), so this one screen
  * plays alchemy, smithing or a talisman craft, using the craft's own words (terms) and, later, its art.
  *
- * Everything works with one button or key (the action key setting), on a phone, with an assist setting for wider zones.
+ * Everything works with the action button or key (the action key setting), on a phone, with an assist setting for wider zones.
  */
 
 const el = (tag, className, text) => {
@@ -365,7 +365,7 @@ export function runCraft(win, ctx) {
 
     /**
      * Heat and strike: hold to heat the work until it is ready, then tap on the beat while it cools; heat it again when it goes
-     * cold (striking cold work cracks it). One button does both: holding heats, a tap strikes.
+     * cold (striking cold work cracks it). The action button does both: holding heats, a tap strikes.
      */
     function stageWork(stage, next) {
         const scale = difficultyScale(recipe.level, tier);

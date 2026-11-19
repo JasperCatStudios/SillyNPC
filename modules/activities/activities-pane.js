@@ -77,7 +77,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     pane.append(
         row('Study board', select('pairs', [[4, 'Small (4 pairs)'], [8, 'Medium (8 pairs)'], [12, 'Large (12 pairs)']], '', Number)),
         row('Difficulty', select('difficulty', [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']]), 'Harder difficulties give more skill XP.'),
-        row('Controls', select('controls', [['auto', 'Automatic'], ['pointer', 'Mouse or touch'], ['button', 'One button or key']]), 'How the hands-on games are played. One button or key (the action key, Space or the on-screen button) works for every step and scores about the same.'),
+        row('Controls', select('controls', [['auto', 'Automatic'], ['pointer', 'Mouse or touch'], ['button', 'Action button or key']]), 'How the hands-on games are played. The action button (the action key, Space or the on-screen button) works for every step and scores about the same.'),
     );
 
     // Action key: the key or mouse button that presses the big button in cooking and fishing (the button itself always works by click or tap).
