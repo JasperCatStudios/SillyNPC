@@ -1,5 +1,6 @@
 import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
 import { normalizeActionKey, actionKeyLabel } from '../../src/activity-config-core.js';
+import { renderCustomize } from './activities-customize.js';
 import { activitySettings, saveActivitySettings, activePreset, stopMusic, refreshMusicVolume } from './activities-runtime.js';
 
 /**
@@ -151,9 +152,15 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     for (const [pid, p] of Object.entries(s.presets)) presetSel.append(new Option(String(p?.name || pid), String(p?.id || pid)));
     presetSel.value = s.presetId;
     if (presetSel.value !== s.presetId) presetSel.value = '';
-    presetSel.addEventListener('change', () => { s.presetId = presetSel.value; changed(); note.textContent = noteText(); });
+    presetSel.addEventListener('change', () => { s.presetId = presetSel.value; changed(); note.textContent = noteText(); redrawCustomize?.(); });
     const note = el('small', 'notes');
     const noteText = () => `In use now: ${activePreset().name}.`;
     note.textContent = noteText();
+    let redrawCustomize = null;
     pane.append(row('World preset', presetSel, 'A preset says which activities a world has and what they are called. With none, Generic is used.'), note);
+
+    // Customize an activity: content only (names, words, lists), never the rules.
+    const customizeHost = el('div');
+    pane.append(customizeHost);
+    redrawCustomize = renderCustomize(customizeHost, { changed: () => { changed(); note.textContent = noteText(); } });
 }

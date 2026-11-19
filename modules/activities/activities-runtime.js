@@ -114,6 +114,12 @@ export function studySubjects(preset) {
     return (type.proficiencies || []).filter(p => !want.size || want.has(p.id)).map(p => ({ id: p.id, label: p.label }));
 }
 
+/** Every proficiency of the active combat type, as { id, label } (empty with no combat type). */
+export function allSubjects() {
+    const type = activeCombatType();
+    return type ? (type.proficiencies || []).map(p => ({ id: p.id, label: p.label })) : [];
+}
+
 /** The proficiencies of the active combat type that are in this list of ids, as { id, label }. */
 export function subjectsOf(ids) {
     const type = activeCombatType();
