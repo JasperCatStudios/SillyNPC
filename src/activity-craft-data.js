@@ -95,28 +95,28 @@ export const GENERIC_SMITHING = Object.freeze({
     terms: { worked: 'the metal', craftVerb: 'Forge', workplace: 'the forge', prep: 'Shape', finish: 'Quench' },
     recipes: [
         {
-            id: 'iron-dagger', name: 'Iron Dagger', level: 1, desc: 'A short blade. One metal and a grip.',
+            id: 'starter-dagger', name: 'Starter Dagger', level: 1, desc: 'A plain short blade. Any metal and any handle will do.',
             slots: [{ id: 'metal', label: 'a metal', tags: ['metal'] }, { id: 'grip', label: 'a handle', tags: ['handle'] }],
             targets: { mass: { min: 5, ideal: [6, 9], max: 12 }, brittleness: { ideal: [0, 4], max: 6 } },
-            outputs: { perfect: { name: 'Iron Dagger', note: 'finely made', qty: 1 }, good: { name: 'Iron Dagger', note: 'well made' }, fair: { name: 'Iron Dagger', note: 'rough' }, poor: { name: 'Iron Dagger', note: 'barely holds an edge' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+            outputs: { perfect: { name: 'Starter Dagger', note: 'finely made', qty: 1 }, good: { name: 'Starter Dagger', note: 'well made' }, fair: { name: 'Starter Dagger', note: 'rough' }, poor: { name: 'Starter Dagger', note: 'barely holds an edge' }, failed: { name: 'Scrap Metal', note: 'ruined in the forge' } },
         },
         {
             id: 'horseshoe', name: 'Horseshoe', level: 1, desc: 'Plain and useful. Any metal will do.',
             slots: [{ id: 'metal', label: 'a metal', tags: ['metal'] }],
             targets: { mass: { min: 3, ideal: [4, 7], max: 10 }, brittleness: { ideal: [0, 4], max: 6 } },
-            outputs: { perfect: { name: 'Horseshoe', note: 'finely made', qty: 2 }, good: { name: 'Horseshoe', note: 'well made' }, fair: { name: 'Horseshoe', note: 'uneven' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+            outputs: { perfect: { name: 'Horseshoe', note: 'finely made', qty: 2 }, good: { name: 'Horseshoe', note: 'well made' }, fair: { name: 'Horseshoe', note: 'uneven' }, failed: { name: 'Scrap Metal', note: 'ruined in the forge' } },
         },
         {
-            id: 'iron-sword', name: 'Iron Sword', level: 2, desc: 'A proper blade. Two lengths of metal and a handle.',
+            id: 'plain-sword', name: 'Plain Sword', level: 2, desc: 'A proper blade. Two lengths of metal and a handle.',
             slots: [{ id: 'metal', label: 'a metal', tags: ['metal'] }, { id: 'metal2', label: 'more metal', tags: ['metal'] }, { id: 'grip', label: 'a handle', tags: ['handle'] }],
             targets: { mass: { min: 9, ideal: [11, 15], max: 19 }, hardness: { min: 3, ideal: [4, 7], max: 10 }, brittleness: { ideal: [0, 4], max: 6 } },
-            outputs: { perfect: { name: 'Iron Sword', note: 'finely made', qty: 1 }, good: { name: 'Iron Sword', note: 'well made' }, fair: { name: 'Iron Sword', note: 'rough' }, poor: { name: 'Iron Sword', note: 'chipped' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+            outputs: { perfect: { name: 'Plain Sword', note: 'finely made', qty: 1 }, good: { name: 'Plain Sword', note: 'well made' }, fair: { name: 'Plain Sword', note: 'rough' }, poor: { name: 'Plain Sword', note: 'chipped' }, failed: { name: 'Scrap Metal', note: 'ruined in the forge' } },
         },
         {
-            id: 'steel-sword', name: 'Steel Sword', level: 3, desc: 'Hard and keen. It needs hard metal and a steady hand.',
+            id: 'fine-sword', name: 'Fine Sword', level: 3, desc: 'Hard and keen. It needs a hard metal and a steady hand.',
             slots: [{ id: 'metal', label: 'a hard metal', tags: ['metal'] }, { id: 'metal2', label: 'more metal', tags: ['metal'] }, { id: 'grip', label: 'a handle', tags: ['handle'] }],
             targets: { mass: { min: 10, ideal: [12, 16], max: 20 }, hardness: { min: 5, ideal: [6, 9], max: 10 }, brittleness: { ideal: [0, 5], max: 7 } },
-            outputs: { perfect: { name: 'Steel Sword', note: 'finely made', qty: 1 }, good: { name: 'Steel Sword', note: 'well made' }, fair: { name: 'Steel Sword', note: 'rough' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+            outputs: { perfect: { name: 'Fine Sword', note: 'finely made', qty: 1 }, good: { name: 'Fine Sword', note: 'well made' }, fair: { name: 'Fine Sword', note: 'rough' }, failed: { name: 'Scrap Metal', note: 'ruined in the forge' } },
         },
     ],
 });
