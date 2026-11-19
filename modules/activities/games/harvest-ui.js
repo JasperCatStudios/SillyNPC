@@ -32,13 +32,14 @@ const reducedMotion = () => { try { return window.matchMedia('(prefers-reduced-m
  * The timing bar: a zone somewhere along a bar and a marker that sweeps across and back. `pos()` is where the marker is right now.
  * With reduced motion the marker moves in steps instead of gliding.
  */
-export function createMeter({ difficulty, assist }) {
+export function createMeter({ difficulty, assist, scale = 1 }) {
     const wrap = el('div', 'snpc-act-meter');
     wrap.setAttribute('role', 'img');
     const zone = el('div', 'snpc-act-meter-zone');
     const marker = el('div', 'snpc-act-meter-marker');
     wrap.append(zone, marker);
-    const width = zoneWidth(difficulty, assist);
+    // scale: 1 is normal; a craft passes a number above 1 for an easier zone and below 1 for a harder one.
+    const width = Math.min(0.9, zoneWidth(difficulty, assist) * Math.min(1.6, Math.max(0.5, scale)));
     const sweep = sweepMs(difficulty, assist);
     const stepped = reducedMotion();
     let center = 0.5;
@@ -74,7 +75,7 @@ export function createMeter({ difficulty, assist }) {
 }
 
 /** The big tap button; it also answers the Space key while the activity window is open. Returns { button, destroy }. */
-function bigButton(win, label, onPress, onRelease) {
+export function bigButton(win, label, onPress, onRelease) {
     const button = el('button', 'snpc-act-bigtap', label);
     button.type = 'button';
     const down = (e) => { e.preventDefault(); onPress?.(); };
@@ -119,7 +120,7 @@ function bigButton(win, label, onPress, onRelease) {
 }
 
 /** The partner says something short (never blocks). */
-function talker(win, partner, label, stateText) {
+export function talker(win, partner, label, stateText) {
     return async (beat, playerText = '', outcome = '', event = '') => {
         if (!partner || !talkAllowed(beat)) return;
         win.addLine(partner, '...', 'typing');

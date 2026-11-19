@@ -3,6 +3,8 @@ import { GENERIC_RECIPES, GENERIC_FISH, GENERIC_SEEDS } from './activity-harvest
 import { normalizeScripts } from './activity-scripts-core.js';
 import { restoreValue } from './activity-hunger-core.js';
 import { normalizeMyRecipes } from './activity-recipe-creator-core.js';
+import { normalizeCraft } from './craft/craft-core.js';
+import { GENERIC_CRAFTS } from './activity-craft-data.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -127,12 +129,13 @@ export function normalizeActivitySettings(raw) {
 /* ------------------------------------------------------------------ presets */
 
 /** The kinds of activity the module can run. A preset lists which are on, and may relabel them. */
-export const ACTIVITY_KINDS = Object.freeze(['memory', 'mastermind', 'tea', 'harvest', 'drill', 'exam']);
+export const ACTIVITY_KINDS = Object.freeze(['memory', 'mastermind', 'tea', 'harvest', 'craft', 'drill', 'exam']);
 
 /** Tabs of the hub. */
 export const HUB_TABS = Object.freeze([
     ['leisure', 'Leisure'],
     ['study', 'Study'],
+    ['crafting', 'Crafting'],
     ['training', 'Training'],
 ]);
 
@@ -145,6 +148,7 @@ export const GENERIC_ACTIVITIES = Object.freeze([
     // ARCHIVED (off): the clue puzzle (kind 'mastermind', src/activity-mastermind-core.js, games/potion-ui.js) is kept but hidden. It is not a crafting game; a new crafting design replaces it. Remove `off` to bring the tile back.
     { id: 'potion', label: 'Brewing', kind: 'mastermind', off: true, tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
     { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
+    { id: 'alchemy', label: 'Alchemy', kind: 'craft', craft: 'alchemy', tab: 'crafting', icon: 'fa-flask', blurb: 'Choose herbs and water, grind, simmer and seal a potion.', solo: true },
     { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
     { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite, hook it and reel it in.', solo: true },
     { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, tend and harvest. Plants grow as you tend them on different days.', solo: true },
@@ -169,10 +173,12 @@ export const GENERIC_PRESET = Object.freeze({
 /** The newest preset format this build understands. A preset with a higher version still loads, and keeps what it holds. */
 export const PRESET_VERSION = 1;
 
-const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'tea', 'classChange', 'terms']);
+const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'crafts', 'tea', 'classChange', 'terms']);
 export const HARVEST_MODES = Object.freeze(['cook', 'fish', 'garden']);
-const ACTIVITY_KNOWN = new Set(['id', 'mode', 'music', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
+const ACTIVITY_BASE_KNOWN = new Set(['id', 'kind', 'music', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
+const ACTIVITY_KNOWN = new Set(['id', 'mode', 'craft', 'music', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
 const EXTRA_MAX_CHARS = 200000;
+const slugId = (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
 
 /** The fields of `raw` that are not in `known`, copied as plain data (functions and cycles dropped), capped in size. */
 function extraOf(raw, known) {
@@ -212,15 +218,18 @@ function normalizeActivity(raw) {
     const unsupported = !kind;
     if (unsupported) kind = text(r.kind, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!kind) return null;
-    const extra = extraOf(r, ACTIVITY_KNOWN);
+    // An unknown kind keeps every field its own kind may use (mode, craft, ...), because this build cannot tell which are its.
+    const extra = extraOf(r, unsupported ? ACTIVITY_BASE_KNOWN : ACTIVITY_KNOWN);
     return {
         id, kind,
         ...(unsupported ? { unsupported: true, soon: true } : {}),
+        // Which craft type a craft activity plays (an id in the preset's crafts).
+        ...(kind === 'craft' ? { craft: slugId(r.craft) || id } : {}),
         // Which harvest game this is (cook, fish or garden). An older preset with no mode gets it from the id.
         ...(kind === 'harvest' ? { mode: HARVEST_MODES.includes(r.mode) ? r.mode : (HARVEST_MODES.includes(id) ? id : '') } : {}),
         ...(Object.keys(extra).length ? { extra } : {}),
         label: text(r.label, 40) || id,
-        tab: HUB_TABS.some(t => t[0] === r.tab) ? r.tab : (kind === 'memory' || kind === 'mastermind' || kind === 'exam' ? 'study' : kind === 'drill' ? 'training' : 'leisure'),
+        tab: HUB_TABS.some(t => t[0] === r.tab) ? r.tab : (kind === 'memory' || kind === 'mastermind' || kind === 'exam' ? 'study' : kind === 'craft' ? 'crafting' : kind === 'drill' ? 'training' : 'leisure'),
         icon: /^fa-[a-z0-9-]+$/.test(String(r.icon || '')) ? r.icon : 'fa-star',
         blurb: text(r.blurb, 120),
         // A looping music tag from the sound map, played while this activity is open (empty means none).
@@ -248,6 +257,20 @@ export function normalizeRecipe(raw) {
     const restore = restoreValue(r.restore);
     // restore: the hunger (0 to 100) eating this dish gives while the Vitals Tracker is on; without one the default for a dish is used.
     return { id: text(r.id, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '') || name.toLowerCase().replace(/[^a-z0-9]+/g, ''), name, needs, desc: text(r.desc, 90), ...(restore !== null ? { restore } : {}) };
+}
+
+/**
+ * The craft types of a preset: the preset's own, repaired; the built-in ones fill in any id it does not define, so a preset that only
+ * adds a talisman craft still has alchemy.
+ */
+export function normalizeCrafts(raw) {
+    const out = {};
+    for (const [id, c] of Object.entries(obj(raw))) {
+        const craft = normalizeCraft(c, id);
+        if (craft && craft.recipes.length && craft.materials.length) out[craft.id] = craft;
+    }
+    for (const [id, c] of Object.entries(GENERIC_CRAFTS)) if (!out[id]) out[id] = normalizeCraft(c, id);
+    return out;
 }
 
 /**
@@ -314,6 +337,7 @@ export function normalizePreset(raw, idHint = '') {
             profs: (Array.isArray(obj(r.potion).profs) ? r.potion.profs : []).map(v => text(v, 40)).filter(Boolean).slice(0, 6),
         },
         harvest: normalizeHarvest(r.harvest),
+        crafts: normalizeCrafts(r.crafts),
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
             // The hunger a shared drink and a snack give (see activity-hunger-core.js); empty uses the built-in values.

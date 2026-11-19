@@ -12,6 +12,7 @@ import { runStudy } from './games/memory-ui.js';
 import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
+import { runCraft } from './games/craft-ui.js';
 import { availableRecipes, recipeBook } from '../../src/activity-harvest-core.js';
 import { allRecipes } from '../../src/activity-recipe-creator-core.js';
 import { renderRecipeCreator } from './activities-recipe-creator.js';
@@ -22,7 +23,7 @@ import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../..
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    inventoryActive, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
+    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -61,12 +62,13 @@ try { window.WorldkitActivities = Object.freeze({ register: registry.register, u
  */
 function openActivity(a) {
     const harvest = { cook: showCookSetup, fish: showFishSetup, garden: showGardenScreen };
-    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], [CUSTOM_KIND]: showCustom };
+    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], craft: showCraft, [CUSTOM_KIND]: showCustom };
     const open = byKind[a.kind];
     if (!open) return false;
     open(a);
     // Any activity can name a looping music tag; the setup screens above stop earlier music first, so this starts after them.
-    if (a.music) startMusic(a.music);
+    const track = a.music || (a.kind === 'craft' ? activePreset().crafts?.[a.craft]?.music : '');
+    if (track) startMusic(track);
     return true;
 }
 
@@ -640,6 +642,26 @@ function showFishSetup(activity) {
     tiredGuard(activity, box, start);
     w.main.replaceChildren(box);
     start.focus();
+}
+
+/** A craft: the craft type is the preset's (or the built-in) one named by the activity; the skill tier comes from the player's rank. */
+function showCraft(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    const es = energyStatus(activity);
+    if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
+    const craft = preset.crafts?.[activity.craft];
+    if (!craft) { toast('warning', `${activity.label} has no craft data.`); showHub(); return; }
+    seat(w, partner, craft.terms?.workplace ? `In ${craft.terms.workplace}` : activity.label);
+    w.userName = userName();
+    const start = () => runCraft(w, {
+        partner: partner.name, activityId: activity.id, label: activity.label, craft, difficulty: s.difficulty, assist: s.assist,
+        tier: craftTier(craft.prof), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
+    });
+    start();
 }
 
 /** A drop-in activity: seats the partner, checks the energy and hands the registered run function its api. */

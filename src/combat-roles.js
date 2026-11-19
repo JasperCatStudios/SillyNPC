@@ -44,7 +44,7 @@ export const META_ROLES = Object.freeze({
 });
 
 /** What a proficiency may be, as far as the engine is concerned. */
-export const PROF_ROLES = Object.freeze(['weapon', 'magic', 'support', 'heal', 'movement', 'defense', 'passive']);
+export const PROF_ROLES = Object.freeze(['weapon', 'magic', 'support', 'heal', 'movement', 'defense', 'passive', 'crafting']);
 
 /* ------------------------------------------------------------------ modifiers */
 

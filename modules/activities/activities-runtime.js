@@ -11,6 +11,8 @@ import { giveItemFor, takeItemFor, getInventory, databaseItems, inventorySetting
 import { vitalsStore, vitalsSettings, getVitals, setVitalFor } from '../../src/vitals.js';
 import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activity-energy-core.js';
 import { restoreValue, hungerAfter, hungerText } from '../../src/activity-hunger-core.js';
+import { ladderOf, rungIndex } from '../../src/combat-roles.js';
+import { rankTier } from '../../src/craft/craft-core.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
 import { normalizeKnownStore, mergeKnown, teaPool, snackPool } from '../../src/activity-tea-core.js';
 import { DEFAULT_KIT_URL, kitFolderName, kitFileUrl } from '../../src/content-kit.js';
@@ -164,6 +166,22 @@ export function energyActive() {
 }
 
 /** The player's energy in this chat (0 to 100), or null when it is not known yet. */
+/**
+ * The player's tier (0 novice to 4 master) in a crafting skill, from its rank on the active combat type's ladder. 0 when there is no
+ * combat type, no such skill, or the player has no combat sheet yet.
+ */
+export function craftTier(profId) {
+    try {
+        const type = activeCombatType();
+        const prof = type && profId ? (type.proficiencies || []).find(p => p.id === profId) : null;
+        const record = prof ? personaRecordFor(userName()) : null;
+        if (!prof || !record || !hasTypeData(record, type.dataKey)) return 0;
+        const ladder = ladderOf(type, prof.ladder);
+        const rank = getTypeData(record, type.dataKey)?.profs?.[profId]?.rank;
+        return rankTier(rank == null ? -1 : rungIndex(ladder, rank), (ladder?.rungs || []).length);
+    } catch { return 0; }
+}
+
 /** Whether eating restores hunger: the Vitals Tracker is on and tracks hunger, and the Activities setting is on. */
 export function hungerActive() {
     try {
