@@ -51,7 +51,7 @@ export function normalizeScript(raw) {
 export const ROAST_FISH = Object.freeze({
     set: 'kitchen',
     steps: [
-        { id: 'herbs', mech: 'slice', weight: 1, params: { lines: 4 }, art: { item: 'herbs' }, words: { title: 'Chop the herbs', hint: 'Swipe down across each dotted line. Keep clear of the holding hand.', done: 'Neatly chopped.' } },
+        { id: 'herbs', mech: 'slice', weight: 1, params: { lines: 4 }, art: { item: 'herbs' }, words: { title: 'Chop the herbs', hint: 'Swipe down across each dotted line.', done: 'Neatly chopped.' } },
         { id: 'butter', mech: 'stir', weight: 1, params: { revs: 6 }, art: { vessel: 'saucepan', tool: 'spoon' }, words: { title: 'Melt the herb butter', hint: 'Stir in circles inside the pot. Not too slow, not too fast.', done: 'Smooth and glossy.' } },
         { id: 'sear', mech: 'sear', weight: 3, uses: 'a fish', art: { item: 'fish-fillet', vessel: 'pan', heat: 'stove' }, words: { title: 'Sear the fish', hint: 'Set the heat, flick the fish up to flip it, tap to catch it. Golden, not black.', done: 'Golden on both sides.' } },
         { id: 'season', mech: 'sprinkle', weight: 1, art: { item: 'fish-fillet', tool: 'shaker' }, words: { title: 'Season it', hint: 'Shake over the whole fish, evenly.', done: 'Seasoned evenly.' } },

@@ -258,7 +258,7 @@ export function runKitchen(win, ctx) {
     win.root.addEventListener('focusout', onFocusOut);
     cleanups.push(() => { win.root.removeEventListener('focusin', onFocusIn); win.root.removeEventListener('focusout', onFocusOut); });
 
-    function toggleControls(mech) {
+    function toggleControls(mech, restart = false) {
         const b = el('button', 'snpc-act-btn is-quiet', controls === 'button' ? 'Play with the pointer' : 'Use action button');
         b.type = 'button';
         b.addEventListener('click', () => {
@@ -267,6 +267,8 @@ export function runKitchen(win, ctx) {
             settings.mechControls = { ...(settings.mechControls || {}), [mech]: controls };
             saveActivitySettings();
             b.textContent = controls === 'button' ? 'Play with the pointer' : 'Use action button';
+            // In the middle of a step the step starts again the new way (the flow you have built stays).
+            if (restart && session.phase === 'play') { cancelAnimationFrame(raf); session.index -= 1; session.phase = 'between'; start(); }
         });
         return b;
     }
@@ -286,7 +288,7 @@ export function runKitchen(win, ctx) {
         svg.setAttribute('role', 'img');
         svg.setAttribute('aria-label', step.words.title || step.id);
         stage.append(svg, popup);
-        view = VIEWS[step.mech](svg);
+        view = VIEWS[step.mech](svg, step);
         title.textContent = `${session.index + 1} of ${session.script.steps.length}: ${step.words.title || step.id}`;
         hint.textContent = step.words.hint || '';
         bar.replaceChildren();
@@ -302,7 +304,7 @@ export function runKitchen(win, ctx) {
             for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) big.addEventListener(ev, () => { inp.held = false; });
             bar.append(big);
         }
-        bar.append(pauseButton());
+        bar.append(toggleControls(mech, true), pauseButton());
         if (step.optional) { const skip = el('button', 'snpc-act-btn is-quiet', 'Skip'); skip.type = 'button'; skip.addEventListener('click', () => { if (skipStep(session)) afterStep(); }); bar.append(skip); }
         speak('start');
         last = performance.now();

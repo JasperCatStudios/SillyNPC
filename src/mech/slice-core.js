@@ -16,7 +16,7 @@ export const meta = {
     id: 'slice',
     input: { pointer: 'swipe', button: 'conveyor' },
     events: ['cut', 'half', 'guard', 'stray', 'done'],
-    defaults: { lines: 4, tol: 0.05, angleTol: 18, parMs: 6000, timeLimitMs: 15000, guard: true, speed: 0.22, pattern: 'lines' },
+    defaults: { lines: 4, tol: 0.05, angleTol: 18, parMs: 6000, timeLimitMs: 15000, guard: false, speed: 0.22, pattern: 'lines' },
 };
 
 /** The board: the ingredient's box and the guard zone, in stage units. */
@@ -151,5 +151,5 @@ export function describeState(s, words = {}) {
 
 /** What the view draws. */
 export function view(s) {
-    return { lines: s.lines.map(l => ({ id: l.id, x: lineX(s, l), cut: l.cut, half: l.half, score: l.score })), board: BOARD, flinch: s.flinch > 0, controls: s.controls, over: s.over };
+    return { lines: s.lines.map(l => ({ id: l.id, x: lineX(s, l), cut: l.cut, half: l.half, score: l.score })), board: BOARD, flinch: s.flinch > 0, guard: Boolean(s.params.guard), controls: s.controls, over: s.over };
 }

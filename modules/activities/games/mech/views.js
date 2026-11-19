@@ -98,10 +98,11 @@ const COLORS = { board: '#a8794a', herb: '#6aa84f', cut: '#3b2a1a', pot: '#3a3f4
 
 function sliceView(svg) {
     const g = S('g', {}, svg);
-    const boardRect = S('rect', { x: 4, y: 12, width: 152, height: 80, rx: 6, fill: COLORS.board }, g);
-    // The board picture sits behind the cutting area (stage x 54 to 147): its own middle is at the middle of that area.
-    prop('board', g, { ...place('board', 100, 50, 0.49), preserveAspectRatio: 'none' }, () => set(boardRect, { opacity: 0 }));
-    const hand = S('g', {}, g);
+    // A plain cutting board (a picture of one is diagonal and does not frame a cutting area, so none is used here).
+    S('rect', { x: 40, y: 12, width: 116, height: 82, rx: 8, fill: '#8a5f36' }, g);
+    S('rect', { x: 43, y: 15, width: 110, height: 76, rx: 6, fill: COLORS.board }, g);
+    for (const y of [28, 44, 60, 76]) S('line', { x1: 48, x2: 148, y1: y, y2: y + 1.5, stroke: '#94683a', 'stroke-width': 0.6, opacity: 0.6 }, g);
+    const hand = S('g', { opacity: 0 }, g);
     S('rect', { x: 6, y: 28, width: 28, height: 44, rx: 12, fill: COLORS.hand, opacity: 0.85 }, hand);
     const handLabel = S('text', { x: 20, y: 52, 'text-anchor': 'middle', 'font-size': 5, fill: '#5a3a2a' }, hand);
     handLabel.textContent = 'hold here';
@@ -111,9 +112,14 @@ function sliceView(svg) {
         update(v) {
             if (!ingredient) {
                 const b = v.board;
-                ingredient = S('rect', { x: X(b.x0), y: Y(b.y0), width: X(b.x1 - b.x0), height: Y(b.y1 - b.y0), rx: 5, fill: COLORS.herb }, g);
-                // The herbs fill the cutting area exactly (cropped to it), so the cut lines are on the herbs.
-                food('herbs', g, { x: X(b.x0), y: Y(b.y0), width: X(b.x1 - b.x0), height: Y(b.y1 - b.y0), preserveAspectRatio: 'xMidYMid slice' });
+                const w = X(b.x1 - b.x0);
+                const h = Y(b.y1 - b.y0);
+                ingredient = S('rect', { x: X(b.x0), y: Y(b.y0), width: w, height: h, rx: 5, fill: COLORS.herb }, g);
+                // The herbs are a row of bunches tiled across the cutting area, so the cut lines are on the herbs.
+                const id = `herbs-${Math.random().toString(36).slice(2, 7)}`;
+                const defs = S('defs', {}, g);
+                const pat = S('pattern', { id, patternUnits: 'userSpaceOnUse', x: X(b.x0), y: Y(b.y0), width: h, height: h }, defs);
+                food('herbs', pat, { x: 1, y: 1, width: h - 2, height: h - 2 }, () => set(ingredient, { fill: `url(#${id})` }));
                 lines = v.lines.map(() => S('line', { stroke: '#fff', 'stroke-dasharray': '2 2', 'stroke-width': 0.8, y1: Y(b.y0) - 2, y2: Y(b.y1) + 2 }, g));
                 if (v.controls === 'button') {
                     S('rect', { x: X(b.knifeX) - 1, y: 6, width: 2, height: 88, fill: '#cfd4da' }, g);
@@ -123,7 +129,7 @@ function sliceView(svg) {
             v.lines.forEach((l, i) => {
                 set(lines[i], { x1: X(l.x), x2: X(l.x), stroke: l.cut ? COLORS.cut : l.half ? '#e69138' : '#fff', 'stroke-width': l.cut ? 2.4 : l.half ? 1.6 : 0.8, 'stroke-dasharray': l.cut ? '' : '2 2' });
             });
-            set(hand, { transform: v.flinch ? 'translate(-2 0)' : '' });
+            set(hand, { opacity: v.guard ? 1 : 0, transform: v.flinch ? 'translate(-2 0)' : '' });
         },
     };
 }
@@ -256,7 +262,7 @@ function searView(svg) {
 const CELL = { bare: '#f4efe6', some: '#ead9b8', good: '#cdb27a', over: '#b45a3c' };
 const PLATE_SCALE = 0.344;
 
-function sprinkleView(svg) {
+function sprinkleView(svg, step) {
     const g = S('g', {}, svg);
     let cells = [];
     let shaker = null;
@@ -271,6 +277,12 @@ function sprinkleView(svg) {
                 const rim = S('ellipse', { cx: mx, cy: my, rx: X((d.x1 - d.x0) / 2) + 3, ry: Y((d.y1 - d.y0) / 2) + 3, fill: '#d8d2c6' }, g);
                 // The plate picture is centred on the dish, so the grid of cells sits on the plate.
                 prop('plate', g, place('plate', mx, my, PLATE_SCALE), () => set(rim, { opacity: 0 }));
+                // The food being seasoned is on the plate (the step's item; a plain shape when there is no picture of it).
+                const dish = S('g', {}, g);
+                const plain = S('rect', { x: mx - 22, y: my - 11, width: 44, height: 22, rx: 11, fill: '#d9b061' }, dish);
+                const item = step?.art?.item;
+                const itemBox = place('fish', mx, my, 0.2);
+                if (item) food(`${item}-cooked`, dish, itemBox, () => set(plain, { opacity: 0 })); else set(plain, { opacity: 0.9 });
                 const w = X(d.x1 - d.x0) / v.grid;
                 const h = Y(d.y1 - d.y0) / v.grid;
                 cells = v.cells.map(c => (c.in ? S('rect', { x: X(d.x0) + c.i * w + 0.5, y: Y(d.y0) + c.j * h + 0.5, width: w - 1, height: h - 1, rx: 3, fill: CELL.bare, opacity: 0.85 }, g) : null));
@@ -289,6 +301,7 @@ function sprinkleView(svg) {
     };
 }
 
+/** A view is `(svg, step) => { update(view, dtMs) }`; `step` is the script step (its art names the food or tool). */
 export const VIEWS = Object.freeze({ slice: sliceView, stir: stirView, sear: searView, sprinkle: sprinkleView });
 
 /** A plain dish drawing for the serve reveal: a plate with a shape coloured by how well it went (the cooked fillet picture when it exists). */
