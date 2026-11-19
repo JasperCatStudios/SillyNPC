@@ -202,6 +202,13 @@ async function importItem(item) {
             await loadSoundMap(true);
             return `${parsed.sounds.size} sounds ready. Sound Effects is switched on (Writing Rules, Sound Effects).`;
         }
+        case 'preset': {
+            // A Chat Completion preset goes into SillyTavern's own preset list, under the preset's own name (the file name).
+            const preset = JSON.parse(text);
+            const response = await fetch('/api/presets/save', { method: 'POST', headers: getRequestHeaders(), body: JSON.stringify({ apiId: 'openai', name: item.name, preset }) });
+            if (!response.ok) throw new Error(`SillyTavern would not save the preset (${response.status}).`);
+            return `Saved as "${item.name}". Reload SillyTavern, then pick it in the Chat Completion presets.`;
+        }
         case 'workflow':
             await navigator.clipboard.writeText(text);
             return 'Copied. Paste it into the Phone\'s ComfyUI workflow box.';

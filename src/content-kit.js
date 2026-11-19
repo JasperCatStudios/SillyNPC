@@ -17,6 +17,7 @@ export const KIT_TYPES = Object.freeze({
     scenes: 'Scene maps (places and backgrounds)',
     regex: 'Regex scripts',
     sounds: 'Sound packs (sound effects)',
+    preset: 'Presets (Chat Completion)',
     workflow: 'Workflows (Phone pictures)',
     art: 'Artwork',
 });
