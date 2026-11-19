@@ -224,8 +224,8 @@ function markAllSavedLines() {
     for (const mesEl of document.querySelectorAll('#chat .mes')) markSavedLines(mesEl);
 }
 
-/** Reads a line in somebody's voice, by name. For the phone and the games. */
-export async function speakNamed(name, text) {
+/** Reads a line in somebody's voice, by name. For the phone and the games. `save: false` plays it without keeping the audio. */
+export async function speakNamed(name, text, { save = true, tone = '' } = {}) {
     if (!ttsEnabled()) return false;
     const settings = getSettings();
     const voice = recordVoice(name) || String(settings[VOICE_KEYS.default] || '').trim();
@@ -233,7 +233,7 @@ export async function speakNamed(name, text) {
         toastr.info(`${name} has no voice yet. Pick one on their Worldkit page.`, PRODUCT_NAME);
         return false;
     }
-    return speakWith(voice, text);
+    return speakWith(voice, text, { save, tone });
 }
 
 /** Whether this person has a voice to read lines in (their own, or the default one). */

@@ -10,6 +10,7 @@ import { phoneCharacters as characters, isInChat, factionOf, factionOrder, isUse
 import { buildMarkerRegex, getMarkerPair } from '../../src/speaker-marker.js';
 import { Popup, POPUP_TYPE } from '../../../../../popup.js';
 import { speakNamed } from '../../src/tts.js';
+import { toneForCaption, phoneToneRuleText } from '../../src/spoken-line.js';
 import { getSettings as getWorldkitSettings } from '../../src/settings.js';
 import { bindWorkflow, substituteValue, hasPromptHelper } from '../../src/comfy-workflow-bind.js';
 import { fixModelNames } from '../../src/comfy-model-names.js';
@@ -678,7 +679,7 @@ function pushRaw(id, msg) {
     if (msg.who === 'char') {
         const kind = classify(msg.text);
         if (kind.type === 'image' && imgCfg().enabled && imgCfg().auto) setTimeout(() => queuePhoto(id, msg, false), 0);
-        if (kind.type === 'voice' && settings.tts && (settings.ttsAuto || speakNextVoice)) { const w = voiceWords(kind, msg.name); if (w) setTimeout(() => speakVoice(msg.name, w, id), 0); }
+        if (kind.type === 'voice' && settings.tts && (settings.ttsAuto || speakNextVoice)) { const w = voiceWords(kind, msg.name); if (w) setTimeout(() => speakVoice(msg.name, w, id, toneForCaption(kind.caption)), 0); }
     }
 }
 function pushMsg(name, who, text, from) {
@@ -2318,10 +2319,11 @@ function openGallery(id) {
    ============================================================ */
 /* Fork: voice notes are read through Worldkit's own AllTalk voices, in the voice chosen on the
    contact's Worldkit page. Nothing of SillyTavern's TTS is involved. */
-async function speakVoice(name, text) {
+async function speakVoice(name, text, _thread, tone = '') {
     const words = String(text || '').trim();
     if (!words) return false;
-    try { return await speakNamed(name, words); }
+    // The voice note's tone caption is read as a delivery tag when delivery tags are on (see tone-line.js).
+    try { return await speakNamed(name, words, { tone }); }
     catch (e) { console.warn('[Phone] voice failed', e); return false; }
 }
 
@@ -2540,7 +2542,8 @@ function buildSystem(names, reasonLine) {
         .replace(/<<user>>|\{\{user\}\}/gi, you)
         .replace(/<<open>>/gi, open)
         .replace(/<<close>>/gi, close)
-        + `\n\nSend at most ${Math.max(1, settings.maxReplyMessages || 3)} separate messages in one reply, usually one or two.`;
+        + `\n\nSend at most ${Math.max(1, settings.maxReplyMessages || 3)} separate messages in one reply, usually one or two.`
+        + (phoneToneRuleText() ? `\n\n${phoneToneRuleText()}` : '');
     return `${base}
 
 CHARACTERS ON THIS PHONE (write only as these):
@@ -3344,7 +3347,7 @@ async function askForVoiceMessage() {
 
     const { open, close } = getMarkerPair();
     const ask = `${name1 || 'The player'} asked for a voice message. Answer with exactly ONE message, and it must be a voice message: `
-        + `${open}${names[0]}${close} [voice message: the tone in a few words] "what they say out loud". The spoken words go in quotes AFTER the tag, and nothing else.`;
+        + `${open}${names[0]}${close} [voice message: the tone in a few words] "what they say out loud". The spoken words go in quotes AFTER the tag, and nothing else.${phoneToneRuleText() ? ` ${phoneToneRuleText()}` : ''}`;
     const rq = beginRequest(cur); renderBubbles();
     try {
         const msgs = await generateReply(names, ask, false, cur);
@@ -4265,13 +4268,14 @@ function onStackClick(e) {
         if (!vo.classList.contains('playing') || !settings.tts || !cur) return;
         const m = msgByTs(cur, Number(vo.dataset.ts), 'voice');
         const ns = m ? nestedSender(m.text, castOfContact(cur)) : null;   // the same speaker the bubble shows
-        const words = m ? voiceWords(classify(m.text), ns ? ns.name : m.name) : '';
+        const voiceKind = m ? classify(m.text) : null;
+        const words = voiceKind ? voiceWords(voiceKind, ns ? ns.name : m.name) : '';
         if (!words) {
             vo.classList.remove('playing');
             toastr.info('This voice note has no words to read aloud, only a sound.', PRODUCT_NAME);
             return;
         }
-        speakVoice(ns ? ns.name : m.name, words, cur).then(ok => {
+        speakVoice(ns ? ns.name : m.name, words, cur, toneForCaption(voiceKind?.caption)).then(ok => {
             // the wave plays about as long as the words take to say; nothing said → it stops at once
             // (a bubble is reused between redraws, so a stuck "playing" made the next press a stop)
             if (ok) vo._stop = setTimeout(() => vo.classList.remove('playing'), Math.min(60000, 1500 + words.length * 70));

@@ -116,7 +116,7 @@ let playing = false;
 let current = null;
 let epoch = 0;
 
-/** The saved audio when this exact line in this exact voice was made before, else a new request (then saved). */
+/** The saved audio when this exact line in this exact voice was made before, else a new request (then saved, unless the line says not to). */
 async function obtain(item) {
     const saved = await getCached(item.key);
     if (saved) {
@@ -124,7 +124,7 @@ async function obtain(item) {
         return saved;
     }
     const blob = await generate(item.text, item.voice);
-    putCached(item.key, blob).then(() => document.dispatchEvent(new Event('worldkit-tts-saved')));
+    if (item.save !== false) putCached(item.key, blob).then(() => document.dispatchEvent(new Event('worldkit-tts-saved')));
     return blob;
 }
 
@@ -191,8 +191,8 @@ export async function isLineSaved(voice, text, tone = '') {
     return line ? hasCached(line.key) : false;
 }
 
-/** Queues text to be read in a voice file. Returns false when there is nothing to read. */
-export function speakWith(voice, text, { tone = '' } = {}) {
+/** Queues text to be read in a voice file. Returns false when there is nothing to read. `save: false` plays it without keeping the audio. */
+export function speakWith(voice, text, { tone = '', save = true } = {}) {
     const settings = getSettings();
     if (!settings.ttsEnabled) return false;
     // Names are said the way their cards spell them out; delivery tags become the engine's audio
@@ -201,7 +201,7 @@ export function speakWith(voice, text, { tone = '' } = {}) {
     const line = lineFor(voice, text, tone);
     if (!line) return false;
     const { spoken, key } = line;
-    queue.push({ text: spoken, voice, key, ready: null });
+    queue.push({ text: spoken, voice, key, ready: null, save });
     debugLog(`AllTalk queued ${spoken.length} characters in ${voice}`);
     pump();
     return true;
