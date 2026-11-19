@@ -3,8 +3,9 @@
  * tells how done it is. When the underside is golden, flip it: it arcs through the air and you catch it in the pan, then cook the
  * second side and plate it.
  *
- *   pointer  a heat knob you drag; a flick up on the fillet flips it; a tap where it lands catches it
+ *   pointer  a heat knob you drag; a tap or a flick up on the fillet flips it; a tap where it lands catches it
  *   button   hold the action key to raise the heat (let go to let it fall); a double tap flips; one tap on landing catches
+ * On the last side the same flip gesture serves the fish (and so does "plate").
  *
  * Doneness per side d (0..1) rises at rate x (0.3 + 1.4 x heat) per second. Golden is inside `window`; above `burnAt` it is burnt.
  * perf = 0.75 x mean(side fit) + 0.25 x mean(flip score); a burnt fillet is capped at 0.2; every fillet burnt is a ruin.
@@ -50,7 +51,12 @@ export function sideFit(s, d) {
 
 function startFlip(s, f) {
     if (f.flight) return;
-    if (f.flips.length >= s.params.sides - 1) return;           // a fillet is flipped once for each side after the first
+    // Every side after the first needs one flip. On the last side the same gesture (tap, flick, Flip, double tap) SERVES the fish,
+    // a moment after it landed so the tap that caught it cannot also serve it.
+    if (f.flips.length >= s.params.sides - 1) {
+        if (s.t - (f.landedAt ?? -9999) > 800 && s.t > GRACE_MS) s.ended = true;
+        return;
+    }
     f.flight = { start: s.t, end: s.t + s.params.flipArcMs, caught: null };
     s.events.push({ type: 'flip', at: s.t, item: f.id });
 }
@@ -61,6 +67,7 @@ function land(s, f) {
     f.flips.push(FLIP_SCORE[grade]);
     f.side = Math.min(s.params.sides - 1, f.side + 1);
     f.flight = null;
+    f.landedAt = s.t;
     s.events.push({ type: 'land', grade, at: s.t, item: f.id });
 }
 
