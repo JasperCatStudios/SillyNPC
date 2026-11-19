@@ -2,6 +2,7 @@ import { DEFAULT_TERMS, normalizeTerms } from './activity-terms.js';
 import { GENERIC_RECIPES, GENERIC_FISH, GENERIC_SEEDS } from './activity-harvest-data.js';
 import { normalizeScripts } from './activity-scripts-core.js';
 import { restoreValue } from './activity-hunger-core.js';
+import { normalizeMyRecipes } from './activity-recipe-creator-core.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -45,6 +46,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     combatProfXpCap: 12,
     musicOn: true,
     scripts: [],                  // the activity files the player added: [{ name, url }]
+    myRecipes: [],                // dishes the player made in the recipe creator (see activity-recipe-creator-core.js)
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker
     actionKey: 'KeyA',            // the key (or mouse button, e.g. 'Mouse1') that presses the big action button in cooking and fishing
@@ -105,6 +107,7 @@ export function normalizeActivitySettings(raw) {
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
         scripts: normalizeScripts(r.scripts),
+        myRecipes: normalizeMyRecipes(r.myRecipes, normalizeRecipe),
         assist: bool('assist'),
         actionKey: normalizeActionKey(r.actionKey, d.actionKey),
         soundMapUrl: text(r.soundMapUrl, 300),
@@ -233,7 +236,7 @@ function normalizeActivity(raw) {
     };
 }
 
-function normalizeRecipe(raw) {
+export function normalizeRecipe(raw) {
     const r = obj(raw);
     const name = text(r.name, 50);
     if (!name) return null;

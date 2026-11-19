@@ -510,6 +510,11 @@ export function rememberTaste(guest, entries) {
     return added;
 }
 
+/** The item database's items (with a builtIn flag on the examples) for the recipe creator; empty when the database cannot be read. */
+export function creatorItems() {
+    try { return databaseItems(); } catch { return []; }
+}
+
 /** The tea names for the picker: the item database's items in the preset's tea category, else the preset's own short list. */
 export function teaNames(preset) {
     const want = String(preset?.tea?.category || 'Tea').toLowerCase();

@@ -13,6 +13,8 @@ import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { availableRecipes, recipeBook } from '../../src/activity-harvest-core.js';
+import { allRecipes } from '../../src/activity-recipe-creator-core.js';
+import { renderRecipeCreator } from './activities-recipe-creator.js';
 import { cookedCounts } from '../../src/activity-progress-core.js';
 import { unknownKindHelp } from '../../src/activity-customize-core.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
@@ -502,7 +504,9 @@ function showCookSetup(activity) {
         `${activity.label}${partner.alone ? ', cooking alone' : ` with ${partner.name}`}. Choose a dish. Some need ingredients from your pack, which are used up; the simple ones need nothing. Then time three steps: chop, heat and season.`));
 
     const tracked = inventoryActive();
-    const rows = tracked ? availableRecipes(preset.harvest.recipes, packItems()) : preset.harvest.recipes.map(recipe => ({ recipe, missing: [], ok: true }));
+    // The preset's dishes plus the ones the player made in the recipe creator.
+    const dishes = allRecipes(preset.harvest.recipes, s.myRecipes);
+    const rows = tracked ? availableRecipes(dishes, packItems()) : dishes.map(recipe => ({ recipe, missing: [], ok: true }));
     let chosen = rows.find(r => r.ok)?.recipe.id || '';
     const list = el('div', 'snpc-act-recipes');
     list.setAttribute('role', 'radiogroup');
@@ -539,7 +543,7 @@ function showCookSetup(activity) {
         for (const old of [...book.querySelectorAll('.snpc-act-book-list')]) old.remove();
         const mine = cardOf(userName());
         const cards = partnerList().map(p => cardOf(p.name)).filter(Boolean);
-        const entries = recipeBook(preset.harvest.recipes, { made: cookedCounts(mine?.actStats, activity.id), pack: tracked ? packItems() : [], tracked, cards });
+        const entries = recipeBook(dishes, { made: cookedCounts(mine?.actStats, activity.id), pack: tracked ? packItems() : [], tracked, cards });
         const ul = el('ul', 'snpc-act-book-list');
         for (const e of entries) {
             const li = el('li', e.known ? 'is-known' : '');
@@ -556,6 +560,7 @@ function showCookSetup(activity) {
     };
     book.addEventListener('toggle', () => { if (book.open) fillBook(); });
     box.append(book);
+    box.append(renderRecipeCreator({ presetRecipes: preset.harvest.recipes, onChange: () => showCookSetup(activity) }));
 
     const difficulty = el('select', 'snpc-act-select');
     difficulty.setAttribute('aria-label', 'Difficulty');
