@@ -1,4 +1,4 @@
-import { getRequestHeaders } from '../../../../../script.js';
+import { getRequestHeaders } from '../../../../../../script.js';
 import { toBase64 } from '../../src/character-store-core.js';
 import { storedNameFor, urlForStored, isLocalScriptUrl, addScript, removeScript, normalizeScripts } from '../../src/activity-scripts-core.js';
 import { activitySettings } from './activities-runtime.js';
