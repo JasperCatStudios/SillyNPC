@@ -64,7 +64,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
 /** A key code ('KeyA', 'Space', 'ArrowUp') or a mouse button ('Mouse0' to 'Mouse4'). Anything else falls back. */
 export function normalizeActionKey(v, fallback = 'KeyA') {
     const s = String(v ?? '').trim();
-    return /^(Mouse[0-4]|[A-Za-z][A-Za-z0-9]{0,15})$/.test(s) ? s : fallback;
+    return /^(Mouse[0-4]|(?!Mouse)[A-Za-z][A-Za-z0-9]{0,15})$/.test(s) ? s : fallback;
 }
 
 /** A readable name for an action key code. */
