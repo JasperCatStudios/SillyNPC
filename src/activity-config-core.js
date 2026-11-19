@@ -163,7 +163,7 @@ export const PRESET_VERSION = 1;
 
 const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'tea', 'classChange', 'terms']);
 export const HARVEST_MODES = Object.freeze(['cook', 'fish', 'garden']);
-const ACTIVITY_KNOWN = new Set(['id', 'mode', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
+const ACTIVITY_KNOWN = new Set(['id', 'mode', 'music', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
 const EXTRA_MAX_CHARS = 200000;
 
 /** The fields of `raw` that are not in `known`, copied as plain data (functions and cycles dropped), capped in size. */
@@ -215,6 +215,8 @@ function normalizeActivity(raw) {
         tab: HUB_TABS.some(t => t[0] === r.tab) ? r.tab : (kind === 'memory' || kind === 'mastermind' || kind === 'exam' ? 'study' : kind === 'drill' ? 'training' : 'leisure'),
         icon: /^fa-[a-z0-9-]+$/.test(String(r.icon || '')) ? r.icon : 'fa-star',
         blurb: text(r.blurb, 120),
+        // A looping music tag from the sound map, played while this activity is open (empty means none).
+        ...(text(r.music, 60) ? { music: text(r.music, 60) } : {}),
         ...(r.soon && !unsupported ? { soon: true } : {}),
         ...(r.off ? { off: true } : {}),
         // Can be played alone (no partner): the puzzles and the leisure tasks, not the ones that need a guest.

@@ -2,7 +2,9 @@ import { getContext } from '../../../../../extensions.js';
 import { eventSource, event_types } from '../../../../../../script.js';
 import { ensureButtonRow } from '../../src/floating-buttons.js';
 import { registerModulePane } from '../../src/module-panes.js';
-import { activitiesOnTab, HUB_TABS } from '../../src/activity-config-core.js';
+import { HUB_TABS } from '../../src/activity-config-core.js';
+import { createRegistry, tilesForTab, CUSTOM_KIND } from '../../src/activity-registry.js';
+import { buildCustomApi } from './activities-custom.js';
 import { term } from '../../src/activity-terms.js';
 import { createActivityWindow } from './activity-window.js';
 import { runStudy } from './games/memory-ui.js';
@@ -17,7 +19,7 @@ import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../..
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    inventoryActive, teaNames, snackNames, teaKnown, bringChoices, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
+    inventoryActive, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -44,15 +46,24 @@ let partnerName = '';
 let currentTab = 'study';
 
 /**
+ * Drop-in activities: any script on the page can add an activity with window.WorldkitActivities.register({...}); see
+ * src/activity-registry.js and docs/MAKE-AN-ACTIVITY.md. The hub reads this list each time it opens.
+ */
+const registry = createRegistry({ onChange: () => { try { window.dispatchEvent(new CustomEvent(ACTIVITIES_CHANGED_EVENT)); } catch { /* no window */ } } });
+try { window.WorldkitActivities = Object.freeze({ register: registry.register, unregister: registry.unregister, list: registry.list }); } catch { /* no window */ }
+
+/**
  * Opens an activity's setup screen by what it IS, not by its id: its kind, and for the harvest kind its mode (cook, fish or garden).
  * Returns false when nothing is built for it yet. A new kind is one entry here.
  */
 function openActivity(a) {
     const harvest = { cook: showCookSetup, fish: showFishSetup, garden: showGardenScreen };
-    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode] };
+    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], [CUSTOM_KIND]: showCustom };
     const open = byKind[a.kind];
     if (!open) return false;
     open(a);
+    // Any activity can name a looping music tag; the setup screens above stop earlier music first, so this starts after them.
+    if (a.music) startMusic(a.music);
     return true;
 }
 
@@ -154,7 +165,7 @@ function showHub() {
             b.setAttribute('aria-selected', String(on));
         }
         grid.replaceChildren();
-        const items = activitiesOnTab(preset, currentTab);
+        const items = tilesForTab(preset.activities, registry.list(), currentTab);
         if (!items.length) grid.append(el('p', 'snpc-act-note', 'Nothing here yet.'));
         const alone = partnerName === ALONE;
         for (const a of items) {
@@ -621,6 +632,32 @@ function showFishSetup(activity) {
     tiredGuard(activity, box, start);
     w.main.replaceChildren(box);
     start.focus();
+}
+
+/** A drop-in activity: seats the partner, checks the energy and hands the registered run function its api. */
+function showCustom(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const partner = pickedPartner();
+    const es = energyStatus(activity);
+    if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
+    const runner = registry.runnerOf(activity.id);
+    if (!runner) { toast('info', `${activity.label} is no longer available.`); showHub(); return; }
+    seat(w, partner, activity.label);
+    w.userName = userName();
+    const start = () => {
+        w.resetTalk();
+        w.setView('play');
+        w.setTitle(activity.label, activity.icon);
+        const api = buildCustomApi({ activity, win: w, partner, preset, leave: () => showHub(), restart: start });
+        const fail = (err) => { console.error(`[Worldkit] activity "${activity.id}" failed`, err); toast('error', `${activity.label} ran into a problem and was closed.`); showHub(); };
+        try {
+            const out = runner(api);
+            if (out && typeof out.catch === 'function') out.catch(fail);
+        } catch (err) { fail(err); }
+    };
+    start();
 }
 
 /** Gardening: straight into the garden (the plots are the screen). */

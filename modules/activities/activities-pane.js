@@ -65,7 +65,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('Tea Time: type your own words', 'teaFreeText', 'Lets you type a line instead of tapping one of the three openers. Only when the model is on.'),
         toggle('Tea Time: the guest asks questions', 'teaGuestAsks', 'About one round in three the guest asks you something and your choices become answers.'),
         toggle('Tea Time: show what you have learned', 'teaShowKnown', 'A "Known so far" note about the guest on the Tea Time screen.'),
-        toggle('Tea Time music', 'musicOn', 'Plays the music loop from the sound map while Tea Time is open (the tag is set by the world preset). Off means silence.'),
+        toggle('Activity music', 'musicOn', 'Plays an activity\'s looping music from the sound map while it is open (each activity names its tag under Customize an activity; Tea Time uses its preset tag). Off means silence.'),
         toggle('Activities cost energy', 'vitalsOn', 'Each activity costs the player some energy, and one is refused when there is not enough. Only works while the Vitals Tracker is on and tracks energy.'),
         toggle('Easier timing (assist)', 'assist', 'Cooking, fishing and gardening: a wider zone and a slower marker.'),
         toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),
@@ -112,7 +112,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     vol.setAttribute('aria-label', 'Music volume');
     vol.style.cssText = 'width: 9em;';
     vol.addEventListener('input', () => { s.musicVolume = Number(vol.value) / 100; changed(); refreshMusicVolume(activePreset().tea?.music); });
-    pane.append(row('Music volume', vol, 'How loud the Tea Time music is, on top of the sound-effects volume.'));
+    pane.append(row('Music volume', vol, 'How loud the activity music is, on top of the sound-effects volume.'));
 
     const cost = el('input', 'text_pole');
     cost.type = 'number'; cost.min = '0'; cost.max = '100'; cost.style.width = '6em';

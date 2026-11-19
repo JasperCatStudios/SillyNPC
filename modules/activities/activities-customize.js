@@ -148,7 +148,7 @@ export function renderCustomize(host, { changed }) {
 
         /* ---------------- 2. activity names and tiles */
         const names = card('Activity names and tiles', 'What each tile on the Activities hub is called and says, and which tab it is on.',
-            'Change the name and the one-line description, pick an icon (a Font Awesome name such as fa-flask), choose the tab, or switch a tile off. The kind of activity (its rules) stays the same.',
+            'Change the name and the one-line description, pick an icon (a Font Awesome name such as fa-flask), give it a looping music tag, choose the tab, or switch a tile off. The kind of activity (its rules) stays the same.',
             'the Study tile is called "Study" with "Match the runes in the library"; the Brewing tile uses fa-flask. A Bleach world might call them "Kido practice" and "Spirit study".');
         for (const a of raw.activities) {
             const fe = FE.activities.find(x => x.id === a.id);
@@ -167,6 +167,7 @@ export function renderCustomize(host, { changed }) {
             inner.append(field('Name', textInput(a.label, fe?.label || '', 40, (v) => { a.label = v || a.id; changed(); })));
             inner.append(field('Description', textInput(a.blurb, fe?.blurb || '', 120, (v) => { a.blurb = v; changed(); })));
             inner.append(field('Icon', textInput(a.icon, fe?.icon || 'fa-star', 40, (v) => { a.icon = v; changed(); }), 'A Font Awesome icon name, for example fa-flask or fa-fish.'));
+            inner.append(field('Music loop', textInput(a.music, fe?.music || 'a looping sound tag', 60, (v) => { if (v) a.music = v; else delete a.music; changed(); }), 'A looping sound tag from your sound map, played while this activity is open. Empty means no music.'));
             const tab = el('select', 'text_pole');
             for (const [id, label] of HUB_TABS) tab.append(new Option(label, id));
             tab.value = a.tab || (fe?.tab || 'leisure');
