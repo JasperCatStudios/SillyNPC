@@ -169,6 +169,9 @@ export function runKitchen(win, ctx) {
     stage.addEventListener('pointerup', onUp);
     stage.addEventListener('pointercancel', onUp);
 
+    const flipKey = (e) => { if (e.code === 'KeyF' && e.type === 'keydown' && !e.repeat && session.step?.mech === 'sear' && !typing(e.target)) { e.preventDefault(); if (!flying()) inp.pick = 'flip'; } };
+    document.addEventListener('keydown', flipKey);
+    cleanups.push(() => document.removeEventListener('keydown', flipKey));
     const keyHandler = (e) => {
         if (!stage.isConnected) return;
         if (!win.isOpen() || typing(e.target) || e.repeat) return;
@@ -294,7 +297,7 @@ export function runKitchen(win, ctx) {
         bar.replaceChildren();
         // Controls for this step.
         const mech = step.mech;
-        if (mech === 'sear' && controls === 'pointer') { const flipBtn = el('button', 'snpc-act-btn', 'Flip'); flipBtn.type = 'button'; flipBtn.title = 'Or tap the fish, or flick it up. On the last side it serves the fish.'; flipBtn.addEventListener('click', () => { if (!flying()) inp.pick = 'flip'; }); bar.append(flipBtn); }
+        if (mech === 'sear') { const flipBtn = el('button', 'snpc-act-btn', 'Flip'); flipBtn.type = 'button'; flipBtn.title = 'Or tap the fish, or flick it up. On the last side it serves the fish.'; flipBtn.addEventListener('click', () => { if (!flying()) inp.pick = 'flip'; }); bar.append(flipBtn); }
         if (mech === 'sear') { const plate = el('button', 'snpc-act-btn', 'Plate it'); plate.type = 'button'; plate.addEventListener('click', () => { inp.pick = 'plate'; }); bar.append(plate); }
         if (mech === 'sprinkle') { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); bar.append(done); }
         if (controls === 'button') {

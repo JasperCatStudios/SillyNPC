@@ -4,7 +4,7 @@
  * second side and plate it.
  *
  *   pointer  a heat knob you drag; a tap or a flick up on the fillet flips it; a tap where it lands catches it
- *   button   hold the action key to raise the heat (let go to let it fall); a double tap flips; one tap on landing catches
+ *   button   hold the action key to raise the heat (let go to let it fall); the Flip button or the F key flips; one tap on landing catches
  * On the last side the same flip gesture serves the fish (and so does "plate").
  *
  * Doneness per side d (0..1) rises at rate x (0.3 + 1.4 x heat) per second. Golden is inside `window`; above `burnAt` it is burnt.
@@ -16,13 +16,12 @@ import { clamp, num, mean, easeFactor, calmFactor, windowGrade, stepsOf, presses
 
 export const meta = {
     id: 'sear',
-    input: { pointer: 'knob+flick', button: 'hold+double-tap' },
+    input: { pointer: 'knob+flick', button: 'hold+flip-key' },
     events: ['golden', 'smoke', 'burnt', 'flip', 'land', 'ruin', 'done'],
     defaults: { items: 1, sides: 2, rate: 0.09, window: [0.62, 0.82], burnAt: 0.95, heatStart: 0.5, flipArcMs: 700, catchMs: 150, timeLimitMs: 45000 },
 };
 
 const FLIP_SCORE = Object.freeze({ perfect: 1, good: 0.7, miss: 0.4 });
-const DOUBLE_TAP_MS = 350;
 
 export function newRun(params = {}, rng = Math.random, ctx = {}) {
     const p = { ...meta.defaults, ...params };
@@ -93,10 +92,7 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
                 if (grade !== 'miss' && !flying.flight.caught) flying.flight.caught = grade;
                 continue;
             }
-            // Button mode: two taps close together flip the selected fillet.
-            if (s.controls === 'button') {
-                if (at - s.lastPress <= DOUBLE_TAP_MS) { startFlip(s, s.fillets[s.selected]); s.lastPress = -9999; } else s.lastPress = at;
-            }
+            // Button mode: tapping the action key only keeps the heat up (people pulse it); flipping is the Flip button or the F key.
         }
     }
     for (const dt of stepsOf(dtMs)) {
