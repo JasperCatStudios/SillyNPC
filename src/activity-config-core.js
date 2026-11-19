@@ -44,6 +44,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     musicOn: true,
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker
+    actionKey: 'KeyA',            // the key (or mouse button, e.g. 'Mouse1') that presses the big action button in cooking and fishing
     soundMapUrl: '',              // a sound map just for activities (music and effects); '' uses the world preset's
     difficulty: 'normal',
     pairs: 8,                     // Study board size: 4, 8 or 12
@@ -59,6 +60,21 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     presetId: '',                 // '' means pick by the active combat type
     presets: {},                  // user presets by id (imported or edited)
 });
+
+/** A key code ('KeyA', 'Space', 'ArrowUp') or a mouse button ('Mouse0' to 'Mouse4'). Anything else falls back. */
+export function normalizeActionKey(v, fallback = 'KeyA') {
+    const s = String(v ?? '').trim();
+    return /^(Mouse[0-4]|[A-Za-z][A-Za-z0-9]{0,15})$/.test(s) ? s : fallback;
+}
+
+/** A readable name for an action key code. */
+export function actionKeyLabel(code) {
+    const s = normalizeActionKey(code);
+    if (/^Key[A-Z]$/.test(s)) return s.slice(3);
+    if (/^Digit[0-9]$/.test(s)) return s.slice(5);
+    const mouse = { Mouse0: 'Left click', Mouse1: 'Middle click', Mouse2: 'Right click', Mouse3: 'Mouse back button', Mouse4: 'Mouse forward button' };
+    return mouse[s] || s.replace(/([a-z])([A-Z])/g, '$1 $2');
+}
 
 /** The settings with every value in range; anything missing is the default. */
 export function normalizeActivitySettings(raw) {
@@ -84,6 +100,7 @@ export function normalizeActivitySettings(raw) {
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
         assist: bool('assist'),
+        actionKey: normalizeActionKey(r.actionKey, d.actionKey),
         soundMapUrl: text(r.soundMapUrl, 300),
         musicVolume: Math.min(1, Math.max(0, Number.isFinite(Number(r.musicVolume)) ? Number(r.musicVolume) : d.musicVolume)),
         difficulty: DIFFICULTY_IDS.includes(r.difficulty) ? r.difficulty : d.difficulty,

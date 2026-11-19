@@ -362,12 +362,15 @@ export function normalizeGarden(raw) {
         const seed = text(q.seed, 60);
         const produce = text(q.produce, 60);
         if (!seed || !produce) continue;
-        const tended = [...new Set((Array.isArray(q.tended) ? q.tended : []).map(d => text(d, 90)).filter(Boolean))].slice(0, MAX_TENDED);
+        const planted = text(q.planted, 90);
+        const all = [...new Set((Array.isArray(q.tended) ? q.tended : []).map(d => text(d, 90)).filter(Boolean))];
+        const tended = all.filter(d => d !== planted).slice(0, MAX_TENDED);
+        const wateredFirst = q.wateredFirst === true || (planted !== '' && all.includes(planted));
         plots.push({
             id: text(q.id, 20) || `p${plots.length + 1}`, seed, produce,
             kind: text(q.kind, 24) || 'food',
             needs: clamp(whole(q.needs) || 1, 1, 3), yield: clamp(whole(q.yield) || 1, 1, 5),
-            planted: text(q.planted, 90), tended, care: clamp(Number(q.care) || 0, 0, 999),
+            planted, tended, wateredFirst, care: clamp(Number(q.care) || 0, 0, 999),
         });
     }
     const used = new Set(plots.map(p => p.id));
@@ -376,11 +379,16 @@ export function normalizeGarden(raw) {
     return { plots, next };
 }
 
+/** A plot is ready after `needs` tending days, and never on the day it was planted (those days are counted after it). */
 export const isReady = (plot) => plot.tended.length >= plot.needs;
 
 /** What the screen shows for a plot on `day`: ready, how many tending days are left, and whether it was tended today. */
 export function plotState(plot, day) {
-    return { ready: isReady(plot), left: Math.max(0, plot.needs - plot.tended.length), tendedToday: plot.tended.includes(day) };
+    const plantedToday = plot.planted !== '' && plot.planted === day;
+    return {
+        ready: isReady(plot), left: Math.max(0, plot.needs - plot.tended.length), plantedToday,
+        tendedToday: plot.tended.includes(day) || (plantedToday && Boolean(plot.wateredFirst)),
+    };
 }
 
 /** Plants a seed in a new plot. A full garden refuses. */
@@ -392,7 +400,7 @@ export function plantSeed(garden, seed, day) {
     if (!name || !produce) return { garden: g, ok: false, reason: 'That is not a seed.' };
     const plot = {
         id: `p${g.next}`, seed: name, produce, kind: text(seed.kind, 24) || 'food',
-        needs: clamp(whole(seed.needs) || 1, 1, 3), yield: clamp(whole(seed.yield) || 1, 1, 5), planted: text(day, 90), tended: [], care: 0,
+        needs: clamp(whole(seed.needs) || 1, 1, 3), yield: clamp(whole(seed.yield) || 1, 1, 5), planted: text(day, 90), tended: [], wateredFirst: false, care: 0,
     };
     g.plots.push(plot);
     g.next += 1;
@@ -410,10 +418,17 @@ export function tendPlot(garden, plotId, day, quality = 'good') {
     if (!plot) return { garden: g, ok: false, counted: false, ready: false, reason: 'No such plot.' };
     if (isReady(plot)) return { garden: g, ok: false, counted: false, ready: true, reason: 'It is ready to harvest.' };
     const dayKey = text(day, 90);
+    // The planting day: watering it is care, but growth only starts the next day, so nothing can be planted and harvested at once.
+    if (plot.planted !== '' && plot.planted === dayKey) {
+        if (plot.wateredFirst) return { garden: g, ok: true, counted: false, ready: false, reason: 'Already watered today.' };
+        plot.wateredFirst = true;
+        plot.care += STEP_POINTS[quality] ?? 1;
+        return { garden: g, ok: true, counted: true, grew: false, ready: false };
+    }
     if (plot.tended.includes(dayKey)) return { garden: g, ok: true, counted: false, ready: false, reason: 'Already tended today.' };
     plot.tended.push(dayKey);
     plot.care += STEP_POINTS[quality] ?? 1;
-    return { garden: g, ok: true, counted: true, ready: isReady(plot) };
+    return { garden: g, ok: true, counted: true, grew: true, ready: isReady(plot) };
 }
 
 /** Takes the harvest: the produce, more when the plot was well cared for, and the plot is cleared. */
@@ -424,7 +439,7 @@ export function harvestPlot(garden, plotId) {
     const plot = g.plots[at];
     if (!isReady(plot)) return { garden: g, ok: false, reason: 'It is not ready yet.' };
     // Care is 0 to 2 per visit; an average of 1.5 or more is a careful grower.
-    const avg = plot.care / Math.max(1, plot.tended.length);
+    const avg = plot.care / Math.max(1, plot.tended.length + (plot.wateredFirst ? 1 : 0));
     const qty = plot.yield + (avg >= 1.5 ? 1 : 0);
     g.plots.splice(at, 1);
     return {
@@ -456,6 +471,7 @@ export function gardenRewards(acts, items = [], { partner = true } = {}) {
 export function plotText(plot, day) {
     const s = plotState(plot, day);
     if (s.ready) return 'ready to harvest';
+    if (s.plantedToday) return `planted today, ${s.left} more day${s.left === 1 ? '' : 's'} of tending from tomorrow${s.tendedToday ? ' (watered today)' : ''}`;
     return `${s.left} more day${s.left === 1 ? '' : 's'} of tending${s.tendedToday ? ' (tended today)' : ''}`;
 }
 

@@ -3,6 +3,7 @@ import {
     newCast, advanceWait, tapCast, stepReel, pickFish, rivalCasts, contestWinner, totalWeight, fishRewards, catchItem,
     plantSeed, tendPlot, harvestPlot, plotState, plotText, gardenRewards, MAX_PLOTS,
 } from '../../../src/activity-harvest-core.js';
+import { normalizeActionKey, actionKeyLabel } from '../../../src/activity-config-core.js';
 import {
     askPartner, settleActivity, sfx, activitySettings, cardOf, packItems, availableSeeds, gardenState, saveGarden, giveItemsNow, takeItemNow, currentDay, talkAllowed,
 } from '../activities-runtime.js';
@@ -82,16 +83,33 @@ function bigButton(win, label, onPress, onRelease) {
     // A keyboard click (Enter) acts as a quick press and release.
     button.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onPress?.(); } });
     button.addEventListener('keyup', (e) => { if (e.key === 'Enter') onRelease?.(); });
+    const bound = normalizeActionKey(activitySettings().actionKey);
+    const isMouse = bound.startsWith('Mouse');
     const key = (e) => {
-        if (e.code !== 'Space' || e.repeat || !win.isOpen()) return;
+        if ((e.code !== 'Space' && (isMouse || e.code !== bound)) || e.repeat || !win.isOpen()) return;
         const tag = (e.target?.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
         e.preventDefault();
         if (e.type === 'keydown') onPress?.(); else onRelease?.();
     };
+    // A bound mouse button works anywhere in the window except on other controls (the big button already answers its own clicks).
+    const mouseKey = (e) => {
+        if (!isMouse || e.button !== Number(bound.slice(5)) || !win.isOpen()) return;
+        if (e.target?.closest?.('button, input, select, textarea, a')) return;
+        e.preventDefault();
+        if (e.type === 'mousedown') onPress?.(); else onRelease?.();
+    };
+    const noMenu = (e) => { if (bound === 'Mouse2') e.preventDefault(); };
     win.root.addEventListener('keydown', key);
     win.root.addEventListener('keyup', key);
-    return { button, destroy() { win.root.removeEventListener('keydown', key); win.root.removeEventListener('keyup', key); } };
+    win.root.addEventListener('mousedown', mouseKey);
+    win.root.addEventListener('mouseup', mouseKey);
+    win.root.addEventListener('contextmenu', noMenu);
+    return { button, destroy() {
+        win.root.removeEventListener('keydown', key); win.root.removeEventListener('keyup', key);
+        win.root.removeEventListener('mousedown', mouseKey); win.root.removeEventListener('mouseup', mouseKey);
+        win.root.removeEventListener('contextmenu', noMenu);
+    } };
 }
 
 /** The partner says something short (never blocks). */
@@ -246,9 +264,9 @@ export function runFish(win, ctx) {
     win.setTitle(label, 'fa-fish');
     win.setHelp([
         { title: 'The goal', text: `Land ${CASTS} fish. You cast ${CASTS} times, and each cast is a wait, a hook and a reel.` },
-        { title: 'Casting and waiting', text: 'Press the big button to cast. Then wait, and do not press: tapping early scares the fish away.' },
+        { title: 'Casting and waiting', text: 'Press the big button (or your action key) to cast. Then wait, and do not press: tapping early scares the fish away.' },
         { title: 'The bite', text: 'When the line twitches the button says "Hook it!". Tap straight away, you have about a second and a half or it escapes.' },
-        { title: 'Reeling', text: 'A tall bar shows the fish and a cursor. Hold the button (or Space) to raise the cursor and let go to lower it. Keep the cursor on the fish: the catch bar fills while you are on it and drains while you are not. Fill it and the fish is yours; empty it and it gets away.' },
+        { title: 'Reeling', text: `A tall bar shows the fish and a cursor. Hold the button, or your action key (${actionKeyLabel(activitySettings().actionKey)} or Space), to raise the cursor and let go to lower it. Keep the cursor on the fish: the catch bar fills while you are on it and drains while you are not. Fill it and the fish is yours; empty it and it gets away.` },
         { title: 'The result', text: `Every fish you land goes in your pack. Landing all of them well is a perfect day. ${contest ? 'In the contest your partner fishes too, and the heavier catch wins (a bigger fish, landed well, weighs more).' : ''}` },
         { title: 'Settings', text: `Harder settings make the cursor band narrower. "Easier timing" in the Activities settings widens it. ${assist ? 'It is on now.' : 'It is off now.'}` },
     ]);
@@ -421,13 +439,13 @@ export function runGarden(win, ctx) {
     win.setHelp([
         { title: 'The goal', text: 'Grow food and flowers. Plant a seed, then tend it on different days until it is ready to harvest.' },
         { title: 'Planting', text: `Choose "Plant something" on an empty bed and pick a seed. A free bag of wild herb seeds is always on hand; other seeds come from your pack and are used up. The greenhouse has room for ${MAX_PLOTS} plots.` },
-        { title: 'Tending', text: 'Press Water on a plot, then tap when the marker is in the green zone. A plot counts a day of growth once per story day, however many times you tend it, so come back on another day. Every seed needs 1 to 3 days of tending.' },
+        { title: 'Tending', text: 'Press Water on a plot, then tap when the marker is in the green zone. A plot counts a day of growth once per story day, however many times you tend it, and the day you plant it does not count, so come back on another day. Every seed needs 1 to 3 days of tending.' },
         { title: 'Harvest', text: 'When a plot says it is ready, press Harvest. Careful watering (mostly perfect or good taps) gives an extra one. The produce goes in your pack: vegetables to cook with, flowers for gifts.' },
         { title: 'Finishing', text: 'Press Finish when you are done. Your garden is saved as you go, so nothing is lost if you close the window. A partner helps and chats; alone, you just work.' },
     ]);
 
     const wrap = el('div', 'snpc-act-garden');
-    const note = el('p', 'snpc-act-note', 'Tend each plot once a day. A plot is ready after it has been tended on enough different days.');
+    const note = el('p', 'snpc-act-note', 'Tend each plot once a day. The day you plant does not count toward growth. A plot is ready after it has been tended on enough different days.');
     const grid = el('div', 'snpc-act-plots');
     const status = el('div', 'snpc-act-status');
     status.setAttribute('aria-live', 'polite');
@@ -461,7 +479,7 @@ export function runGarden(win, ctx) {
         meter.stop();
         watering = null;
         const res = tendPlot(garden, plot.id, day, q);
-        if (res.ok && res.counted) { speak('moment', '', '', `the ${plot.produce} was just watered ${{ perfect: 'carefully', good: 'well', miss: 'carelessly' }[q]}${res.ready ? ' and is now ready to harvest' : ''}`); save(res.garden); acts.push({ quality: q }); sfx('activity_garden_water'); status.textContent = `${plot.produce}: ${QUALITY_TEXT[q]}${res.ready ? ' It is ready to harvest!' : ''}`; }
+        if (res.ok && res.counted) { speak('moment', '', '', `the ${plot.produce} was just watered ${{ perfect: 'carefully', good: 'well', miss: 'carelessly' }[q]}${res.ready ? ' and is now ready to harvest' : ''}`); save(res.garden); acts.push({ quality: q }); sfx('activity_garden_water'); status.textContent = `${plot.produce}: ${QUALITY_TEXT[q]}${res.grew === false ? ' It was only just planted, so it starts growing tomorrow.' : ''}${res.ready ? ' It is ready to harvest!' : ''}`; }
         else status.textContent = res.reason || 'Nothing happened.';
         render();
     }

@@ -1,4 +1,5 @@
 import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
+import { normalizeActionKey, actionKeyLabel } from '../../src/activity-config-core.js';
 import { activitySettings, saveActivitySettings, activePreset, stopMusic, refreshMusicVolume } from './activities-runtime.js';
 
 /**
@@ -74,6 +75,29 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         row('Study board', select('pairs', [[4, 'Small (4 pairs)'], [8, 'Medium (8 pairs)'], [12, 'Large (12 pairs)']], '', Number)),
         row('Difficulty', select('difficulty', [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']])),
     );
+
+    // Action key: the key or mouse button that presses the big button in cooking and fishing (the button itself always works by click or tap).
+    const keyBtn = el('button', 'menu_button');
+    keyBtn.type = 'button';
+    keyBtn.style.minWidth = '9em';
+    const keyReset = el('button', 'menu_button', 'Reset');
+    keyReset.type = 'button';
+    const showKey = () => { keyBtn.textContent = actionKeyLabel(s.actionKey); keyReset.disabled = s.actionKey === 'KeyA'; };
+    keyBtn.addEventListener('click', () => {
+        keyBtn.textContent = 'Press a key or mouse button... (Esc cancels)';
+        const stop = () => { document.removeEventListener('keydown', onKey, true); document.removeEventListener('mousedown', onMouse, true); setTimeout(showKey, 0); };
+        const take = (code) => { s.actionKey = normalizeActionKey(code); changed(); stop(); };
+        const onKey = (e) => { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') { stop(); return; } take(e.code); };
+        const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); if (e.target === keyBtn) return; take(`Mouse${e.button}`); };
+        document.addEventListener('keydown', onKey, true);
+        setTimeout(() => document.addEventListener('mousedown', onMouse, true), 150);
+    });
+    keyReset.addEventListener('click', () => { s.actionKey = 'KeyA'; changed(); showKey(); });
+    showKey();
+    const keyBox = el('div');
+    keyBox.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+    keyBox.append(keyBtn, keyReset);
+    pane.append(row('Action key', keyBox, 'The key (or mouse button) that presses the big button in cooking and fishing; Space always works too. Click the button, then press the key or mouse button you want. The on-screen button still works by click or tap.'));
 
     const messages = el('input', 'text_pole');
     messages.type = 'number'; messages.min = '0'; messages.max = '30'; messages.style.width = '6em';
