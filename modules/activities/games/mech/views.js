@@ -252,7 +252,7 @@ function searView(svg) {
             set(handle, { cy: 82 - v.heat * 64 });
             const last = f.side >= 1;
             label.textContent = `Side ${f.side + 1} of 2: ${f.word}`;
-            hint.textContent = flight !== null ? (flight > 0.5 ? 'Catch it now! (tap)' : '') : last ? (f.word === 'golden' ? 'Golden! Tap the fish to serve it.' : 'Tap the fish when it is golden to serve it.') : (v.controls === 'button' ? 'Hold or tap the action button to heat. Flip button or F key flips.' : 'Drag the knob. Tap the fish or flick it up to flip.');
+            hint.textContent = flight !== null ? (flight > 0.5 ? 'Catch it now! (tap)' : '') : last ? (f.word === 'golden' ? 'Golden! Tap the fish to serve it.' : 'Tap the fish when it is golden to serve it.') : (v.controls === 'button' ? 'Hold or tap the action button to heat. Flip button or second action key flips.' : 'Drag the knob. Tap the fish or flick it up to flip.');
         },
     };
 }

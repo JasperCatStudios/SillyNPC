@@ -72,7 +72,7 @@ export function runKitchen(win, ctx) {
     win.setHelp([
         { title: 'The goal', text: `Cook ${recipe.name}. It is a few steps, each a little game: ${script.steps.map(s => s.words?.title || s.id).join(', ')}.` },
         { title: 'Your action key', text: `The action key is ${actionKeyLabel(settings.actionKey)} (Space works too). It is the button for action-button play: press or hold it where a step says so. You can change it in the Activities settings.` },
-        { title: 'Flipping the fish', text: 'Press F, or the Flip button under the stage, to flip the fish. On the second side the same press serves it. Tapping the action key only keeps the heat up, so you can pulse it without flipping by mistake.' },
+        { title: 'Flipping the fish', text: `Press ${actionKeyLabel(settings.flipKey)} (the second action key), or the Flip button under the stage, to flip the fish. On the second side the same press serves it. Tapping the action key only keeps the heat up, so you can pulse it without flipping by mistake.` },
         { title: 'Two ways to play', text: 'With a mouse or finger you swipe, circle, drag and shake. If you prefer to use the action button, press "Use action button" under the stage: every step has an action-button version that scores about the same. The action key and Space work too.' },
         { title: 'Pause', text: 'Press Pause to stop the clock while you talk to your partner. Typing in the chat pauses the game by itself, and it carries on when you leave the box.' },
         { title: 'Flow', text: 'Good moves in a row fill the flow bar. A full bar gives your dish a small bonus. A miss costs some of it.' },
@@ -170,9 +170,11 @@ export function runKitchen(win, ctx) {
     stage.addEventListener('pointerup', onUp);
     stage.addEventListener('pointercancel', onUp);
 
-    const flipKey = (e) => { if (e.code === 'KeyF' && e.type === 'keydown' && !e.repeat && session.step?.mech === 'sear' && !typing(e.target)) { e.preventDefault(); if (!flying()) inp.pick = 'flip'; } };
+    const flipKey = (e) => { if (e.code === normalizeActionKey(settings.flipKey, 'KeyF') && e.type === 'keydown' && !e.repeat && session.step?.mech === 'sear' && !typing(e.target)) { e.preventDefault(); if (!flying()) inp.pick = 'flip'; } };
+    const flipMouse = (e) => { if (`Mouse${e.button}` === normalizeActionKey(settings.flipKey, 'KeyF') && session.step?.mech === 'sear' && !typing(e.target) && win.root.contains(e.target)) { e.preventDefault(); if (!flying()) inp.pick = 'flip'; } };
     document.addEventListener('keydown', flipKey);
-    cleanups.push(() => document.removeEventListener('keydown', flipKey));
+    document.addEventListener('mousedown', flipMouse);
+    cleanups.push(() => { document.removeEventListener('keydown', flipKey); document.removeEventListener('mousedown', flipMouse); });
     const keyHandler = (e) => {
         if (!stage.isConnected) return;
         if (!win.isOpen() || typing(e.target) || e.repeat) return;

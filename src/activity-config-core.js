@@ -54,6 +54,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     myRecipes: [],                // dishes the player made in the recipe creator (see activity-recipe-creator-core.js)
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker
+    flipKey: 'KeyF',              // the second action key: flips the fish (and serves it on the last side)
     actionKey: 'KeyA',            // the key (or mouse button, e.g. 'Mouse1') that presses the big action button in cooking and fishing
     soundMapUrl: '',              // a sound map just for activities (music and effects); '' uses the world preset's
     difficulty: 'normal',
@@ -118,6 +119,7 @@ export function normalizeActivitySettings(raw) {
         myRecipes: normalizeMyRecipes(r.myRecipes, normalizeRecipe),
         assist: bool('assist'),
         actionKey: normalizeActionKey(r.actionKey, d.actionKey),
+        flipKey: normalizeActionKey(r.flipKey, d.flipKey),
         soundMapUrl: text(r.soundMapUrl, 300),
         musicVolume: Math.min(1, Math.max(0, Number.isFinite(Number(r.musicVolume)) ? Number(r.musicVolume) : d.musicVolume)),
         difficulty: DIFFICULTY_IDS.includes(r.difficulty) ? r.difficulty : d.difficulty,

@@ -101,7 +101,28 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     const keyBox = el('div');
     keyBox.style.cssText = 'display: flex; gap: 6px; align-items: center;';
     keyBox.append(keyBtn, keyReset);
+    const flipBtn = el('button', 'menu_button');
+    flipBtn.type = 'button';
+    flipBtn.style.minWidth = '9em';
+    const flipReset = el('button', 'menu_button', 'Reset');
+    flipReset.type = 'button';
+    const showFlip = () => { flipBtn.textContent = actionKeyLabel(s.flipKey); flipReset.disabled = s.flipKey === 'KeyF'; };
+    flipBtn.addEventListener('click', () => {
+        flipBtn.textContent = 'Press a key or mouse button... (Esc cancels)';
+        const stop = () => { document.removeEventListener('keydown', onKey, true); document.removeEventListener('mousedown', onMouse, true); setTimeout(showFlip, 0); };
+        const take = (code) => { s.flipKey = normalizeActionKey(code); changed(); stop(); };
+        const onKey = (e) => { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') { stop(); return; } take(e.code); };
+        const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); if (e.target === flipBtn) return; take(`Mouse${e.button}`); };
+        document.addEventListener('keydown', onKey, true);
+        setTimeout(() => document.addEventListener('mousedown', onMouse, true), 150);
+    });
+    flipReset.addEventListener('click', () => { s.flipKey = 'KeyF'; changed(); showFlip(); });
+    showFlip();
+    const flipBox = el('div');
+    flipBox.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+    flipBox.append(flipBtn, flipReset);
     pane.append(row('Action key', keyBox, 'The key (or mouse button) that presses the big button in cooking and fishing; Space always works too. Click the button, then press the key or mouse button you want. The on-screen button still works by click or tap.'));
+    pane.append(row('Second action key', flipBox, 'Flips the fish while cooking (and serves it on the second side). Tapping the main action key only keeps the heat up. Click the button, then press the key or mouse button you want.'));
 
     const messages = el('input', 'text_pole');
     messages.type = 'number'; messages.min = '0'; messages.max = '30'; messages.style.width = '6em';
