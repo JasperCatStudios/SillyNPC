@@ -14,6 +14,7 @@ import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { runCraft } from './games/craft-ui.js';
 import { runKitchen } from './games/mech/kitchen-ui.js';
+import { runMeal } from './games/meal-ui.js';
 import { normalizePrefs } from '../../src/likes-core.js';
 import { availableRecipes, recipeBook } from '../../src/activity-harvest-core.js';
 import { allRecipes } from '../../src/activity-recipe-creator-core.js';
@@ -21,11 +22,11 @@ import { renderRecipeCreator } from './activities-recipe-creator.js';
 import { cookedCounts } from '../../src/activity-progress-core.js';
 import { unknownKindHelp } from '../../src/activity-customize-core.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
-import { teaMenu, teaChoices, snackChoices, teaSprite, snackSprite } from '../../src/activity-tea-core.js';
+import { teaMenu, teaChoices, snackChoices } from '../../src/activity-tea-core.js';
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, loadArt, energyStatus, packItems, fishTable,
+    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -351,24 +352,17 @@ function showPotionSetup(activity) {
     start.focus();
 }
 
-/** Tea Time: pick a tea and, if you like, a snack from a random spread on a table (hover to highlight), then start. */
+/** Tea Time: straight to the table. The tea tins, the tea set and the plates are on it; the host chooses, makes, offers and talks. */
 function showTeaSetup(activity) {
     stopMusic();
     preloadSounds();
     const w = ensureWindow();
     const preset = activePreset();
-    const s = activitySettings();
     const partner = pickedPartner();
     if (partner.alone) { toast('info', `${activity.label} needs a guest. Pick a partner first.`); showHub(); return; }
-    w.setView('hub');
-    w.setTitle(activity.label, activity.icon || 'fa-mug-hot');
+    const es = energyStatus(activity);
+    if (!es.ok) { toast('info', `${tiredText(es.energy, es.cost)}. Rest first, or let the story pass some time.`); showHub(); return; }
     const teaWord = term(preset, 'tea');
-
-    const box = el('div', 'snpc-act-setup');
-    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
-    box.append(el('p', 'snpc-act-note',
-        `${activity.label} with ${partner.name}. Choose a ${teaWord} to serve, and a snack if you like. A different spread is laid out each time. Their tastes are not shown: watch how they react, and what you learn is kept for next time.`));
-
     const teaPool = teaNames(preset);
     const foodPool = snackNames(preset);
     const known = teaKnown()[partner.name] || [];
@@ -378,118 +372,32 @@ function showTeaSetup(activity) {
         const hit = known.find(k => k.cat === cat && sameName(k.value, name));
         return hit ? (hit.side === 'likes' ? 'like' : 'dislike') : null;
     };
-
-    let teas = [];
-    let snacks = [];
-    let chosenTea = '';
-    let chosenSnack = '';
-    const deal = () => {
-        teas = teaMenu(teaChoices(teaPool, prefs, { count: 8 }), known);
-        snacks = snackChoices(foodPool, prefs, { count: 4 }).map(name => ({ name, mark: markOf('food', name) }));
-        chosenTea = teas[0]?.name || '';
-        chosenSnack = '';
-    };
-    deal();
-
-    // The table: the picture, with the items laid on it.
-    const wrap = el('div', 'snpc-act-tablewrap');
-    const tabletop = el('img', 'snpc-act-tabletop');
-    tabletop.alt = '';
-    tabletop.draggable = false;
-    loadArt(tabletop, 'tea.tabletop', {}, () => { tabletop.remove(); wrap.classList.add('is-plain'); });
-    wrap.append(tabletop);
-    const overlay = el('div', 'snpc-act-tableoverlay');
-    const teaBox = el('div', 'snpc-act-teas');
-    teaBox.setAttribute('role', 'radiogroup');
-    teaBox.setAttribute('aria-label', `Choose a ${teaWord}`);
-    const snackBox = el('div', 'snpc-act-snacks');
-    snackBox.setAttribute('role', 'group');
-    snackBox.setAttribute('aria-label', 'Choose a snack (optional)');
-    overlay.append(teaBox, snackBox);
-    wrap.append(overlay);
-
-    const item = ({ name, mark, chosen, kind, onPick }) => {
-        const b = el('button', `snpc-act-tableitem${chosen ? ' is-chosen' : ''}`);
-        b.type = 'button';
-        if (kind === 'tea') { b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(chosen)); } else b.setAttribute('aria-pressed', String(chosen));
-        const sprite = kind === 'tea' ? teaSprite(name) : snackSprite(name);
-        const img = el('img', 'snpc-act-sprite');
-        img.alt = '';
-        img.draggable = false;
-        loadArt(img, kind === 'tea' ? 'tea.cup' : 'tea.food', { sprite }, () => {
-            const icon = el('i', `fa-solid ${kind === 'tea' ? 'fa-mug-hot' : 'fa-cookie-bite'} snpc-act-sprite-icon`);
-            img.replaceWith(icon);
-        });
-        b.append(img, el('span', 'snpc-act-itemname', name));
-        if (mark) {
-            const badge = el('span', 'snpc-act-itemmark');
-            badge.append(el('i', `fa-solid ${mark === 'like' ? 'fa-heart' : 'fa-heart-crack'}`));
-            b.append(badge);
-        }
-        if (chosen) { const tick = el('span', 'snpc-act-itemcheck'); tick.append(el('i', 'fa-solid fa-check')); b.append(tick); }
-        const words = [name];
-        if (mark) words.push(`you know they ${mark === 'like' ? 'like' : 'dislike'} this`);
-        if (chosen) words.push('chosen');
-        b.setAttribute('aria-label', words.join(', '));
-        b.title = name;
-        b.addEventListener('click', onPick);
-        return b;
-    };
-
-    // What to bring from the pack.
-    const bring = el('select', 'snpc-act-select');
-    bring.setAttribute('aria-label', 'Bring something from your pack');
-    bring.append(new Option('Nothing from my pack', ''));
-    for (const it of bringChoices()) bring.append(new Option(it.qty > 1 ? `${it.name} (x${it.qty})` : it.name, it.name));
-    bring.addEventListener('change', () => { if (bring.value) { chosenSnack = ''; draw(); } });
-
-    const draw = () => {
-        teaBox.replaceChildren(...teas.map(t => item({
-            name: t.name, mark: t.mark, chosen: t.name === chosenTea, kind: 'tea', onPick: () => { chosenTea = t.name; draw(); },
-        })));
-        snackBox.replaceChildren(...snacks.map(sn => item({
-            name: sn.name, mark: sn.mark, chosen: sn.name === chosenSnack, kind: 'snack',
-            onPick: () => { chosenSnack = chosenSnack === sn.name ? '' : sn.name; if (chosenSnack) bring.value = ''; draw(); },
-        })));
-        start.disabled = !teas.length || !energyStatus(activity).ok;
-    };
-
-    box.append(wrap);
-    const reroll = el('button', 'snpc-act-btn is-quiet', 'Lay out a different spread');
-    reroll.type = 'button';
-    reroll.disabled = teaPool.length <= 8 && foodPool.length <= 4;
-    reroll.addEventListener('click', () => { deal(); draw(); });
-    box.append(reroll);
-
-    const rounds = el('select', 'snpc-act-select');
-    rounds.setAttribute('aria-label', 'Rounds');
-    rounds.append(new Option('Short (3 rounds)', '3'), new Option('Long (5 rounds)', '5'));
-    rounds.value = String(s.teaRounds);
-    box.append(field('Or bring', bring), field('Length', rounds));
-    if (!s.teaLlm) box.append(el('p', 'snpc-act-note is-small', 'The model is switched off for Tea Time, so the guest uses built-in lines and the best grade is Good.'));
-
-    const row = el('div', 'snpc-act-row');
-    const start = el('button', 'snpc-act-btn', 'Pour');
-    start.type = 'button';
-    start.addEventListener('click', () => {
-        s.teaRounds = Number(rounds.value) === 5 ? 5 : 3;
-        saveActivitySettings();
-        seat(w, partner, `Sharing a ${teaWord}`);
-        w.userName = userName();
-        const brought = chosenSnack ? { kind: 'food', name: chosenSnack } : (bring.value ? { name: bring.value } : null);
-        runTea(w, {
-            partner: partner.name, activityId: activity.id, label: activity.label, preset, tea: chosenTea, bring: brought,
-            onLeave: () => showHub(), onAgain: () => showTeaSetup(activity),
-        });
+    /** A random spread: eight teas and four snacks (the likes of the guest are always among them). */
+    const deal = () => ({
+        teas: teaMenu(teaChoices(teaPool, prefs, { count: 8 }), known),
+        snacks: snackChoices(foodPool, prefs, { count: 4 }).map(name => ({ name, mark: markOf('food', name) })),
     });
-    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
-    back.type = 'button';
-    back.addEventListener('click', showHub);
-    row.append(start, back);
-    box.append(row);
-    draw();
-    w.main.replaceChildren(box);
-    start.focus();
+    const first = deal();
+    seat(w, partner, `Sharing a ${teaWord}`);
+    w.userName = userName();
+    runTea(w, {
+        partner: partner.name, activityId: activity.id, label: activity.label, preset, teas: first.teas, snacks: first.snacks, bringItems: bringChoices(),
+        deal: (teaPool.length > 8 || foodPool.length > 4) ? deal : null, onLeave: () => showHub(), onAgain: () => showTeaSetup(activity),
+    });
+}
+
+/** Share a Meal: the optional step after cooking. The table with the dish you made, a drink and things to lay the table with. */
+function showMealSetup(activity, partner, recipe, grade) {
+    stopMusic();
+    preloadSounds();
+    const w = ensureWindow();
+    const preset = activePreset();
+    seat(w, partner, 'Sharing a meal');
+    w.userName = userName();
+    runMeal(w, {
+        partner: partner.name, activityId: 'meal', label: 'Share a meal', preset, recipe, grade,
+        onLeave: () => showHub(), onAgain: () => showCookSetup(activity),
+    });
 }
 
 /** Cooking: choose a recipe (the ones you can cook now first), then play the three steps. */
@@ -589,6 +497,7 @@ function showCookSetup(activity) {
             runKitchen(w, {
                 partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, assist: s.assist, tier: craftTier('cooking'),
                 pack: tracked ? packItems() : null, prefs: partner.alone ? undefined : cardOf(partner.name)?.prefs, onLeave: () => showHub(), onAgain: () => showCookSetup(activity),
+                onShare: partner.alone ? null : ({ recipe: made, grade }) => showMealSetup(activity, partner, made, grade),
             });
         }
     });

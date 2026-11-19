@@ -55,7 +55,7 @@ export const ROAST_FISH = Object.freeze({
         { id: 'butter', mech: 'stir', weight: 1, params: { revs: 6 }, art: { vessel: 'saucepan', tool: 'spoon' }, words: { title: 'Melt the herb butter', hint: 'Stir in circles inside the pot. Not too slow, not too fast.', done: 'Smooth and glossy.' } },
         { id: 'sear', mech: 'sear', weight: 3, uses: 'a fish', art: { item: 'fish-fillet', vessel: 'pan', heat: 'stove' }, words: { title: 'Sear the fish', hint: 'Set the heat, flick the fish up to flip it, tap to catch it. Golden, not black.', done: 'Golden on both sides.' } },
         { id: 'season', mech: 'sprinkle', weight: 1, art: { item: 'fish-fillet', tool: 'shaker' }, words: { title: 'Season it', hint: 'Shake over the whole fish, evenly.', done: 'Seasoned evenly.' } },
-        { id: 'plate', mech: 'plate', weight: 1, params: { items: ['fish', 'herbs', 'butter'] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.', done: 'Nicely presented.' } },
+        { id: 'plate', mech: 'plate', weight: 1, params: { items: [{ id: 'fish', art: 'fish-fillet-cooked' }, { id: 'herbs', art: 'herbs-cut' }, { id: 'butter', art: 'butter' }] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.', done: 'Nicely presented.' } },
     ],
 });
 
@@ -83,6 +83,13 @@ export function dishKind(recipe) {
     return 'plain';
 }
 
+/** The picture name of the finished dish: a soup is a bowl of soup, a pie is a pie, anything else is its main food (add `-cooked`). */
+export function dishArt(recipe) {
+    const kind = dishKind(recipe);
+    const item = mainItem(recipe);
+    return kind === 'wet' ? 'soup' : kind === 'bake' && item !== 'fruit' ? 'pie' : item;
+}
+
 /** Steps for a dish with no script of its own, from its kind and what it is made of. Plain, neutral words. */
 export function defaultScriptFor(recipe) {
     const needs = (recipe?.needs || []).length;
@@ -91,14 +98,14 @@ export function defaultScriptFor(recipe) {
     const wet = kind === 'wet';
     const art = { item };
     // What lies on the plate while it is seasoned: the cooked dish (a soup is a bowl of soup, a pie is a pie).
-    const dish = wet ? 'soup' : kind === 'bake' && item !== 'fruit' ? 'pie' : item;
+    const dish = dishArt(recipe);
     const steps = [];
     if (needs && kind !== 'plain') steps.push({ id: 'prep', mech: 'slice', weight: 1, params: { lines: needs > 1 ? 5 : 4 }, art, words: { title: 'Prepare the ingredients', hint: 'Swipe down across each dotted line.' } });
     if (kind === 'grill') steps.push({ id: 'cook', mech: 'sear', weight: 3, art: { ...art, vessel: 'pan', heat: 'stove' }, words: { title: 'Cook it', hint: 'Set the heat, tap the food to flip it, tap again to catch it. Golden, not black.' } });
     else if (kind !== 'salad') steps.push({ id: 'cook', mech: 'stir', weight: 2, params: { revs: wet ? 9 : 6, heat: wet }, art: { vessel: 'saucepan', tool: 'spoon' }, words: { title: wet ? 'Simmer and stir' : 'Mix and stir', hint: 'Stir in circles inside the pot. Keep it moving, but do not splash.' } });
     steps.push({ id: 'season', mech: 'sprinkle', weight: 1, art: { item: dish, tool: 'shaker' }, words: { title: 'Season it', hint: 'Shake evenly over the dish.' } });
     if (wet) steps.push({ id: 'serve', mech: 'pour', weight: 1, params: { target: 0.7 }, art: { vessel: 'bowl' }, words: { title: 'Ladle it into the bowl', hint: 'Drag down to tip the jug. Stop at the line: it keeps pouring a moment after you stop.', done: 'Just the right amount.' } });
-    else steps.push({ id: 'plate', mech: 'plate', weight: 1, params: { items: needs > 1 ? ['main', 'garnish', 'sauce'] : ['main', 'garnish'] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.' } });
+    else steps.push({ id: 'plate', mech: 'plate', weight: 1, params: { items: [{ id: 'main', art: `${dish}-cooked` }, { id: 'garnish', art: 'herbs-cut' }, ...(needs > 1 ? [{ id: 'sauce', art: 'sauce' }] : [])] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.' } });
     return { set: 'kitchen', steps };
 }
 

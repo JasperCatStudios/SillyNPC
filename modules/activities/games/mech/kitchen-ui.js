@@ -393,6 +393,12 @@ export function runKitchen(win, ctx) {
         const leave = el('button', 'snpc-act-btn is-quiet', 'Back to the hub');
         leave.type = 'button';
         leave.addEventListener('click', onLeave);
+        if (ctx.onShare && partner && grade !== 'failed') {
+            const share = el('button', 'snpc-act-btn', `Share it with ${partner}`);
+            share.type = 'button';
+            share.addEventListener('click', () => ctx.onShare({ recipe, grade }));
+            row.append(share);
+        }
         row.append(again, leave);
         box.append(row);
         wrap.append(box);

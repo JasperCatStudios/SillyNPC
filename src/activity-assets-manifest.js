@@ -23,7 +23,7 @@ const img = (key, group, file, desc, size, transparent, extra = {}) => ({ kind: 
 
 export const ASSET_MANIFEST = Object.freeze([
     // ---- Tea Time (used now)
-    img('tea.table', 'Tea Time', 'tea/table.webp', 'The Tea Time table scene, seen from slightly above. Fills the Tea Time screen.', '1024x768', false, { used: true }),
+    img('tea.table', 'Tea Time', 'tea/table.webp', 'A whole Tea Time table scene (older layout, no longer drawn by the screen; kept so existing pictures are not lost).', '1024x768', false, { used: false }),
     img('tea.tabletop', 'Tea Time', 'tea/tabletop.webp', 'A plain tabletop, top-down, used behind the tea and snack pickers.', '1024x768', false, { used: true }),
     img('tea.cup', 'Tea Time', 'tea/cups/{sprite}.webp', 'A cup of tea, cut out on a transparent background. One per kind of drink.', '256x256', true, {
         used: true, legacy: ['tea/teas/{sprite}.webp'], values: { sprite: SPRITES_TEA },
@@ -32,13 +32,23 @@ export const ASSET_MANIFEST = Object.freeze([
         used: true, legacy: ['tea/snacks/{sprite}.webp'], values: { sprite: SPRITES_FOOD },
     }),
 
+    img('tea.tin', 'Tea Time', 'tea/tins/{sprite}.webp', 'A tea tin on the table, cut out on a transparent background, seen from slightly above. One per kind of tea; a tea with no tin of its own picks the closest kind.', '257x256', true, {
+        used: true, values: { sprite: SPRITES_TEA },
+    }),
+    img('tea.set', 'Tea Time', 'tea/set/{part}.webp', 'The tea set: the "tray" (a pot and cups on a tray) is what you click to make the tea. The others are spare pieces: a teapot, an empty cup on a saucer, a scoop of loose leaves.', '257x256', true, {
+        used: true, values: { part: ['tray', 'teapot', 'cup', 'scoop'] },
+    }),
+    img('mech.table', 'Share a Meal', 'props/table/{part}.webp', 'A thing laid on the meal table: a mug, a glass of water, cutlery, a napkin, a candle, a basket of bread, a serving platter, a slice of cake.', '257x256', true, {
+        used: true, values: { part: ['mug', 'water', 'cutlery', 'napkin', 'candle', 'breadbasket', 'platter', 'cake'] },
+    }),
+
     // ---- The hands-on kitchen (used now). Every piece has a plain-shape fallback, so the game plays with no art.
     img('mech.bench', 'Kitchen', 'bench/kitchen.webp', 'The kitchen counter behind the cooking steps. Leave the middle empty: the props are drawn on it.', '1376x768', false, { used: true }),
     img('mech.prop', 'Kitchen', 'props/{set}/{part}.webp', 'A prop of the cooking steps, cut out on a transparent background, seen from slightly above. The set is the prop family (kitchen).', '320x290', true, {
-        used: true, values: { set: ['kitchen'], part: ['board', 'knife', 'saucepan', 'spoon', 'pan', 'stove', 'shaker', 'plate', 'bowl', 'jug'] },
+        used: true, values: { set: ['kitchen'], part: ['board', 'knife', 'saucepan', 'spoon', 'pan', 'stove', 'shaker', 'plate', 'bowl', 'jug', 'glass', 'knob'] },
     }),
     img('mech.food', 'Kitchen', 'food/{item}.webp', 'A food shown in the cooking steps, cut out on a transparent background: raw and golden-cooked fillet, whole and chopped herbs.', '320x290', true, {
-        used: true, values: { item: ['fish-fillet', 'fish-fillet-cooked', 'herbs', 'herbs-cooked', 'vegetables', 'vegetables-cooked', 'fruit', 'fruit-cooked', 'bread', 'bread-cooked', 'grain-cooked', 'soup-cooked', 'pie-cooked'] },
+        used: true, values: { item: ['fish-fillet', 'fish-fillet-cooked', 'herbs', 'herbs-cooked', 'vegetables', 'vegetables-cooked', 'fruit', 'fruit-cooked', 'bread', 'bread-cooked', 'grain-cooked', 'soup-cooked', 'pie-cooked', 'herbs-cut', 'butter', 'sauce'] },
     }),
     img('mech.item', 'Kitchen', 'items/{item}.webp', 'A picture of any ingredient or dish, named by its Item Database id (so a fish called "trout" is items/trout.webp). Looked for after the kitchen food folder, so it also works for crafting and for items of your own. Same cut-out style as the kitchen food.', '320x290', true, {
         used: true, values: { item: ['trout', 'carrot', 'iron-ore'] },

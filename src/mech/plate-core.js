@@ -34,12 +34,12 @@ export const toPlate = (x, y) => ({ u: (x - PLATE.cx) / PLATE.rx, v: (y - PLATE.
 export function newRun(params = {}, rng = Math.random, ctx = {}) {
     const p = { ...meta.defaults, ...params };
     const ease = easeFactor(ctx);
-    const list = (Array.isArray(p.items) ? p.items : meta.defaults.items).map(i => slug(typeof i === 'string' ? i : i?.id)).filter(Boolean).slice(0, MAX_ITEMS);
-    const ids = list.length ? list : meta.defaults.items;
+    const raw = (Array.isArray(p.items) ? p.items : meta.defaults.items).map(i => ({ id: slug(typeof i === 'string' ? i : i?.id), art: typeof i === 'object' && i ? slug(i.art) : '' })).filter(i => i.id).slice(0, MAX_ITEMS);
+    const list = raw.length ? raw : meta.defaults.items.map(id => ({ id, art: '' }));
     return {
         params: p, controls: ctx.controls === 'button' ? 'button' : 'pointer', ease, calm: calmFactor(ctx),
         tol: Math.max(0.05, num(p.tol, 0.3)) * ease, t: 0, over: false, ended: false, events: [], ruined: false,
-        items: ids.map((id, i) => ({ id, spot: SPOTS[i % SPOTS.length], at: null, d: null, grade: null })),
+        items: list.map((it, i) => ({ id: it.id, art: it.art, spot: SPOTS[i % SPOTS.length], at: null, d: null, grade: null })),
         index: 0, carrying: false, pos: { u: -1.4, v: 0 }, phase: 'x', lockU: 0, sweepT: 0,
     };
 }
@@ -119,6 +119,6 @@ export function describeState(s, words = {}) {
 export function view(s) {
     return {
         controls: s.controls, over: s.over, carrying: s.carrying, phase: s.phase, lockU: s.lockU, pos: s.pos, index: s.index, plate: PLATE,
-        items: s.items.map(i => ({ id: i.id, spot: i.spot, at: i.at, grade: i.grade })),
+        items: s.items.map(i => ({ id: i.id, art: i.art, spot: i.spot, at: i.at, grade: i.grade })),
     };
 }

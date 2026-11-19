@@ -125,8 +125,22 @@ function sliceView(svg, step) {
     handLabel.textContent = 'hold here';
     let ingredient = null;
     let lines = [];
+    // The knife: it drops on the line each time a cut is made (tip at the bottom of the cutting area), then fades.
+    const knifeG = S('g', { opacity: 0 }, svg);
+    const knifeShape = S('rect', { x: -1, y: -26, width: 2, height: 26, fill: '#cfd4da' }, knifeG);
+    prop('knife', knifeG, { x: -1.2, y: -28.8, width: 30, height: 32, preserveAspectRatio: 'none' }, () => set(knifeShape, { opacity: 0 }));
+    let cutCount = 0;
+    let knifeT = 1;
     return {
-        update(v) {
+        update(v, dt = 16) {
+            const nowCut = v.lines.filter(l => l.cut).length;
+            if (nowCut > cutCount) { const last = v.lines.filter(l => l.cut).pop(); knifeG.dataset.x = String(last?.x ?? 0.5); knifeT = 0; }
+            cutCount = nowCut;
+            if (knifeT < 1) {
+                knifeT = Math.min(1, knifeT + dt / 380);
+                const ease = 1 - (1 - Math.min(1, knifeT * 2.2)) ** 3;
+                set(knifeG, { opacity: knifeT < 0.7 ? 1 : 1 - (knifeT - 0.7) / 0.3, transform: `translate(${X(Number(knifeG.dataset.x))} ${34 + 40 * ease}) rotate(-45)` });
+            } else set(knifeG, { opacity: 0 });
             if (!ingredient) {
                 const b = v.board;
                 const w = X(b.x1 - b.x0);
@@ -180,6 +194,10 @@ function stirView(svg) {
         g.append(contents);                 // over the picture
     });
     g.append(contents);
+    // The spoon: its bowl rides in the pot with the stirring, its handle sticks out to the upper right.
+    const spoonG = S('g', {}, g);
+    const spoonShape = S('rect', { x: -2, y: -34, width: 4, height: 38, rx: 2, fill: '#b9814a', transform: 'rotate(40)' }, spoonG);
+    prop('spoon', spoonG, { x: -4, y: -33.5, width: 40, height: 43 }, () => set(spoonShape, { opacity: 0 }));
     let angle = 0;
     const meter = S('g', {}, svg);
     S('rect', { x: 30, y: 94, width: 100, height: 4, rx: 2, fill: '#555' }, meter);
@@ -197,6 +215,7 @@ function stirView(svg) {
                 const rad = reach * (1 - 0.7 * blend) * (0.55 + 0.45 * ((i % 3) / 2));
                 set(d, { cx: Math.cos(a) * rad, cy: Math.sin(a) * rad });
             });
+            { const a2 = (angle - 20) * (Math.PI / 180); set(spoonG, { transform: `translate(${cx + Math.cos(a2) * reach * 0.5} ${cy + Math.sin(a2) * reach * 0.34 * (ry / rx) * 1.6})` }); }
             const tone = v.thick ? '#4a3f33' : COLORS.pot;
             set(pot, { fill: tone });
             set(content, { fill: tone });
@@ -244,6 +263,7 @@ function searView(svg, step) {
     S('rect', { x: 146, y: 18, width: 6, height: 64, rx: 3, fill: '#555' }, knob);
     const win = S('rect', { x: 146, width: 6, rx: 3, fill: '#6aa84f' }, knob);
     const handle = S('circle', { cx: 149, r: 6, fill: '#e69138' }, knob);
+    const knobArt = artImage(knob, 'mech.prop', { set: 'kitchen', part: 'knob' }, { x: 141, width: 16, height: 16, preserveAspectRatio: 'xMidYMid meet' }, () => set(handle, { opacity: 0 }));
     const label = S('text', { x: 70, y: 10, 'text-anchor': 'middle', 'font-size': 6, fill: '#fff' }, svg);
     const hint = S('text', { x: 70, y: 98, 'text-anchor': 'middle', 'font-size': 5, fill: '#fff', opacity: 0.9 }, svg);
     return {
@@ -268,6 +288,7 @@ function searView(svg, step) {
             const h = (v.window[1] - v.window[0]) * 64;
             set(win, { y: top, height: h });
             set(handle, { cy: 82 - v.heat * 64 });
+            set(knobArt.el, { y: 82 - v.heat * 64 - 8, transform: `rotate(${-60 + v.heat * 120} 149 ${82 - v.heat * 64})` });
             const last = f.side >= 1;
             label.textContent = `Side ${f.side + 1} of 2: ${f.word}`;
             hint.textContent = flight !== null ? (flight > 0.5 ? 'Catch it now! (tap)' : '') : last ? (f.word === 'golden' ? 'Golden! Tap the food to serve it.' : 'Tap the food when it is golden to serve it.') : (v.controls === 'button' ? 'Hold or tap the action button to heat. Flip button or second action key flips.' : 'Drag the knob. Tap the food or flick it up to flip.');
@@ -321,39 +342,50 @@ function sprinkleView(svg, step) {
 
 /* ------------------------------------------------------------------ pour */
 
-const CUP = { x0: 50, x1: 90, y0: 34, y1: 90 };         // the measuring glass on the stage
+// The measuring glass picture is 257 x 256 and drawn in this box; its inside is a trapezoid given as picture fractions.
+const GL = { x: 44, y: 30, w: 62, h: 62 };
+const GLASS_IN = { topY: 0.36, botY: 0.82, topL: 0.2, topR: 0.7, botL: 0.3, botR: 0.62 };
 const LIQUID = '#6fb7e0';
+const gx = (f) => GL.x + f * GL.w;
+const gy = (f) => GL.y + f * GL.h;
+const SPOUT = { x: 78, y: 16 };           // where the jug's spout hangs over the glass
 
 function pourView(svg) {
     const g = S('g', {}, svg);
-    S('rect', { x: CUP.x0 - 3, y: CUP.y1, width: CUP.x1 - CUP.x0 + 6, height: 4, rx: 2, fill: '#555' }, g);
-    const liquid = S('rect', { x: CUP.x0 + 1.5, width: CUP.x1 - CUP.x0 - 3, fill: LIQUID, opacity: 0.9 }, g);
-    const band = S('rect', { x: CUP.x0 - 6, width: CUP.x1 - CUP.x0 + 12, fill: '#6aa84f', opacity: 0.3 }, g);
-    const line = S('line', { x1: CUP.x0 - 8, x2: CUP.x1 + 8, stroke: '#9fe08a', 'stroke-width': 1, 'stroke-dasharray': '3 2' }, g);
-    S('path', { d: `M${CUP.x0} ${CUP.y0} L${CUP.x0 + 3} ${CUP.y1} L${CUP.x1 - 3} ${CUP.y1} L${CUP.x1} ${CUP.y0}`, fill: 'rgba(255,255,255,0.12)', stroke: '#e8eef2', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, g);
-    const puddle = S('ellipse', { cx: 70, cy: 94, rx: 0, ry: 2, fill: LIQUID, opacity: 0.8 }, g);
-    const stream = S('rect', { x: 84, width: 1, fill: LIQUID, opacity: 0 }, g);
-    // The jug: its spout is the pivot, at the top left of the body. Tipping turns it counter-clockwise about the spout.
+    const inner = (level) => {
+        const y = GLASS_IN.botY - level * (GLASS_IN.botY - GLASS_IN.topY);
+        const t = level;
+        const l = GLASS_IN.botL + (GLASS_IN.topL - GLASS_IN.botL) * t;
+        const r = GLASS_IN.botR + (GLASS_IN.topR - GLASS_IN.botR) * t;
+        return { y, l, r };
+    };
+    const outline = S('path', { d: `M${gx(GLASS_IN.topL)} ${gy(GLASS_IN.topY)} L${gx(GLASS_IN.botL)} ${gy(GLASS_IN.botY)} L${gx(GLASS_IN.botR)} ${gy(GLASS_IN.botY)} L${gx(GLASS_IN.topR)} ${gy(GLASS_IN.topY)}`, fill: 'rgba(255,255,255,0.12)', stroke: '#e8eef2', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, g);
+    const liquid = S('polygon', { fill: LIQUID, opacity: 0.85 }, g);
+    prop('glass', g, { x: GL.x, y: GL.y, width: GL.w, height: GL.h }, () => set(outline, { opacity: 0 }));
+    const band = S('rect', { x: gx(0.1), width: GL.w * 0.8, fill: '#6aa84f', opacity: 0.28 }, g);
+    const line = S('line', { x1: gx(0.08), x2: gx(0.84), stroke: '#9fe08a', 'stroke-width': 0.9, 'stroke-dasharray': '3 2' }, g);
+    const puddle = S('ellipse', { cx: gx(0.46), cy: gy(0.9), rx: 0, ry: 2, fill: LIQUID, opacity: 0.8 }, g);
+    const stream = S('rect', { width: 1, fill: LIQUID, opacity: 0 }, g);
+    // The jug hangs by its spout and tips counter-clockwise over the glass.
     const jug = S('g', {}, g);
-    S('path', { d: 'M0 0 L4 -3 L30 -3 L30 28 Q30 31 27 31 L5 31 Q2 31 2 28 Z', fill: '#c9b79c', stroke: '#6b5a44', 'stroke-width': 1 }, jug);
-    S('path', { d: 'M30 4 Q42 4 42 16 Q42 26 30 26', fill: 'none', stroke: '#6b5a44', 'stroke-width': 2.4 }, jug);
-    const jugLiquid = S('rect', { x: 3, y: 10, width: 26, height: 20, fill: LIQUID, opacity: 0.7 }, jug);
+    const jugShape = S('path', { d: 'M0 0 L4 -3 L30 -3 L30 28 Q30 31 27 31 L5 31 Q2 31 2 28 Z', fill: '#c9b79c', stroke: '#6b5a44', 'stroke-width': 1 }, jug);
+    prop('jug', jug, { x: -4, y: -8, width: 42, height: 42 }, () => set(jugShape, { opacity: 0 }));
     const hint = S('text', { x: 80, y: 8, 'text-anchor': 'middle', 'font-size': 5.5, fill: '#fff' }, svg);
-    const pct = S('text', { x: 100, y: 62, 'font-size': 5, fill: '#fff', opacity: 0.85 }, svg);
+    const pct = S('text', { x: gx(0.82), y: gy(0.7), 'font-size': 5, fill: '#fff', opacity: 0.9 }, svg);
     return {
         update(v) {
-            const surface = CUP.y1 - v.level * (CUP.y1 - CUP.y0);
-            set(liquid, { y: surface, height: Math.max(0, CUP.y1 - surface) });
-            const targetY = CUP.y1 - v.target * (CUP.y1 - CUP.y0);
-            const tolH = v.tol * (CUP.y1 - CUP.y0);
-            set(line, { y1: targetY, y2: targetY });
-            set(band, { y: targetY - tolH, height: tolH * 2 });
-            const angle = v.tilt * 62;
-            set(jug, { transform: `translate(86 ${20 + v.tilt * 4}) rotate(${-angle}) translate(0 0)` });
-            set(jugLiquid, { y: 10 + v.tilt * 12 });
-            set(stream, { y: 24 + v.tilt * 4, height: Math.max(0, surface - 24 - v.tilt * 4), width: 0.8 + v.flow * 14, x: 84 - (0.8 + v.flow * 14) / 2, opacity: v.pouring ? 0.85 : 0 });
-            set(puddle, { rx: v.spilled ? 22 : 0 });
-            set(pct, { opacity: v.over ? 0 : 0.85 });
+            const w = inner(Math.min(1, v.level));
+            set(liquid, { points: v.level <= 0.001 ? '0,0' : `${gx(w.l)},${gy(w.y)} ${gx(w.r)},${gy(w.y)} ${gx(inner(0).r)},${gy(GLASS_IN.botY)} ${gx(inner(0).l)},${gy(GLASS_IN.botY)}` });
+            const tw = inner(v.target);
+            const tolH = v.tol * (GLASS_IN.botY - GLASS_IN.topY) * GL.h;
+            set(line, { y1: gy(tw.y), y2: gy(tw.y) });
+            set(band, { y: gy(tw.y) - tolH, height: tolH * 2 });
+            set(jug, { transform: `translate(${SPOUT.x} ${SPOUT.y + v.tilt * 6}) rotate(${-v.tilt * 62})` });
+            const surfaceY = gy(w.y);
+            const sw = 0.8 + v.flow * 14;
+            set(stream, { x: SPOUT.x - 3 - sw / 2, y: SPOUT.y + 4 + v.tilt * 6, width: sw, height: Math.max(0, surfaceY - (SPOUT.y + 4 + v.tilt * 6)), opacity: v.pouring ? 0.85 : 0 });
+            set(puddle, { rx: v.spilled ? 24 : 0 });
+            set(pct, { opacity: v.over ? 0 : 0.9 });
             pct.textContent = v.over ? '' : `${Math.round(v.level * 100)}%`;
             hint.textContent = v.over ? (v.spilled ? 'It overflowed!' : v.grade === 'perfect' ? 'Just right!' : '') : v.controls === 'button' ? 'Hold the button to pour. Let go a little before the line.' : 'Press and drag down to tip. Let go a little before the line.';
         },
@@ -363,11 +395,11 @@ function pourView(svg) {
 /* ------------------------------------------------------------------ plate */
 
 const PLATE_LOOK = [
-    { fill: '#d9b061', draw: (p, g) => S('rect', { x: -9, y: -4.5, width: 18, height: 9, rx: 4.5, fill: p.fill, stroke: '#8b6b2a', 'stroke-width': 0.6 }, g) },
-    { fill: '#6aa84f', draw: (p, g) => { for (const [dx, dy] of [[-3, -1], [2, -2], [0, 2.5]]) S('circle', { cx: dx, cy: dy, r: 2.6, fill: p.fill, stroke: '#3b6b2a', 'stroke-width': 0.5 }, g); } },
-    { fill: '#9a4b32', draw: (p, g) => S('ellipse', { cx: 0, cy: 0, rx: 5, ry: 3.2, fill: p.fill, stroke: '#5a2a1a', 'stroke-width': 0.5 }, g) },
-    { fill: '#e6c34a', draw: (p, g) => S('circle', { cx: 0, cy: 0, r: 3.4, fill: p.fill, stroke: '#8b7a1a', 'stroke-width': 0.5 }, g) },
-    { fill: '#d98aa0', draw: (p, g) => S('circle', { cx: 0, cy: 0, r: 3, fill: p.fill, stroke: '#8b3a50', 'stroke-width': 0.5 }, g) },
+    { fill: '#d9b061', size: 30, draw: (p, g) => S('rect', { x: -9, y: -4.5, width: 18, height: 9, rx: 4.5, fill: p.fill, stroke: '#8b6b2a', 'stroke-width': 0.6 }, g) },
+    { fill: '#6aa84f', size: 17, draw: (p, g) => { for (const [dx, dy] of [[-3, -1], [2, -2], [0, 2.5]]) S('circle', { cx: dx, cy: dy, r: 2.6, fill: p.fill, stroke: '#3b6b2a', 'stroke-width': 0.5 }, g); } },
+    { fill: '#9a4b32', size: 22, draw: (p, g) => S('ellipse', { cx: 0, cy: 0, rx: 5, ry: 3.2, fill: p.fill, stroke: '#5a2a1a', 'stroke-width': 0.5 }, g) },
+    { fill: '#e6c34a', size: 16, draw: (p, g) => S('circle', { cx: 0, cy: 0, r: 3.4, fill: p.fill, stroke: '#8b7a1a', 'stroke-width': 0.5 }, g) },
+    { fill: '#d98aa0', size: 16, draw: (p, g) => S('circle', { cx: 0, cy: 0, r: 3, fill: p.fill, stroke: '#8b3a50', 'stroke-width': 0.5 }, g) },
 ];
 const GRADE_RING = { perfect: '#9fe08a', good: '#f1c232', miss: '#e06666' };
 
@@ -376,8 +408,7 @@ function plateView(svg) {
     const dishAt = plateToStage(0, 0);
     const rim = S('ellipse', { cx: X(dishAt.x), cy: Y(dishAt.y), rx: X(PLATE.rx) + 2, ry: Y(PLATE.ry) + 2, fill: '#d8d2c6' }, g);
     prop('plate', g, place('plate', X(dishAt.x), Y(dishAt.y), 0.344), () => set(rim, { opacity: 0 }));
-    const tray = S('rect', { x: 4, y: 36, width: 28, height: 28, rx: 6, fill: 'rgba(0,0,0,0.25)', stroke: 'rgba(255,255,255,0.35)', 'stroke-dasharray': '2 2' }, g);
-    void tray;
+    S('rect', { x: 4, y: 36, width: 28, height: 28, rx: 6, fill: 'rgba(0,0,0,0.25)', stroke: 'rgba(255,255,255,0.35)', 'stroke-dasharray': '2 2' }, g);
     const ghosts = [];
     const pieces = [];
     const labels = [];
@@ -387,6 +418,18 @@ function plateView(svg) {
     const hline = S('line', { x1: 40, x2: 120, stroke: '#fff', 'stroke-width': 0.8, opacity: 0.9 }, cross);
     const hint = S('text', { x: 80, y: 8, 'text-anchor': 'middle', 'font-size': 5.5, fill: '#fff' }, svg);
     const name = (id) => String(id).replace(/[-_]+/g, ' ');
+    // One item: its picture when it has one (by its `art` name), else a plain shape; both centred on the item's position.
+    const drawItem = (parent, it, look, ghost) => {
+        const shape = S('g', {}, parent);
+        look.draw(ghost ? { fill: 'rgba(255,255,255,0.15)' } : look, shape);
+        if (ghost) shape.querySelectorAll('*').forEach(n => { n.setAttribute('fill', 'rgba(255,255,255,0.15)'); n.setAttribute('stroke', '#fff'); n.setAttribute('stroke-dasharray', '1.5 1.5'); });
+        if (it.art) {
+            const sz = look.size;
+            const im = food(it.art, parent, { x: -sz / 2, y: -sz / 2, width: sz, height: sz }, () => set(shape, { opacity: 0 }));
+            if (ghost) im.el.style.filter = 'brightness(0) invert(1)';
+        }
+        return shape;
+    };
     return {
         update(v) {
             if (!made) {
@@ -395,28 +438,25 @@ function plateView(svg) {
                     const at = plateToStage(it.spot.u, it.spot.v);
                     const look = PLATE_LOOK[i % PLATE_LOOK.length];
                     const gh = S('g', { transform: `translate(${X(at.x)} ${Y(at.y)})`, opacity: 0.4 }, g);
-                    look.draw({ fill: 'none' }, gh);
-                    gh.querySelectorAll('*').forEach(n => { n.setAttribute('fill', 'rgba(255,255,255,0.15)'); n.setAttribute('stroke', '#fff'); n.setAttribute('stroke-dasharray', '1.5 1.5'); });
+                    drawItem(gh, it, look, true);
                     ghosts.push(gh);
-                    const lab = S('text', { x: X(at.x), y: Y(at.y) + 9, 'text-anchor': 'middle', 'font-size': 3.6, fill: '#fff', opacity: 0.8 }, g);
+                    const lab = S('text', { x: X(at.x), y: Y(at.y) + 11, 'text-anchor': 'middle', 'font-size': 3.6, fill: '#fff', opacity: 0.8 }, g);
                     lab.textContent = name(it.id);
                     labels.push(lab);
                     const piece = S('g', {}, g);
-                    look.draw(look, piece);
+                    drawItem(piece, it, look, false);
                     pieces.push(piece);
                 });
             }
             v.items.forEach((it, i) => {
                 const placed = Boolean(it.at);
                 const current = i === v.index && !v.over;
-                let px;
-                let py;
+                let px = 18;
+                let py = 50;
                 if (placed) { const at = plateToStage(it.at.u, it.at.v); px = X(at.x); py = Y(at.y); }
                 else if (current && (v.carrying || v.controls === 'button')) { const at = plateToStage(v.pos.u, v.pos.v); px = X(at.x); py = Y(at.y); }
-                else if (current) { px = 18; py = 50; }
-                else { px = 18; py = 50; }
                 set(pieces[i], { transform: `translate(${px} ${py})`, opacity: placed || current ? 1 : 0 });
-                set(ghosts[i], { opacity: placed ? 0.12 : current ? 0.75 : 0.35 });
+                set(ghosts[i], { opacity: placed ? 0.1 : current ? 0.6 : 0.3 });
                 set(labels[i], { opacity: placed ? 0 : current ? 0.95 : 0.5, 'font-weight': current ? 'bold' : 'normal' });
                 const ring = GRADE_RING[it.grade];
                 pieces[i].style.filter = ring ? `drop-shadow(0 0 1.6px ${ring})` : '';

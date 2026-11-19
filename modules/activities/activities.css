@@ -390,3 +390,38 @@
 .snpc-act-book-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 8px; border: 1px solid #a4947d55; opacity: 0.75; }
 .snpc-act-book-list li.is-known { opacity: 1; border-color: #a4947d; }
 @media (max-width: 480px) { .snpc-act-book-list { grid-template-columns: 1fr; } }
+
+/* ---- Hosting table (Tea Time and Share a Meal): the guest on top, the table to click on, then the bar ---- */
+.snpc-act-host { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.snpc-act-hostportrait { position: relative; height: clamp(150px, 27dvh, 250px); border: 1px solid #a4947d; border-radius: 10px; overflow: hidden; background: #3a3733; }
+.snpc-act-hostportrait.is-plain { background: linear-gradient(145deg, #4c4740, #2c2a28); }
+.snpc-act-hostface { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+.snpc-act-hostmood { position: absolute; top: 8px; right: 8px; display: inline-flex; gap: 6px; align-items: center; padding: 4px 11px; border-radius: 16px; background: rgba(27, 27, 29, 0.86); color: #fff4df; font-size: 0.85rem; }
+.snpc-act-hostmood[hidden] { display: none; }
+.snpc-act-hosttable { position: relative; display: grid; grid-template-columns: 1.7fr 1fr 1.2fr; gap: 8px; padding: 10px; min-height: clamp(170px, 32dvh, 300px); border: 1px solid #a4947d; border-radius: 12px; overflow: hidden; background: #d9cfba; }
+.snpc-act-hosttable.is-plain { background: radial-gradient(circle at 50% 50%, #f7f2ea 0 40%, #cdbf9f 41% 100%); }
+.snpc-act-hostgroup { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; align-content: center; justify-items: center; }
+.snpc-act-hostgroup .snpc-act-tableitem { width: 100%; max-width: 110px; min-height: 64px; }
+.snpc-act-spotart { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; }
+.snpc-act-spotart .snpc-act-sprite { width: 100%; max-height: 96px; object-fit: contain; }
+.snpc-act-spotart .snpc-act-sprite.is-onplate { position: absolute; left: 18%; top: 18%; width: 64%; height: 64%; max-height: none; }
+.snpc-act-hostgroup.is-set { gap: 4px; }
+.snpc-act-hostgroup.is-set .snpc-act-tableitem { max-width: 190px; }
+.snpc-act-decor { display: flex; justify-content: center; }
+.snpc-act-decor .snpc-act-sprite { max-height: 70px; width: auto; filter: drop-shadow(0 3px 3px rgba(60, 40, 20, 0.35)); }
+.snpc-act-tableitem.is-off { opacity: 0.55; cursor: default; pointer-events: none; }
+.snpc-act-tableitem.is-chosen.is-off { opacity: 0.95; }
+.snpc-act-hostbar { display: flex; flex-direction: column; gap: 6px; }
+.snpc-act-hosthint { margin: 0; color: #eee7da; min-height: 1.4em; }
+.snpc-act-hostbuttons { flex-wrap: wrap; align-items: center; }
+.snpc-act-btn.is-primary { background: linear-gradient(145deg, #2f7a5a, #1f5a42); border-color: #6fd6ae; color: #fff4df; }
+.snpc-act-steepmeter { position: relative; height: 20px; border-radius: 10px; background: #3a3733; border: 1px solid #817562; overflow: hidden; }
+.snpc-act-steeplevel { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(217, 164, 65, 0.85); }
+.snpc-act-steepband { position: absolute; top: 0; bottom: 0; background: rgba(58, 165, 122, 0.6); border-left: 2px solid #9fe08a; border-right: 2px solid #9fe08a; }
+.snpc-act-steepneedle { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: #fff; }
+@media (max-width: 900px) {
+    .snpc-act-hosttable { grid-template-columns: 1fr; }
+    .snpc-act-hostgroup.is-plates, .snpc-act-hostgroup.is-extras { --cols: 4 !important; }
+    .snpc-act-hostportrait { height: clamp(120px, 22dvh, 190px); }
+}
+.snpc-act-itemmark[hidden], .snpc-act-itemcheck[hidden] { display: none; }

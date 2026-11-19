@@ -21,9 +21,9 @@ Pieces marked **reserved** are not used by the program yet. Their names are fixe
 
 ## Tea Time
 
-### `tea.table`
+### `tea.table` (reserved)
 
-The Tea Time table scene, seen from slightly above. Fills the Tea Time screen.
+A whole Tea Time table scene (older layout, no longer drawn by the screen; kept so existing pictures are not lost).
 
 - Size: 1024x768, opaque.
 - File: `tea/table.webp`
@@ -51,6 +51,29 @@ A snack or small dish, cut out on a transparent background.
 - File: `tea/food/cheese.webp`, `tea/food/cookies.webp`, `tea/food/honeycake.webp`, `tea/food/macarons.webp`, `tea/food/pastry.webp`, `tea/food/sandwiches.webp`, `tea/food/scone.webp`, `tea/food/shortcake.webp`, `tea/food/skewer.webp`, `tea/food/tart.webp`
 - Older names that also work: `tea/snacks/cheese.webp`, `tea/snacks/cookies.webp`, `tea/snacks/honeycake.webp`, `tea/snacks/macarons.webp`, `tea/snacks/pastry.webp`, `tea/snacks/sandwiches.webp`, `tea/snacks/scone.webp`, `tea/snacks/shortcake.webp`, `tea/snacks/skewer.webp`, `tea/snacks/tart.webp`
 
+### `tea.tin`
+
+A tea tin on the table, cut out on a transparent background, seen from slightly above. One per kind of tea; a tea with no tin of its own picks the closest kind.
+
+- Size: 257x256, transparent background.
+- File: `tea/tins/apple.webp`, `tea/tins/berry.webp`, `tea/tins/black.webp`, `tea/tins/citrus.webp`, `tea/tins/flower.webp`, `tea/tins/herb.webp`, `tea/tins/leaf.webp`, `tea/tins/spice.webp`
+
+### `tea.set`
+
+The tea set: the "tray" (a pot and cups on a tray) is what you click to make the tea. The others are spare pieces: a teapot, an empty cup on a saucer, a scoop of loose leaves.
+
+- Size: 257x256, transparent background.
+- File: `tea/set/tray.webp`, `tea/set/teapot.webp`, `tea/set/cup.webp`, `tea/set/scoop.webp`
+
+## Share a Meal
+
+### `mech.table`
+
+A thing laid on the meal table: a mug, a glass of water, cutlery, a napkin, a candle, a basket of bread, a serving platter, a slice of cake.
+
+- Size: 257x256, transparent background.
+- File: `props/table/mug.webp`, `props/table/water.webp`, `props/table/cutlery.webp`, `props/table/napkin.webp`, `props/table/candle.webp`, `props/table/breadbasket.webp`, `props/table/platter.webp`, `props/table/cake.webp`
+
 ## Kitchen
 
 ### `mech.bench`
@@ -65,14 +88,14 @@ The kitchen counter behind the cooking steps. Leave the middle empty: the props 
 A prop of the cooking steps, cut out on a transparent background, seen from slightly above. The set is the prop family (kitchen).
 
 - Size: 320x290, transparent background.
-- File: `props/kitchen/board.webp`, `props/kitchen/knife.webp`, `props/kitchen/saucepan.webp`, `props/kitchen/spoon.webp`, `props/kitchen/pan.webp`, `props/kitchen/stove.webp`, `props/kitchen/shaker.webp`, `props/kitchen/plate.webp`, `props/kitchen/bowl.webp`, `props/kitchen/jug.webp`
+- File: `props/kitchen/board.webp`, `props/kitchen/knife.webp`, `props/kitchen/saucepan.webp`, `props/kitchen/spoon.webp`, `props/kitchen/pan.webp`, `props/kitchen/stove.webp`, `props/kitchen/shaker.webp`, `props/kitchen/plate.webp`, `props/kitchen/bowl.webp`, `props/kitchen/jug.webp`, `props/kitchen/glass.webp`, `props/kitchen/knob.webp`
 
 ### `mech.food`
 
 A food shown in the cooking steps, cut out on a transparent background: raw and golden-cooked fillet, whole and chopped herbs.
 
 - Size: 320x290, transparent background.
-- File: `food/fish-fillet.webp`, `food/fish-fillet-cooked.webp`, `food/herbs.webp`, `food/herbs-cooked.webp`, `food/vegetables.webp`, `food/vegetables-cooked.webp`, `food/fruit.webp`, `food/fruit-cooked.webp`, `food/bread.webp`, `food/bread-cooked.webp`, `food/grain-cooked.webp`, `food/soup-cooked.webp`, `food/pie-cooked.webp`
+- File: `food/fish-fillet.webp`, `food/fish-fillet-cooked.webp`, `food/herbs.webp`, `food/herbs-cooked.webp`, `food/vegetables.webp`, `food/vegetables-cooked.webp`, `food/fruit.webp`, `food/fruit-cooked.webp`, `food/bread.webp`, `food/bread-cooked.webp`, `food/grain-cooked.webp`, `food/soup-cooked.webp`, `food/pie-cooked.webp`, `food/herbs-cut.webp`, `food/butter.webp`, `food/sauce.webp`
 
 ### `mech.item`
 
