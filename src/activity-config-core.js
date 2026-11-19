@@ -1,5 +1,6 @@
 import { DEFAULT_TERMS, normalizeTerms } from './activity-terms.js';
 import { GENERIC_RECIPES, GENERIC_FISH, GENERIC_SEEDS } from './activity-harvest-data.js';
+import { normalizeScripts } from './activity-scripts-core.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -42,7 +43,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     combatProfXpPerUse: 2,
     combatProfXpCap: 12,
     musicOn: true,
-    sampleActivities: false,      // registers the example drop-in activities (a renamed copy of Fishing) so the registry can be seen working
+    scripts: [],                  // the activity files the player added: [{ name, url }]
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker
     actionKey: 'KeyA',            // the key (or mouse button, e.g. 'Mouse1') that presses the big action button in cooking and fishing
@@ -102,7 +103,7 @@ export function normalizeActivitySettings(raw) {
         combatProfXpPerUse: int(r.combatProfXpPerUse, 0, 50, d.combatProfXpPerUse),
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
-        sampleActivities: bool('sampleActivities'),
+        scripts: normalizeScripts(r.scripts),
         assist: bool('assist'),
         actionKey: normalizeActionKey(r.actionKey, d.actionKey),
         soundMapUrl: text(r.soundMapUrl, 300),

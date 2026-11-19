@@ -86,31 +86,36 @@ function bigButton(win, label, onPress, onRelease) {
     button.addEventListener('keyup', (e) => { if (e.key === 'Enter') onRelease?.(); });
     const bound = normalizeActionKey(activitySettings().actionKey);
     const isMouse = bound.startsWith('Mouse');
+    // The keys are heard on the whole page while the window is open (not only when something inside it has focus, which a fresh
+    // screen does not), except while typing in a text box. A listener whose button has left the screen removes itself, so an old
+    // game can never answer a key meant for a new one.
+    const typing = (t) => { const tag = (t?.tagName || '').toLowerCase(); return tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable === true; };
     const key = (e) => {
-        if ((e.code !== 'Space' && (isMouse || e.code !== bound)) || e.repeat || !win.isOpen()) return;
-        const tag = (e.target?.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        if (!button.isConnected) { destroy(); return; }
+        if ((e.code !== 'Space' && (isMouse || e.code !== bound)) || e.repeat || !win.isOpen() || typing(e.target)) return;
         e.preventDefault();
         if (e.type === 'keydown') onPress?.(); else onRelease?.();
     };
     // A bound mouse button works anywhere in the window except on other controls (the big button already answers its own clicks).
     const mouseKey = (e) => {
-        if (!isMouse || e.button !== Number(bound.slice(5)) || !win.isOpen()) return;
+        if (!button.isConnected) { destroy(); return; }
+        if (!isMouse || e.button !== Number(bound.slice(5)) || !win.isOpen() || !win.root.contains(e.target)) return;
         if (e.target?.closest?.('button, input, select, textarea, a')) return;
         e.preventDefault();
         if (e.type === 'mousedown') onPress?.(); else onRelease?.();
     };
-    const noMenu = (e) => { if (bound === 'Mouse2') e.preventDefault(); };
-    win.root.addEventListener('keydown', key);
-    win.root.addEventListener('keyup', key);
-    win.root.addEventListener('mousedown', mouseKey);
-    win.root.addEventListener('mouseup', mouseKey);
-    win.root.addEventListener('contextmenu', noMenu);
-    return { button, destroy() {
-        win.root.removeEventListener('keydown', key); win.root.removeEventListener('keyup', key);
-        win.root.removeEventListener('mousedown', mouseKey); win.root.removeEventListener('mouseup', mouseKey);
-        win.root.removeEventListener('contextmenu', noMenu);
-    } };
+    const noMenu = (e) => { if (bound === 'Mouse2' && win.isOpen() && win.root.contains(e.target)) e.preventDefault(); };
+    function destroy() {
+        document.removeEventListener('keydown', key); document.removeEventListener('keyup', key);
+        document.removeEventListener('mousedown', mouseKey); document.removeEventListener('mouseup', mouseKey);
+        document.removeEventListener('contextmenu', noMenu);
+    }
+    document.addEventListener('keydown', key);
+    document.addEventListener('keyup', key);
+    document.addEventListener('mousedown', mouseKey);
+    document.addEventListener('mouseup', mouseKey);
+    document.addEventListener('contextmenu', noMenu);
+    return { button, destroy };
 }
 
 /** The partner says something short (never blocks). */

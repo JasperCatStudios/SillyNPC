@@ -1,6 +1,7 @@
 import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
 import { normalizeActionKey, actionKeyLabel } from '../../src/activity-config-core.js';
 import { renderCustomize } from './activities-customize.js';
+import { renderScriptsSection } from './activities-scripts.js';
 import { activitySettings, saveActivitySettings, activePreset, stopMusic, refreshMusicVolume } from './activities-runtime.js';
 
 /**
@@ -67,7 +68,6 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('Tea Time: show what you have learned', 'teaShowKnown', 'A "Known so far" note about the guest on the Tea Time screen.'),
         toggle('Activity music', 'musicOn', 'Plays an activity\'s looping music from the sound map while it is open (each activity names its tag under Customize an activity; Tea Time uses its preset tag). Off means silence.'),
         toggle('Activities cost energy', 'vitalsOn', 'Each activity costs the player some energy, and one is refused when there is not enough. Only works while the Vitals Tracker is on and tracks energy.'),
-        toggle('Example activities', 'sampleActivities', 'Adds a renamed copy of Fishing called River Fishing to the Leisure tab, to show how a drop-in activity appears. Off removes it. See docs/MAKE-AN-ACTIVITY.md to write your own.'),
         toggle('Easier timing (assist)', 'assist', 'Cooking, fishing and gardening: a wider zone and a slower marker.'),
         toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),
         toggle('Bond nudges', 'bondOn', 'A good session can warm a tracked bond a little, once a day per person and activity.'),
@@ -159,6 +159,11 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     note.textContent = noteText();
     let redrawCustomize = null;
     pane.append(row('World preset', presetSel, 'A preset says which activities a world has and what they are called. With none, Generic is used.'), note);
+
+    // Your own activities: add an activity file and it is registered for you.
+    const scriptsHost = el('div');
+    pane.append(scriptsHost);
+    renderScriptsSection(scriptsHost, { changed });
 
     // Customize an activity: content only (names, words, lists), never the rules.
     const customizeHost = el('div');

@@ -5,6 +5,7 @@ import { registerModulePane } from '../../src/module-panes.js';
 import { HUB_TABS } from '../../src/activity-config-core.js';
 import { createRegistry, tilesForTab, CUSTOM_KIND } from '../../src/activity-registry.js';
 import { buildCustomApi } from './activities-custom.js';
+import { loadSavedScripts } from './activities-scripts.js';
 import { term } from '../../src/activity-terms.js';
 import { createActivityWindow } from './activity-window.js';
 import { runStudy } from './games/memory-ui.js';
@@ -81,7 +82,8 @@ function ensureWindow() {
 /** Who the player is with: a partner, or { alone: true } (also when there is nobody yet, because the puzzles can be played alone). */
 function pickedPartner() {
     const alone = { name: '', id: ALONE, avatar: '', alone: true };
-    if (partnerName === ALONE) return alone;
+    // Nobody is picked until the player picks someone: the default is to go alone.
+    if (!partnerName || partnerName === ALONE) return alone;
     const list = partnerList();
     if (!list.length) return alone;
     return list.find(p => p.name === partnerName) || list[0];
@@ -634,28 +636,6 @@ function showFishSetup(activity) {
     start.focus();
 }
 
-/**
- * The example drop-in activity: a copy of the built-in Fishing game registered under another id and name ("River Fishing"), so the
- * registry can be seen working end to end. It is added or removed by the Example activities switch in the Activities settings.
- * It is only a demonstration: a real drop-in writes its own game (see docs/examples/quick-cast-activity.js).
- */
-const SAMPLE_ID = 'river-fishing';
-function syncSampleActivities() {
-    const on = Boolean(activitySettings().sampleActivities);
-    if (!on) { registry.unregister(SAMPLE_ID); return; }
-    if (registry.has(SAMPLE_ID)) return;
-    registry.register({
-        id: SAMPLE_ID, label: 'River Fishing', tab: 'leisure', icon: 'fa-water', solo: true,
-        blurb: 'Example drop-in activity: a renamed copy of Fishing.',
-        run(api) {
-            runFish(api.win, {
-                partner: api.partner, activityId: api.activity.id, label: api.activity.label, difficulty: api.settings.difficulty, contest: false,
-                table: fishTable(api.preset), onLeave: api.leave, onAgain: api.restart,
-            });
-        },
-    });
-}
-
 /** A drop-in activity: seats the partner, checks the energy and hands the registered run function its api. */
 function showCustom(activity) {
     stopMusic();
@@ -730,8 +710,9 @@ registerModulePane('activities', renderActivitiesPane);
 
 jQuery(() => {
     renderActivitiesButton();
-    syncSampleActivities();
-    window.addEventListener(ACTIVITIES_CHANGED_EVENT, () => { renderActivitiesButton(); syncSampleActivities(); });
+    window.addEventListener(ACTIVITIES_CHANGED_EVENT, () => renderActivitiesButton());
+    // The activity files the player added run again at every start; each registers its own tile.
+    loadSavedScripts().catch(err => console.warn('[Worldkit] could not load the saved activity files', err));
     eventSource.on(event_types.CHAT_CHANGED, () => {
         // A new chat has other people in it: the window closes and the partner pick starts over.
         partnerName = '';

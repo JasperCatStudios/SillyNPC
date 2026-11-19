@@ -1,14 +1,32 @@
 # Make your own activity
 
-You can add a completely new activity to the Activities hub with one script. It appears as a tile in the tab you choose, and it gets the same partner choice, energy cost, streaks and Customize card as the built-in activities. You write only the game; Worldkit does the bookkeeping.
+You can add a completely new activity to the Activities hub with one `.js` file. It shows up as a tile in the tab you choose, and it gets the same partner choice, energy cost, streaks and Customize card as the built-in activities. You write only the game; Worldkit does the bookkeeping (XP, bonds, items, the story report).
 
-A complete working example is in [`docs/examples/quick-cast-activity.js`](examples/quick-cast-activity.js). Copy it, change the `id` and `label`, and change the game.
+> An activity file runs like a SillyTavern extension and can do anything one can. Only add files you trust.
 
-> A custom activity runs with the same access as any SillyTavern extension. Only install activity scripts you trust.
+## The 60-second version (see it working first)
 
-## 1. Register it
+1. Open the Worldkit menu, then **Modules → Activities**.
+2. Scroll to **Your own activities** and press **Try the example**. It adds a small game called Quick Cast and runs it. The line under the buttons says "added", and the list shows `Quick Cast (example)  ✓ loaded`.
+3. Open the **Activities** hub (the green floating button), go to the **Leisure** tab, and press the **Quick Cast** tile.
+4. Remove it again with the **Remove** button next to it in the list, then refresh the page.
 
-Any script on the page can do this (a SillyTavern extension, or one file loaded by an extension):
+That is the whole mechanism: **a `.js` file in, a tile out.** To use your own file, press **Add an activity file** instead and choose it. Worldkit saves a copy, runs it right away, and runs it again every time the page starts. You do not run any code yourself and you do not copy files into folders.
+
+## Writing your own file
+
+1. Copy [`docs/examples/quick-cast-activity.js`](examples/quick-cast-activity.js) to a new file on your computer, for example `river-fishing.js`. (It is in the extension folder, `SillyNPC/docs/examples/`.)
+2. Open it in any text editor. Change three things at the top:
+   - `id`: a unique short name (letters, numbers and dashes), e.g. `'river-fishing'`.
+   - `label`: the name on the tile, e.g. `'River Fishing'`.
+   - `tab`: `'leisure'`, `'study'` or `'training'`.
+3. Change the game inside `run(api)`. Everything the game needs comes from `api` (see the table below). The example draws a bar, listens for a click, and ends with `api.settle(...)` and `api.result(...)`; keep that ending.
+4. Save the file. In **Modules → Activities → Your own activities**, press **Add an activity file** and pick it. If it has a mistake, the list shows `✗` and the reason, and the browser console (F12) has details.
+5. To change it later, edit the file and add it again: the same file name replaces the old copy.
+
+## The registration
+
+The top of every activity file is one call:
 
 ```js
 window.WorldkitActivities.register({
@@ -25,11 +43,11 @@ window.WorldkitActivities.register({
 });
 ```
 
-- Registering again with the same `id` replaces the activity. `window.WorldkitActivities.unregister(id)` removes it and `.list()` shows what is registered.
+- Registering the same `id` again replaces the activity. `window.WorldkitActivities.unregister(id)` removes it and `.list()` shows what is registered.
 - If the active preset already has an activity with that `id`, the preset's wins and yours is not shown. Pick a new `id`.
-- A mistake in `run` (an error, or a rejected promise) closes the activity with a message; it never breaks the hub.
+- A mistake in `run` (an error or a rejected promise) closes the activity with a message; it never breaks the hub.
 
-## 2. What `run(api)` receives
+## What `run(api)` receives
 
 | `api.…` | What it is |
 |---|---|
@@ -42,23 +60,26 @@ window.WorldkitActivities.register({
 | `settle({ grade, summary, levelXp, profXp, subject, bonds, items, consume, winners })` | Ends the activity: records it, pays XP and bonds, hands out items, writes the story report. Call it once. Returns the lines to show. `grade` is `perfect`, `good`, `fair`, `poor` or `failed`. |
 | `result({ title, grade, extra, lines, again })` | Shows the result card with **Play again** and **Back to the hub** buttons. |
 | `sfx(tag)`, `music(tag)` | Play a sound tag, or start (`music(tag)`) or stop (`music('')`) a loop. They follow the player's music and volume settings. |
-| `loadArt(img, key, vars, onMissing)` | Put a picture in an `<img>` by key, with the world, user and Content Kit folders searched. See [ASSETS-README.md](ASSETS-README.md). |
+| `loadArt(img, key, vars, onMissing)` | Put a picture by manifest key in an `<img>`, searching the world, user and Content Kit folders. See [ASSETS-README.md](ASSETS-README.md). |
 | `inventory` | `{ active, items(), give(items), take(name, qty) }`. Use the pack only when `active` is true. |
 | `leave()`, `restart()` | Back to the hub, or run again. |
 | `rng` | A random function (`Math.random`). |
 
-## 3. Looping music
+## Looping music
 
-Every activity can have its own loop. Set `music: 'your_tag'` in the registration, or give a built-in activity a music tag in **Activities settings → Customize an activity → Music**. The tag must exist in your sound map (see the sound tags in [ASSETS-README.md](ASSETS-README.md)). The **Activity music** switch and volume in the Activities settings apply to all of them, and a tag with no file is silent.
+Every activity can have its own loop. In your file set `music: 'your_tag'`. For a built-in activity give it a tag under **Modules → Activities → Customize an activity → Music loop**. The tag must exist in your sound map. The **Activity music** switch and volume in the Activities settings apply to all of them, and a tag with no file is silent.
 
-## 4. Customizing it
-
-A registered activity gets no preset entry of its own, so its name and blurb come from your registration. Players change a world's wording through **Customize an activity**; the same terms are available to you through `api.term`.
-
-## 5. A checklist
+## A checklist
 
 - Draw everything inside `win.main`; do not touch the rest of the page.
-- Take every world word from `api.term(...)` or from your own settings, so the activity works in any world.
+- Take every world word from `api.term(...)` or your own settings, so the activity works in any world.
 - End with `api.settle(...)` exactly once, then `api.result(...)`.
 - Make it playable with the keyboard and at phone width.
 - Let a missing picture or sound fail quietly.
+
+## If something does not work
+
+- **The list says `✗` with a reason:** the file has a mistake or could not be read. Open the browser console (F12) and look for `[Worldkit]` lines.
+- **It says loaded but there is no tile:** open the hub and check the tab named in `tab`. A different `id` clash with a preset activity hides it (pick another `id`). A refresh after adding fixes most stale screens.
+- **Removed it but the tile is still there:** refresh the page; removing takes effect on the next start.
+- **Where is the saved copy?** In your SillyTavern user files folder as `worldkit-activity-<name>.js.txt` (SillyTavern does not store `.js` files, so it is kept as text and run from there). Advanced: you can instead put any script file in that folder yourself and it is served at `/user/files/<name>`.

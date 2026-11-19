@@ -1,5 +1,7 @@
 // A complete example drop-in activity: "Quick Cast", a one-button timing game.
-// Copy this file, rename the id and label, change the game, and load it as a script or as part of your own SillyTavern extension.
+// To see it working: Worldkit menu -> Modules -> Activities -> "Your own activities" -> "Try the example".
+// To make your own: copy this file, change the id, label and tab below, change the game inside run(api), then in the same section
+// press "Add an activity file" and choose your copy. No code to run and no folders to copy into.
 // See docs/MAKE-AN-ACTIVITY.md for everything `api` gives you.
 
 (function () {
