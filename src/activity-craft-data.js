@@ -3,6 +3,9 @@
  * (see src/craft/craft-core.js). A world preset can bring its own crafts (its own materials, recipes, words, art and sounds), and
  * the Customize screen can rename things; nothing here is specific to a game. Plain fantasy names.
  *
+ * EVERY craft ships a starting kit: its basic materials carry `starter: true` (always on the shelf, free and unlimited), enough to make
+ * every level 1 recipe, so a new craft can be tried at once. Better materials come from the pack.
+ *
  * Pure data; no imports.
  */
 
@@ -19,13 +22,13 @@ export const GENERIC_ALCHEMY = Object.freeze({
         { id: 'volatility', label: 'Volatility', mix: 'max', max: 10, icon: 'fa-fire' },
     ],
     materials: [
-        { id: 'meadow-herb', name: 'Meadow Herb', match: ['meadow herb', 'herb', 'herbs'], category: 'Herb', props: { potency: 5, purity: 6, volatility: 2 }, tags: ['herb'], tier: 1, shape: '♣', letter: 'M', color: '#6aa84f' },
-        { id: 'silver-moss', name: 'Silver Moss', match: ['silver moss', 'moss'], category: 'Herb', props: { potency: 4, purity: 7, volatility: 1 }, tags: ['herb'], tier: 1, shape: '◆', letter: 'S', color: '#9fb4c7' },
+        { id: 'meadow-herb', name: 'Meadow Herb', match: ['meadow herb', 'herb', 'herbs'], category: 'Herb', props: { potency: 5, purity: 6, volatility: 2 }, tags: ['herb'], tier: 1, starter: true, shape: '♣', letter: 'M', color: '#6aa84f' },
+        { id: 'silver-moss', name: 'Silver Moss', match: ['silver moss', 'moss'], category: 'Herb', props: { potency: 4, purity: 7, volatility: 1 }, tags: ['herb'], tier: 1, starter: true, shape: '◆', letter: 'S', color: '#9fb4c7' },
         { id: 'moon-blossom', name: 'Moon Blossom', match: ['moon blossom', 'blossom'], category: 'Herb', props: { potency: 7, purity: 8, volatility: 2 }, tags: ['herb'], tier: 3, shape: '★', letter: 'B', color: '#b4a7d6' },
         { id: 'fire-pepper', name: 'Fire Pepper', match: ['fire pepper', 'pepper'], category: 'Herb', props: { potency: 6, purity: 3, volatility: 6 }, tags: ['herb', 'spice'], tier: 2, shape: '▲', letter: 'F', color: '#e06666' },
         { id: 'night-berry', name: 'Night Berry', match: ['night berry', 'berry'], category: 'Herb', props: { potency: 8, purity: 3, volatility: 7 }, tags: ['herb'], tier: 2, shape: '●', letter: 'N', color: '#674ea7' },
-        { id: 'spring-water', name: 'Spring Water', match: ['spring water', 'water'], category: 'Liquid', props: { potency: 1, purity: 9, volatility: 0 }, tags: ['water', 'liquid'], tier: 1, starter: true, shape: '■', letter: 'W', color: '#4fa3d1' },
-        { id: 'rain-water', name: 'Rain Water', match: ['rain water'], category: 'Liquid', props: { potency: 2, purity: 7, volatility: 1 }, tags: ['water', 'liquid'], tier: 1, shape: '⬟', letter: 'R', color: '#76a5af' },
+        { id: 'spring-water', name: 'Spring Water', match: ['spring water', 'water'], category: 'Liquid', props: { potency: 1, purity: 9, volatility: 0 }, tags: ['water', 'liquid'], tier: 1, starter: true, autofill: true, shape: '■', letter: 'W', color: '#4fa3d1' },
+        { id: 'rain-water', name: 'Rain Water', match: ['rain water'], category: 'Liquid', props: { potency: 2, purity: 7, volatility: 1 }, tags: ['water', 'liquid'], tier: 1, starter: true, shape: '⬟', letter: 'R', color: '#76a5af' },
         { id: 'honey', name: 'Honey', match: ['honey'], category: 'Liquid', props: { potency: 2, purity: 8, volatility: 0 }, tags: ['liquid', 'sweet'], tier: 2, shape: '♥', letter: 'H', color: '#f1c232' },
     ],
     effects: [
@@ -76,12 +79,12 @@ export const GENERIC_SMITHING = Object.freeze({
         { id: 'brittleness', label: 'Brittleness', mix: 'max', max: 10, icon: 'fa-burst' },
     ],
     materials: [
-        { id: 'iron-ingot', name: 'Iron Ingot', match: ['iron ingot', 'iron'], category: 'Metal', props: { mass: 5, hardness: 5, brittleness: 3 }, tags: ['metal'], tier: 1, shape: '■', letter: 'I', color: '#9e9e9e' },
-        { id: 'copper-ingot', name: 'Copper Ingot', match: ['copper ingot', 'copper'], category: 'Metal', props: { mass: 4, hardness: 3, brittleness: 1 }, tags: ['metal'], tier: 1, shape: '●', letter: 'C', color: '#cc7a3a' },
+        { id: 'iron-ingot', name: 'Iron Ingot', match: ['iron ingot', 'iron'], category: 'Metal', props: { mass: 5, hardness: 5, brittleness: 3 }, tags: ['metal'], tier: 1, starter: true, shape: '■', letter: 'I', color: '#9e9e9e' },
+        { id: 'copper-ingot', name: 'Copper Ingot', match: ['copper ingot', 'copper'], category: 'Metal', props: { mass: 4, hardness: 3, brittleness: 1 }, tags: ['metal'], tier: 1, starter: true, shape: '●', letter: 'C', color: '#cc7a3a' },
         { id: 'steel-ingot', name: 'Steel Ingot', match: ['steel ingot', 'steel'], category: 'Metal', props: { mass: 5, hardness: 8, brittleness: 4 }, tags: ['metal'], tier: 2, shape: '◆', letter: 'S', color: '#6f8fb0' },
         { id: 'silver-ingot', name: 'Silver Ingot', match: ['silver ingot', 'silver'], category: 'Metal', props: { mass: 4, hardness: 4, brittleness: 2 }, tags: ['metal', 'fine'], tier: 3, shape: '★', letter: 'V', color: '#d9e1ea' },
-        { id: 'oak-handle', name: 'Oak Handle', match: ['oak handle', 'handle'], category: 'Part', props: { mass: 2, hardness: 3, brittleness: 0 }, tags: ['handle'], tier: 1, shape: '▲', letter: 'H', color: '#8b5a2b' },
-        { id: 'leather-grip', name: 'Leather Grip', match: ['leather grip', 'leather'], category: 'Part', props: { mass: 1, hardness: 2, brittleness: 0 }, tags: ['handle', 'binding'], tier: 1, shape: '♣', letter: 'L', color: '#a0522d' },
+        { id: 'oak-handle', name: 'Oak Handle', match: ['oak handle', 'handle'], category: 'Part', props: { mass: 2, hardness: 3, brittleness: 0 }, tags: ['handle'], tier: 1, starter: true, shape: '▲', letter: 'H', color: '#8b5a2b' },
+        { id: 'leather-grip', name: 'Leather Grip', match: ['leather grip', 'leather'], category: 'Part', props: { mass: 1, hardness: 2, brittleness: 0 }, tags: ['handle', 'binding'], tier: 1, starter: true, shape: '♣', letter: 'L', color: '#a0522d' },
     ],
     effects: [
         { prop: 'brittleness', stage: 'work', param: 'drift', per: 0.1, from: 3, label: 'A brittle metal: the heat will wander.' },

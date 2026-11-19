@@ -54,8 +54,10 @@ function normalizeMaterial(raw, at, propIds) {
         category: text(r.category, 24),
         props, tags: list(r.tags).map(t => slug(t, 20)).filter(Boolean).slice(0, 8),
         tier: clamp(Math.round(num(r.tier, 1)), 1, 3),
-        // A starter is always on the shelf, free, and fills the first empty slot it fits when a recipe is chosen (water in alchemy).
+        // A starter is always on the shelf, free and unlimited (a starting kit, so a new craft can be tried at once).
         starter: r.starter === true,
+        // An autofill starter is also put in the first empty required slot it fits when a recipe is chosen (water in alchemy).
+        autofill: r.starter === true && r.autofill === true,
         shape: text(r.shape, 2) || DEFAULT_SHAPES[at % DEFAULT_SHAPES.length],
         letter: text(r.letter, 1).toUpperCase() || name[0].toUpperCase(),
         color: /^#[0-9a-fA-F]{6}$/.test(String(r.color || '')) ? r.color : DEFAULT_COLORS[at % DEFAULT_COLORS.length],
@@ -302,12 +304,12 @@ export function craftRewards({ craft, recipe, grade, tier = 0, difficulty = 'nor
 }
 
 /**
- * Puts the starter materials in the empty required slots they fit, in order. Returns a new `filled` ({ <slotId>: material }); what is
+ * Puts the autofill starter materials in the empty required slots they fit, in order. Returns a new `filled` ({ <slotId>: material }); what is
  * already chosen is kept.
  */
 export function autofillStarters(craft, recipe, filled = {}) {
     const out = { ...filled };
-    const starters = (craft?.materials || []).filter(m => m.starter);
+    const starters = (craft?.materials || []).filter(m => m.starter && m.autofill);
     for (const slot of recipe?.slots || []) {
         if (out[slot.id] || slot.optional) continue;
         const m = starters.find(s => slotAccepts(slot, s));

@@ -30,7 +30,7 @@ function chip(material, { count = null, selected = false } = {}) {
     b.type = 'button';
     const mark = el('span', 'snpc-act-chip-mark', `${material.shape}${material.letter}`);
     mark.style.cssText = `background:${material.color}; color:#111; border-radius:6px; padding:0 6px; font-weight:bold; margin-right:6px;`;
-    b.append(mark, el('span', '', material.name), el('small', '', ` ${'•'.repeat(material.tier)}${count === null ? '' : ` x${count}`}`));
+    b.append(mark, el('span', '', material.name), el('small', '', ` ${'•'.repeat(material.tier)}${count === null ? (material.starter ? ' free' : '') : ` x${count}`}`));
     b.title = Object.entries(material.props).map(([k, v]) => `${k} ${v}`).join(', ');
     return b;
 }
