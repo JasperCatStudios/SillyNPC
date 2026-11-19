@@ -42,6 +42,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     combatProfXpPerUse: 2,
     combatProfXpCap: 12,
     musicOn: true,
+    sampleActivities: false,      // registers the example drop-in activities (a renamed copy of Fishing) so the registry can be seen working
     musicVolume: 0.5,
     assist: false,                // timing games: a wider zone and a slower marker
     actionKey: 'KeyA',            // the key (or mouse button, e.g. 'Mouse1') that presses the big action button in cooking and fishing
@@ -101,6 +102,7 @@ export function normalizeActivitySettings(raw) {
         combatProfXpPerUse: int(r.combatProfXpPerUse, 0, 50, d.combatProfXpPerUse),
         combatProfXpCap: int(r.combatProfXpCap, 0, 500, d.combatProfXpCap),
         musicOn: bool('musicOn'),
+        sampleActivities: bool('sampleActivities'),
         assist: bool('assist'),
         actionKey: normalizeActionKey(r.actionKey, d.actionKey),
         soundMapUrl: text(r.soundMapUrl, 300),
