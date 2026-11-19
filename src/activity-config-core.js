@@ -161,7 +161,7 @@ export const GENERIC_PRESET = Object.freeze({
 /** The newest preset format this build understands. A preset with a higher version still loads, and keeps what it holds. */
 export const PRESET_VERSION = 1;
 
-const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'activities', 'study', 'potion', 'harvest', 'tea', 'classChange', 'terms']);
+const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'tea', 'classChange', 'terms']);
 export const HARVEST_MODES = Object.freeze(['cook', 'fish', 'garden']);
 const ACTIVITY_KNOWN = new Set(['id', 'mode', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
 const EXTRA_MAX_CHARS = 200000;
@@ -288,6 +288,8 @@ export function normalizePreset(raw, idHint = '') {
         world: text(r.world, 60),
         // The address of a sound map for this world's activities (kept in the user's own folder, never in a public pack).
         soundMap: text(r.soundMap, 300),
+        // Where this preset's own art lives in the Content Kit (a folder under art/activities/); empty means none.
+        assets: { base: text(obj(r.assets).base, 80).replace(/^\/+|\.\.+/g, '') },
         activities,
         study: {
             runes: (Array.isArray(study.runes) ? study.runes : []).map(v => text(v, 4)).filter(Boolean).slice(0, 12),

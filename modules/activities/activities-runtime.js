@@ -13,6 +13,8 @@ import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activi
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
 import { normalizeKnownStore, mergeKnown, teaPool, snackPool } from '../../src/activity-tea-core.js';
 import { DEFAULT_KIT_URL, kitFolderName, kitFileUrl } from '../../src/content-kit.js';
+import { assetCandidates, entryFor } from '../../src/activity-assets.js';
+import { ASSET_MANIFEST } from '../../src/activity-assets-manifest.js';
 import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';
 import { combatPrefs, activeCombatType, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
@@ -491,26 +493,45 @@ export function snackNames(preset) {
     return snackPool(cast, preset?.tea?.snacks || []);
 }
 
+/** Addresses that did not load this session, so a missing picture is asked for once. */
+const missingArt = new Set();
+const foundArt = new Map();
+
 /**
- * The places a Tea Time picture may be found, best first: the art folder in the user's own profile (where the README says to copy
- * it) and the installed Content Kit. `file` is relative to art/activities/tea/.
+ * The places a picture may be found, best first (see src/activity-assets.js): the user's folder for this world, the user's folder
+ * for every world, the preset's art base, the installed Content Kit. `key` is a manifest key (src/activity-assets-manifest.js) and
+ * `vars` fills its file-name placeholders, e.g. { sprite: 'berry' }.
  */
-export function teaArtUrls(file) {
+export function artUrls(key, vars = {}) {
+    const entry = entryFor(ASSET_MANIFEST, key);
+    if (!entry) return [];
     const kit = String(getSettings().contentKitUrl || '').trim() || DEFAULT_KIT_URL;
-    return [`/user/images/worldkit-art/activities/tea/${file}`, kitFileUrl(kitFolderName(kit), `art/activities/tea/${file}`)];
+    const folder = kitFolderName(kit);
+    let preset = null;
+    try { preset = activePreset(); } catch { /* no preset yet */ }
+    return assetCandidates(entry, vars, {
+        world: preset?.id || '',
+        presetBase: preset?.assets?.base || '',
+        kitFile: (rel) => kitFileUrl(folder, `art/activities/${rel}`),
+    });
 }
 
 /**
- * Puts a Tea Time picture in an <img>, trying each place in turn; when none has it, calls onMissing (the screen then shows a plain
- * icon instead, so a missing art folder never breaks anything).
+ * Puts a picture in an <img>, trying each place in turn; when none has it, calls onMissing (the screen then shows a plain
+ * icon instead, so a missing art folder never breaks anything). A place that failed once this session is skipped next time.
  */
-export function loadArt(img, file, onMissing) {
-    const urls = teaArtUrls(file);
+export function loadArt(img, key, vars, onMissing) {
+    const all = artUrls(key, vars);
+    const known = foundArt.get(`${key}|${JSON.stringify(vars)}`);
+    const urls = (known ? [known] : []).concat(all.filter(u => u !== known && !missingArt.has(u)));
+    if (!urls.length) { onMissing?.(); return; }
     let at = 0;
     img.addEventListener('error', () => {
+        missingArt.add(urls[at]);
         at += 1;
         if (at < urls.length) img.src = urls[at]; else onMissing?.();
     });
+    img.addEventListener('load', () => { foundArt.set(`${key}|${JSON.stringify(vars)}`, urls[at]); });
     img.src = urls[0];
 }
 

@@ -72,18 +72,18 @@ export function runTea(win, ctx) {
     const sceneImg = el('img', 'snpc-act-scene-img');
     sceneImg.alt = '';
     sceneImg.draggable = false;
-    loadArt(sceneImg, 'table.webp', () => { sceneImg.remove(); scene.classList.add('is-plain'); });
+    loadArt(sceneImg, 'tea.table', {}, () => { sceneImg.remove(); scene.classList.add('is-plain'); });
     scene.append(sceneImg);
-    const lay = (file, x, y, w, label) => {
+    const lay = (key, vars, x, y, w, label) => {
         const img = el('img', 'snpc-act-served');
         img.alt = label;
         img.draggable = false;
         img.style.cssText = `left: ${x}%; top: ${y}%; width: ${w}%;`;
-        loadArt(img, file, () => img.remove());
+        loadArt(img, key, vars, () => img.remove());
         scene.append(img);
     };
-    lay(`teas/${teaSprite(tea)}.webp`, 38, 60, 19, tea);
-    if (bring?.kind === 'food') lay(`snacks/${snackSprite(bring.name)}.webp`, 62, 66, 20, bring.name);
+    lay('tea.cup', { sprite: teaSprite(tea) }, 38, 60, 19, tea);
+    if (bring?.kind === 'food') lay('tea.food', { sprite: snackSprite(bring.name) }, 62, 66, 20, bring.name);
     const portrait = el('div', 'snpc-act-portrait');
     const pic = card?.teaPortrait || card?.imageUrl || '';
     if (pic) {

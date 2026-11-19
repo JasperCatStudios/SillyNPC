@@ -377,7 +377,7 @@ function showTeaSetup(activity) {
     const tabletop = el('img', 'snpc-act-tabletop');
     tabletop.alt = '';
     tabletop.draggable = false;
-    loadArt(tabletop, 'tabletop.webp', () => { tabletop.remove(); wrap.classList.add('is-plain'); });
+    loadArt(tabletop, 'tea.tabletop', {}, () => { tabletop.remove(); wrap.classList.add('is-plain'); });
     wrap.append(tabletop);
     const overlay = el('div', 'snpc-act-tableoverlay');
     const teaBox = el('div', 'snpc-act-teas');
@@ -397,7 +397,7 @@ function showTeaSetup(activity) {
         const img = el('img', 'snpc-act-sprite');
         img.alt = '';
         img.draggable = false;
-        loadArt(img, `${kind === 'tea' ? 'teas' : 'snacks'}/${sprite}.webp`, () => {
+        loadArt(img, kind === 'tea' ? 'tea.cup' : 'tea.food', { sprite }, () => {
             const icon = el('i', `fa-solid ${kind === 'tea' ? 'fa-mug-hot' : 'fa-cookie-bite'} snpc-act-sprite-icon`);
             img.replaceWith(icon);
         });
