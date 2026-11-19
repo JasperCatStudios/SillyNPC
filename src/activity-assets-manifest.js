@@ -82,6 +82,7 @@ export const SOUND_TAGS = Object.freeze([
     'activity_garden_dig', 'activity_garden_water', 'activity_garden_harvest',
     'activity_mech_perfect', 'activity_mech_good', 'activity_mech_miss', 'activity_mech_streak', 'activity_mech_flow_up', 'activity_mech_step_done', 'activity_mech_serve', 'activity_mech_ruin_comic',
     'activity_mech_slice_cut', 'activity_mech_slice_guard', 'activity_mech_stir_loop', 'activity_mech_stir_splash', 'activity_mech_sear_sizzle', 'activity_mech_sear_flip', 'activity_mech_sear_land', 'activity_mech_sear_warn', 'activity_mech_sprinkle_shake',
+    'activity_mech_pour_loop', 'activity_mech_pour_spill', 'activity_mech_plate_pick', 'activity_mech_plate_place', 'activity_mech_plate_present',
 ]);
 
 /** The file name a sound tag is stored under. */

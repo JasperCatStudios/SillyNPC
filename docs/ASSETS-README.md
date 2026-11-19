@@ -227,3 +227,8 @@ Sounds come from your sound map today: set its address under Activities settings
 | `activity_mech_sear_land` | `activity-mech-sear-land.mp3` |
 | `activity_mech_sear_warn` | `activity-mech-sear-warn.mp3` |
 | `activity_mech_sprinkle_shake` | `activity-mech-sprinkle-shake.mp3` |
+| `activity_mech_pour_loop` | `activity-mech-pour-loop.mp3` |
+| `activity_mech_pour_spill` | `activity-mech-pour-spill.mp3` |
+| `activity_mech_plate_pick` | `activity-mech-plate-pick.mp3` |
+| `activity_mech_plate_place` | `activity-mech-plate-place.mp3` |
+| `activity_mech_plate_present` | `activity-mech-plate-present.mp3` |

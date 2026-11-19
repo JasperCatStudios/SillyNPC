@@ -7,8 +7,10 @@ import * as slice from './slice-core.js';
 import * as stir from './stir-core.js';
 import * as sear from './sear-core.js';
 import * as sprinkle from './sprinkle-core.js';
+import * as pour from './pour-core.js';
+import * as plate from './plate-core.js';
 
-export const MECHANICS = Object.freeze({ slice, stir, sear, sprinkle });
+export const MECHANICS = Object.freeze({ slice, stir, sear, sprinkle, pour, plate });
 
 /** The mechanic with this id, or null. */
 export const mechanicOf = (id) => MECHANICS[String(id ?? '')] || null;

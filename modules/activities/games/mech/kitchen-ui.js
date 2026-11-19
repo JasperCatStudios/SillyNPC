@@ -26,20 +26,22 @@ const el = (tag, className, text) => {
 
 const GRADE_TEXT = { perfect: 'Perfect', good: 'Good', fair: 'Fair', poor: 'Poor', failed: 'Failed' };
 const KNOB_ZONE = { x0: 0.88, y0: 0.15, x1: 1, y1: 0.85 };
-const LOOPS = { stir: 'activity_mech_stir_loop', sear: 'activity_mech_sear_sizzle' };
+const LOOPS = { stir: 'activity_mech_stir_loop', sear: 'activity_mech_sear_sizzle', pour: 'activity_mech_pour_loop' };
 
 /** The sound for an event of a step. */
 function soundFor(e) {
-    if (e.type === 'cut' || e.type === 'land') return e.grade === 'perfect' ? 'activity_mech_perfect' : e.grade === 'good' ? 'activity_mech_good' : 'activity_mech_miss';
+    if (e.type === 'place') return 'activity_mech_plate_place';
+    if (e.type === 'done' && e.mech === 'plate') return 'activity_mech_plate_present';
+    if (e.type === 'cut' || e.type === 'land' || e.type === 'pour') return e.grade === 'perfect' ? 'activity_mech_perfect' : e.grade === 'good' ? 'activity_mech_good' : 'activity_mech_miss';
     return ({
         guard: 'activity_mech_slice_guard', splash: 'activity_mech_stir_splash', scorch: 'activity_mech_sear_warn', smoke: 'activity_mech_sear_warn',
         silky: 'activity_mech_good', flip: 'activity_mech_sear_flip', burnt: 'activity_mech_ruin_comic', ruin: 'activity_mech_ruin_comic', shake: 'activity_mech_sprinkle_shake',
-        even: 'activity_mech_streak', 'step-done': 'activity_mech_step_done', 'flow-up': 'activity_mech_flow_up', half: 'activity_mech_miss', stray: '',
+        even: 'activity_mech_streak', bullseye: 'activity_mech_streak', spill: 'activity_mech_pour_spill', 'step-done': 'activity_mech_step_done', 'flow-up': 'activity_mech_flow_up', half: 'activity_mech_miss', stray: '',
     })[e.type] || '';
 }
 
 /** Words shown for an event. */
-const POPUP = { perfect: 'Perfect!', good: 'Nice', miss: 'Oops', guard: 'Careful!', splash: 'Splash!', silky: 'Silky', flip: 'Flip!', burnt: 'Burnt!', even: 'Even!', scorch: 'Catching!', smoke: 'Smoking!' };
+const POPUP = { perfect: 'Perfect!', good: 'Nice', miss: 'Oops', guard: 'Careful!', splash: 'Splash!', silky: 'Silky', flip: 'Flip!', burnt: 'Burnt!', even: 'Even!', bullseye: 'Just right!', spill: 'Spilled!', scorch: 'Catching!', smoke: 'Smoking!' };
 
 /**
  * @param {object} win the activity window
@@ -74,6 +76,7 @@ export function runKitchen(win, ctx) {
         { title: 'Your action key', text: `The action key is ${actionKeyLabel(settings.actionKey)} (Space works too). It is the button for action-button play: press or hold it where a step says so. You can change it in the Activities settings.` },
         { title: 'Flipping the fish', text: `Press ${actionKeyLabel(settings.flipKey)} (the second action key), or the Flip button under the stage, to flip the fish. On the second side the same press serves it. Tapping the action key only keeps the heat up, so you can pulse it without flipping by mistake.` },
         { title: 'Two ways to play', text: 'With a mouse or finger you swipe, circle, drag and shake. If you prefer to use the action button, press "Use action button" under the stage: every step has an action-button version that scores about the same. The action key and Space work too.' },
+        { title: 'Pouring and plating', text: 'Pouring: press and drag DOWN to tip the jug, further for a faster pour, and let go to stop. It keeps pouring a moment after you stop, so let go early. With the action button, hold it to pour. Plating: press, drag each item to its faint spot and let go. With the action button a marker sweeps the plate: press once to stop it across, once more to stop it down.' },
         { title: 'Pause', text: 'Press Pause to stop the clock while you talk to your partner. Typing in the chat pauses the game by itself, and it carries on when you leave the box.' },
         { title: 'Flow', text: 'Good moves in a row fill the flow bar. A full bar gives your dish a small bonus. A miss costs some of it.' },
         { title: 'Mistakes', text: 'Nothing here is dangerous. A careless swipe makes a comic "Careful!", a burnt side just makes a mess, and the dish still counts for what you did.' },
@@ -133,6 +136,7 @@ export function runKitchen(win, ctx) {
         const [x, y] = toStage(e.clientX, e.clientY, stage.getBoundingClientRect());
         stage.setPointerCapture?.(e.pointerId);
         if (session.step.mech === 'sear' && inRect(x, y, KNOB_ZONE)) { inp.knobActive = true; inp.knob = knobValue(y, { top: 0.18, bottom: 0.82 }); return; }
+        if (session.step.mech === 'plate') sfx('activity_mech_plate_pick');
         inp.down = true;
         inp.hist = [[performance.now(), x, y]];
         inp.downAt = performance.now();
@@ -302,9 +306,9 @@ export function runKitchen(win, ctx) {
         const mech = step.mech;
         if (mech === 'sear') { const flipBtn = el('button', 'snpc-act-btn', 'Flip'); flipBtn.type = 'button'; flipBtn.title = 'Or tap the fish, or flick it up. On the last side it serves the fish.'; flipBtn.addEventListener('click', () => { if (!flying()) inp.pick = 'flip'; }); bar.append(flipBtn); }
         if (mech === 'sear') { const plate = el('button', 'snpc-act-btn', 'Plate it'); plate.type = 'button'; plate.addEventListener('click', () => { inp.pick = 'plate'; }); bar.append(plate); }
-        if (mech === 'sprinkle') { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); bar.append(done); }
+        if (mech === 'sprinkle' || mech === 'pour' || mech === 'plate') { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); bar.append(done); }
         if (controls === 'button') {
-            const big = el('button', 'snpc-act-bigtap', mech === 'slice' ? 'Chop' : mech === 'stir' ? 'Stir' : mech === 'sear' ? 'Heat / Flip' : 'Shake');
+            const big = el('button', 'snpc-act-bigtap', ({ slice: 'Chop', stir: 'Stir', sear: 'Heat', pour: 'Pour (hold)', plate: 'Stop the marker' })[mech] || 'Shake');
             big.type = 'button';
             big.addEventListener('pointerdown', (e) => { e.preventDefault(); inp.held = true; inp.presses.push(clockNow()); });
             for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) big.addEventListener(ev, () => { inp.held = false; });
@@ -337,7 +341,7 @@ export function runKitchen(win, ctx) {
             if (e.type === 'splash' || e.type === 'guard' || e.type === 'burnt' || e.type === 'flip') speak('moment', '', '', describeSession(session));
         }
         // A looping sound under the stirring and the sizzle.
-        const want = run && LOOPS[session.step.mech] && ((session.step.mech === 'stir' && run.speed > 0.3) || session.step.mech === 'sear') && !run.over ? LOOPS[session.step.mech] : '';
+        const want = run && LOOPS[session.step.mech] && ((session.step.mech === 'stir' && run.speed > 0.3) || session.step.mech === 'sear' || (session.step.mech === 'pour' && run.flow > 0.001)) && !run.over ? LOOPS[session.step.mech] : '';
         if (want !== lastLoop) { if (want) startMusic(want); else stopMusic(); lastLoop = want; }
         if (session.phase === 'between') { stopMusic(); afterStep(); return; }
         raf = requestAnimationFrame(frameLoop);

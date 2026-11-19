@@ -1,4 +1,5 @@
 import { artUrls } from '../../activities-runtime.js';
+import { PLATE, toStage as plateToStage } from '../../../../src/mech/plate-core.js';
 
 /**
  * The views of the hands-on mechanics (fork): each draws the mechanic's state on a 160 x 100 stage (stage units x 160 and y 100).
@@ -301,8 +302,123 @@ function sprinkleView(svg, step) {
     };
 }
 
+/* ------------------------------------------------------------------ pour */
+
+const CUP = { x0: 50, x1: 90, y0: 34, y1: 90 };         // the measuring glass on the stage
+const LIQUID = '#6fb7e0';
+
+function pourView(svg) {
+    const g = S('g', {}, svg);
+    S('rect', { x: CUP.x0 - 3, y: CUP.y1, width: CUP.x1 - CUP.x0 + 6, height: 4, rx: 2, fill: '#555' }, g);
+    const liquid = S('rect', { x: CUP.x0 + 1.5, width: CUP.x1 - CUP.x0 - 3, fill: LIQUID, opacity: 0.9 }, g);
+    const band = S('rect', { x: CUP.x0 - 6, width: CUP.x1 - CUP.x0 + 12, fill: '#6aa84f', opacity: 0.3 }, g);
+    const line = S('line', { x1: CUP.x0 - 8, x2: CUP.x1 + 8, stroke: '#9fe08a', 'stroke-width': 1, 'stroke-dasharray': '3 2' }, g);
+    S('path', { d: `M${CUP.x0} ${CUP.y0} L${CUP.x0 + 3} ${CUP.y1} L${CUP.x1 - 3} ${CUP.y1} L${CUP.x1} ${CUP.y0}`, fill: 'rgba(255,255,255,0.12)', stroke: '#e8eef2', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, g);
+    const puddle = S('ellipse', { cx: 70, cy: 94, rx: 0, ry: 2, fill: LIQUID, opacity: 0.8 }, g);
+    const stream = S('rect', { x: 84, width: 1, fill: LIQUID, opacity: 0 }, g);
+    // The jug: its spout is the pivot, at the top left of the body. Tipping turns it counter-clockwise about the spout.
+    const jug = S('g', {}, g);
+    S('path', { d: 'M0 0 L4 -3 L30 -3 L30 28 Q30 31 27 31 L5 31 Q2 31 2 28 Z', fill: '#c9b79c', stroke: '#6b5a44', 'stroke-width': 1 }, jug);
+    S('path', { d: 'M30 4 Q42 4 42 16 Q42 26 30 26', fill: 'none', stroke: '#6b5a44', 'stroke-width': 2.4 }, jug);
+    const jugLiquid = S('rect', { x: 3, y: 10, width: 26, height: 20, fill: LIQUID, opacity: 0.7 }, jug);
+    const hint = S('text', { x: 80, y: 8, 'text-anchor': 'middle', 'font-size': 5.5, fill: '#fff' }, svg);
+    const pct = S('text', { x: 100, y: 62, 'font-size': 5, fill: '#fff', opacity: 0.85 }, svg);
+    return {
+        update(v) {
+            const surface = CUP.y1 - v.level * (CUP.y1 - CUP.y0);
+            set(liquid, { y: surface, height: Math.max(0, CUP.y1 - surface) });
+            const targetY = CUP.y1 - v.target * (CUP.y1 - CUP.y0);
+            const tolH = v.tol * (CUP.y1 - CUP.y0);
+            set(line, { y1: targetY, y2: targetY });
+            set(band, { y: targetY - tolH, height: tolH * 2 });
+            const angle = v.tilt * 62;
+            set(jug, { transform: `translate(86 ${20 + v.tilt * 4}) rotate(${-angle}) translate(0 0)` });
+            set(jugLiquid, { y: 10 + v.tilt * 12 });
+            set(stream, { y: 24 + v.tilt * 4, height: Math.max(0, surface - 24 - v.tilt * 4), width: 0.8 + v.flow * 14, x: 84 - (0.8 + v.flow * 14) / 2, opacity: v.pouring ? 0.85 : 0 });
+            set(puddle, { rx: v.spilled ? 22 : 0 });
+            set(pct, { opacity: v.over ? 0 : 0.85 });
+            pct.textContent = v.over ? '' : `${Math.round(v.level * 100)}%`;
+            hint.textContent = v.over ? (v.spilled ? 'It overflowed!' : v.grade === 'perfect' ? 'Just right!' : '') : v.controls === 'button' ? 'Hold the button to pour. Let go a little before the line.' : 'Press and drag down to tip. Let go a little before the line.';
+        },
+    };
+}
+
+/* ------------------------------------------------------------------ plate */
+
+const PLATE_LOOK = [
+    { fill: '#d9b061', draw: (p, g) => S('rect', { x: -9, y: -4.5, width: 18, height: 9, rx: 4.5, fill: p.fill, stroke: '#8b6b2a', 'stroke-width': 0.6 }, g) },
+    { fill: '#6aa84f', draw: (p, g) => { for (const [dx, dy] of [[-3, -1], [2, -2], [0, 2.5]]) S('circle', { cx: dx, cy: dy, r: 2.6, fill: p.fill, stroke: '#3b6b2a', 'stroke-width': 0.5 }, g); } },
+    { fill: '#9a4b32', draw: (p, g) => S('ellipse', { cx: 0, cy: 0, rx: 5, ry: 3.2, fill: p.fill, stroke: '#5a2a1a', 'stroke-width': 0.5 }, g) },
+    { fill: '#e6c34a', draw: (p, g) => S('circle', { cx: 0, cy: 0, r: 3.4, fill: p.fill, stroke: '#8b7a1a', 'stroke-width': 0.5 }, g) },
+    { fill: '#d98aa0', draw: (p, g) => S('circle', { cx: 0, cy: 0, r: 3, fill: p.fill, stroke: '#8b3a50', 'stroke-width': 0.5 }, g) },
+];
+const GRADE_RING = { perfect: '#9fe08a', good: '#f1c232', miss: '#e06666' };
+
+function plateView(svg) {
+    const g = S('g', {}, svg);
+    const dishAt = plateToStage(0, 0);
+    const rim = S('ellipse', { cx: X(dishAt.x), cy: Y(dishAt.y), rx: X(PLATE.rx) + 2, ry: Y(PLATE.ry) + 2, fill: '#d8d2c6' }, g);
+    prop('plate', g, place('plate', X(dishAt.x), Y(dishAt.y), 0.344), () => set(rim, { opacity: 0 }));
+    const tray = S('rect', { x: 4, y: 36, width: 28, height: 28, rx: 6, fill: 'rgba(0,0,0,0.25)', stroke: 'rgba(255,255,255,0.35)', 'stroke-dasharray': '2 2' }, g);
+    void tray;
+    const ghosts = [];
+    const pieces = [];
+    const labels = [];
+    let made = false;
+    const cross = S('g', { opacity: 0 }, svg);
+    const vline = S('line', { y1: 8, y2: 92, stroke: '#fff', 'stroke-width': 0.8, opacity: 0.9 }, cross);
+    const hline = S('line', { x1: 40, x2: 120, stroke: '#fff', 'stroke-width': 0.8, opacity: 0.9 }, cross);
+    const hint = S('text', { x: 80, y: 8, 'text-anchor': 'middle', 'font-size': 5.5, fill: '#fff' }, svg);
+    const name = (id) => String(id).replace(/[-_]+/g, ' ');
+    return {
+        update(v) {
+            if (!made) {
+                made = true;
+                v.items.forEach((it, i) => {
+                    const at = plateToStage(it.spot.u, it.spot.v);
+                    const look = PLATE_LOOK[i % PLATE_LOOK.length];
+                    const gh = S('g', { transform: `translate(${X(at.x)} ${Y(at.y)})`, opacity: 0.4 }, g);
+                    look.draw({ fill: 'none' }, gh);
+                    gh.querySelectorAll('*').forEach(n => { n.setAttribute('fill', 'rgba(255,255,255,0.15)'); n.setAttribute('stroke', '#fff'); n.setAttribute('stroke-dasharray', '1.5 1.5'); });
+                    ghosts.push(gh);
+                    const lab = S('text', { x: X(at.x), y: Y(at.y) + 9, 'text-anchor': 'middle', 'font-size': 3.6, fill: '#fff', opacity: 0.8 }, g);
+                    lab.textContent = name(it.id);
+                    labels.push(lab);
+                    const piece = S('g', {}, g);
+                    look.draw(look, piece);
+                    pieces.push(piece);
+                });
+            }
+            v.items.forEach((it, i) => {
+                const placed = Boolean(it.at);
+                const current = i === v.index && !v.over;
+                let px;
+                let py;
+                if (placed) { const at = plateToStage(it.at.u, it.at.v); px = X(at.x); py = Y(at.y); }
+                else if (current && (v.carrying || v.controls === 'button')) { const at = plateToStage(v.pos.u, v.pos.v); px = X(at.x); py = Y(at.y); }
+                else if (current) { px = 18; py = 50; }
+                else { px = 18; py = 50; }
+                set(pieces[i], { transform: `translate(${px} ${py})`, opacity: placed || current ? 1 : 0 });
+                set(ghosts[i], { opacity: placed ? 0.12 : current ? 0.75 : 0.35 });
+                set(labels[i], { opacity: placed ? 0 : current ? 0.95 : 0.5, 'font-weight': current ? 'bold' : 'normal' });
+                const ring = GRADE_RING[it.grade];
+                pieces[i].style.filter = ring ? `drop-shadow(0 0 1.6px ${ring})` : '';
+            });
+            const showCross = v.controls === 'button' && !v.over && v.index < v.items.length;
+            set(cross, { opacity: showCross ? 1 : 0 });
+            if (showCross) {
+                const at = plateToStage(v.phase === 'x' ? v.pos.u : v.lockU, v.pos.v);
+                set(vline, { x1: X(at.x), x2: X(at.x) });
+                set(hline, { y1: Y(at.y), y2: Y(at.y), opacity: v.phase === 'y' ? 0.9 : 0 });
+            }
+            const cur = v.items[v.index];
+            hint.textContent = v.over ? 'Presented!' : cur ? (v.controls === 'button' ? `Stop the marker ${v.phase === 'x' ? 'across' : 'down'} for the ${name(cur.id)}.` : `Drag the ${name(cur.id)} to its faint spot.`) : '';
+        },
+    };
+}
+
 /** A view is `(svg, step) => { update(view, dtMs) }`; `step` is the script step (its art names the food or tool). */
-export const VIEWS = Object.freeze({ slice: sliceView, stir: stirView, sear: searView, sprinkle: sprinkleView });
+export const VIEWS = Object.freeze({ slice: sliceView, stir: stirView, sear: searView, sprinkle: sprinkleView, pour: pourView, plate: plateView });
 
 /** A plain dish drawing for the serve reveal: a plate with a shape coloured by how well it went (the cooked fillet picture when it exists). */
 export function dishDrawing(parent, grade) {

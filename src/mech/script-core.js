@@ -55,6 +55,7 @@ export const ROAST_FISH = Object.freeze({
         { id: 'butter', mech: 'stir', weight: 1, params: { revs: 6 }, art: { vessel: 'saucepan', tool: 'spoon' }, words: { title: 'Melt the herb butter', hint: 'Stir in circles inside the pot. Not too slow, not too fast.', done: 'Smooth and glossy.' } },
         { id: 'sear', mech: 'sear', weight: 3, uses: 'a fish', art: { item: 'fish-fillet', vessel: 'pan', heat: 'stove' }, words: { title: 'Sear the fish', hint: 'Set the heat, flick the fish up to flip it, tap to catch it. Golden, not black.', done: 'Golden on both sides.' } },
         { id: 'season', mech: 'sprinkle', weight: 1, art: { item: 'fish-fillet', tool: 'shaker' }, words: { title: 'Season it', hint: 'Shake over the whole fish, evenly.', done: 'Seasoned evenly.' } },
+        { id: 'plate', mech: 'plate', weight: 1, params: { items: ['fish', 'herbs', 'butter'] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.', done: 'Nicely presented.' } },
     ],
 });
 
@@ -67,6 +68,8 @@ export function defaultScriptFor(recipe) {
     if (needs || /salad|tart|pie|roast/.test(name)) steps.push({ id: 'prep', mech: 'slice', weight: 1, params: { lines: needs > 1 ? 5 : 4 }, words: { title: 'Prepare the ingredients', hint: 'Swipe down across each dotted line.' } });
     steps.push({ id: 'cook', mech: 'stir', weight: 2, params: { revs: wet ? 9 : 6, heat: wet }, words: { title: wet ? 'Simmer and stir' : 'Mix and stir', hint: 'Stir in circles. Keep it moving, but do not splash.' } });
     steps.push({ id: 'season', mech: 'sprinkle', weight: 1, words: { title: 'Season it', hint: 'Shake evenly over the dish.' } });
+    if (wet) steps.push({ id: 'serve', mech: 'pour', weight: 1, params: { target: 0.7 }, art: { vessel: 'bowl' }, words: { title: 'Ladle it into the bowl', hint: 'Drag down to tip the jug. Stop at the line: it keeps pouring a moment after you stop.', done: 'Just the right amount.' } });
+    else steps.push({ id: 'plate', mech: 'plate', weight: 1, params: { items: needs > 1 ? ['main', 'garnish', 'sauce'] : ['main', 'garnish'] }, art: { tool: 'plate' }, words: { title: 'Plate it', hint: 'Put each item on its faint spot.' } });
     return { set: 'kitchen', steps };
 }
 
