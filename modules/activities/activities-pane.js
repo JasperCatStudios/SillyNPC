@@ -148,7 +148,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     presetSel.append(new Option('Pick by the active combat type', ''));
     presetSel.append(new Option('Generic', 'generic'));
     for (const p of Object.values(BUILT_IN_PRESETS)) presetSel.append(new Option(p.name, p.id));
-    for (const p of Object.values(s.presets)) presetSel.append(new Option(p.name, p.id));
+    for (const [pid, p] of Object.entries(s.presets)) presetSel.append(new Option(String(p?.name || pid), String(p?.id || pid)));
     presetSel.value = s.presetId;
     if (presetSel.value !== s.presetId) presetSel.value = '';
     presetSel.addEventListener('change', () => { s.presetId = presetSel.value; changed(); note.textContent = noteText(); });

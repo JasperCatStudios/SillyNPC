@@ -81,10 +81,12 @@ export function normalizeActivitySettings(raw) {
     const r = obj(raw);
     const d = ACTIVITY_SETTINGS_DEFAULTS;
     const bool = (k) => (typeof r[k] === 'boolean' ? r[k] : d[k]);
+    // User presets are kept exactly as stored (only unusable ones are dropped), so a preset written for a newer version is
+    // never damaged by an older one. They are repaired when read (see presetFor), not here.
     const presets = {};
     for (const [id, p] of Object.entries(obj(r.presets))) {
         const clean = normalizePreset(p, id);
-        if (clean) presets[clean.id] = clean;
+        if (clean) presets[clean.id] = p;
     }
     return {
         enabled: bool('enabled'), buttonShown: bool('buttonShown'),
@@ -156,19 +158,61 @@ export const GENERIC_PRESET = Object.freeze({
     terms: Object.freeze({ examinerRule: 'partner' }),
 });
 
+/** The newest preset format this build understands. A preset with a higher version still loads, and keeps what it holds. */
+export const PRESET_VERSION = 1;
+
+const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'activities', 'study', 'potion', 'harvest', 'tea', 'classChange', 'terms']);
+const ACTIVITY_KNOWN = new Set(['id', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
+const EXTRA_MAX_CHARS = 200000;
+
+/** The fields of `raw` that are not in `known`, copied as plain data (functions and cycles dropped), capped in size. */
+function extraOf(raw, known) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj(raw))) {
+        if (known.has(k) || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        try {
+            const copy = JSON.parse(JSON.stringify(v));
+            if (copy !== undefined) out[k] = copy;
+        } catch { /* not plain data: skip it */ }
+    }
+    return JSON.stringify(out).length > EXTRA_MAX_CHARS ? {} : out;
+}
+
+/**
+ * Brings a preset written in an older format up to the current one, in memory (the stored preset is never changed).
+ * Version 1 is the only format so far, so this passes it through; later formats add their mappings here, oldest first.
+ */
+export function upgradePreset(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+    return raw;
+}
+
+/** A normalized preset as plain data to write to a file: what the build understands plus every field it kept in `extra`. */
+export function exportPreset(preset) {
+    const { extra, newer, ...rest } = obj(preset);
+    const activities = (rest.activities || []).map(a => { const { extra: ax, unsupported, ...ar } = obj(a); return { ...obj(ax), ...ar }; });
+    return { ...obj(extra), ...rest, activities };
+}
+
 function normalizeActivity(raw) {
     const r = obj(raw);
     const id = text(r.id, 40).toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!id) return null;
-    const kind = ACTIVITY_KINDS.includes(r.kind) ? r.kind : '';
+    let kind = ACTIVITY_KINDS.includes(r.kind) ? r.kind : '';
+    // A kind this build does not know is kept, shown as unavailable, and written back untouched.
+    const unsupported = !kind;
+    if (unsupported) kind = text(r.kind, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!kind) return null;
+    const extra = extraOf(r, ACTIVITY_KNOWN);
     return {
         id, kind,
+        ...(unsupported ? { unsupported: true, soon: true } : {}),
+        ...(Object.keys(extra).length ? { extra } : {}),
         label: text(r.label, 40) || id,
         tab: HUB_TABS.some(t => t[0] === r.tab) ? r.tab : (kind === 'memory' || kind === 'mastermind' || kind === 'exam' ? 'study' : kind === 'drill' ? 'training' : 'leisure'),
         icon: /^fa-[a-z0-9-]+$/.test(String(r.icon || '')) ? r.icon : 'fa-star',
         blurb: text(r.blurb, 120),
-        ...(r.soon ? { soon: true } : {}),
+        ...(r.soon && !unsupported ? { soon: true } : {}),
         ...(r.off ? { off: true } : {}),
         // Can be played alone (no partner): the puzzles and the leisure tasks, not the ones that need a guest.
         ...(r.solo ? { solo: true } : {}),
@@ -223,7 +267,7 @@ export function normalizeHarvest(raw) {
  */
 export function normalizePreset(raw, idHint = '') {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const r = raw;
+    const r = upgradePreset(raw);
     const id = text(r.id || idHint, 60).toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!id) return null;
     const list = (Array.isArray(r.activities) ? r.activities : []).map(normalizeActivity).filter(Boolean);
@@ -233,7 +277,9 @@ export function normalizePreset(raw, idHint = '') {
     const gate = obj(r.classChange).rankGate;
     return {
         format: 'worldkit-activities',
-        version: 1,
+        version: PRESET_VERSION,
+        ...(Number(r.version) > PRESET_VERSION ? { newer: true } : {}),
+        ...(Object.keys(extraOf(r, PRESET_KNOWN)).length ? { extra: extraOf(r, PRESET_KNOWN) } : {}),
         id,
         name: text(r.name, 60) || id,
         world: text(r.world, 60),

@@ -151,7 +151,7 @@ function showHub() {
             if (a.soon || needsPartner || tired) tile.setAttribute('aria-disabled', 'true');
             tile.append(el('i', `fa-solid ${a.icon}`));
             tile.append(el('strong', '', a.label));
-            tile.append(el('small', '', a.soon ? 'Coming soon' : (a.blurb || '')));
+            tile.append(el('small', '', a.unsupported ? 'Needs a newer Worldkit' : a.soon ? 'Coming soon' : (a.blurb || '')));
             if (needsPartner) tile.append(el('small', 'snpc-act-lock', 'Needs a partner'));
             else if (tired) tile.append(el('small', 'snpc-act-lock', tiredText(es.energy, es.cost)));
             else if (!a.soon && es.active && es.cost > 0) tile.append(el('small', 'snpc-act-cost', `Costs ${es.cost} energy`));
@@ -167,6 +167,7 @@ function showHub() {
                 }
             }
             tile.addEventListener('click', () => {
+                if (a.unsupported) { toast('info', `${a.label} needs a newer version of Worldkit.`); return; }
                 if (a.soon) { toast('info', `${a.label} is coming soon.`); return; }
                 if (needsPartner) { toast('info', `${a.label} needs someone to share it with. Pick a partner above.`); return; }
                 if (tired) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); return; }
