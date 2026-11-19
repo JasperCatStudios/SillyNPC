@@ -22,6 +22,8 @@ export const meta = {
 export const POT = Object.freeze({ cx: 0.5, cy: 0.5, r: 0.34, aspect: 1.6 });
 
 const TAU = Math.PI * 2;
+/** The path length that counts as one revolution: a circle at 0.6 of the pot radius. */
+const SCRUB_CIRCUMFERENCE = TAU * 0.6 * POT.r;
 
 export function newRun(params = {}, rng = Math.random, ctx = {}) {
     const p = { ...meta.defaults, ...params };
@@ -57,21 +59,28 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
     const path = pathOf(input);
     const presses = pressesOf(input);
     const dirs = [];
-    // Pointer: turn the new samples into signed revolutions.
+    // Pointer: the distance the pointer travels inside the pot is the stirring. Circles are the natural way, but any steady
+    // movement stirs (back and forth works too), so a mouse does not have to draw perfect circles. The sign of the turning is read
+    // from the angle, for the 'other way' cue.
     let revs = 0;
     if (s.controls === 'pointer') {
         for (const [t, x, y] of path) {
             const { angle, radius } = polar(x, y);
-            if (radius < 0.2 || radius > 1.05) { s.lastAngle = null; continue; }    // outside the pot's ring: not stirring
-            if (s.lastAngle !== null) {
+            if (radius > 1.1) { s.lastAngle = null; s.lastPt = null; continue; }      // outside the pot: not stirring
+            if (s.lastPt) {
+                const d = Math.min(0.15, Math.hypot((x - s.lastPt[0]) * POT.aspect, y - s.lastPt[1]));
+                revs += d / SCRUB_CIRCUMFERENCE;
+            }
+            if (s.lastAngle !== null && radius > 0.2) {
                 let d = angle - s.lastAngle;
                 if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU;
-                revs += d / TAU;
-                dirs.push(Math.sign(d));
+                if (d !== 0) dirs.push(Math.sign(d));
             }
-            s.lastAngle = angle;
+            s.lastAngle = radius > 0.2 ? angle : null;
+            s.lastPt = [x, y];
         }
-        if (!input.pointer?.down) s.lastAngle = null;
+        if (dirs.length) s.dir = Math.sign(dirs.reduce((n, v) => n + v, 0)) || s.dir;
+        if (!input.pointer?.down) { s.lastAngle = null; s.lastPt = null; }
     } else {
         for (let i = 0; i < presses.length; i++) { s.v = Math.min(2.8, s.v + 0.33); s.pressTimes.push(s.t); }
         s.held = Boolean(input.held);
@@ -84,10 +93,9 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
         const active = s.t > GRACE_MS;
         let dRev = 0;
         if (s.controls === 'pointer') {
-            const part = revs * share;                       // the frame's turning, spread over its slices
-            dRev = Math.abs(part);
+            const part = Math.abs(revs) * share;             // the frame's stirring, spread over its slices
+            dRev = part;
             s.samples.push([s.t, part]);
-            if (part !== 0) s.dir = Math.sign(part);
             while (s.samples.length && s.samples[0][0] < s.t - 300) s.samples.shift();
             const turned = s.samples.reduce((n, p) => n + Math.abs(p[1]), 0);
             const window = Math.max(100, Math.min(300, s.t));

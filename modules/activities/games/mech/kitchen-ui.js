@@ -4,8 +4,8 @@ import { mechanicOf } from '../../../../src/mech/registry.js';
 import { flickUp, inRect, knobValue, toStage } from '../../../../src/mech/input.js';
 import { difficultyScale } from '../../../../src/craft/craft-core.js';
 import { cookRewardsForGrade, recipeLevel } from '../../../../src/activity-harvest-core.js';
-import { normalizeActionKey } from '../../../../src/activity-config-core.js';
-import { settleActivity, sfx, startMusic, stopMusic, activitySettings } from '../../activities-runtime.js';
+import { normalizeActionKey, actionKeyLabel } from '../../../../src/activity-config-core.js';
+import { settleActivity, sfx, startMusic, stopMusic, activitySettings, saveActivitySettings } from '../../activities-runtime.js';
 import { talker } from '../harvest-ui.js';
 import { VIEWS, dishDrawing } from './views.js';
 
@@ -53,8 +53,10 @@ export function runKitchen(win, ctx) {
     const level = recipeLevel(recipe);
     const shift = difficulty === 'easy' ? 1 : difficulty === 'hard' ? -1 : 0;
     const effTier = Math.min(4, Math.max(0, (Number(tier) || 0) + shift));
-    const pref = activitySettings().controls;
-    let controls = pref === 'button' ? 'button' : 'pointer';
+    const settings = activitySettings();
+    /** How a step is played: a forced choice in the settings, else what you last chose for that kind of step, else the pointer. */
+    const controlsFor = (mech) => (settings.controls === 'pointer' || settings.controls === 'button' ? settings.controls : (settings.mechControls?.[mech] === 'button' ? 'button' : 'pointer'));
+    let controls = 'pointer';
     const rng = Math.random;
     let session = createSession(script, { tier: effTier, scale: difficultyScale(level, effTier), assist, controls });
     let finished = false;
@@ -69,7 +71,9 @@ export function runKitchen(win, ctx) {
     win.setTitle(label, 'fa-utensils');
     win.setHelp([
         { title: 'The goal', text: `Cook ${recipe.name}. It is a few steps, each a little game: ${script.steps.map(s => s.words?.title || s.id).join(', ')}.` },
+        { title: 'Your action key', text: `The action key is ${actionKeyLabel(settings.actionKey)} (Space works too). It is the button for one-button play: press or hold it where a step says so. You can change it in the Activities settings.` },
         { title: 'Two ways to play', text: 'With a mouse or finger you swipe, circle, drag and shake. If you prefer one button, press "Play with one button" under the stage: every step has a one-button version that scores about the same. The action key and Space work too.' },
+        { title: 'Pause', text: 'Press Pause to stop the clock while you talk to your partner. Typing in the chat pauses the game by itself, and it carries on when you leave the box.' },
         { title: 'Flow', text: 'Good moves in a row fill the flow bar. A full bar gives your dish a small bonus. A miss costs some of it.' },
         { title: 'Mistakes', text: 'Nothing here is dangerous. A careless swipe makes a comic "Careful!", a burnt side just makes a mess, and the dish still counts for what you did.' },
     ]);
@@ -113,9 +117,12 @@ export function runKitchen(win, ctx) {
 
     /* ------------------------------------------------------------------ input */
 
-    const inp = { down: false, path: [], held: false, presses: [], pick: null, knob: 0.5, knobActive: false, lastShake: 0 };
+    const inp = { down: false, path: [], hist: [], downAt: 0, travel: 0, held: false, presses: [], pick: null, knob: 0.5, knobActive: false, lastShake: 0 };
+    let paused = false;
+    let autoPaused = false;
+    const flying = () => Boolean(session.run?.fillets?.some(f => f.flight));
     const clockNow = () => (session.run ? session.run.t + (performance.now() - last) : 0);
-    const bound = normalizeActionKey(activitySettings().actionKey);
+    const bound = normalizeActionKey(settings.actionKey);
     const mouseBound = bound.startsWith('Mouse');
     const typing = (t) => { const tag = (t?.tagName || '').toLowerCase(); return tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable === true; };
 
@@ -125,6 +132,9 @@ export function runKitchen(win, ctx) {
         stage.setPointerCapture?.(e.pointerId);
         if (session.step.mech === 'sear' && inRect(x, y, KNOB_ZONE)) { inp.knobActive = true; inp.knob = knobValue(y, { top: 0.18, bottom: 0.82 }); return; }
         inp.down = true;
+        inp.hist = [[performance.now(), x, y]];
+        inp.downAt = performance.now();
+        inp.travel = 0;
         inp.path.push([clockNow(), x, y]);
     };
     const onMove = (e) => {
@@ -134,14 +144,23 @@ export function runKitchen(win, ctx) {
         for (const ev of events) {
             const [x, y] = toStage(ev.clientX, ev.clientY, box);
             if (inp.knobActive) inp.knob = knobValue(y, { top: 0.18, bottom: 0.82 });
-            else if (inp.down) inp.path.push([clockNow(), x, y]);
+            else if (inp.down) {
+                inp.path.push([clockNow(), x, y]);
+                const prev = inp.hist[inp.hist.length - 1];
+                if (prev) inp.travel += Math.hypot((x - prev[1]) * 1.6, y - prev[2]);
+                inp.hist.push([performance.now(), x, y]);
+                while (inp.hist.length > 2 && performance.now() - inp.hist[0][0] > 300) inp.hist.shift();
+            }
         }
     };
     const onUp = (e) => {
         if (inp.knobActive) { inp.knobActive = false; return; }
         if (!inp.down) return;
-        // A quick upward flick over the fish flips it (sear, pointer mode).
-        if (session.step?.mech === 'sear') { const fl = flickUp(inp.path); if (fl) inp.pick = 'flip'; else if (inp.path.length < 4) inp.presses.push(clockNow()); }
+        // Sear with the pointer: a quick flick up OR a simple tap flips the fish; a tap while it is in the air catches it.
+        if (session.step?.mech === 'sear' && controls === 'pointer') {
+            const tap = inp.travel < 0.03 && performance.now() - inp.downAt < 400;
+            if (flying()) { if (tap) inp.presses.push(clockNow()); } else if (tap || flickUp(inp.hist.map(p => [p[0], p[1], p[2]]))) inp.pick = 'flip';
+        }
         inp.down = false;
     };
     stage.addEventListener('pointerdown', onDown);
@@ -167,8 +186,6 @@ export function runKitchen(win, ctx) {
         };
         if (inp.pick) inp.pick = null;
         if (frame.pointer.path.length) { const l = frame.pointer.path[frame.pointer.path.length - 1]; frame.pointer.x = l[1]; frame.pointer.y = l[2]; }
-        // A flick is read from the path of this frame (the sear step flips on it).
-        if (session.step?.mech === 'sear' && controls === 'pointer' && frame.pointer.path.length > 1 && !frame.pick) { const fl = flickUp(frame.pointer.path); if (fl) frame.pick = 'flip'; }
         return frame;
     };
 
@@ -196,18 +213,69 @@ export function runKitchen(win, ctx) {
         card.append(go);
         stage.append(card);
         go.focus();
-        bar.append(toggleControls());
+        const nextMech = step.mech;
+        controls = controlsFor(nextMech);
+        bar.append(toggleControls(nextMech));
     }
 
-    function toggleControls() {
+    /** Pause: the clock stops (nothing scores, nothing runs out) so you can talk to your partner. Typing in the chat pauses by itself. */
+    let overlay = null;
+    let pauseBtn = null;
+    function setPaused(on, auto = false) {
+        if (paused === on || session.phase !== 'play') return;
+        paused = on;
+        autoPaused = on && auto;
+        inp.held = false;
+        inp.down = false;
+        inp.path = [];
+        stopMusic();
+        lastLoop = '';
+        if (on) {
+            overlay = el('div');
+            overlay.style.cssText = 'position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background:#000a; color:#fff; text-align:center; z-index:3;';
+            overlay.append(el('h3', '', 'Paused'), el('p', '', partner ? `Take your time. Talk to ${partner}, then press Resume.` : 'Take your time, then press Resume.'));
+            const resume = el('button', 'snpc-act-btn', 'Resume');
+            resume.type = 'button';
+            resume.addEventListener('click', () => setPaused(false));
+            overlay.append(resume);
+            stage.append(overlay);
+            resume.focus();
+        } else { overlay?.remove(); overlay = null; last = performance.now(); }
+        if (pauseBtn) pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    }
+    function pauseButton() {
+        pauseBtn = el('button', 'snpc-act-btn is-quiet', 'Pause');
+        pauseBtn.type = 'button';
+        pauseBtn.title = 'Stop the clock to chat with your partner';
+        pauseBtn.addEventListener('click', () => setPaused(!paused));
+        return pauseBtn;
+    }
+    // Typing in the window's chat pauses the game while the cursor is in the box.
+    const onFocusIn = (e) => { if (typing(e.target)) setPaused(true, true); };
+    const onFocusOut = (e) => { if (autoPaused && typing(e.target)) setPaused(false); };
+    win.root.addEventListener('focusin', onFocusIn);
+    win.root.addEventListener('focusout', onFocusOut);
+    cleanups.push(() => { win.root.removeEventListener('focusin', onFocusIn); win.root.removeEventListener('focusout', onFocusOut); });
+
+    function toggleControls(mech) {
         const b = el('button', 'snpc-act-btn is-quiet', controls === 'button' ? 'Play with the pointer' : 'Play with one button');
         b.type = 'button';
-        b.addEventListener('click', () => { controls = controls === 'button' ? 'pointer' : 'button'; session.ctx.controls = controls; if (session.phase === 'between' || session.phase === 'idle') showIntro(); else b.textContent = controls === 'button' ? 'Play with the pointer' : 'Play with one button'; });
+        b.addEventListener('click', () => {
+            controls = controls === 'button' ? 'pointer' : 'button';
+            // Remembered for this kind of step (unless the settings force one way for everything).
+            settings.mechControls = { ...(settings.mechControls || {}), [mech]: controls };
+            saveActivitySettings();
+            b.textContent = controls === 'button' ? 'Play with the pointer' : 'Play with one button';
+        });
         return b;
     }
 
     function start() {
+        controls = controlsFor(session.script.steps[session.index + 1]?.mech);
+        session.ctx.controls = controls;
         beginNext(session, rng);
+        paused = false;
+        autoPaused = false;
         const step = session.step;
         stage.replaceChildren();
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -223,6 +291,7 @@ export function runKitchen(win, ctx) {
         bar.replaceChildren();
         // Controls for this step.
         const mech = step.mech;
+        if (mech === 'sear' && controls === 'pointer') { const flipBtn = el('button', 'snpc-act-btn', 'Flip'); flipBtn.type = 'button'; flipBtn.title = 'Or tap the fish, or flick it up'; flipBtn.addEventListener('click', () => { if (!flying()) inp.pick = 'flip'; }); bar.append(flipBtn); }
         if (mech === 'sear') { const plate = el('button', 'snpc-act-btn', 'Plate it'); plate.type = 'button'; plate.addEventListener('click', () => { inp.pick = 'plate'; }); bar.append(plate); }
         if (mech === 'sprinkle') { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); bar.append(done); }
         if (controls === 'button') {
@@ -232,6 +301,7 @@ export function runKitchen(win, ctx) {
             for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) big.addEventListener(ev, () => { inp.held = false; });
             bar.append(big);
         }
+        bar.append(pauseButton());
         if (step.optional) { const skip = el('button', 'snpc-act-btn is-quiet', 'Skip'); skip.type = 'button'; skip.addEventListener('click', () => { if (skipStep(session)) afterStep(); }); bar.append(skip); }
         speak('start');
         last = performance.now();
@@ -241,6 +311,7 @@ export function runKitchen(win, ctx) {
 
     function frameLoop(now) {
         if (!alive()) return;
+        if (paused) { last = now; raf = requestAnimationFrame(frameLoop); return; }
         const dt = Math.min(100, now - last);
         last = now;
         stepSession(session, dt, buildFrame(), rng);

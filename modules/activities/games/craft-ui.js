@@ -4,7 +4,8 @@ import {
 } from '../../../src/craft/craft-core.js';
 import { newTend, stepTend, tendParams, performance as tendPerformance, describeState as describeTend } from '../../../src/craft/tend-core.js';
 import { newWork, stepWork, workParams, performance as workPerformance, describeState as describeWork, beatProgress } from '../../../src/craft/work-core.js';
-import { settleActivity, sfx } from '../activities-runtime.js';
+import { settleActivity, sfx, activitySettings } from '../activities-runtime.js';
+import { actionKeyLabel } from '../../../src/activity-config-core.js';
 import { createMeter, bigButton, talker } from './harvest-ui.js';
 
 /**
@@ -65,6 +66,7 @@ export function runCraft(win, ctx) {
         { title: 'Heat and strike', text: 'Some crafts use a forge. Hold the button to heat the work until it is ready, then tap on each beat. Each good strike shapes it. When the heat drops below the green band the work is cold: do not strike it (that cracks it), let that beat pass and heat it again. Too many cracks shatter it.' },
         { title: 'Tending', text: `Hold the button (or your action key) to raise the gauge and let go to lower it. Keep it inside the band for the whole time. Holding too long past the top ruins ${say('tended', 'the work')}.` },
         { title: 'Finishing', text: 'One last tap in the green zone seals it. The grade comes from your materials, your hands and your skill.' },
+        { title: 'Your action key', text: `The action key is ${actionKeyLabel(activitySettings().actionKey)} (Space works too). It presses the big button on the timing, heating and striking steps. You can change it in the Activities settings.` },
         { title: 'Materials', text: pack ? 'Materials come from your pack and are used up.' : 'The Inventory is off, so every material is free.' },
     ]);
 
