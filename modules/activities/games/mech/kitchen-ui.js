@@ -7,7 +7,7 @@ import { cookRewardsForGrade, recipeLevel } from '../../../../src/activity-harve
 import { normalizeActionKey, actionKeyLabel } from '../../../../src/activity-config-core.js';
 import { settleActivity, sfx, startMusic, stopMusic, activitySettings, saveActivitySettings } from '../../activities-runtime.js';
 import { talker } from '../harvest-ui.js';
-import { VIEWS, dishDrawing } from './views.js';
+import { VIEWS, dishDrawing, paintBench } from './views.js';
 
 /**
  * The hands-on kitchen (fork): plays a recipe's script of steps (chop, stir, sear, season...) on a plain-shape stage.
@@ -99,6 +99,7 @@ export function runKitchen(win, ctx) {
     const hint = el('p', 'snpc-act-note is-small', '');
     const stage = el('div', 'snpc-act-stage');
     stage.style.cssText = 'position:relative; width:100%; aspect-ratio:16/10; background:#23262b; border-radius:12px; overflow:hidden; touch-action:none; user-select:none;';
+    paintBench(stage);
     const status = el('div', 'snpc-act-status');
     status.setAttribute('aria-live', 'polite');
     const bar = el('div', 'snpc-act-row');

@@ -32,6 +32,15 @@ export const ASSET_MANIFEST = Object.freeze([
         used: true, legacy: ['tea/snacks/{sprite}.webp'], values: { sprite: SPRITES_FOOD },
     }),
 
+    // ---- The hands-on kitchen (used now). Every piece has a plain-shape fallback, so the game plays with no art.
+    img('mech.bench', 'Kitchen', 'bench/kitchen.webp', 'The kitchen counter behind the cooking steps. Leave the middle empty: the props are drawn on it.', '1376x768', false, { used: true }),
+    img('mech.prop', 'Kitchen', 'props/{set}/{part}.webp', 'A prop of the cooking steps, cut out on a transparent background, seen from slightly above. The set is the prop family (kitchen).', '320x290', true, {
+        used: true, values: { set: ['kitchen'], part: ['board', 'knife', 'saucepan', 'spoon', 'pan', 'stove', 'shaker', 'plate'] },
+    }),
+    img('mech.food', 'Kitchen', 'food/{item}.webp', 'A food shown in the cooking steps, cut out on a transparent background: raw and golden-cooked fillet, whole and chopped herbs.', '320x290', true, {
+        used: true, values: { item: ['fish-fillet', 'fish-fillet-cooked', 'herbs', 'herbs-cut'] },
+    }),
+
     // ---- Reserved for the coming steps (the Content Kit already holds art under the older names)
     img('hub.bg', 'Hub', 'hub/bg.webp', 'The background behind the Activities hub.', '1024x1536', false, { legacy: ['hub-bg.webp'] }),
     img('hub.tile', 'Hub', 'tiles/{activity}.webp', 'The picture on an activity tile. The name is the activity id (study, potion, tea, cook, fish, garden, training).', '512x512', false, {
@@ -71,6 +80,8 @@ export const SOUND_TAGS = Object.freeze([
     'activity_cook_chop', 'activity_cook_sizzle', 'activity_cook_bubble', 'activity_cook_done',
     'activity_fish_cast', 'activity_fish_bite', 'activity_fish_catch', 'activity_fish_lost',
     'activity_garden_dig', 'activity_garden_water', 'activity_garden_harvest',
+    'activity_mech_perfect', 'activity_mech_good', 'activity_mech_miss', 'activity_mech_streak', 'activity_mech_flow_up', 'activity_mech_step_done', 'activity_mech_serve', 'activity_mech_ruin_comic',
+    'activity_mech_slice_cut', 'activity_mech_slice_guard', 'activity_mech_stir_loop', 'activity_mech_stir_splash', 'activity_mech_sear_sizzle', 'activity_mech_sear_flip', 'activity_mech_sear_land', 'activity_mech_sear_warn', 'activity_mech_sprinkle_shake',
 ]);
 
 /** The file name a sound tag is stored under. */
