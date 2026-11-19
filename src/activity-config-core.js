@@ -162,7 +162,8 @@ export const GENERIC_PRESET = Object.freeze({
 export const PRESET_VERSION = 1;
 
 const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'activities', 'study', 'potion', 'harvest', 'tea', 'classChange', 'terms']);
-const ACTIVITY_KNOWN = new Set(['id', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
+export const HARVEST_MODES = Object.freeze(['cook', 'fish', 'garden']);
+const ACTIVITY_KNOWN = new Set(['id', 'mode', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
 const EXTRA_MAX_CHARS = 200000;
 
 /** The fields of `raw` that are not in `known`, copied as plain data (functions and cycles dropped), capped in size. */
@@ -207,6 +208,8 @@ function normalizeActivity(raw) {
     return {
         id, kind,
         ...(unsupported ? { unsupported: true, soon: true } : {}),
+        // Which harvest game this is (cook, fish or garden). An older preset with no mode gets it from the id.
+        ...(kind === 'harvest' ? { mode: HARVEST_MODES.includes(r.mode) ? r.mode : (HARVEST_MODES.includes(id) ? id : '') } : {}),
         ...(Object.keys(extra).length ? { extra } : {}),
         label: text(r.label, 40) || id,
         tab: HUB_TABS.some(t => t[0] === r.tab) ? r.tab : (kind === 'memory' || kind === 'mastermind' || kind === 'exam' ? 'study' : kind === 'drill' ? 'training' : 'leisure'),

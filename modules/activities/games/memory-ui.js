@@ -122,7 +122,7 @@ export function runStudy(win, ctx) {
         // The end talk is awaited by a short delay so its line can be part of what is kept.
         setTimeout(() => {
             const kept = win.talk();
-            const lines = settleStudy({ partner, label, subject, game, rewards, lines: kept });
+            const lines = settleStudy({ partner, label, subject, game, rewards, lines: kept, activityId: ctx.activityId || undefined });
             showResult(rewards, lines);
         }, 900);
     }

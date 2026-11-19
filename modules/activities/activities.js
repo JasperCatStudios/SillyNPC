@@ -43,6 +43,19 @@ let win = null;
 let partnerName = '';
 let currentTab = 'study';
 
+/**
+ * Opens an activity's setup screen by what it IS, not by its id: its kind, and for the harvest kind its mode (cook, fish or garden).
+ * Returns false when nothing is built for it yet. A new kind is one entry here.
+ */
+function openActivity(a) {
+    const harvest = { cook: showCookSetup, fish: showFishSetup, garden: showGardenScreen };
+    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode] };
+    const open = byKind[a.kind];
+    if (!open) return false;
+    open(a);
+    return true;
+}
+
 const chatOpen = () => {
     const c = getContext();
     return Boolean(c && (c.groupId || (c.characterId !== undefined && c.characterId !== null)));
@@ -173,13 +186,7 @@ function showHub() {
                 if (a.soon) { toast('info', `${a.label} is coming soon.`); return; }
                 if (needsPartner) { toast('info', `${a.label} needs someone to share it with. Pick a partner above.`); return; }
                 if (tired) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); return; }
-                if (a.kind === 'memory') showStudySetup(a);
-                else if (a.kind === 'mastermind') showPotionSetup(a);
-                else if (a.kind === 'tea') showTeaSetup(a);
-                else if (a.kind === 'harvest' && a.id === 'cook') showCookSetup(a);
-                else if (a.kind === 'harvest' && a.id === 'fish') showFishSetup(a);
-                else if (a.kind === 'harvest' && a.id === 'garden') showGardenScreen(a);
-                else toast('info', `${a.label} is coming soon.`);
+                if (!openActivity(a)) toast('info', `${a.label} is coming soon.`);
             });
             grid.append(tile);
         }
@@ -256,7 +263,7 @@ function showStudySetup(activity) {
         seat(w, partner, 'Studying together');
         w.userName = userName();
         runStudy(w, {
-            partner: partner.name, label: activity.label, pairs: s.pairs, difficulty: s.difficulty,
+            partner: partner.name, activityId: activity.id, label: activity.label, pairs: s.pairs, difficulty: s.difficulty,
             runes: preset.study.runes, subject: subject.value || '',
             onLeave: () => showHub(),
             onAgain: () => showStudySetup(activity),
@@ -310,7 +317,7 @@ function showPotionSetup(activity) {
         seat(w, partner, 'Brewing together');
         w.userName = userName();
         runPotion(w, {
-            partner: partner.name, label: activity.label, difficulty: s.difficulty, names: preset.potion.names,
+            partner: partner.name, activityId: activity.id, label: activity.label, difficulty: s.difficulty, names: preset.potion.names,
             recipe: preset.potion.recipe, failed: preset.potion.failed, subject: subject.value || '',
             onLeave: () => showHub(), onAgain: () => showPotionSetup(activity),
         });
@@ -452,7 +459,7 @@ function showTeaSetup(activity) {
         w.userName = userName();
         const brought = chosenSnack ? { kind: 'food', name: chosenSnack } : (bring.value ? { name: bring.value } : null);
         runTea(w, {
-            partner: partner.name, label: activity.label, preset, tea: chosenTea, bring: brought,
+            partner: partner.name, activityId: activity.id, label: activity.label, preset, tea: chosenTea, bring: brought,
             onLeave: () => showHub(), onAgain: () => showTeaSetup(activity),
         });
     });
@@ -552,7 +559,7 @@ function showCookSetup(activity) {
         saveActivitySettings();
         seat(w, partner, 'Cooking together');
         w.userName = userName();
-        runCook(w, { partner: partner.name, label: activity.label, recipe, difficulty: s.difficulty, onLeave: () => showHub(), onAgain: () => showCookSetup(activity) });
+        runCook(w, { partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, onLeave: () => showHub(), onAgain: () => showCookSetup(activity) });
     });
     const back = el('button', 'snpc-act-btn is-quiet', 'Back');
     back.type = 'button';
@@ -602,7 +609,7 @@ function showFishSetup(activity) {
         seat(w, partner, 'Fishing together');
         w.userName = userName();
         runFish(w, {
-            partner: partner.name, label: activity.label, difficulty: s.difficulty, contest: contestBox.checked, table: fishTable(preset),
+            partner: partner.name, activityId: activity.id, label: activity.label, difficulty: s.difficulty, contest: contestBox.checked, table: fishTable(preset),
             onLeave: () => showHub(), onAgain: () => showFishSetup(activity),
         });
     });
@@ -626,7 +633,7 @@ function showGardenScreen(activity) {
     if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
     seat(w, partner, `In ${term(preset, 'gardenPlace')}`);
     w.userName = userName();
-    runGarden(w, { partner: partner.name, label: activity.label, preset, onLeave: () => showHub() });
+    runGarden(w, { partner: partner.name, activityId: activity.id, label: activity.label, preset, onLeave: () => showHub() });
 }
 
 function openHub(from) {

@@ -231,7 +231,7 @@ export function runTea(win, ctx) {
         sfx(grade === 'poor' ? 'activity_tea_bad' : 'activity_tea_good');
         const summary = `${label} with ${partner}: ${recap || describeState(state)}`;
         const lines = settleActivity({
-            activityId: 'tea', label, partner, summary, lines: win.talk(),
+            activityId: ctx.activityId || 'tea', label, partner, summary, lines: win.talk(),
             rewards: { grade, levelXp: rewards.levelXp, bonds: rewards.bonds },
         });
         const box = el('div', 'snpc-act-result');

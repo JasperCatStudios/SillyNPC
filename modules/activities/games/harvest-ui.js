@@ -226,7 +226,7 @@ export function runCook(win, ctx) {
         sfx(rewards.grade === 'failed' ? 'activity_potion_fail' : 'activity_cook_done');
         speak('end', '', rewards.grade === 'failed' ? 'poor' : rewards.grade);
         const lines = settleActivity({
-            activityId: 'cook', label, partner, lines: win.talk(),
+            activityId: ctx.activityId || 'cook', label, partner, lines: win.talk(),
             summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${recipe.name}, ${GRADE_TEXT[rewards.grade].toLowerCase()}.`,
             rewards: { grade: rewards.grade, levelXp: rewards.levelXp, bonds: rewards.bonds, item: rewards.item, consume: rewards.consume, recipeId: rewards.grade === 'failed' ? '' : recipe.id },
         });
@@ -403,7 +403,7 @@ export function runFish(win, ctx) {
         speak('end', '', rewards.grade);
         const caught = results.filter(r => r.caught).length;
         const lines = settleActivity({
-            activityId: 'fish', label, partner, lines: win.talk(), winners,
+            activityId: ctx.activityId || 'fish', label, partner, lines: win.talk(), winners,
             summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${caught} of ${CASTS} landed${contest ? `, ${contestText}` : ''}.`,
             rewards: { grade: rewards.grade, levelXp: rewards.levelXp, bonds: rewards.bonds, items: rewards.items },
         });
@@ -577,7 +577,7 @@ export function runGarden(win, ctx) {
         const rewards = gardenRewards(acts, [], { partner: Boolean(partner) });
         speak('end', '', rewards.grade);
         const lines = settleActivity({
-            activityId: 'garden', label, partner, lines: win.talk(),
+            activityId: ctx.activityId || 'garden', label, partner, lines: win.talk(),
             summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${acts.length} things done, ${harvested.length} harvested.`,
             rewards: { grade: rewards.grade, levelXp: rewards.levelXp, bonds: rewards.bonds },
         });

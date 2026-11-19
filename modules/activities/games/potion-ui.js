@@ -175,7 +175,7 @@ export function runPotion(win, ctx) {
         setTimeout(() => {
             const summary = `${label}${partner ? ` with ${partner}` : ' alone'}: ${describeState(game)}.`;
             const lines = settleActivity({
-                activityId: 'potion', label, partner, subject, summary, lines: win.talk(),
+                activityId: ctx.activityId || 'potion', label, partner, subject, summary, lines: win.talk(),
                 rewards: { grade: rewards.grade, profXp: rewards.profXp, partnerProfXp: rewards.partnerProfXp, levelXp: rewards.levelXp, bonds: rewards.bond ? [rewards.bond] : [], item: rewards.item },
             });
             showResult(rewards, lines);
