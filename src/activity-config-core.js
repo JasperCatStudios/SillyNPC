@@ -138,7 +138,8 @@ export const HUB_TABS = Object.freeze([
  */
 export const GENERIC_ACTIVITIES = Object.freeze([
     { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the tiles in pairs and build up what you know.', solo: true },
-    { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
+    // ARCHIVED (off): the clue puzzle (kind 'mastermind', src/activity-mastermind-core.js, games/potion-ui.js) is kept but hidden. It is not a crafting game; a new crafting design replaces it. Remove `off` to bring the tile back.
+    { id: 'potion', label: 'Brewing', kind: 'mastermind', off: true, tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
     { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
     { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
     { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite, hook it and reel it in.', solo: true },
