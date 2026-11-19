@@ -42,6 +42,7 @@ export const FIRE_EMBLEM_PRESET = Object.freeze({
         credential: 'Seal', credentialPlural: 'Seals',
         credentialTiers: ['Beginner', 'Intermediate', 'Advanced', 'Master', 'Dark'],
         classWord: 'Class', changeClass: 'Change class', knowledge: 'Knowledge', studyPlace: 'the library',
+        tile: 'rune', cursedTile: 'cursed rune', gardenPlace: 'the greenhouse', fishingPlace: 'the pond',
         tea: 'tea', guest: 'guest',
     },
 });

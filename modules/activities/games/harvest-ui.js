@@ -4,6 +4,7 @@ import {
     plantSeed, tendPlot, harvestPlot, plotState, plotText, gardenRewards, MAX_PLOTS,
 } from '../../../src/activity-harvest-core.js';
 import { normalizeActionKey, actionKeyLabel } from '../../../src/activity-config-core.js';
+import { term } from '../../../src/activity-terms.js';
 import {
     askPartner, settleActivity, sfx, activitySettings, cardOf, packItems, availableSeeds, gardenState, saveGarden, giveItemsNow, takeItemNow, currentDay, talkAllowed,
 } from '../activities-runtime.js';
@@ -417,12 +418,13 @@ export function runFish(win, ctx) {
 /* ------------------------------------------------------------------ gardening */
 
 /**
- * The greenhouse: plots that grow by being tended on different days. State is saved as you go, so closing the window loses nothing.
+ * The garden: plots that grow by being tended on different days. State is saved as you go, so closing the window loses nothing.
  * @param {object} win
  * @param {{ partner: string, label: string, preset: object, onLeave: () => void }} ctx
  */
 export function runGarden(win, ctx) {
     const { partner, label, preset, onLeave } = ctx;
+    const gardenPlace = term(preset, 'gardenPlace');
     const assist = activitySettings().assist;
     const day = currentDay();
     let garden = gardenState();
@@ -438,7 +440,7 @@ export function runGarden(win, ctx) {
     win.setTitle(label, 'fa-seedling');
     win.setHelp([
         { title: 'The goal', text: 'Grow food and flowers. Plant a seed, then tend it on different days until it is ready to harvest.' },
-        { title: 'Planting', text: `Choose "Plant something" on an empty bed and pick a seed. A free bag of wild herb seeds is always on hand; other seeds come from your pack and are used up. The greenhouse has room for ${MAX_PLOTS} plots.` },
+        { title: 'Planting', text: `Choose "Plant something" on an empty bed and pick a seed. A free bag of seeds is always on hand; other seeds come from your pack and are used up. ${gardenPlace[0].toUpperCase()}${gardenPlace.slice(1)} has room for ${MAX_PLOTS} plots.` },
         { title: 'Tending', text: 'Press Water on a plot, then tap when the marker is in the green zone. A plot counts a day of growth once per story day, however many times you tend it, and the day you plant it does not count, so come back on another day. Every seed needs 1 to 3 days of tending.' },
         { title: 'Harvest', text: 'When a plot says it is ready, press Harvest. Careful watering (mostly perfect or good taps) gives an extra one. The produce goes in your pack: vegetables to cook with, flowers for gifts.' },
         { title: 'Finishing', text: 'Press Finish when you are done. Your garden is saved as you go, so nothing is lost if you close the window. A partner helps and chats; alone, you just work.' },

@@ -167,10 +167,10 @@ export function setClassCustom(record, type, text, at = Date.now()) {
 
 /**
  * Whether a class change is allowed.
- * gate: { prof, rank } (a rank to have reached, null for none) and `knowledge` needed.
+ * gate: { prof, rank } (a rank to have reached, null for none) and `knowledge` needed; `knowledgeWord` is the preset's term for it.
  * @returns {{ ok: boolean, reasons: string[] }}
  */
-export function classGate(typeData, type, { gate = null, knowledge = 0, haveKnowledge = 0 } = {}) {
+export function classGate(typeData, type, { gate = null, knowledge = 0, haveKnowledge = 0, knowledgeWord = 'knowledge' } = {}) {
     const reasons = [];
     if (gate?.prof) {
         const prof = (type?.proficiencies || []).find(p => p.id === gate.prof);
@@ -182,7 +182,7 @@ export function classGate(typeData, type, { gate = null, knowledge = 0, haveKnow
             if (need >= 0 && have < need) reasons.push(`${prof.label} rank ${gate.rank} is needed.`);
         }
     }
-    if (whole(knowledge) > whole(haveKnowledge)) reasons.push(`${whole(knowledge)} knowledge is needed (${whole(haveKnowledge)} so far).`);
+    if (whole(knowledge) > whole(haveKnowledge)) reasons.push(`${whole(knowledge)} ${knowledgeWord} is needed (${whole(haveKnowledge)} so far).`);
     return { ok: !reasons.length, reasons };
 }
 

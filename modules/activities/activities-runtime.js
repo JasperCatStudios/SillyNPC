@@ -1,5 +1,6 @@
 import { getContext } from '../../../../../extensions.js';
 import { getSettings, saveSettings } from '../../src/settings.js';
+import { term } from '../../src/activity-terms.js';
 import { queueResult } from '../../src/result-runtime.js';
 import { requestOnConnection } from '../../src/connections.js';
 import { contextBlocks } from '../../src/context-blocks.js';
@@ -109,7 +110,8 @@ export function studySubjects(preset) {
     const type = activeCombatType();
     if (!type) return [];
     const want = new Set(preset?.study?.profs || []);
-    return (type.proficiencies || []).filter(p => want.has(p.id)).map(p => ({ id: p.id, label: p.label }));
+    // A preset that names none (the generic one) lets Study train any proficiency of the active combat type.
+    return (type.proficiencies || []).filter(p => !want.size || want.has(p.id)).map(p => ({ id: p.id, label: p.label }));
 }
 
 /** The proficiencies of the active combat type that are in this list of ids, as { id, label }. */
@@ -364,7 +366,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             else if (rewards.levelXp) shown.push(`+${rewards.levelXp} XP`);
         }
         if (mine) mine.actStats = recordPlay(mine.actStats, activityId, grade, rewards.knowledge || 0);
-        if (mine && rewards.knowledge > 0) shown.push(`+${rewards.knowledge} knowledge`);
+        if (mine && rewards.knowledge > 0) shown.push(`+${rewards.knowledge} ${term(activePreset(), 'knowledge').toLowerCase()}`);
 
         if (s.itemsOn) {
             // What was used up (the ingredients of a dish) goes first, then what the activity made.

@@ -220,7 +220,7 @@ function showStudySetup(activity) {
     const box = el('div', 'snpc-act-setup');
     { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
     box.append(el('p', 'snpc-act-note',
-        `${activity.label}${partner.alone ? ', playing alone' : ` with ${partner.name}`}. Match the runes in pairs. A cursed rune that turns up shuffles the board when you miss, `
+        `${activity.label}${partner.alone ? ', playing alone' : ` with ${partner.name}`}. Match the ${term(preset, 'tile')}s in pairs. A ${term(preset, 'cursedTile')} that turns up shuffles the board when you miss, `
         + `and every miss costs concentration. What you learn counts as ${term(preset, 'knowledge').toLowerCase()} toward a ${term(preset, 'classWord').toLowerCase()} change.`));
 
     const subjects = studySubjects(preset);
@@ -241,7 +241,7 @@ function showStudySetup(activity) {
     difficulty.value = s.difficulty;
 
     box.append(field('Subject', subject), field('Board', pairs), field('Difficulty', difficulty));
-    if (!subjects.length) box.append(el('p', 'snpc-act-note is-small', 'No combat type with a matching skill is active, so this session earns knowledge but no skill XP.'));
+    if (!subjects.length) box.append(el('p', 'snpc-act-note is-small', `No combat type with a matching skill is active, so this session earns ${term(preset, 'knowledge').toLowerCase()} but no skill XP.`));
 
     const row = el('div', 'snpc-act-row');
     const start = el('button', 'snpc-act-btn', 'Start');
@@ -587,7 +587,7 @@ function showFishSetup(activity) {
     start.focus();
 }
 
-/** Gardening: straight into the greenhouse (the plots are the screen). */
+/** Gardening: straight into the garden (the plots are the screen). */
 function showGardenScreen(activity) {
     stopMusic();
     const w = ensureWindow();
@@ -595,7 +595,7 @@ function showGardenScreen(activity) {
     const partner = pickedPartner();
     const es = energyStatus(activity);
     if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
-    seat(w, partner, 'In the greenhouse');
+    seat(w, partner, `In ${term(preset, 'gardenPlace')}`);
     w.userName = userName();
     runGarden(w, { partner: partner.name, label: activity.label, preset, onLeave: () => showHub() });
 }

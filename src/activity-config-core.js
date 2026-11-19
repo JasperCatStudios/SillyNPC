@@ -132,7 +132,7 @@ export const HUB_TABS = Object.freeze([
  * and shown as "coming soon" by the hub, so a preset written today keeps working as phases land.
  */
 export const GENERIC_ACTIVITIES = Object.freeze([
-    { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes. Knowledge feeds a class change.', solo: true },
+    { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the tiles in pairs and build up what you know.', solo: true },
     { id: 'potion', label: 'Brewing', kind: 'mastermind', tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues.', solo: true },
     { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup and see how the conversation goes.' },
     { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'leisure', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
@@ -148,7 +148,7 @@ export const GENERIC_PRESET = Object.freeze({
     world: '',
     soundMap: '',
     activities: GENERIC_ACTIVITIES,
-    study: Object.freeze({ runes: [], profs: ['reason'] }),
+    study: Object.freeze({ runes: [], profs: [] }),
     potion: Object.freeze({ recipe: 'Herbal Tonic', failed: 'Murky Brew', names: {}, profs: [] }),
     harvest: Object.freeze({ recipes: GENERIC_RECIPES, fish: GENERIC_FISH, seeds: GENERIC_SEEDS }),
     tea: Object.freeze({ category: 'Tea', music: 'activity_tea_music', snacks: ['Strawberry shortcake', 'Macarons', 'Butter cookies', 'Fruit tart', 'Scones with jam', 'Honey cake', 'Finger sandwiches', 'Cheese and grapes', 'Sweet pastry', 'Smoked skewer'], fallback: ['Mint', 'Chamomile', 'Black tea', 'Green tea', 'Spiced chai'] }),
@@ -242,7 +242,7 @@ export function normalizePreset(raw, idHint = '') {
         activities,
         study: {
             runes: (Array.isArray(study.runes) ? study.runes : []).map(v => text(v, 4)).filter(Boolean).slice(0, 12),
-            profs: (Array.isArray(study.profs) ? study.profs : ['reason']).map(v => text(v, 40)).filter(Boolean).slice(0, 6),
+            profs: (Array.isArray(study.profs) ? study.profs : []).map(v => text(v, 40)).filter(Boolean).slice(0, 6),
         },
         potion: {
             recipe: text(obj(r.potion).recipe, 40) || 'Herbal Tonic',

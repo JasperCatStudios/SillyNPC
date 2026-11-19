@@ -24,6 +24,10 @@ export const DEFAULT_TERMS = Object.freeze({
     changeClass: 'Change class',
     knowledge: 'Knowledge',
     studyPlace: 'the study room',
+    tile: 'tile',
+    cursedTile: 'cursed tile',
+    gardenPlace: 'the garden',
+    fishingPlace: 'the water',
     tea: 'tea',
     guest: 'guest',
 });

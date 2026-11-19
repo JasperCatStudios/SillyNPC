@@ -141,7 +141,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     mapBox.style.cssText = 'width: 100%; min-width: 12em;';
     mapBox.value = s.soundMapUrl;
     mapBox.addEventListener('change', () => { s.soundMapUrl = mapBox.value.trim(); changed(); });
-    pane.append(row('Sound map address', mapBox, 'A sound map just for activities: their music and effects. The Fire Emblem preset points at the fe-sounds folder in your own profile. A missing file is silent.'));
+    pane.append(row('Sound map address', mapBox, 'A sound map just for activities: their music and effects. A world preset can point at its own sound folder. A missing file is silent.'));
 
     // World preset.
     const presetSel = el('select', 'text_pole');

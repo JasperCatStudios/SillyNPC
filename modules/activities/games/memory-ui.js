@@ -1,5 +1,6 @@
 import { newGame, flip, hideMiss, canFlip, rewardsOf, describeState, knowledgeOf, GRADES } from '../../../src/activity-memory-core.js';
-import { askPartner, settleStudy, sfx, talkAllowed } from '../activities-runtime.js';
+import { askPartner, settleStudy, sfx, talkAllowed, activePreset } from '../activities-runtime.js';
+import { term } from '../../../src/activity-terms.js';
 
 /**
  * The Study board (fork): draws the rune memory game into the activity window and runs it. The rules are in
@@ -26,6 +27,11 @@ const MISS_MS = 750;
  */
 export function runStudy(win, ctx) {
     const { partner, label, subject, onLeave, onAgain } = ctx;
+    const preset = activePreset();
+    const tile = term(preset, 'tile');
+    const cursed = term(preset, 'cursedTile');
+    const know = term(preset, 'knowledge');
+    const cls = term(preset, 'classWord').toLowerCase();
     const game = newGame({ pairs: ctx.pairs, difficulty: ctx.difficulty, runes: ctx.runes });
     const cols = game.pairs === 12 ? 6 : 4;
     const rows = Math.ceil(game.tiles.length / cols);
@@ -39,11 +45,11 @@ export function runStudy(win, ctx) {
     win.setView('play');
     win.setTitle(label, 'fa-book-open');
     win.setHelp([
-        { title: 'The goal', text: 'Find every pair of matching runes before your concentration runs out.' },
-        { title: 'How a turn works', text: 'Tap two tiles to turn them over. If the runes match, they stay open. If not, they turn back and you lose one point of concentration (the dots above the board).' },
-        { title: 'Cursed runes', text: 'On the medium and large boards one or two runes are cursed. When one turns up it is marked in purple with a skull. If you miss while a cursed rune is one of the two tiles, every tile that is not matched yet is shuffled, so what you remembered is lost. Matching the cursed pair lifts the curse and gives a point of concentration back.' },
+        { title: 'The goal', text: `Find every pair of matching ${tile}s before your concentration runs out.` },
+        { title: 'How a turn works', text: `Tap two tiles to turn them over. If the ${tile}s match, they stay open. If not, they turn back and you lose one point of concentration (the dots above the board).` },
+        { title: `Cursed ${tile}s`, text: `On the medium and large boards one or two ${tile}s are cursed. When one turns up it is marked in purple with a skull. If you miss while a ${cursed} is one of the two tiles, every tile that is not matched yet is shuffled, so what you remembered is lost. Matching the cursed pair lifts the curse and gives a point of concentration back.` },
         { title: 'When it ends', text: 'The board is cleared (you win), or concentration reaches zero (the session ends early, and you keep credit for the pairs you found).' },
-        { title: 'What you gain', text: 'Knowledge for a class change, skill XP in the subject you chose, and a little level XP. A cleared board with plenty of concentration left earns the best grade. Your partner talks along the way, and you can chat with them in the Chat tab.' },
+        { title: 'What you gain', text: `${know} for a ${cls} change, skill XP in the subject you chose, and a little level XP. A cleared board with plenty of concentration left earns the best grade. Your partner talks along the way, and you can chat with them in the Chat tab.` },
         { title: 'Keyboard', text: 'Arrow keys move between tiles. Enter or Space turns one over. Escape closes the window.' },
     ]);
 
@@ -55,7 +61,7 @@ export function runStudy(win, ctx) {
     grid.style.setProperty('--cols', String(cols));
     grid.style.setProperty('--rows', String(rows));
     grid.setAttribute('role', 'group');
-    grid.setAttribute('aria-label', 'Rune tiles');
+    grid.setAttribute('aria-label', `${tile} tiles`);
     wrap.append(gauge, grid, status);
     win.main.replaceChildren(wrap);
 
@@ -99,7 +105,7 @@ export function runStudy(win, ctx) {
                 + `${open && game.cursed.includes(t.symbol) && game.known.includes(t.symbol) ? ' is-cursed' : ''}`;
             b.textContent = open ? t.symbol : '';
             b.disabled = t.state === 'matched' || game.over;
-            b.setAttribute('aria-label', open ? `Rune ${i + 1}, ${t.symbol}${t.state === 'matched' ? ', matched' : ''}` : `Rune ${i + 1}, face down`);
+            b.setAttribute('aria-label', open ? `${tile} ${i + 1}, ${t.symbol}${t.state === 'matched' ? ', matched' : ''}` : `${tile} ${i + 1}, face down`);
         });
         gauge.replaceChildren();
         for (let i = 0; i < game.startConcentration; i++) gauge.append(el('span', `snpc-act-pip${i < game.concentration ? ' is-on' : ''}`));
@@ -151,9 +157,9 @@ export function runStudy(win, ctx) {
         for (const e of events) {
             if (e.type === 'match') { sfx('activity_study_match'); announce = `Matched ${e.symbol}.`; }
             else if (e.type === 'miss') { announce = 'No match.'; wait = MISS_MS; }
-            else if (e.type === 'curse-seen') { win.addLine('', `A cursed rune turned up (${e.symbol}).`, 'system'); announce = `A cursed rune: ${e.symbol}.`; }
+            else if (e.type === 'curse-seen') { win.addLine('', `A ${cursed} turned up (${e.symbol}).`, 'system'); announce = `A ${cursed}: ${e.symbol}.`; }
             else if (e.type === 'curse-lifted') { win.addLine('', 'The curse was lifted.', 'system'); announce = 'The curse is lifted. Concentration restored a little.'; }
-            else if (e.type === 'shuffle') { sfx('activity_study_curse'); win.addLine('', 'The cursed rune shuffled the board.', 'system'); announce = 'The tiles shuffled.'; wait = 500; grid.classList.add('is-shuffled'); }
+            else if (e.type === 'shuffle') { sfx('activity_study_curse'); win.addLine('', `The ${cursed} shuffled the board.`, 'system'); announce = 'The tiles shuffled.'; wait = 500; grid.classList.add('is-shuffled'); }
             else if (e.type === 'miss' && !events.some(x => x.type === 'shuffle')) sfx('activity_study_miss');
         }
         if (events.some(e => e.type === 'miss') && !events.some(e => e.type === 'shuffle')) sfx('activity_study_miss');
