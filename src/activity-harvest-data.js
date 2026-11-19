@@ -17,16 +17,16 @@ export const FRUIT_WORDS = Object.freeze(['berry', 'berries', 'currant', 'plum',
  * description. A recipe with no needs is simple: it can always be cooked.
  */
 export const GENERIC_RECIPES = Object.freeze([
-    { id: 'porridge', name: 'Plain Porridge', needs: [], desc: 'Oats and water. Always possible.' },
-    { id: 'toast', name: 'Buttered Toast', needs: [], desc: 'Bread, butter and a hot pan.' },
-    { id: 'flatbread', name: 'Flatbread', needs: [], desc: 'Quick and filling.' },
-    { id: 'fishstew', name: 'Fish Stew', needs: [{ label: 'a fish', any: FISH_WORDS, qty: 1 }], desc: 'A warm stew of the day\'s catch.' },
-    { id: 'grilledfish', name: 'Grilled Fish', needs: [{ label: 'a fish', any: FISH_WORDS, qty: 1 }], desc: 'Simple, over the coals.' },
-    { id: 'vegsoup', name: 'Vegetable Soup', needs: [{ label: '2 vegetables', any: VEG_WORDS, qty: 2 }], desc: 'Thick and hearty.' },
-    { id: 'roastveg', name: 'Roast Vegetables', needs: [{ label: '2 vegetables', any: VEG_WORDS, qty: 2 }], desc: 'Golden at the edges.' },
-    { id: 'herbsalad', name: 'Herb Salad', needs: [{ label: 'some herbs', any: HERB_WORDS, qty: 1 }], desc: 'Fresh and green.' },
-    { id: 'fishpie', name: 'Fish Pie', needs: [{ label: 'a fish', any: FISH_WORDS, qty: 1 }, { label: 'a vegetable', any: VEG_WORDS, qty: 1 }], desc: 'A proper supper.' },
-    { id: 'berrytart', name: 'Berry Tart', needs: [{ label: '2 fruits', any: FRUIT_WORDS, qty: 2 }], desc: 'Sweet, with a crisp crust.' },
+    { id: 'porridge', name: 'Plain Porridge', needs: [], desc: 'Oats and water. Always possible.', restore: 18 },
+    { id: 'toast', name: 'Buttered Toast', needs: [], desc: 'Bread, butter and a hot pan.', restore: 12 },
+    { id: 'flatbread', name: 'Flatbread', needs: [], desc: 'Quick and filling.', restore: 14 },
+    { id: 'fishstew', name: 'Fish Stew', needs: [{ label: 'a fish', any: FISH_WORDS, qty: 1 }], desc: 'A warm stew of the day\'s catch.', restore: 30 },
+    { id: 'grilledfish', name: 'Grilled Fish', needs: [{ label: 'a fish', any: FISH_WORDS, qty: 1 }], desc: 'Simple, over the coals.', restore: 28 },
+    { id: 'vegsoup', name: 'Vegetable Soup', needs: [{ label: '2 vegetables', any: VEG_WORDS, qty: 2 }], desc: 'Thick and hearty.', restore: 24 },
+    { id: 'roastveg', name: 'Roast Vegetables', needs: [{ label: '2 vegetables', any: VEG_WORDS, qty: 2 }], desc: 'Golden at the edges.', restore: 22 },
+    { id: 'herbsalad', name: 'Herb Salad', needs: [{ label: 'some herbs', any: HERB_WORDS, qty: 1 }], desc: 'Fresh and green.', restore: 10 },
+    { id: 'fishpie', name: 'Fish Pie', needs: [{ label: 'a fish', any: FISH_WORDS, qty: 1 }, { label: 'a vegetable', any: VEG_WORDS, qty: 1 }], desc: 'A proper supper.', restore: 38 },
+    { id: 'berrytart', name: 'Berry Tart', needs: [{ label: '2 fruits', any: FRUIT_WORDS, qty: 2 }], desc: 'Sweet, with a crisp crust.', restore: 16 },
 ]);
 
 /** What can be caught: weight (how often), difficulty 1 to 3 (how hard the reel is), size 1 to 9 (for a contest). */

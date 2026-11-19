@@ -1,6 +1,7 @@
 import { DEFAULT_TERMS, normalizeTerms } from './activity-terms.js';
 import { GENERIC_RECIPES, GENERIC_FISH, GENERIC_SEEDS } from './activity-harvest-data.js';
 import { normalizeScripts } from './activity-scripts-core.js';
+import { restoreValue } from './activity-hunger-core.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -241,7 +242,9 @@ function normalizeRecipe(raw) {
         const any = (Array.isArray(q.any) ? q.any : []).map(w => text(w, 30).toLowerCase()).filter(Boolean).slice(0, 20);
         return any.length ? { label: text(q.label, 40) || 'an ingredient', any, qty: int(q.qty, 1, 9, 1) } : null;
     }).filter(Boolean);
-    return { id: text(r.id, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '') || name.toLowerCase().replace(/[^a-z0-9]+/g, ''), name, needs, desc: text(r.desc, 90) };
+    const restore = restoreValue(r.restore);
+    // restore: the hunger (0 to 100) eating this dish gives while the Vitals Tracker is on; without one the default for a dish is used.
+    return { id: text(r.id, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '') || name.toLowerCase().replace(/[^a-z0-9]+/g, ''), name, needs, desc: text(r.desc, 90), ...(restore !== null ? { restore } : {}) };
 }
 
 /**
@@ -310,6 +313,8 @@ export function normalizePreset(raw, idHint = '') {
         harvest: normalizeHarvest(r.harvest),
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
+            // The hunger a shared drink and a snack give (see activity-hunger-core.js); empty uses the built-in values.
+            restore: Object.fromEntries(['drink', 'snack', 'dish'].map(k => [k, restoreValue(obj(obj(r.tea).restore)[k])]).filter(([, v]) => v !== null)),
             snacks: (Array.isArray(obj(r.tea).snacks) ? r.tea.snacks : ['Strawberry shortcake', 'Macarons', 'Butter cookies', 'Fruit tart', 'Scones with jam', 'Honey cake', 'Finger sandwiches', 'Cheese and grapes', 'Sweet pastry', 'Smoked skewer']).map(v => text(v, 40)).filter(Boolean).slice(0, 30),
             // The sound-map name of the tea music loop. Empty means none; a map without it plays nothing.
             music: obj(r.tea).music === undefined ? 'activity_tea_music' : text(obj(r.tea).music, 60),

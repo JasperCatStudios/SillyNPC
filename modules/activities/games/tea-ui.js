@@ -1,3 +1,4 @@
+import { mealRestore, gradedRestore } from '../../../src/activity-hunger-core.js';
 import {
     newSession, judgeRound, gradeOf, rewardsOf, totalOf, knownFrom, knownLine, askThisRound, fillOpeners, neutralOpeners, neutralLine,
     moodWord, describeState, REACTION_DELTA, GRADES, teaSprite, snackSprite,
@@ -232,7 +233,7 @@ export function runTea(win, ctx) {
         const summary = `${label} with ${partner}: ${recap || describeState(state)}`;
         const lines = settleActivity({
             activityId: ctx.activityId || 'tea', label, partner, summary, lines: win.talk(),
-            rewards: { grade, levelXp: rewards.levelXp, bonds: rewards.bonds },
+            rewards: { grade, levelXp: rewards.levelXp, bonds: rewards.bonds, restore: { hunger: gradedRestore(mealRestore({ drink: tea, food: bring?.kind === 'food' ? bring.name : '', recipes: preset.harvest?.recipes, defaults: preset.tea?.restore }), grade) } },
         });
         const box = el('div', 'snpc-act-result');
         box.append(el('h3', '', closing ? `${partner}: ${closing}` : `${GRADE_TEXT[grade]} cup`));

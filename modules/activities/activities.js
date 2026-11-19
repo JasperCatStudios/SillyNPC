@@ -546,6 +546,7 @@ function showCookSetup(activity) {
             li.append(el('strong', '', e.name));
             if (e.desc) li.append(el('small', '', e.desc));
             li.append(el('small', '', e.needs.length ? `Ingredients: ${e.needs.join(', ')}` : 'No ingredients needed'));
+            if (e.restore !== null) li.append(el('small', '', `Restores ${e.restore} hunger when eaten`));
             li.append(el('small', '', e.known ? `Cooked ${e.made} time${e.made === 1 ? '' : 's'}` : 'Not cooked yet'));
             if (tracked && !e.ok) li.append(el('small', 'snpc-act-lock', `You lack: ${e.missing.join(', ')}`));
             if (e.favoriteOf.length) li.append(el('small', 'snpc-act-streak', `Favourite meal of ${e.favoriteOf.join(', ')}`));

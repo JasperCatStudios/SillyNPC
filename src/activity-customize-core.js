@@ -108,18 +108,19 @@ export function seedsFromLines(text) {
     }).filter(Boolean).slice(0, 40);
 }
 
-/** Recipes as lines: "dish | description | wordsA, wordsB". Each group of words is one ingredient need (any word will do). */
-export const recipesToLines = (recipes) => (recipes || []).map(r => `${r.name} | ${r.desc || ''} | ${(r.needs || []).map(n => (n.any || []).join(', ')).join(' ; ')}`).join('\n');
+/** Recipes as lines: "dish | description | wordsA, wordsB | hunger restored". Each group of words is one ingredient need (any word will do). */
+export const recipesToLines = (recipes) => (recipes || []).map(r => `${r.name} | ${r.desc || ''} | ${(r.needs || []).map(n => (n.any || []).join(', ')).join(' ; ')}${r.restore !== undefined && r.restore !== null ? ` | ${r.restore}` : ''}`).join('\n');
 export function recipesFromLines(text) {
     return String(text ?? '').split(/\r?\n/).map(line => {
-        const [name, desc, needs] = line.split('|').map(p => p.trim());
+        const [name, desc, needs, restore] = line.split('|').map(p => p.trim());
         const n = clean(name, 50);
         if (!n) return null;
+        const rest = Number.isFinite(Number(restore)) && String(restore ?? '').trim() !== '' ? Math.min(100, Math.max(0, Math.round(Number(restore)))) : null;
         const list = String(needs || '').split(';').map(group => {
             const any = group.split(',').map(w => clean(w, 30).toLowerCase()).filter(Boolean).slice(0, 20);
             return any.length ? { label: any[0], any, qty: 1 } : null;
         }).filter(Boolean).slice(0, 4);
-        return { name: n, desc: clean(desc, 90), needs: list };
+        return { name: n, desc: clean(desc, 90), needs: list, ...(rest !== null ? { restore: rest } : {}) };
     }).filter(Boolean).slice(0, 40);
 }
 

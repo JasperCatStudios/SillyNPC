@@ -10,6 +10,7 @@ import { addRecord, rivalryBlock } from '../../src/rivalry.js';
 import { giveItemFor, takeItemFor, getInventory, databaseItems, inventorySettings } from '../../src/inventory.js';
 import { vitalsStore, vitalsSettings, getVitals, setVitalFor } from '../../src/vitals.js';
 import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activity-energy-core.js';
+import { restoreValue, hungerAfter, hungerText } from '../../src/activity-hunger-core.js';
 import { findPerson as findVitalsPerson } from '../../src/vitals-core.js';
 import { normalizeKnownStore, mergeKnown, teaPool, snackPool } from '../../src/activity-tea-core.js';
 import { DEFAULT_KIT_URL, kitFolderName, kitFileUrl } from '../../src/content-kit.js';
@@ -163,6 +164,14 @@ export function energyActive() {
 }
 
 /** The player's energy in this chat (0 to 100), or null when it is not known yet. */
+/** Whether eating restores hunger: the Vitals Tracker is on and tracks hunger, and the Activities setting is on. */
+export function hungerActive() {
+    try {
+        const v = vitalsSettings();
+        return Boolean(v.enabled && v.track?.hunger !== false && activitySettings().vitalsOn);
+    } catch { return false; }
+}
+
 export function playerEnergy() {
     try {
         const p = getVitals(userName());
@@ -433,6 +442,29 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
                     }
                 } catch { /* the partner's vitals are optional */ }
             }
+        }
+
+        // Hunger from eating (a shared meal): the player and the partner both eat, while the Vitals Tracker tracks hunger.
+        const eat = restoreValue(rewards.restore?.hunger);
+        if (eat && hungerActive()) {
+            try {
+                const mine = getVitals(user);
+                const before = Number(mine?.hunger);
+                if (mine && Number.isFinite(before)) {
+                    const after = hungerAfter(before, eat);
+                    setVitalFor(user, 'hunger', after);
+                    shown.push(hungerText(before, after));
+                }
+                if (!alone) {
+                    const theirs = getVitals(partner);
+                    const theirBefore = Number(theirs?.hunger);
+                    if (theirs && Number.isFinite(theirBefore)) {
+                        const left = hungerAfter(theirBefore, eat);
+                        setVitalFor(partner, 'hunger', left);
+                        shown.push(`${partner}: ${hungerText(theirBefore, left).toLowerCase()}`);
+                    }
+                }
+            } catch (err) { console.warn('[Worldkit] could not update hunger', err); }
         }
 
         const act = (activePreset().activities || []).find(a => a.id === activityId);

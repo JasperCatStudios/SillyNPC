@@ -231,6 +231,10 @@ export function renderCustomize(host, { changed }) {
             'drinks come from the "Tea" category of the item pack; snacks are cakes and tarts; the music tag is activity_tea_music. A Bleach world could serve "Sake" and "Mochi".');
         teaCard.body.append(field('Drink category', textInput(tea.category, 'Tea', 24, (v) => { tea.category = v || 'Tea'; changed(); }), 'Items in this category of your item database are offered as drinks.'));
         teaCard.body.append(field('Music tag', textInput(tea.music, 'activity_tea_music', 60, (v) => { tea.music = v; changed(); }), 'A tag from your sound map. Empty means no music.'));
+        const restore = (tea.restore && typeof tea.restore === 'object' && !Array.isArray(tea.restore)) ? tea.restore : (tea.restore = {});
+        for (const [k, label, dflt] of [['drink', 'Hunger a drink restores', 4], ['snack', 'Hunger a snack restores', 8]]) {
+            teaCard.body.append(field(label, textInput(restore[k], String(dflt), 3, (v) => { const n = Number(v); if (v !== '' && Number.isFinite(n)) restore[k] = Math.max(0, Math.min(100, Math.round(n))); else delete restore[k]; changed(); }), 'Only used while the Vitals Tracker is on and tracks hunger. A cooked dish uses its own value from the lists below.'));
+        }
         teaCard.body.append(el('strong', '', 'Snacks (one per line)'));
         teaCard.body.append(textArea((tea.snacks || GENERIC_PRESET.tea.snacks).join('\n'), '', 6, (v) => { tea.snacks = linesOf(v, 30, 40); changed(); }));
         teaCard.body.append(el('strong', '', 'Fallback drinks (one per line)'));
@@ -242,8 +246,8 @@ export function renderCustomize(host, { changed }) {
         const base = normalizePreset(raw).harvest;
         const lists = card('Cooking, fishing and gardening lists', 'The dishes you can cook, the fish you can catch and the seeds you can plant.',
             'One entry per line, parts separated by the | sign. Leave a box empty to use the built-in list. Item names matter: a dish or fish with the same name as an item in your database becomes that item.',
-            'a fish line is "Carp | 12 | 1 | 3" (name, how often it bites, difficulty 1 to 3, size 1 to 9); a seed line is "Carrot Seeds | Carrot | 2 | 3 | food" (seed, what it grows, days, yield, food or plant); a dish line is "Roast Fish | Crisp. | carp, trout" (dish, description, one group of words per ingredient).');
-        lists.body.append(el('strong', '', 'Dishes: name | description | ingredient words (separate ingredients with ;)'));
+            'a fish line is "Carp | 12 | 1 | 3" (name, how often it bites, difficulty 1 to 3, size 1 to 9); a seed line is "Carrot Seeds | Carrot | 2 | 3 | food" (seed, what it grows, days, yield, food or plant); a dish line is "Roast Fish | Crisp. | carp, trout | 30" (dish, description, one group of words per ingredient, hunger it restores when eaten while the Vitals Tracker is on).');
+        lists.body.append(el('strong', '', 'Dishes: name | description | ingredient words (separate ingredients with ;) | hunger restored 0-100'));
         lists.body.append(textArea(recipesToLines(harvest.recipes || base.recipes), '', 8, (v) => { const r = recipesFromLines(v); if (r.length) harvest.recipes = r; else delete harvest.recipes; changed(); }));
         lists.body.append(el('strong', '', 'Fish: name | how often | difficulty 1-3 | size 1-9'));
         lists.body.append(textArea(fishToLines(harvest.fish || base.fish), '', 8, (v) => { const r = fishFromLines(v); if (r.length) harvest.fish = r; else delete harvest.fish; changed(); }));

@@ -133,7 +133,7 @@ export function recipeBook(recipes, { made = {}, pack = [], tracked = false, car
         const missing = tracked ? missingIngredients(recipe, pack).map(m => m.label) : [];
         const count = whole(made?.[recipe.id], 0);
         return {
-            id: recipe.id, name: recipe.name, desc: recipe.desc || '',
+            id: recipe.id, name: recipe.name, desc: recipe.desc || '', restore: recipe.restore ?? null,
             needs: (recipe.needs || []).map(n => n.label),
             made: count, known: count > 0,
             ok: missing.length === 0, missing,
