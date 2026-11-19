@@ -63,5 +63,60 @@ export const GENERIC_ALCHEMY = Object.freeze({
     ],
 });
 
+export const GENERIC_SMITHING = Object.freeze({
+    id: 'smithing',
+    label: 'Smithing',
+    icon: 'fa-hammer',
+    prof: 'smithing',
+    music: 'activity_craft_smithing_music',
+    materialWeight: 0.3,
+    properties: [
+        { id: 'mass', label: 'Mass', mix: 'sum', max: 20, icon: 'fa-weight-hanging' },
+        { id: 'hardness', label: 'Hardness', mix: 'avg', max: 10, icon: 'fa-gem' },
+        { id: 'brittleness', label: 'Brittleness', mix: 'max', max: 10, icon: 'fa-burst' },
+    ],
+    materials: [
+        { id: 'iron-ingot', name: 'Iron Ingot', match: ['iron ingot', 'iron'], category: 'Metal', props: { mass: 5, hardness: 5, brittleness: 3 }, tags: ['metal'], tier: 1, shape: '■', letter: 'I', color: '#9e9e9e' },
+        { id: 'copper-ingot', name: 'Copper Ingot', match: ['copper ingot', 'copper'], category: 'Metal', props: { mass: 4, hardness: 3, brittleness: 1 }, tags: ['metal'], tier: 1, shape: '●', letter: 'C', color: '#cc7a3a' },
+        { id: 'steel-ingot', name: 'Steel Ingot', match: ['steel ingot', 'steel'], category: 'Metal', props: { mass: 5, hardness: 8, brittleness: 4 }, tags: ['metal'], tier: 2, shape: '◆', letter: 'S', color: '#6f8fb0' },
+        { id: 'silver-ingot', name: 'Silver Ingot', match: ['silver ingot', 'silver'], category: 'Metal', props: { mass: 4, hardness: 4, brittleness: 2 }, tags: ['metal', 'fine'], tier: 3, shape: '★', letter: 'V', color: '#d9e1ea' },
+        { id: 'oak-handle', name: 'Oak Handle', match: ['oak handle', 'handle'], category: 'Part', props: { mass: 2, hardness: 3, brittleness: 0 }, tags: ['handle'], tier: 1, shape: '▲', letter: 'H', color: '#8b5a2b' },
+        { id: 'leather-grip', name: 'Leather Grip', match: ['leather grip', 'leather'], category: 'Part', props: { mass: 1, hardness: 2, brittleness: 0 }, tags: ['handle', 'binding'], tier: 1, shape: '♣', letter: 'L', color: '#a0522d' },
+    ],
+    effects: [
+        { prop: 'brittleness', stage: 'work', param: 'drift', per: 0.1, from: 3, label: 'A brittle metal: the heat will wander.' },
+        { prop: 'mass', stage: 'work', param: 'progress', per: 0.05, from: 7, label: 'A heavy piece: more strikes to shape it.' },
+        { prop: 'hardness', stage: 'finish', param: 'zone', per: -0.03, from: 5, label: 'A hard metal: the quench is trickier.' },
+    ],
+    stages: [{ stage: 'prep', weight: 1 }, { stage: 'work', weight: 4 }, { stage: 'finish', weight: 1 }],
+    terms: { worked: 'the metal', craftVerb: 'Forge', workplace: 'the forge', prep: 'Shape', finish: 'Quench' },
+    recipes: [
+        {
+            id: 'iron-dagger', name: 'Iron Dagger', level: 1, desc: 'A short blade. One metal and a grip.',
+            slots: [{ id: 'metal', label: 'a metal', tags: ['metal'] }, { id: 'grip', label: 'a handle', tags: ['handle'] }],
+            targets: { mass: { min: 5, ideal: [6, 9], max: 12 }, brittleness: { ideal: [0, 4], max: 6 } },
+            outputs: { perfect: { name: 'Iron Dagger', note: 'finely made', qty: 1 }, good: { name: 'Iron Dagger', note: 'well made' }, fair: { name: 'Iron Dagger', note: 'rough' }, poor: { name: 'Iron Dagger', note: 'barely holds an edge' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+        },
+        {
+            id: 'horseshoe', name: 'Horseshoe', level: 1, desc: 'Plain and useful. Any metal will do.',
+            slots: [{ id: 'metal', label: 'a metal', tags: ['metal'] }],
+            targets: { mass: { min: 3, ideal: [4, 7], max: 10 }, brittleness: { ideal: [0, 4], max: 6 } },
+            outputs: { perfect: { name: 'Horseshoe', note: 'finely made', qty: 2 }, good: { name: 'Horseshoe', note: 'well made' }, fair: { name: 'Horseshoe', note: 'uneven' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+        },
+        {
+            id: 'iron-sword', name: 'Iron Sword', level: 2, desc: 'A proper blade. Two lengths of metal and a handle.',
+            slots: [{ id: 'metal', label: 'a metal', tags: ['metal'] }, { id: 'metal2', label: 'more metal', tags: ['metal'] }, { id: 'grip', label: 'a handle', tags: ['handle'] }],
+            targets: { mass: { min: 9, ideal: [11, 15], max: 19 }, hardness: { min: 3, ideal: [4, 7], max: 10 }, brittleness: { ideal: [0, 4], max: 6 } },
+            outputs: { perfect: { name: 'Iron Sword', note: 'finely made', qty: 1 }, good: { name: 'Iron Sword', note: 'well made' }, fair: { name: 'Iron Sword', note: 'rough' }, poor: { name: 'Iron Sword', note: 'chipped' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+        },
+        {
+            id: 'steel-sword', name: 'Steel Sword', level: 3, desc: 'Hard and keen. It needs hard metal and a steady hand.',
+            slots: [{ id: 'metal', label: 'a hard metal', tags: ['metal'] }, { id: 'metal2', label: 'more metal', tags: ['metal'] }, { id: 'grip', label: 'a handle', tags: ['handle'] }],
+            targets: { mass: { min: 10, ideal: [12, 16], max: 20 }, hardness: { min: 5, ideal: [6, 9], max: 10 }, brittleness: { ideal: [0, 5], max: 7 } },
+            outputs: { perfect: { name: 'Steel Sword', note: 'finely made', qty: 1 }, good: { name: 'Steel Sword', note: 'well made' }, fair: { name: 'Steel Sword', note: 'rough' }, failed: { name: 'Scrap Iron', note: 'ruined in the forge' } },
+        },
+    ],
+});
+
 /** Every built-in craft by id. */
-export const GENERIC_CRAFTS = Object.freeze({ [GENERIC_ALCHEMY.id]: GENERIC_ALCHEMY });
+export const GENERIC_CRAFTS = Object.freeze({ [GENERIC_ALCHEMY.id]: GENERIC_ALCHEMY, [GENERIC_SMITHING.id]: GENERIC_SMITHING });

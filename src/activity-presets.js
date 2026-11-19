@@ -22,6 +22,7 @@ export const FIRE_EMBLEM_PRESET = Object.freeze({
         { id: 'potion', label: 'Brewing', kind: 'mastermind', off: true, tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues and brew a tonic.', solo: true },
         { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup in the garden and see how the talk goes.' },
         { id: 'alchemy', label: 'Alchemy', kind: 'craft', craft: 'alchemy', tab: 'crafting', icon: 'fa-flask', blurb: 'Choose herbs and water, grind, simmer and seal a tonic.', solo: true },
+        { id: 'smithing', label: 'Smithing', kind: 'craft', craft: 'smithing', tab: 'crafting', icon: 'fa-hammer', blurb: 'Choose metal and a handle, heat the work and strike it on the beat.', solo: true },
         { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'crafting', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish in the kitchen.', solo: true },
         { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite at the pond, hook it and reel it in.', solo: true },
         { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Tend the greenhouse beds. Plants grow as you tend them on different days.', solo: true },

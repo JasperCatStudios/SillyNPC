@@ -13,7 +13,7 @@
 
 export const MIX_RULES = Object.freeze(['sum', 'avg', 'max', 'min']);
 export const GRADES = Object.freeze(['failed', 'poor', 'fair', 'good', 'perfect']);
-export const STAGE_IDS = Object.freeze(['prep', 'tend', 'finish']);
+export const STAGE_IDS = Object.freeze(['prep', 'tend', 'work', 'finish']);
 
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
