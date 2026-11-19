@@ -1,8 +1,8 @@
 /**
- * Study: the rune memory game (fork). The rules, without the screen.
+ * Study: the tile memory game (fork). The rules, without the screen.
  *
  * A board of face-down tiles, two of each rune. Flip two; a match stays open, a miss flips back and
- * costs one point of concentration. A cursed rune, once seen, is a trap: missing while it is one of
+ * costs one point of concentration. A cursed tile, once seen, is a trap: missing while it is one of
  * the two flipped tiles shuffles every tile that is still unmatched. Matching a cursed pair lifts
  * the curse and gives a point of concentration back. The game ends when the board is cleared, or
  * concentration runs out (the session ends early, with credit for what was found).
@@ -192,11 +192,15 @@ export function rewardsOf(state) {
     return { grade, knowledge: knowledgeOf(state), profXp, partnerProfXp: Math.floor(profXp / 2), levelXp, bond };
 }
 
-/** The game in plain words, for the partner's talk: "3 of 8 pairs found, one cursed rune seen". */
-export function describeState(state) {
+/**
+ * The game in plain words, for the partner's talk: "3 of 8 pairs found, a cursed tile is loose". `words` is the world's wording
+ * ({ cursedTile }, from the preset's terms); without it the neutral "cursed tile" is used.
+ */
+export function describeState(state, words = {}) {
+    const cursed = String(words?.cursedTile || 'cursed tile');
     const parts = [`${state.found} of ${state.pairs} pairs found`, `${Math.max(0, state.concentration)} of ${state.startConcentration} concentration left`];
     const seen = state.cursed.filter(s => state.known.includes(s)).length;
-    if (seen) parts.push(seen === 1 ? 'a cursed rune is loose' : `${seen} cursed runes are loose`);
+    if (seen) parts.push(seen === 1 ? `a ${cursed} is loose` : `${seen} ${cursed}s are loose`);
     if (state.shuffles) parts.push(state.shuffles === 1 ? 'the tiles were shuffled once' : `the tiles were shuffled ${state.shuffles} times`);
     if (state.over) parts.push(state.cleared ? 'the board is cleared' : 'concentration ran out');
     return parts.join(', ');

@@ -282,6 +282,7 @@ export async function askPartner({ partner, label, beat, stateText = '', playerT
         const card = cardOf(partner);
         const req = buildTalkRequest({
             partner, user: userName(), activity: label.toLowerCase(), beat, stateText, playerText, talkSoFar, event,
+            words: { cursedTile: term(activePreset(), 'cursedTile') },
             story, blocks: contextBlocks('activities'), rivalry: rivalryBlock(partner, userName()),
             likes: card ? likesPromptText(card.prefs) : '', rule: DIALOGUE_RULE,
         });
@@ -448,7 +449,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
 export function settleStudy({ partner, label, subject, game, rewards, lines, activityId = 'study' }) {
     return settleActivity({
         activityId, label, partner, subject, lines,
-        summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${describeState(game)}.`,
+        summary: `${label}${partner ? ` with ${partner}` : ' alone'}: ${describeState(game, { cursedTile: term(activePreset(), 'cursedTile') })}.`,
         rewards: { ...rewards, bonds: rewards.bond ? [rewards.bond] : [] },
     });
 }

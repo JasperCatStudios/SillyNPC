@@ -66,7 +66,7 @@ export function runStudy(win, ctx) {
     win.main.replaceChildren(wrap);
 
     const say = (text) => { status.textContent = text; };
-    const stateText = () => describeState(game);
+    const stateText = () => describeState(game, { cursedTile: cursed });
 
     /** The partner speaks: a typing line, then the reply (or a canned line). Never blocks the game. */
     const speak = async (beat, playerText = '') => {

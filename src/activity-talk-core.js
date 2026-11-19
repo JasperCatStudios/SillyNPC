@@ -42,7 +42,7 @@ export function talkDecision({ beat, talkOn = true, showTalk = true, cannedLines
 
 const REACTIONS = Object.freeze({
     start: 'The activity is just beginning. Say something short to start it.',
-    curse: 'A cursed rune just turned up and the tiles were shuffled. React to the setback.',
+    curse: 'A {cursedTile} just turned up and the tiles were shuffled. React to the setback.',
     halfway: 'You are about halfway through. Say something about how it is going.',
     end: 'It is over. React to how it went.',
     chat: 'Answer what was just said.',
@@ -92,7 +92,7 @@ export function buildTalkRequest(a) {
         a.likes ? `About you: ${clip(a.likes, 400)}` : '',
         a.stateText ? `How it stands: ${clip(a.stateText, 300)}.` : '',
         (a.talkSoFar || []).length ? `What was said so far:\n${a.talkSoFar.slice(-6).map(l => `${l.who}: ${clip(l.text, 200)}`).join('\n')}` : '',
-        `Task: ${REACTIONS[beat]}${beat === 'moment' && a.event ? `\nWhat happened: ${clip(a.event, 200)}.` : ''}${a.playerText ? `\n${a.user} said: ${clip(a.playerText, 300)}` : ''}`,
+        `Task: ${String(REACTIONS[beat]).replace('{cursedTile}', String(a.words?.cursedTile || 'cursed tile'))}${beat === 'moment' && a.event ? `\nWhat happened: ${clip(a.event, 200)}.` : ''}${a.playerText ? `\n${a.user} said: ${clip(a.playerText, 300)}` : ''}`,
         `Rules:\n1. Speak as "${a.partner}"${a.language ? `, in ${a.language}` : ''}, in character.\n2. Very short (1-2 sentences).\n3. ${a.rule || DEFAULT_RULE}`,
     ];
     return { system: sections.filter(Boolean).join('\n\n'), user: beat === 'chat' && a.playerText ? clip(a.playerText, 300) : `(${beat})` };
