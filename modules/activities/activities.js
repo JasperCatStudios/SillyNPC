@@ -15,6 +15,8 @@ import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { runCraft } from './games/craft-ui.js';
 import { runDrill } from './games/drill-ui.js';
+import { runExam } from './games/exam-ui.js';
+import { examTarget, examPlan, credentialName } from '../../src/activity-exam-core.js';
 import { runKitchen } from './games/mech/kitchen-ui.js';
 import { runMeal } from './games/meal-ui.js';
 import { normalizePrefs } from '../../src/likes-core.js';
@@ -28,7 +30,7 @@ import { teaMenu, teaChoices, snackChoices } from '../../src/activity-tea-core.j
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, allSubjects, packItems, fishTable,
+    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, allSubjects, skillStanding, mayExamine, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -67,7 +69,7 @@ try { window.WorldkitActivities = Object.freeze({ register: registry.register, u
  */
 function openActivity(a) {
     const harvest = { cook: showCookSetup, fish: showFishSetup, garden: showGardenScreen };
-    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], craft: showCraft, drill: showDrill, [CUSTOM_KIND]: showCustom };
+    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], craft: showCraft, drill: showDrill, exam: showExam, [CUSTOM_KIND]: showCustom };
     const open = byKind[a.kind];
     if (!open) return false;
     open(a);
@@ -645,6 +647,91 @@ function showDrill(activity) {
     row.append(go, back);
     box.append(row);
     w.main.replaceChildren(box);
+}
+
+/**
+ * The certification exam: the examiner is the partner, the exam is for the next rank of a skill, and it is a graded set of drills.
+ * Every word (exam, examiner, credential) comes from the preset's terms.
+ */
+function showExam(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    const es = energyStatus(activity);
+    if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
+    const exam = term(preset, 'exam');
+    const examiner = term(preset, 'examiner');
+    const credential = term(preset, 'credential');
+    w.setView('hub');
+    w.setTitle(activity.label, activity.icon || 'fa-certificate');
+    const box = el('div', 'snpc-act-setup');
+    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
+    back.type = 'button';
+    back.addEventListener('click', showHub);
+    const finishScreen = (row) => { box.append(row); w.main.replaceChildren(box); };
+
+    if (partner.alone) {
+        box.append(el('p', 'snpc-act-note', `The ${exam.toLowerCase()} needs a ${examiner.toLowerCase()} to set it. Pick a partner above.`));
+        const row = el('div', 'snpc-act-row'); row.append(back); finishScreen(row); return;
+    }
+    const drills = preset.drills || {};
+    if (!Object.keys(drills).length) {
+        box.append(el('p', 'snpc-act-note', 'This preset has no drills to set the exam from.'));
+        const row = el('div', 'snpc-act-row'); row.append(back); finishScreen(row); return;
+    }
+
+    // Skills that can still go up a rank, and that this partner may examine.
+    const options = [];
+    for (const p of allSubjects()) {
+        const standing = skillStanding(p.id);
+        if (!standing) continue;
+        const target = examTarget(preset, { rungs: standing.rungs, rankIndex: standing.rankIndex });
+        if (!target.ok || !mayExamine(preset, partner.name, p.id, target.targetIndex)) continue;
+        options.push({ id: p.id, label: p.label, standing, target });
+    }
+    box.append(el('p', 'snpc-act-note',
+        `${partner.name} will examine you. Pick a skill: the ${exam.toLowerCase()} is for its next rank. Pass every test to rise one rank and earn the ${credential.toLowerCase()}.`));
+    if (!options.length) {
+        box.append(el('p', 'snpc-act-note', `Nothing to take with ${partner.name}: no skill has a next rank, or ${partner.name} may not examine in it, or there is no combat sheet.`));
+        const row = el('div', 'snpc-act-row'); row.append(back); finishScreen(row); return;
+    }
+    const subject = el('select', 'snpc-act-select');
+    subject.setAttribute('aria-label', 'Skill to be examined in');
+    for (const o of options) subject.append(new Option(o.label, o.id));
+    box.append(field('Skill', subject));
+    const info = el('p', 'snpc-act-note');
+    const planFor = () => {
+        const o = options.find(x => x.id === subject.value) || options[0];
+        const ids = Object.keys(drills).filter(id => !drills[id].prof || drills[id].prof === o.id);
+        const plan = examPlan(preset, o.target, ids.length ? ids : Object.keys(drills));
+        return { o, plan, name: credentialName(o.target.tierName, credential) };
+    };
+    const drawInfo = () => {
+        const { o, plan, name } = planFor();
+        const top = plan.length ? Math.max(...plan.map(t => t.need)) : 0;
+        info.textContent = `${o.label}: ${o.target.fromRung || 'no rank'} to ${o.target.targetRung}. Earns a ${name}. ${plan.length} test${plan.length === 1 ? '' : 's'}, up to ${Math.round(top * 100)}% of the points to pass each.`;
+    };
+    subject.addEventListener('change', drawInfo);
+    drawInfo();
+    box.append(info);
+
+    const row = el('div', 'snpc-act-row');
+    const go = el('button', 'snpc-act-btn', term(preset, 'examVerb'));
+    go.type = 'button';
+    go.addEventListener('click', () => {
+        const { o, plan, name } = planFor();
+        seat(w, partner, `${exam} with ${partner.name}`);
+        w.userName = userName();
+        runExam(w, {
+            examiner: partner.name, label: activity.label, activityId: activity.id, subject: o.id, subjectLabel: o.label,
+            fromRung: o.target.fromRung, toRung: o.target.targetRung, credentialName: name, plan, drills,
+            words: { exam, examiner, credential }, onLeave: () => showHub(), onAgain: () => showExam(activity),
+        });
+    });
+    row.append(go, back);
+    finishScreen(row);
 }
 
 /** A drop-in activity: seats the partner, checks the energy and hands the registered run function its api. */

@@ -25,6 +25,9 @@ export const FIRE_EMBLEM_PRESET = Object.freeze({
         { id: 'smithing', label: 'Smithing', kind: 'craft', craft: 'smithing', tab: 'crafting', icon: 'fa-hammer', blurb: 'Choose metal and a handle, heat the work and strike it on the beat.', solo: true },
         { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'crafting', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish in the kitchen.', solo: true },
         { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite at the pond, hook it and reel it in.', solo: true },
+        { id: 'target', label: 'Target Practice', kind: 'drill', drill: 'target', tab: 'training', icon: 'fa-bullseye', blurb: 'A steady mark crosses the lane. Tap when it is inside the ring.', solo: true },
+        { id: 'moving', label: 'Moving Targets', kind: 'drill', drill: 'moving', tab: 'training', icon: 'fa-crosshairs', blurb: 'The mark speeds up and slows down. Tap when it is inside the ring.', solo: true },
+        { id: 'exam', label: 'Certification exam', kind: 'exam', tab: 'training', icon: 'fa-certificate', blurb: 'A graded set of drills. Pass to raise a skill one rank and earn a seal. A professor examines you.' },
         { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Tend the greenhouse beds. Plants grow as you tend them on different days.', solo: true },
     ],
     // Study trains the magic-like skills. Without runes of its own the generic glyphs are used.
@@ -37,6 +40,8 @@ export const FIRE_EMBLEM_PRESET = Object.freeze({
     },
     // The teas come from the item database (the item pack in the Content Kit) and from the cast's tastes.
     tea: { category: 'Tea', music: 'activity_tea_music' },
+    // The seals the exam hands out, by where the next rank sits on the skill's ladder (the Dark Seal is for one class, not a rank).
+    exam: { tiers: ['Beginner', 'Intermediate', 'Advanced', 'Master'] },
     classChange: { mode: 'both', studyKnowledge: 100, rankGate: null },
     terms: {
         examiner: 'Professor', examinerPlural: 'Professors', examinerRule: 'partner',

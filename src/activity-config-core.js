@@ -6,6 +6,7 @@ import { normalizeMyRecipes } from './activity-recipe-creator-core.js';
 import { normalizeCraft } from './craft/craft-core.js';
 import { GENERIC_CRAFTS } from './activity-craft-data.js';
 import { normalizeDrills } from './activity-drill-core.js';
+import { normalizeExam } from './activity-exam-core.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -163,6 +164,7 @@ export const GENERIC_ACTIVITIES = Object.freeze([
     { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite, hook it and reel it in.', solo: true },
     { id: 'target', label: 'Target Practice', kind: 'drill', drill: 'target', tab: 'training', icon: 'fa-bullseye', blurb: 'A steady mark crosses the lane. Tap when it is inside the ring.', solo: true },
     { id: 'moving', label: 'Moving Targets', kind: 'drill', drill: 'moving', tab: 'training', icon: 'fa-crosshairs', blurb: 'The mark speeds up and slows down. Tap when it is inside the ring.', solo: true },
+    { id: 'exam', label: 'Exam', kind: 'exam', tab: 'training', icon: 'fa-certificate', blurb: 'A graded set of drills. Pass it to raise a skill one rank and earn a credential. Needs an examiner.' },
     { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, tend and harvest. Plants grow as you tend them on different days.', solo: true },
 ]);
 
@@ -185,7 +187,7 @@ export const GENERIC_PRESET = Object.freeze({
 /** The newest preset format this build understands. A preset with a higher version still loads, and keeps what it holds. */
 export const PRESET_VERSION = 1;
 
-const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'crafts', 'drills', 'tea', 'classChange', 'terms']);
+const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'crafts', 'drills', 'exam', 'tea', 'classChange', 'terms']);
 export const HARVEST_MODES = Object.freeze(['cook', 'fish', 'garden']);
 const ACTIVITY_BASE_KNOWN = new Set(['id', 'kind', 'music', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
 const ACTIVITY_KNOWN = new Set(['id', 'mode', 'craft', 'drill', 'music', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
@@ -353,6 +355,7 @@ export function normalizePreset(raw, idHint = '') {
         harvest: normalizeHarvest(r.harvest),
         crafts: normalizeCrafts(r.crafts),
         drills: normalizeDrills(r.drills),
+        exam: normalizeExam(r.exam),
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
             // The hunger a shared drink and a snack give (see activity-hunger-core.js); empty uses the built-in values.

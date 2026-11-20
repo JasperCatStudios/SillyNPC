@@ -7,6 +7,8 @@ import { contextBlocks } from '../../src/context-blocks.js';
 import { DIALOGUE_RULE, dialogueOnly, speakLine } from '../../src/spoken-line.js';
 import { hasVoiceFor } from '../../src/tts.js';
 import { addRecord, rivalryBlock } from '../../src/rivalry.js';
+import { dbItemNamed, toInventoryItem } from '../../src/item-database.js';
+import { canExamine } from '../../src/activity-terms.js';
 import { giveItemFor, takeItemFor, getInventory, databaseItems, inventorySettings } from '../../src/inventory.js';
 import { vitalsStore, vitalsSettings, getVitals, setVitalFor } from '../../src/vitals.js';
 import { energyCostOf, canAfford, afterSpend, spentText } from '../../src/activity-energy-core.js';
@@ -22,7 +24,7 @@ import { recordTalk } from '../../src/talk-store.js';
 import { newTalkId } from '../../src/talk-log.js';
 import { combatPrefs, activeCombatType, personaRecordFor, isPersonaChar, isCombatDisabled } from '../../src/combat-access.js';
 import { getTypeData, hasTypeData } from '../../src/combat-store.js';
-import { addXp } from '../../src/combat-edit.js';
+import { addXp, setRank } from '../../src/combat-edit.js';
 import { levelUpReport } from '../../src/combat-level.js';
 import { levelingSettings } from '../../src/leveling.js';
 import { editPerson, getPerson, bondSettings } from '../../src/bonds.js';
@@ -180,6 +182,39 @@ export function craftTier(profId, who = '') {
         const rank = getTypeData(record, type.dataKey)?.profs?.[profId]?.rank;
         return rankTier(rank == null ? -1 : rungIndex(ladder, rank), (ladder?.rungs || []).length);
     } catch { return 0; }
+}
+
+/**
+ * Where a skill stands for the player (or someone else): its ladder and the position of the current rank (-1 for none), or null
+ * when there is no skill, ladder or combat sheet. For the exam, which is always for the next rank.
+ */
+export function skillStanding(profId, who = '') {
+    try {
+        const type = activeCombatType();
+        const prof = type && profId ? (type.proficiencies || []).find(p => p.id === profId) : null;
+        const record = prof ? (who ? cardOf(who) : personaRecordFor(userName())) : null;
+        if (!prof || !record || !hasTypeData(record, type.dataKey)) return null;
+        const ladder = ladderOf(type, prof.ladder);
+        if (!ladder?.rungs?.length) return null;
+        const rank = getTypeData(record, type.dataKey)?.profs?.[profId]?.rank;
+        return { label: prof.label, rungs: [...ladder.rungs], rankIndex: rank == null ? -1 : rungIndex(ladder, rank) };
+    } catch { return null; }
+}
+
+/** Whether this partner may examine in this skill, by the preset's rule (any partner, a tag, or a rank in the skill). */
+export function mayExamine(preset, partnerName, profId, minRank = 0) {
+    const card = cardOf(partnerName);
+    const standing = skillStanding(profId, partnerName);
+    return canExamine(preset, { tags: card?.tags, rank: standing ? standing.rankIndex : -1 }, { minRank });
+}
+
+/** The inventory item for a credential, from the item database when it is there (its note and kind), else a plain one. */
+export function credentialItem(name) {
+    try {
+        const db = dbItemNamed(databaseItems(), name);
+        if (db) return toInventoryItem(db, 1);
+    } catch { /* no database yet */ }
+    return { name, qty: 1, kind: 'Consumable', note: '' };
 }
 
 /** Whether eating restores hunger: the Vitals Tracker is on and tracks hunger, and the Activities setting is on. */
@@ -400,6 +435,16 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             if (!mine || !hasTypeData(mine, type.dataKey)) shown.push('You have no combat sheet, so no XP was kept.');
             else if (subject && profXp) shown.push(`+${profXp} XP in ${(type.proficiencies || []).find(p => p.id === subject)?.label || 'your subject'}`);
             else if (rewards.levelXp) shown.push(`+${rewards.levelXp} XP`);
+        }
+        // A passed exam raises the skill by one rank (the credential itself comes through rewards.items below).
+        if (rewards.promote?.prof && mine && type && hasTypeData(mine, type.dataKey)) {
+            try {
+                const prof = (type.proficiencies || []).find(p => p.id === rewards.promote.prof);
+                const ladder = prof ? ladderOf(type, prof.ladder) : null;
+                const held = getTypeData(mine, type.dataKey)?.profs?.[prof?.id]?.rank;
+                const next = ladder?.rungs?.[(held == null ? -1 : rungIndex(ladder, held)) + 1];
+                if (next && setRank(mine, type, prof.id, next).ok) shown.push(`${prof.label} rose to rank ${next}.`);
+            } catch (err) { console.warn('[Worldkit] could not raise the rank', err); }
         }
         if (mine) mine.actStats = recordPlay(mine.actStats, activityId, grade, rewards.knowledge || 0);
         if (mine && rewards.recipeId) mine.actStats = noteCooked(mine.actStats, activityId, rewards.recipeId);

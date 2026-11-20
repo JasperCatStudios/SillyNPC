@@ -23,7 +23,8 @@ const REVEAL_MS = 700;
 /**
  * @param {object} win the activity window
  * @param {{ partner: string, label: string, activityId?: string, drill: object, difficulty: string, subject?: string,
- *           subjectLabel?: string, onLeave: () => void, onAgain: () => void }} ctx
+ *           subjectLabel?: string, onLeave: () => void, onAgain: () => void, onFinish?: (run: object) => void, keepTalk?: boolean }} ctx
+ * `onFinish` is for an exam: the run is handed back unsettled instead of paying out and showing a result card.
  */
 export function runDrill(win, ctx) {
     const { partner, label, drill, onLeave, onAgain } = ctx;
@@ -36,7 +37,7 @@ export function runDrill(win, ctx) {
     let finished = false;
     const alive = () => win.isOpen() && !finished;
 
-    win.resetTalk();
+    if (!ctx.keepTalk) win.resetTalk();
     win.setView('play');
     win.setTitle(label, 'fa-bullseye');
     win.setHelp([
@@ -111,6 +112,8 @@ export function runDrill(win, ctx) {
         finished = true;
         press.destroy();
         cancelAnimationFrame(raf);
+        // Run inside an exam: hand the run back and let the exam judge it (nothing is settled here).
+        if (ctx.onFinish) { ctx.onFinish(run); return; }
         const rewards = drillRewards(run, { partner: Boolean(partner) });
         speak('end', '', rewards.grade);
         const hits = run.results.filter(q => q !== 'miss').length;
