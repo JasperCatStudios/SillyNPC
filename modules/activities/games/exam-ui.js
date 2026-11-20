@@ -108,10 +108,11 @@ export function runExam(win, ctx) {
             rewards: { grade: rewards.grade, levelXp: rewards.levelXp, profXp: rewards.profXp, bonds: rewards.bonds, items, ...(rewards.promote ? { promote: { prof: ctx.subject } } : {}) },
         });
         if (rewards.credential && !activitySettings().itemsOn) lines.push(`Turn the Inventory on in the Activities settings to keep the ${rewards.credential}.`);
-        const title = verdict.passed ? `${words.exam}: ${'passed'}` : `${words.exam}: not passed`;
+        const early = !verdict.passed && verdicts.length < plan.length && verdicts.every(v => v.passed);
+        const title = verdict.passed ? `${words.exam}: passed` : early ? `${words.exam}: stopped early` : `${words.exam}: not passed`;
         resultCard({
             title, grade: rewards.grade, extra: `${percent(verdict.average)} on average`,
-            lines: [verdict.passed ? `${ctx.subjectLabel} is now ${ctx.toRung}.` : 'No rank or credential this time.', ...lines],
+            lines: [verdict.passed ? `${ctx.subjectLabel} is now ${ctx.toRung}.` : early ? `${verdicts.length} of ${plan.length} tests passed. Finish all of them to rise a rank.` : 'No rank or credential this time.', ...lines],
             again: verdict.passed ? '' : 'Sit it again', onAgain: verdict.passed ? null : ctx.onAgain, onLeave: ctx.onLeave, win,
         });
     }
