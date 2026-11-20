@@ -185,7 +185,7 @@ const BL_GADGETRY = {
  * Materials steer it through effects on the `mech` stage: crisp paper makes the lines easier, bleeding paper makes the brush thirstier.
  */
 const BL_SEAL_STEPS = (glyph, rings, width, ink) => [
-    { id: 'write', mech: 'trace', weight: 3, params: { glyph, width, inkPerUnit: ink }, art: { surface: 'paper' }, words: { title: 'Write the charm', hint: 'Draw each numbered stroke from its dot, staying on the line. Touch the ink well to dip when the ink runs low.', done: 'Neatly written.', action: 'Draw (hold)' } },
+    { id: 'write', mech: 'trace', weight: 3, params: { glyph, width, inkPerUnit: ink }, art: { surface: 'paper' }, words: { title: 'Write the charm', hint: 'Draw each numbered stroke from its dot, staying on the line. Touch the ink well to dip when the ink runs low.', hintButton: 'Hold the button to draw the stroke; tap Dip ink when the ink runs low.', done: 'Neatly written.', action: 'Draw (hold)' } },
     { id: 'seal', mech: 'stamp', weight: 1, params: { rings, markR: 0.085 }, art: { surface: 'paper' }, words: { title: 'Press the seal', hint: 'Tap the seal mark just as the ring closes on it.', done: 'Sealed.', action: 'Stamp' } },
 ];
 
@@ -263,9 +263,9 @@ const BL_GIGAI_WIRES = [
 ];
 
 const BL_GIGAI_STEPS = (parts, wires, drift, band, surges) => [
-    { id: 'seat', mech: 'assemble', weight: 1, params: { count: parts }, art: { surface: 'bench' }, words: { title: 'Seat the parts', hint: 'Press and drag each part to its outline. The lit one goes next.', done: 'Every part seated.', action: 'Stop the marker' } },
-    { id: 'wire', mech: 'trace', weight: 1, params: { paths: BL_GIGAI_WIRES.slice(0, wires), width: 0.06, ink: false }, art: { surface: 'board' }, words: { title: 'Wire the nerves', hint: 'Draw along each wire from its dot, staying on the line.', done: 'Wired up.', action: 'Draw (hold)' } },
-    { id: 'tune', mech: 'tune', weight: 3, params: { durationMs: 11000, drift, band, surges }, art: { surface: 'board' }, words: { title: 'Tune the soul', hint: 'Press and drag: the ring moves as far as you drag. Keep it on the glowing soul.', done: 'The soul settles.', action: 'Hold to chase' } },
+    { id: 'seat', mech: 'assemble', weight: 1, params: { count: parts }, art: { surface: 'bench' }, words: { title: 'Seat the parts', hint: 'Press and drag each part to its outline. The lit one goes next.', hintButton: 'A marker sweeps across: press to stop it across, then press again to stop it down.', done: 'Every part seated.', action: 'Stop the marker' } },
+    { id: 'wire', mech: 'trace', weight: 1, params: { paths: BL_GIGAI_WIRES.slice(0, wires), width: 0.06, ink: false }, art: { surface: 'board' }, words: { title: 'Wire the nerves', hint: 'Draw along each wire from its dot, staying on the line.', hintButton: 'Hold the button to move along the wire; let go to pause.', done: 'Wired up.', action: 'Draw (hold)' } },
+    { id: 'tune', mech: 'tune', weight: 3, params: { durationMs: 11000, drift, band, surges }, art: { surface: 'board' }, words: { title: 'Tune the soul', hint: 'Press and drag: the ring moves as far as you drag. Keep it on the glowing soul.', hintButton: 'Hold the button to make the ring chase the glowing soul.', done: 'The soul settles.', action: 'Hold to chase' } },
     { id: 'core', mech: 'stamp', weight: 1, params: { rings: 1, markR: 0.09 }, art: { surface: 'board' }, words: { title: 'Seat the core', hint: 'Tap the mark just as the ring closes on it.', done: 'Core seated.', action: 'Seat it' } },
 ];
 

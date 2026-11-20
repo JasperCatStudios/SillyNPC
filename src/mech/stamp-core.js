@@ -80,7 +80,8 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
     // A pointer press is the first sample after the pointer went down.
     const taps = [];
     if (s.controls === 'pointer') {
-        if (down && !s.down && path.length) taps.push(path[0]);
+        // A pointer press is the first sample of a press. A very quick tap can be over (down is false again) by the time the frame runs.
+        if (path.length && !s.down) taps.push(path[0]);
         s.down = down;
     }
     const buttons = s.controls === 'button' ? pressesOf(input) : [];

@@ -36,7 +36,7 @@ export function normalizeScript(raw) {
         seen.add(id);
         steps.push({
             id, mech, weight: Math.max(0, num(q.weight, 1)), params: { ...obj(q.params) },
-            uses: text(q.uses, 40), words: Object.fromEntries(['title', 'hint', 'done', 'action'].map(k => [k, text(obj(q.words)[k], 120)]).filter(([, v]) => v)),
+            uses: text(q.uses, 40), words: Object.fromEntries(['title', 'hint', 'done', 'action', 'hintButton'].map(k => [k, text(obj(q.words)[k], 120)]).filter(([, v]) => v)),
             art: Object.fromEntries(Object.entries(obj(q.art)).map(([k, v]) => [slug(k, 20), slug(v, 40)]).filter(([k, v]) => k && v)),
             sounds: Object.fromEntries(Object.entries(obj(q.sounds)).map(([k, v]) => [slug(k, 20), text(v, 60)]).filter(([k, v]) => k && v)),
             onRuin: q.onRuin === 'fail' ? 'fail' : 'cap', optional: q.optional === true, partner: ['offer', 'duet', 'never'].includes(q.partner) ? q.partner : 'never',

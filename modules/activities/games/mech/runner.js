@@ -82,8 +82,13 @@ export function runMechSteps(opts) {
     stage.style.cssText = 'position:relative; width:min(100%, calc(34dvh * 1.6)); margin:0 auto; aspect-ratio:16/10; background:#23262b; border-radius:12px; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none;';
     const status = el('div', 'snpc-act-status');
     status.setAttribute('aria-live', 'polite');
-    const bar = el('div', 'snpc-act-row');
-    bar.style.cssText = 'flex-wrap:wrap; gap:8px;';
+    const bar = el('div');
+    bar.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+    const actions = el('div', 'snpc-act-row');
+    actions.style.cssText = 'flex-wrap:nowrap; gap:8px; align-items:stretch;';
+    const extras = el('div', 'snpc-act-row');
+    extras.style.cssText = 'flex-wrap:nowrap; gap:8px;';
+    bar.append(actions, extras);
     const popup = el('div');
     popup.style.cssText = 'position:absolute; left:0; right:0; top:8%; text-align:center; font-size:22px; font-weight:bold; color:#fff; text-shadow:0 2px 4px #000; pointer-events:none; opacity:0; transition:opacity 0.3s;';
     wrap.append(top, hint, stage, status, bar);
@@ -150,7 +155,8 @@ export function runMechSteps(opts) {
     function showIntro() {
         cancelAnimationFrame(raf);
         stage.replaceChildren();
-        bar.replaceChildren();
+        actions.replaceChildren();
+        extras.replaceChildren();
         const step = session.script.steps[session.index + 1];
         if (!step) { finish(); return; }
         title.textContent = `Step ${session.index + 2} of ${session.script.steps.length}`;
@@ -169,7 +175,7 @@ export function runMechSteps(opts) {
         stage.append(card);
         go.focus();
         controls = controlsFor(step.mech);
-        bar.append(toggleControls(step.mech));
+        extras.append(toggleControls(step.mech));
     }
 
     let overlay = null;
@@ -239,20 +245,27 @@ export function runMechSteps(opts) {
         const make = CRAFT_VIEWS[step.mech] || VIEWS[step.mech];
         view = make ? make(svg, step) : null;
         title.textContent = `${session.index + 1} of ${session.script.steps.length}: ${step.words.title || step.id}`;
-        hint.textContent = step.words.hint || '';
-        bar.replaceChildren();
+        // In action-button play a step may say how to play that way (`words.hintButton`).
+        hint.textContent = (controls === 'button' && step.words.hintButton) || step.words.hint || '';
+        // The grace at the start of a step ignores input for a moment: say so, so a press right after Go is not thought lost.
+        status.textContent = 'Ready...';
+        setTimeout(() => { if (status.textContent === 'Ready...') status.textContent = ''; }, 850);
+        actions.replaceChildren();
+        extras.replaceChildren();
         const mech = step.mech;
-        if (DONE_BUTTON.has(mech)) { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); bar.append(done); }
+        if (DONE_BUTTON.has(mech)) { const done = el('button', 'snpc-act-btn', 'Done'); done.type = 'button'; done.addEventListener('click', () => { inp.pick = 'done'; }); actions.append(done); }
         if (controls === 'button') {
             const big = el('button', 'snpc-act-bigtap', step.words.action || BUTTON_WORD[mech] || 'Go');
             big.type = 'button';
+            big.style.cssText = 'flex:1 1 auto; width:auto; margin:0;';
             big.addEventListener('pointerdown', (e) => { e.preventDefault(); inp.held = true; inp.presses.push(clockNow()); });
             for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) big.addEventListener(ev, () => { inp.held = false; });
-            bar.append(big);
-            if (mech === 'trace') { const dip = el('button', 'snpc-act-btn', 'Dip ink'); dip.type = 'button'; dip.addEventListener('click', () => { inp.pick = 'dip'; }); bar.append(dip); }
+            actions.append(big);
+            // Only a step that has ink has a well to dip in.
+            if (mech === 'trace' && session.run?.inkOn) { const dip = el('button', 'snpc-act-btn', 'Dip ink'); dip.type = 'button'; dip.style.flex = '0 0 auto'; dip.addEventListener('click', () => { inp.pick = 'dip'; }); actions.append(dip); }
         }
-        bar.append(toggleControls(mech, true), pauseButton());
-        if (step.optional) { const skip = el('button', 'snpc-act-btn is-quiet', 'Skip'); skip.type = 'button'; skip.addEventListener('click', () => { if (skipStep(session)) afterStep(); }); bar.append(skip); }
+        extras.append(toggleControls(mech, true), pauseButton());
+        if (step.optional) { const skip = el('button', 'snpc-act-btn is-quiet', 'Skip'); skip.type = 'button'; skip.addEventListener('click', () => { if (skipStep(session)) afterStep(); }); extras.append(skip); }
         speak('start');
         last = performance.now();
         raf = requestAnimationFrame(frameLoop);

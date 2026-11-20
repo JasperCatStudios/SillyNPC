@@ -59,7 +59,7 @@ export function traceView(svg, step) {
             guideEls.push(S('path', { d, fill: 'none', stroke: guideColor, 'stroke-width': 0.7, 'stroke-dasharray': '2 2', opacity: 0.9 }, guides));
             const start = st.pts[0];
             startDots.push(S('circle', { cx: X(start[0]), cy: Y(start[1]), r: Math.max(2, v.width * 100 * 0.9), fill: '#6aa84f', opacity: 0 }, guides));
-            const label = S('text', { x: X(start[0]) - 1.5, y: Y(start[1]) - 3.5, 'font-size': 4.5, fill: kind === 'board' ? '#cfe' : '#5a4b2f', 'font-weight': 'bold' }, guides);
+            const label = S('text', { x: X(start[0]) + 3, y: Y(start[1]) - 3, 'font-size': 6.5, fill: kind === 'board' ? '#cfe' : '#5a4b2f', 'font-weight': 'bold' }, guides);
             label.textContent = String(i + 1);
             labels.push(label);
             drawn.push(0);
@@ -69,7 +69,7 @@ export function traceView(svg, step) {
                 well = S('g', {}, hud);
                 S('circle', { cx: X(w.x), cy: Y(w.y), r: w.r * 100, fill: '#16131a', stroke: '#6b5f80', 'stroke-width': 0.8 }, well);
                 S('circle', { cx: X(w.x), cy: Y(w.y), r: w.r * 100 * 0.6, fill: '#2b2535' }, well);
-                const t = S('text', { x: X(w.x), y: Y(w.y) + w.r * 100 + 5, 'text-anchor': 'middle', 'font-size': 3.6, fill: kind === 'board' ? '#cfe' : '#5a4b2f' }, hud);
+                const t = S('text', { x: X(w.x), y: Y(w.y) - w.r * 100 - 1.6, 'text-anchor': 'middle', 'font-size': 4.2, fill: kind === 'board' ? '#cfe' : '#5a4b2f' }, hud);
                 t.textContent = 'dip';
             });
             inkBar = S('rect', { x: 20, y: 9, width: 30, height: 3.2, rx: 1.6, fill: '#00000033', stroke: '#6b5f80', 'stroke-width': 0.4 }, hud);

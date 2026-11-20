@@ -11,7 +11,7 @@ Activities is a hub (the green floating button) of things to do with a character
 Activities fits itself to the combat type you are playing. Two worlds come ready made, and any other combat type gets the neutral set:
 
 - **Fire Emblem:** classes, seals, a professor, the library, the greenhouse and the pond.
-- **Bleach:** kanji tiles for Study, a captain who sets the promotion trial, writs as the credentials (Academy, Officer, Lieutenant, Captain), sword, kidō and flash step drills, Japanese dishes, river fish and garden seeds. Crafting is sewing (cloth, thread and buttons made into clothes and small goods) and gadgetry (shop-style inventions such as Soul Candy and sensors built from reishi, wire and casings), plus cooking. Healing and swords are not crafted, since kidō and special abilities do the healing. Skills climb the E to SS grade ladder, and the crafting skills sit on the same ladder.
+- **Bleach:** kanji tiles for Study, a captain who sets the promotion trial, writs as the credentials (Academy, Officer, Lieutenant, Captain), sword, kidō and flash step drills, Japanese dishes, river fish and garden seeds. Crafting is sewing (cloth, thread and buttons made into clothes and small goods), gadgetry (shop-style inventions such as Soul Candy and sensors built from reishi, wire and casings), sealing tags (write a paper charm stroke by stroke with a brush and ink, then press the seal) and the gigai workshop (seat the parts of a body, wire its nerves, tune the soul and seat the core), plus cooking. Healing and swords are not crafted, since kidō and special abilities do the healing. Skills climb the E to SS grade ladder, and the crafting skills sit on the same ladder.
 
 You can copy either one under **Customize an activity** and change it for your own world.
 
@@ -20,7 +20,7 @@ You can copy either one under **Customize an activity** and change it for your o
 - **Tea Time:** host a character at a table. Pick a tea, steep it and pour it in the right moment, offer a plate, and talk in the chat. The guest reacts to the tea, the food and the talk.
 - **Cooking:** a hands-on kitchen with mini-games for chopping, stirring, searing, seasoning, pouring and plating. A simpler three-tap version can be switched on. An optional **Share a Meal** step serves the dish to a character.
 - **Fishing and Gardening:** wait for a bite and reel it in, or plant and tend beds over several days.
-- **Crafting:** alchemy and smithing, where you pick materials and play through a few stages.
+- **Crafting:** alchemy and smithing, where you pick materials and play through a few stages. A craft can also play hands-on steps (drawing a glyph, seating parts, tuning a drifting target); see [CRAFT-STEPS.md](CRAFT-STEPS.md).
 - **Study:** a matching-pairs game with three board sizes and three difficulties.
 - **Training drills:** short, repeatable practice for one skill. A mark crosses a lane and you tap when it is in the ring. Drills are data, so a world can add its own. Phones get a wider ring and a slower mark.
 - **Certification exam:** a graded set of drills for a skill's next rank. Pass every test to raise the skill by one rank and earn a credential (a seal, a badge, whatever the world calls it). Which credential depends on where the new rank sits on the skill's ladder. See [Who can examine](#who-can-examine) below.

@@ -146,7 +146,7 @@ function sample(s, t, x, y) {
     s.accN += 1;
     const dry = spendInk(s, adv);
     st.covered += adv * (dry ? 0.4 : 1);
-    const [fx, fy] = fromSquare(p);
+    const [fx, fy] = fromSquare([p[0] + (near.x - p[0]) * s.magnet, p[1] + (near.y - p[1]) * s.magnet]);
     st.laid.push([fx, fy, clamp(1.35 - speed / 2.2, 0.45, 1.6) * (dry ? 0.5 : 1), dry ? 1 : 0]);
     if (st.laid.length > 600) st.laid.shift();
     s.speedN += 1;
