@@ -72,6 +72,8 @@ function openActivity(a) {
     const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], craft: showCraft, drill: showDrill, exam: showExam, [CUSTOM_KIND]: showCustom };
     const open = byKind[a.kind];
     if (!open) return false;
+    // Every screen after the menu has a Back button in the header.
+    ensureWindow().setBack(true);
     open(a);
     // Any activity can name a looping music tag; the setup screens above stop earlier music first, so this starts after them.
     const track = a.music || (a.kind === 'craft' ? activePreset().crafts?.[a.craft]?.music : '');
@@ -86,7 +88,7 @@ const chatOpen = () => {
 
 function ensureWindow() {
     if (win) return win;
-    win = createActivityWindow({ onClose: () => stopMusic() });
+    win = createActivityWindow({ onClose: () => stopMusic(), onBack: () => backToMenu() });
     return win;
 }
 
@@ -139,6 +141,7 @@ function showHub() {
     const w = ensureWindow();
     const preset = activePreset();
     w.setView('hub');
+    w.setBack(false);
     w.setTitle('Activities', 'fa-seedling');
     w.userName = userName();
 
@@ -778,6 +781,22 @@ function showGardenScreen(activity) {
     seat(w, partner, `In ${term(preset, 'gardenPlace')}`);
     w.userName = userName();
     runGarden(w, { partner: partner.name, activityId: activity.id, label: activity.label, preset, onLeave: () => showHub() });
+}
+
+/**
+ * The header's Back button: throws the current screen away and shows the menu in a fresh window. A fresh window, not just the hub drawn
+ * again, because a game still running (a timer, a key listener) sees the old window as closed and stops by itself.
+ */
+function backToMenu() {
+    const old = win;
+    win = null;
+    stopMusic();
+    try { old?.destroy(); } catch { /* it may already be gone */ }
+    const w = ensureWindow();
+    w.open();
+    showHub();
+    // Focus the first control of the menu, not Close, so a stray Space or Enter does not close the window.
+    try { w.root.querySelector('select, .snpc-act-hubtab')?.focus({ preventScroll: true }); } catch { /* focus is a nicety */ }
 }
 
 function openHub(from) {

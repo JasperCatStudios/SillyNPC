@@ -1152,7 +1152,7 @@ body[data-rph-skin="lace"] #rph-btn { background: radial-gradient(circle at 35% 
 
 /* ---------- Gallery (fork): the same dark frame as the Combat window and the Games sidebar ---------- */
 .rph-gal {
-    position: fixed; inset: 0; z-index: 3100; display: flex; align-items: stretch; justify-content: center;
+    position: fixed; inset: 0; height: 100vh; height: 100dvh; z-index: 3100; display: flex; align-items: stretch; justify-content: center;
     background: rgba(0, 0, 0, 0.6); color: #eee7da; overflow: hidden;
 }
 .rph-gal :is(button, input, select, textarea, summary) { font: inherit; }

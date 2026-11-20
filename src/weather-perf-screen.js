@@ -67,7 +67,7 @@ export function createPerfScreen(deps) {
     overlay.setAttribute?.('role', 'dialog');
     const style = el('style');
     style.textContent = `
-.wk-perf-overlay{position:fixed;inset:0;z-index:2147482990;background:rgba(8,10,16,.9);color:#eef;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px calc(24px + env(safe-area-inset-bottom));box-sizing:border-box;font-size:16px;line-height:1.4}
+.wk-perf-overlay{position:fixed;inset:0;height:100vh;height:100dvh;z-index:2147482990;background:rgba(8,10,16,.9);color:#eef;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px calc(24px + env(safe-area-inset-bottom));box-sizing:border-box;font-size:16px;line-height:1.4}
 .wk-perf-panel{position:relative;z-index:2147483000;max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
 .wk-perf-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .wk-perf-title{font-size:1.25em;font-weight:700}

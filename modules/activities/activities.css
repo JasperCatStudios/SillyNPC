@@ -56,6 +56,13 @@
     background: transparent; color: #e8d6b9; border: 1px solid transparent; border-radius: 6px; font-size: 1.2rem; cursor: pointer;
 }
 .snpc-act-close:hover { border-color: #a4947d; }
+.snpc-act-back {
+    order: -1; margin-right: 10px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 10px;
+    background: transparent; color: #e8d6b9; border: 1px solid #756c5e; border-radius: 6px; font-size: 1rem; cursor: pointer;
+}
+.snpc-act-back[hidden] { display: none; }
+.snpc-act-back:hover { border-color: #a4947d; }
+.snpc-act-preview { display: none; }
 
 .snpc-act-body { display: flex; gap: 12px; padding: 12px; flex: 1 1 auto; min-height: 0; }
 .snpc-act-main {
@@ -191,7 +198,11 @@
         border-radius: 8px; padding-bottom: env(safe-area-inset-bottom);
     }
     /* The close button goes to the left, away from a floating button another extension keeps at the top right. */
-    .snpc-act-head { flex-direction: row-reverse; justify-content: flex-end; gap: 12px; padding: 8px 12px; }
+    /* Close and Back sit together on the left, away from a floating button another extension keeps at the top right. */
+    .snpc-act-head { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 8px 12px; }
+    .snpc-act-close { order: 0; }
+    .snpc-act-back { order: 1; margin-right: 0; }
+    .snpc-act-title { order: 2; margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .snpc-act-body { flex-direction: column; padding: 8px; gap: 8px; }
     .snpc-act-main { flex: 1 1 auto; min-height: 0; padding: 8px; }
     .snpc-act-side { flex: 0 0 34%; min-height: 150px; }
@@ -438,6 +449,16 @@
     .snpc-act-side { flex: 0 0 auto; min-height: 0; max-height: 34%; overflow: hidden; }
     .snpc-act.is-chat-big .snpc-act-side { flex: 0 0 66%; max-height: none; }
     .snpc-act-chat, .snpc-act-help { min-height: 44px; }
+    /* The talk starts folded: just the partner and the latest line. Tap it to open the chat, the log and the rules. */
+    .snpc-act:not(.is-chat-big) .snpc-act-tabs,
+    .snpc-act:not(.is-chat-big) .snpc-act-chat,
+    .snpc-act:not(.is-chat-big) .snpc-act-help,
+    .snpc-act:not(.is-chat-big) .snpc-act-input { display: none; }
+    .snpc-act:not(.is-chat-big) .snpc-act-side { flex: 0 0 auto; min-height: 0; max-height: none; padding-top: 4px; padding-bottom: 4px; }
+    .snpc-act-preview { display: block; font-size: 0.85rem; color: #d8cebf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 62vw; }
+    .snpc-act-partner::after { content: '\f077'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-left: auto; opacity: .6; font-size: .85rem; }
+    .snpc-act.is-chat-big .snpc-act-partner::after { content: '\f078'; }
+    .snpc-act.is-chat-big .snpc-act-preview { display: none; }
     /* A long setup screen keeps its Start / Back row in view. */
     .snpc-act-stickyrow { position: sticky; bottom: 0; z-index: 2; padding: 6px 0; background: #2b2a2c; }
 }

@@ -20,10 +20,10 @@ import { lineTools, editLine } from '../../src/talk-tools.js';
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * @param {{ onClose?: () => void }} [opts]
+ * @param {{ onClose?: () => void, onBack?: () => void }} [opts] onBack: the header's Back button (shown on every screen but the menu)
  * @returns the window handle
  */
-export function createActivityWindow({ onClose } = {}) {
+export function createActivityWindow({ onClose, onBack } = {}) {
     const root = el('div', 'snpc-act');
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'false');
@@ -35,7 +35,13 @@ export function createActivityWindow({ onClose } = {}) {
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.append(el('i', 'fa-solid fa-xmark'));
-    head.append(title, closeBtn);
+    const backBtn = el('button', 'snpc-act-back');
+    backBtn.type = 'button';
+    backBtn.hidden = true;
+    backBtn.setAttribute('aria-label', 'Back to the menu');
+    backBtn.title = 'Back to the menu';
+    backBtn.append(el('i', 'fa-solid fa-arrow-left'), el('span', 'snpc-act-back-text', ' Menu'));
+    head.append(backBtn, title, closeBtn);
 
     const body = el('div', 'snpc-act-body');
     const main = el('div', 'snpc-act-main');
@@ -49,7 +55,9 @@ export function createActivityWindow({ onClose } = {}) {
     const who = el('div');
     const whoName = el('div', 'snpc-act-partner-name');
     const whoSub = el('small', 'snpc-act-partner-sub');
-    who.append(whoName, whoSub);
+    // On a phone the talk starts folded to one line: the latest thing said shows here, and a tap opens the chat and the rules.
+    const preview = el('div', 'snpc-act-preview');
+    who.append(whoName, whoSub, preview);
     partnerRow.append(avatar, who);
     partnerRow.title = 'Tap to make the talk bigger or smaller';
     partnerRow.addEventListener('click', () => root.classList.toggle('is-chat-big'));
@@ -199,6 +207,8 @@ export function createActivityWindow({ onClose } = {}) {
         /** 'hub' (whole width) or 'play' (activity and talk). */
         setView(view) {
             const play = view === 'play';
+            // Every new screen starts with the talk folded again (on a phone).
+            root.classList.remove('is-chat-big');
             root.dataset.view = play ? 'play' : 'hub';
             // The side panel belongs to the play view only; it must come back whenever a game starts.
             isPlay = play;
@@ -215,6 +225,10 @@ export function createActivityWindow({ onClose } = {}) {
             if (picture) { avatar.src = picture; avatar.style.display = ''; } else { avatar.removeAttribute('src'); avatar.style.display = 'none'; }
         },
         setSub(text) { whoSub.textContent = text; },
+        /** Shows or hides the header's Back button (it takes the player to the menu). */
+        setBack(on) { backBtn.hidden = !on; },
+        /** Removes the window for good (the Back button builds a fresh one), so anything still running in it sees it closed. */
+        destroy() { root.classList.remove('is-open'); root.remove(); },
         /**
          * The How to play tab: a list of { title, text } sections (text may have several paragraphs separated by a blank line).
          * Called by each activity when it starts. The tab the player is on does not change.
@@ -234,11 +248,12 @@ export function createActivityWindow({ onClose } = {}) {
             applyPanels();
         },
         /** Starts a new conversation (the talk of a new session). */
-        resetTalk() { lines.length = 0; chat.replaceChildren(); },
+        resetTalk() { lines.length = 0; chat.replaceChildren(); preview.textContent = ''; },
         /** kind: 'bot' (the partner), 'user', 'system' (shows in the Log tab only), 'typing' (removed by removeTyping). */
         addLine(name, text, kind = 'bot') {
             const line = kind !== 'typing' ? { who: name, text, kind } : null;
             if (line) lines.push(line);
+            if (line && line.kind !== 'system') preview.textContent = `${name}: ${text}`;
             const row = el('div', `snpc-act-msg ${kind === 'typing' ? 'bot is-typing' : kind}`);
             if (kind === 'bot' || kind === 'typing') row.append(el('b', '', `${name}: `));
             row.append(el('span', 'snpc-act-text', text));
@@ -267,6 +282,7 @@ export function createActivityWindow({ onClose } = {}) {
         },
     };
     closeBtn.addEventListener('click', () => api.close());
+    backBtn.addEventListener('click', () => onBack?.());
     api.setView('hub');
     return api;
 }
