@@ -50,6 +50,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     combatProfXpCap: 12,
     musicOn: true,
     scripts: [],                  // the activity files the player added: [{ name, url }]
+    debugMode: false,             // testing: ignores energy, the partner requirement, exam limits and the daily bond limit
     classicCooking: false,        // the old three-tap cooking instead of the hands-on kitchen (kept as a fallback)
     mechControls: {},             // the way you last played each kind of step: { stir: 'button', ... }
     controls: 'auto',             // how the hands-on games are played: auto, pointer (mouse and touch) or button (the action button or key)
@@ -116,6 +117,7 @@ export function normalizeActivitySettings(raw) {
         musicOn: bool('musicOn'),
         scripts: normalizeScripts(r.scripts),
         classicCooking: bool('classicCooking'),
+        debugMode: bool('debugMode'),
         controls: ['auto', 'pointer', 'button'].includes(r.controls) ? r.controls : 'auto',
         mechControls: Object.fromEntries(Object.entries(obj(r.mechControls)).filter(([k, v]) => /^[a-z]{2,20}$/.test(k) && (v === 'pointer' || v === 'button')).slice(0, 30)),
         myRecipes: normalizeMyRecipes(r.myRecipes, normalizeRecipe),

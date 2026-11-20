@@ -35,12 +35,12 @@ import {
     normalizeActivitySettings, presetFor,
 } from '../../src/activity-config-core.js';
 import {
-    normalizeActivityStore, dayKey, gainedToday, markGained, applyActivityNudge,
+    normalizeActivityStore, dayKey, gainedToday, markGained, applyActivityNudge, examAttemptsToday, noteExamAttempt,
 } from '../../src/activity-bond-core.js';
 import { buildTalkRequest, cannedLine, talkDecision, cooldownOk, hasBuiltIn } from '../../src/activity-talk-core.js';
 import { activityRecord, activityTalkEntry, activityReport } from '../../src/activity-record.js';
 import {
-    applyProfXp, unlocksFor, applyUnlocks, progressLine, recordPlay, noteCooked,
+    applyProfXp, unlocksFor, applyUnlocks, progressLine, recordPlay, noteCooked, xpToRung,
 } from '../../src/activity-progress-core.js';
 import { describeState } from '../../src/activity-memory-core.js';
 import { BUILT_IN_PRESETS } from '../../src/activity-presets.js';
@@ -197,15 +197,29 @@ export function skillStanding(profId, who = '') {
         const ladder = ladderOf(type, prof.ladder);
         if (!ladder?.rungs?.length) return null;
         const rank = getTypeData(record, type.dataKey)?.profs?.[profId]?.rank;
-        return { label: prof.label, rungs: [...ladder.rungs], rankIndex: rank == null ? -1 : rungIndex(ladder, rank) };
+        const index = rank == null ? -1 : rungIndex(ladder, rank);
+        const xp = Math.max(0, Number(getTypeData(record, type.dataKey)?.profs?.[profId]?.xp) || 0);
+        return { label: prof.label, rungs: [...ladder.rungs], rankIndex: index, xp, needXp: xpToRung(index + 1) };
     } catch { return null; }
 }
 
 /** Whether this partner may examine in this skill, by the preset's rule (any partner, a tag, or a rank in the skill). */
 export function mayExamine(preset, partnerName, profId, minRank = 0) {
+    if (activitySettings().debugMode) return true;
     const card = cardOf(partnerName);
     const standing = skillStanding(profId, partnerName);
     return canExamine(preset, { tags: card?.tags, rank: standing ? standing.rankIndex : -1 }, { minRank });
+}
+
+/** How many exam attempts this skill has had today, and a way to count one (kept in the chat). */
+export function examAttemptsNow(profId) {
+    return examAttemptsToday(activityStore(), profId, currentDay());
+}
+export function countExamAttempt(profId) {
+    const store = activityStore();
+    if (!store) return;
+    store.exams = noteExamAttempt(store, profId, currentDay()).exams;
+    saveStore();
 }
 
 /** The inventory item for a credential, from the item database when it is there (its note and kind), else a plain one. */
@@ -239,6 +253,7 @@ export function playerEnergy() {
  * @returns {{ active: boolean, cost: number, energy: number|null, ok: boolean }}
  */
 export function energyStatus(activity) {
+    if (activitySettings().debugMode) return { active: false, cost: 0, energy: null, ok: true };
     const active = energyActive();
     const cost = active ? energyCostOf(activity, activitySettings()) : 0;
     const energy = active ? playerEnergy() : null;
@@ -470,7 +485,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
             const day = dayKey(date);
             const person = getPerson(partner);
             if (store && person?.tracked) {
-                if (gainedToday(store, day, partner, activityId)) {
+                if (!s.debugMode && gainedToday(store, day, partner, activityId)) {
                     shown.push(`${partner} has already shared this with you today, so the bond holds steady.`);
                 } else {
                     const results = [];
@@ -485,7 +500,7 @@ export function settleActivity({ activityId, label, partner, subject = '', summa
         }
 
         // The energy it cost (only while the Vitals Tracker is on and tracks energy).
-        if (energyActive()) {
+        if (energyActive() && !s.debugMode) {
             const act = (activePreset().activities || []).find(a => a.id === activityId);
             const cost = energyCostOf(act, s);
             const before = playerEnergy();

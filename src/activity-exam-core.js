@@ -17,6 +17,9 @@ export const EXAM_DEFAULTS = Object.freeze({
     passBase: 0.45, passStep: 0.08, passMax: 0.85,
     // Tests in the exam: this many at the lowest tier, one more at each tier, up to `testsMax`.
     testsMin: 2, testsMax: 5,
+    // The share of the XP toward the next rank the skill must already hold before the exam may be taken (0 turns it off),
+    // and how many attempts a skill may have per story day (0 means no limit).
+    readyShare: 0.5, attemptsPerDay: 1,
 });
 
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -34,6 +37,8 @@ export function normalizeExam(raw) {
         passBase: num(r.passBase, 0.1, 0.9, EXAM_DEFAULTS.passBase),
         passStep: num(r.passStep, 0, 0.3, EXAM_DEFAULTS.passStep),
         testsMin: Math.round(num(r.testsMin, 1, 8, EXAM_DEFAULTS.testsMin)),
+        readyShare: num(r.readyShare, 0, 1, EXAM_DEFAULTS.readyShare),
+        attemptsPerDay: Math.round(num(r.attemptsPerDay, 0, 20, EXAM_DEFAULTS.attemptsPerDay)),
     };
 }
 
@@ -96,6 +101,24 @@ export function examPlan(preset, target, drillIds) {
         });
     }
     return tests;
+}
+
+/**
+ * Whether the skill has been trained enough to sit the exam for its next rank, and whether the day's attempts are used up.
+ * `xp` is the XP held toward the next rank and `needXp` what that rank takes. `debug` ignores every limit.
+ * @returns {{ ok: boolean, reason: string, share: number }}
+ */
+export function examAllowed(preset, { xp = 0, needXp = 0, attemptsToday = 0, debug = false } = {}) {
+    const cfg = normalizeExam(preset?.exam);
+    const share = needXp > 0 ? clamp(Number(xp) / needXp, 0, 1) : 1;
+    if (debug) return { ok: true, reason: '', share };
+    if (cfg.readyShare > 0 && share < cfg.readyShare) {
+        return { ok: false, share, reason: `Not ready yet: train this skill more first (${Math.round(share * 100)}% of the way, ${Math.round(cfg.readyShare * 100)}% needed).` };
+    }
+    if (cfg.attemptsPerDay > 0 && attemptsToday >= cfg.attemptsPerDay) {
+        return { ok: false, share, reason: `Already tried today (${cfg.attemptsPerDay} attempt${cfg.attemptsPerDay === 1 ? '' : 's'} a day for each skill). Come back tomorrow.` };
+    }
+    return { ok: true, reason: '', share };
 }
 
 /** One test's verdict from the drill's results: { score, need, passed }. */

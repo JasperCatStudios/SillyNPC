@@ -84,6 +84,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('The partner talks', 'talkOn', 'Off means short built-in lines and no requests to a model.'),
         toggle('Activity music', 'musicOn', 'Plays an activity\'s looping music from the sound map while it is open (each activity names its tag under Customize an activity; Tea Time uses its preset tag). Off means silence.'),
         toggle('Activities cost energy', 'vitalsOn', 'Each activity costs the player some energy, and one is refused when there is not enough. Only works while the Vitals Tracker is on and tracks energy.'),
+        toggle('Debug mode (testing)', 'debugMode', 'For testing: ignores energy costs, the need for a partner, who may examine, the exam readiness and daily attempt limits, and the once-a-day bond limit. Turn it off to play normally.'),
         toggle('Classic cooking', 'classicCooking', 'Cooking uses the old three timing taps instead of the hands-on kitchen (chopping, stirring, searing, seasoning). Off is the new kitchen.'),
         toggle('Easier timing (assist)', 'assist', 'Cooking, fishing and gardening: a wider zone and a slower marker.'),
         toggle('Skill XP and levels', 'xpOn', 'Finished activities add skill XP and a little level XP.'),

@@ -16,7 +16,7 @@ import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { runCraft } from './games/craft-ui.js';
 import { runDrill } from './games/drill-ui.js';
 import { runExam } from './games/exam-ui.js';
-import { examTarget, examPlan, credentialName } from '../../src/activity-exam-core.js';
+import { examTarget, examPlan, credentialName, examAllowed } from '../../src/activity-exam-core.js';
 import { runKitchen } from './games/mech/kitchen-ui.js';
 import { runMeal } from './games/meal-ui.js';
 import { normalizePrefs } from '../../src/likes-core.js';
@@ -30,7 +30,7 @@ import { teaMenu, teaChoices, snackChoices } from '../../src/activity-tea-core.j
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, allSubjects, skillStanding, mayExamine, packItems, fishTable,
+    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, allSubjects, skillStanding, mayExamine, examAttemptsNow, countExamAttempt, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -163,6 +163,7 @@ function showHub() {
     select.addEventListener('change', () => { partnerName = select.value; draw(); });
     const who = el('div', 'snpc-act-who');
     who.append(field('With', select));
+    if (activitySettings().debugMode) root.append(el('p', 'snpc-act-note', 'Debug mode is on: energy, the partner requirement, exam limits and the daily bond limit are ignored.'));
     const energy = energyStatus({});
     if (energy.active && energy.energy !== null) who.append(el('small', 'snpc-act-energy', `Energy ${Math.round(energy.energy)}`));
     root.append(who);
@@ -182,7 +183,7 @@ function showHub() {
         if (!items.length) grid.append(el('p', 'snpc-act-note', 'Nothing here yet.'));
         const alone = partnerName === ALONE;
         for (const a of items) {
-            const needsPartner = alone && !a.solo && !a.soon;
+            const needsPartner = alone && !a.solo && !a.soon && !activitySettings().debugMode;
             const es = energyStatus(a);
             const tired = !a.soon && !es.ok;
             const tile = el('button', `snpc-act-tile-card${a.soon ? ' is-soon' : ''}${needsPartner || tired ? ' is-locked' : ''}`);
@@ -672,7 +673,7 @@ function showExam(activity) {
     back.addEventListener('click', showHub);
     const finishScreen = (row) => { box.append(row); w.main.replaceChildren(box); };
 
-    if (partner.alone) {
+    if (partner.alone && !s.debugMode) {
         box.append(el('p', 'snpc-act-note', `The ${exam.toLowerCase()} needs a ${examiner.toLowerCase()} to set it. Pick a partner above.`));
         const row = el('div', 'snpc-act-row'); row.append(back); finishScreen(row); return;
     }
@@ -689,17 +690,19 @@ function showExam(activity) {
         if (!standing) continue;
         const target = examTarget(preset, { rungs: standing.rungs, rankIndex: standing.rankIndex });
         if (!target.ok || !mayExamine(preset, partner.name, p.id, target.targetIndex)) continue;
-        options.push({ id: p.id, label: p.label, standing, target });
+        const allowed = examAllowed(preset, { xp: standing.xp, needXp: standing.needXp, attemptsToday: examAttemptsNow(p.id), debug: s.debugMode });
+        options.push({ id: p.id, label: p.label, standing, target, allowed });
     }
+    if (s.debugMode) box.append(el('p', 'snpc-act-note', 'Debug mode is on: the examiner, readiness and daily attempt limits are ignored.'));
     box.append(el('p', 'snpc-act-note',
-        `${partner.name} will examine you. Pick a skill: the ${exam.toLowerCase()} is for its next rank. Pass every test to rise one rank and earn the ${credential.toLowerCase()}.`));
+        `${partner.alone ? 'No examiner (debug).' : `${partner.name} will examine you.`} Pick a skill: the ${exam.toLowerCase()} is for its next rank. Pass every test to rise one rank and earn the ${credential.toLowerCase()}.`));
     if (!options.length) {
         box.append(el('p', 'snpc-act-note', `Nothing to take with ${partner.name}: no skill has a next rank, or ${partner.name} may not examine in it, or there is no combat sheet.`));
         const row = el('div', 'snpc-act-row'); row.append(back); finishScreen(row); return;
     }
     const subject = el('select', 'snpc-act-select');
     subject.setAttribute('aria-label', 'Skill to be examined in');
-    for (const o of options) subject.append(new Option(o.label, o.id));
+    for (const o of options) subject.append(new Option(o.allowed.ok ? o.label : `${o.label} (not available)`, o.id));
     box.append(field('Skill', subject));
     const info = el('p', 'snpc-act-note');
     const planFor = () => {
@@ -711,21 +714,25 @@ function showExam(activity) {
     const drawInfo = () => {
         const { o, plan, name } = planFor();
         const top = plan.length ? Math.max(...plan.map(t => t.need)) : 0;
-        info.textContent = `${o.label}: ${o.target.fromRung || 'no rank'} to ${o.target.targetRung}. Earns a ${name}. ${plan.length} test${plan.length === 1 ? '' : 's'}, up to ${Math.round(top * 100)}% of the points to pass each.`;
+        info.textContent = o.allowed.ok
+            ? `${o.label}: ${o.target.fromRung || 'no rank'} to ${o.target.targetRung}. Earns a ${name}. ${plan.length} test${plan.length === 1 ? '' : 's'}, up to ${Math.round(top * 100)}% of the points to pass each.`
+            : `${o.label}: ${o.allowed.reason}`;
+        go.disabled = !o.allowed.ok;
     };
+    const go = el('button', 'snpc-act-btn', term(preset, 'examVerb'));
+    go.type = 'button';
     subject.addEventListener('change', drawInfo);
     drawInfo();
     box.append(info);
 
     const row = el('div', 'snpc-act-row');
-    const go = el('button', 'snpc-act-btn', term(preset, 'examVerb'));
-    go.type = 'button';
     go.addEventListener('click', () => {
         const { o, plan, name } = planFor();
-        seat(w, partner, `${exam} with ${partner.name}`);
+        countExamAttempt(o.id);
+        seat(w, partner, partner.alone ? exam : `${exam} with ${partner.name}`);
         w.userName = userName();
         runExam(w, {
-            examiner: partner.name, label: activity.label, activityId: activity.id, subject: o.id, subjectLabel: o.label,
+            examiner: partner.alone ? '' : partner.name, label: activity.label, activityId: activity.id, subject: o.id, subjectLabel: o.label,
             fromRung: o.target.fromRung, toRung: o.target.targetRung, credentialName: name, plan, drills,
             words: { exam, examiner, credential }, onLeave: () => showHub(), onAgain: () => showExam(activity),
         });

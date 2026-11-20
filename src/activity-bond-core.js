@@ -21,6 +21,31 @@ const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, ma
 const tenth = (n) => Math.round(n * 10) / 10;
 
 /** The chat's activity record, repaired: { version, daily: { day: { partner: [activityId] } }, open }. */
+/** Exam attempts: { [skill]: { day, n } }, the attempts made on that day (a new day starts again from none). */
+export function normalizeExamAttempts(raw) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj(raw)).slice(-60)) {
+        const key = text(k, 40);
+        const day = text(obj(v).day, 80);
+        const n = Math.max(0, Math.min(99, Math.floor(Number(obj(v).n)) || 0));
+        if (key && day && n) out[key] = { day, n };
+    }
+    return out;
+}
+
+/** How many exam attempts this skill has had on this day. */
+export function examAttemptsToday(store, prof, day) {
+    const e = obj(obj(store).exams)[prof];
+    return e && e.day === day ? e.n : 0;
+}
+
+/** Counts one more attempt for this skill today. Returns the store. */
+export function noteExamAttempt(store, prof, day) {
+    const exams = { ...obj(obj(store).exams) };
+    exams[prof] = { day, n: examAttemptsToday(store, prof, day) + 1 };
+    return { ...obj(store), exams };
+}
+
 export function normalizeActivityStore(raw) {
     const r = obj(raw);
     const daily = {};
@@ -36,7 +61,7 @@ export function normalizeActivityStore(raw) {
         }
     }
     // How many days in a row each activity has been done (see activity-streak-core.js).
-    return { version: STORE_VERSION, daily, streaks: normalizeStreaks(r.streaks), garden: normalizeGarden(r.garden), open: null };
+    return { version: STORE_VERSION, daily, streaks: normalizeStreaks(r.streaks), garden: normalizeGarden(r.garden), exams: normalizeExamAttempts(r.exams), open: null };
 }
 
 /**
