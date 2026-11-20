@@ -100,7 +100,7 @@ export function runKitchen(win, ctx) {
     flowFill.style.cssText = 'height:100%; width:0; background:linear-gradient(90deg,#e69138,#f1c232); transition:width 0.15s;';
     flowBar.append(flowFill);
     top.append(title, flowBar);
-    const hint = el('p', 'snpc-act-note is-small', '');
+    const hint = el('p', 'snpc-act-note is-small snpc-kit-hint', '');
     const stage = el('div', 'snpc-act-stage');
     stage.style.cssText = 'position:relative; width:min(100%, calc(30dvh * 1.6)); margin:0 auto; aspect-ratio:16/10; background:#23262b; border-radius:12px; overflow:hidden; touch-action:none; user-select:none;';
     paintBench(stage);
@@ -220,6 +220,9 @@ export function runKitchen(win, ctx) {
         card.append(el('h3', '', step.words.title || step.id), el('p', '', step.words.hint || ''));
         const go = el('button', 'snpc-act-btn', 'Go!');
         go.type = 'button';
+        // A short pause before it can be pressed, so a last tap of the step before does not start the next one by accident.
+        go.disabled = true;
+        setTimeout(() => { go.disabled = false; }, 600);
         go.addEventListener('click', () => start());
         card.append(go);
         stage.append(card);
@@ -379,7 +382,7 @@ export function runKitchen(win, ctx) {
         const box = el('div', 'snpc-act-result');
         box.append(el('h3', '', grade === 'failed' ? 'A bit of a mess' : recipe.name));
         const art = el('div');
-        art.style.cssText = 'max-width:320px; margin:0 auto;';
+        art.style.cssText = 'max-width:min(320px, calc(34dvh * 1.6)); margin:0 auto;';
         dishDrawing(art, grade, mainItem(recipe));
         box.append(art, el('p', 'snpc-act-grade', `${GRADE_TEXT[grade]}${res.bonus >= 0.02 ? ' (flow bonus!)' : ''}`));
         const list = el('ul');

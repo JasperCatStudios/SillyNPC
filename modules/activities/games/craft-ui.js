@@ -172,7 +172,7 @@ export function runCraft(win, ctx) {
         const status = el('p', 'snpc-act-note is-small');
         status.setAttribute('role', 'status');
         status.textContent = check.ok ? `Ready. How well it fits: ${Math.round(check.fit * 100)}%.` : check.reasons.join(' ');
-        const row = el('div', 'snpc-act-row');
+        const row = el('div', 'snpc-act-row snpc-act-stickyrow');
         const start = el('button', 'snpc-act-btn', say('craftVerb', 'Start'));
         start.type = 'button';
         start.disabled = !check.ok;
