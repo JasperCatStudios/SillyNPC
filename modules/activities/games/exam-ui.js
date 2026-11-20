@@ -1,5 +1,5 @@
 import { judgeTest, judgeExam, examRewards } from '../../../src/activity-exam-core.js';
-import { settleActivity, activitySettings, credentialItem } from '../activities-runtime.js';
+import { settleActivity, activitySettings, credentialItem, sfx } from '../activities-runtime.js';
 import { runDrill } from './drill-ui.js';
 import { resultCard } from './harvest-ui.js';
 
@@ -73,6 +73,7 @@ export function runExam(win, ctx) {
 
     function begin(i) {
         const test = plan[i];
+        sfx('activity_exam_begin');
         runDrill(win, {
             partner: '', label: ctx.label, drill: drills[test.drill], difficulty: test.difficulty, keepTalk: true,
             onLeave: ctx.onLeave, onAgain: ctx.onAgain,
@@ -85,6 +86,7 @@ export function runExam(win, ctx) {
         const v = judgeTest(run.results, test.need);
         verdicts.push(v);
         const line = `You scored ${percent(v.score)}; ${percent(test.need)} was needed.`;
+        if (!v.passed) sfx('activity_exam_fail');
         if (v.passed && i + 1 < plan.length) {
             card(`Test ${i + 1} passed`, [line], [['Next test', () => intro(i + 1)], ['Stop here', () => conclude(), true]]);
         } else if (v.passed) {
@@ -109,6 +111,7 @@ export function runExam(win, ctx) {
         });
         if (rewards.credential && !activitySettings().itemsOn) lines.push(`Turn the Inventory on in the Activities settings to keep the ${rewards.credential}.`);
         const early = !verdict.passed && verdicts.length < plan.length && verdicts.every(v => v.passed);
+        sfx(verdict.passed ? 'activity_exam_pass' : 'activity_exam_fail');
         const title = verdict.passed ? `${words.exam}: passed` : early ? `${words.exam}: stopped early` : `${words.exam}: not passed`;
         resultCard({
             title, grade: rewards.grade, extra: `${percent(verdict.average)} on average`,

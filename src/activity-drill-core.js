@@ -58,6 +58,8 @@ export function normalizeDrill(raw, fallbackId = '') {
             place: text(terms.place, 30) || 'the range',
         },
         ...(text(r.music, 60) ? { music: text(r.music, 60) } : {}),
+        // A sound-map tag played each time the button is pressed (a sword swing, a spell, a step). Empty is silence.
+        ...(text(r.sound, 60) ? { sound: text(r.sound, 60) } : {}),
     };
 }
 

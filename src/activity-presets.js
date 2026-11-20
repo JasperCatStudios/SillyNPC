@@ -87,9 +87,9 @@ export const BLEACH_PRESET = Object.freeze({
     study: { runes: ['鬼', '道', '斬', '拳', '歩', '縛', '霊', '刀'], profs: ['kido', 'bakudo', 'healing_kido'] },
     // The drills: each trains one of the Bleach skills (ids of the Bleach combat type).
     drills: {
-        zanjutsu: { id: 'zanjutsu', label: 'Sword Practice', prof: 'zanjutsu', rounds: 6, wobble: 0.25, speed: 1.05, ring: 0.95, blurb: 'Strike the swinging post when it is inside the ring.', terms: { mark: 'practice post', action: 'Strike', place: 'the dojo' } },
-        kido: { id: 'kido', label: 'Kidō Practice', prof: 'kido', rounds: 6, wobble: 0, speed: 1, ring: 1, blurb: 'Hold the incantation, then release when the mark is inside the ring.', terms: { mark: 'target', action: 'Release', place: 'the training grounds' } },
-        hoho: { id: 'hoho', label: 'Flash Step Drill', prof: 'hoho', rounds: 8, wobble: 0.6, speed: 1.2, ring: 0.85, blurb: 'The marker darts and slows. Step when it is inside the ring.', terms: { mark: 'marker', action: 'Step', place: 'the training grounds' } },
+        zanjutsu: { id: 'zanjutsu', label: 'Sword Practice', prof: 'zanjutsu', rounds: 6, wobble: 0.25, speed: 1.05, ring: 0.95, blurb: 'Strike the swinging post when it is inside the ring.', sound: 'sword_slash', terms: { mark: 'practice post', action: 'Strike', place: 'the dojo' } },
+        kido: { id: 'kido', label: 'Kidō Practice', prof: 'kido', rounds: 6, wobble: 0, speed: 1, ring: 1, blurb: 'Hold the incantation, then release when the mark is inside the ring.', sound: 'magic_cast', terms: { mark: 'target', action: 'Release', place: 'the training grounds' } },
+        hoho: { id: 'hoho', label: 'Flash Step Drill', prof: 'hoho', rounds: 8, wobble: 0.6, speed: 1.2, ring: 0.85, blurb: 'The marker darts and slows. Step when it is inside the ring.', sound: 'flash_step', terms: { mark: 'marker', action: 'Step', place: 'the training grounds' } },
     },
     potion: { recipe: 'Soul Remedy', failed: 'Bitter Draught', names: {}, profs: [] },
     harvest: {
@@ -125,8 +125,8 @@ export const BLEACH_PRESET = Object.freeze({
     },
     tea: {
         category: 'Tea', music: 'activity_tea_music',
-        snacks: ['Dango', 'Mochi', 'Taiyaki', 'Senbei', 'Daifuku', 'Anmitsu', 'Castella', 'Sweet bean bun', 'Onigiri', 'Matcha cake'],
-        fallback: ['Green tea', 'Hojicha', 'Genmaicha', 'Barley tea', 'Sencha', 'Matcha'],
+        snacks: ['Dango', 'Mochi', 'Taiyaki', 'Senbei', 'Daifuku', 'Anmitsu', 'Castella', 'Sweet Bean Bun', 'Onigiri', 'Matcha Cake'],
+        fallback: ['Sencha', 'Genmaicha', 'Hojicha', 'Mugicha', 'Sobacha', 'Matcha'],
     },
     classChange: { mode: 'both', studyKnowledge: 100, rankGate: null },
     // The credentials the promotion trial hands out, by where the next grade sits on the E to SS ladder.

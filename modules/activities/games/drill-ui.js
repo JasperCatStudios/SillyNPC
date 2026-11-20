@@ -104,6 +104,7 @@ export function runDrill(win, ctx) {
 
     function onPress() {
         if (!alive() || waiting || run.over) return;
+        if (drill.sound) sfx(drill.sound);
         settleRound(tapDrill(run, performance.now() - roundStart));
     }
 
