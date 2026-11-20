@@ -5,6 +5,7 @@ import { restoreValue } from './activity-hunger-core.js';
 import { normalizeMyRecipes } from './activity-recipe-creator-core.js';
 import { normalizeCraft } from './craft/craft-core.js';
 import { GENERIC_CRAFTS } from './activity-craft-data.js';
+import { normalizeDrills } from './activity-drill-core.js';
 
 /**
  * Activities settings and world presets (fork): the data, without the I/O.
@@ -160,6 +161,8 @@ export const GENERIC_ACTIVITIES = Object.freeze([
     { id: 'smithing', label: 'Smithing', kind: 'craft', craft: 'smithing', tab: 'crafting', icon: 'fa-hammer', blurb: 'Choose metal and a handle, heat the work and strike it on the beat.', solo: true },
     { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'crafting', icon: 'fa-utensils', blurb: 'Time three steps and cook a dish together.', solo: true },
     { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite, hook it and reel it in.', solo: true },
+    { id: 'target', label: 'Target Practice', kind: 'drill', drill: 'target', tab: 'training', icon: 'fa-bullseye', blurb: 'A steady mark crosses the lane. Tap when it is inside the ring.', solo: true },
+    { id: 'moving', label: 'Moving Targets', kind: 'drill', drill: 'moving', tab: 'training', icon: 'fa-crosshairs', blurb: 'The mark speeds up and slows down. Tap when it is inside the ring.', solo: true },
     { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Plant, tend and harvest. Plants grow as you tend them on different days.', solo: true },
 ]);
 
@@ -182,10 +185,10 @@ export const GENERIC_PRESET = Object.freeze({
 /** The newest preset format this build understands. A preset with a higher version still loads, and keeps what it holds. */
 export const PRESET_VERSION = 1;
 
-const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'crafts', 'tea', 'classChange', 'terms']);
+const PRESET_KNOWN = new Set(['format', 'version', 'id', 'name', 'world', 'soundMap', 'assets', 'activities', 'study', 'potion', 'harvest', 'crafts', 'drills', 'tea', 'classChange', 'terms']);
 export const HARVEST_MODES = Object.freeze(['cook', 'fish', 'garden']);
 const ACTIVITY_BASE_KNOWN = new Set(['id', 'kind', 'music', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
-const ACTIVITY_KNOWN = new Set(['id', 'mode', 'craft', 'music', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
+const ACTIVITY_KNOWN = new Set(['id', 'mode', 'craft', 'drill', 'music', 'kind', 'label', 'tab', 'icon', 'blurb', 'soon', 'off', 'solo', 'minutes', 'energy']);
 const EXTRA_MAX_CHARS = 200000;
 const slugId = (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
 
@@ -234,6 +237,8 @@ function normalizeActivity(raw) {
         ...(unsupported ? { unsupported: true, soon: true } : {}),
         // Which craft type a craft activity plays (an id in the preset's crafts).
         ...(kind === 'craft' ? { craft: slugId(r.craft) || id } : {}),
+        // Which drill a drill activity plays (an id in the preset's drills).
+        ...(kind === 'drill' ? { drill: slugId(r.drill) || id } : {}),
         // Which harvest game this is (cook, fish or garden). An older preset with no mode gets it from the id.
         ...(kind === 'harvest' ? { mode: HARVEST_MODES.includes(r.mode) ? r.mode : (HARVEST_MODES.includes(id) ? id : '') } : {}),
         ...(Object.keys(extra).length ? { extra } : {}),
@@ -347,6 +352,7 @@ export function normalizePreset(raw, idHint = '') {
         },
         harvest: normalizeHarvest(r.harvest),
         crafts: normalizeCrafts(r.crafts),
+        drills: normalizeDrills(r.drills),
         tea: {
             category: text(obj(r.tea).category, 24) || 'Tea',
             // The hunger a shared drink and a snack give (see activity-hunger-core.js); empty uses the built-in values.

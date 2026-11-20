@@ -132,7 +132,7 @@ export function talker(win, partner, label, stateText) {
 }
 
 /** A result card with lines and two buttons. */
-function resultCard({ title, grade, extra, lines, again, onAgain, onLeave, win }) {
+export function resultCard({ title, grade, extra, lines, again, onAgain, onLeave, win }) {
     const box = el('div', 'snpc-act-result');
     box.append(el('h3', '', title));
     if (grade) box.append(el('p', 'snpc-act-grade', `${GRADE_TEXT[grade] || grade}${extra ? `: ${extra}` : ''}`));

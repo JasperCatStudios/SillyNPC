@@ -14,6 +14,7 @@ import { runPotion } from './games/potion-ui.js';
 import { runTea } from './games/tea-ui.js';
 import { runCook, runFish, runGarden } from './games/harvest-ui.js';
 import { runCraft } from './games/craft-ui.js';
+import { runDrill } from './games/drill-ui.js';
 import { runKitchen } from './games/mech/kitchen-ui.js';
 import { runMeal } from './games/meal-ui.js';
 import { normalizePrefs } from '../../src/likes-core.js';
@@ -27,7 +28,7 @@ import { teaMenu, teaChoices, snackChoices } from '../../src/activity-tea-core.j
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
     activitySettings, saveActivitySettings, activePreset, partnerList, cardOf, studySubjects, subjectsOf, userName,
-    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, packItems, fishTable,
+    inventoryActive, craftTier, teaNames, snackNames, teaKnown, bringChoices, startMusic, stopMusic, preloadSounds, activityStreakInfo, energyStatus, allSubjects, packItems, fishTable,
 } from './activities-runtime.js';
 
 /**
@@ -66,7 +67,7 @@ try { window.WorldkitActivities = Object.freeze({ register: registry.register, u
  */
 function openActivity(a) {
     const harvest = { cook: showCookSetup, fish: showFishSetup, garden: showGardenScreen };
-    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], craft: showCraft, [CUSTOM_KIND]: showCustom };
+    const byKind = { memory: showStudySetup, mastermind: showPotionSetup, tea: showTeaSetup, harvest: harvest[a.mode], craft: showCraft, drill: showDrill, [CUSTOM_KIND]: showCustom };
     const open = byKind[a.kind];
     if (!open) return false;
     open(a);
@@ -587,6 +588,63 @@ function showCraft(activity) {
         tier: craftTier(craft.prof), partnerTier: partner.alone ? 0 : craftTier(craft.prof, partner.name), partnerFeedback: partner.alone ? {} : feedbackOf(partner.name), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
     });
     start();
+}
+
+/** A skill drill: pick what it trains (when the drill does not say) and how hard, then drill. The drill itself is preset data. */
+function showDrill(activity) {
+    stopMusic();
+    const w = ensureWindow();
+    const preset = activePreset();
+    const s = activitySettings();
+    const partner = pickedPartner();
+    const es = energyStatus(activity);
+    if (!es.ok) { toast('warning', `${tiredText(es.energy, es.cost)}. Rest first.`); showHub(); return; }
+    const drill = preset.drills?.[activity.drill];
+    if (!drill) { toast('warning', `${activity.label} has no drill data.`); showHub(); return; }
+    w.setView('hub');
+    w.setTitle(activity.label, activity.icon || 'fa-bullseye');
+
+    const box = el('div', 'snpc-act-setup');
+    { const sn = streakNote(activity, partner); if (sn) box.append(sn); }
+    box.append(el('p', 'snpc-act-note', `${drill.blurb || activity.blurb || ''} ${drill.rounds} rounds${partner.alone ? ', practising alone' : `, with ${partner.name}`}.`.trim()));
+
+    // What it trains: the drill's own proficiency when it names one the combat type has, else any the player picks.
+    const subjects = allSubjects();
+    const fixed = subjects.find(p => p.id === drill.prof);
+    const subject = el('select', 'snpc-act-select');
+    subject.setAttribute('aria-label', 'Skill to train');
+    if (fixed) subject.append(new Option(fixed.label, fixed.id));
+    else for (const p of subjects) subject.append(new Option(p.label, p.id));
+    if (!subjects.length) subject.append(new Option('No skill (just practice)', ''));
+    subject.disabled = Boolean(fixed) || !subjects.length;
+    box.append(field('Trains', subject));
+
+    const difficulty = el('select', 'snpc-act-select');
+    difficulty.setAttribute('aria-label', 'Difficulty');
+    for (const d of ['easy', 'normal', 'hard']) difficulty.append(new Option(d[0].toUpperCase() + d.slice(1), d));
+    difficulty.value = s.difficulty;
+    box.append(field('Difficulty', difficulty));
+
+    const row = el('div', 'snpc-act-row');
+    const go = el('button', 'snpc-act-btn', 'Start the drill');
+    go.type = 'button';
+    go.addEventListener('click', () => {
+        s.difficulty = difficulty.value;
+        saveActivitySettings();
+        seat(w, partner, drill.terms.place ? `At ${drill.terms.place}` : activity.label);
+        w.userName = userName();
+        const again = () => showDrill(activity);
+        runDrill(w, {
+            partner: partner.alone ? '' : partner.name, activityId: activity.id, label: activity.label, drill, difficulty: s.difficulty,
+            subject: subject.value, subjectLabel: subject.selectedOptions[0]?.textContent || '', onLeave: () => showHub(), onAgain: again,
+        });
+    });
+    const back = el('button', 'snpc-act-btn is-quiet', 'Back');
+    back.type = 'button';
+    back.addEventListener('click', showHub);
+    row.append(go, back);
+    box.append(row);
+    w.main.replaceChildren(box);
 }
 
 /** A drop-in activity: seats the partner, checks the energy and hands the registered run function its api. */
