@@ -208,11 +208,13 @@ export function deliveryScripts(table, { enabled = true, saverOn = false, saverD
         {
             id: DELIVERY_SCRIPT_IDS.saver,
             scriptName: 'Worldkit - Delivery Tags Context Saver',
-            findRegex: `/\\[\\/?(?:${both})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]/gi`,
+            // Also the [sfx:name] sound tags, which are only for the chat chips and cost tokens in older messages.
+            findRegex: `/\\[\\/?(?:${both})(?:\\s{0,3},[^\\]\\[]{0,40})?\\]|\\[\\s*sfx\\s*:[^\\]\\[]{1,60}\\]/gi`,
             replaceString: '',
             trimStrings: [],
             placement: [2],
-            disabled: !(enabled && saverOn),
+            // Independent of Delivery Tags: it also hides [sfx:] tags, which Sound Effects writes.
+            disabled: !saverOn,
             markdownOnly: false,
             promptOnly: true,
             runOnEdit: false,

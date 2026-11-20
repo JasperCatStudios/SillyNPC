@@ -1,6 +1,8 @@
 import { saveSettingsDebounced } from '../../../../../script.js';
 import { extension_settings } from '../../../../extensions.js';
-import { CONTEXT_SAVERS, findSaver, isSaverOn, saverDepth, setSaverOn, setSaverDepth } from './context-savers.js';
+import { CONTEXT_SAVERS, findSaver, isSaverOn, saverDepth, setSaverOn, setSaverDepth, cleanDepth } from './context-savers.js';
+import { getSettings, saveSettings } from './settings.js';
+import { deliveryStatus, syncDeliveryScripts } from './delivery.js';
 
 /**
  * The context savers, with an on switch and a depth each. They are SillyTavern regex scripts (imported from the Content Kit),
@@ -13,6 +15,45 @@ const el = (tag, className, text) => {
     if (text !== undefined) node.textContent = text;
     return node;
 };
+
+/**
+ * The Delivery Tags / [sfx:] saver. Worldkit writes that script itself from two settings, so this row edits the
+ * settings (and rewrites the script) instead of the regex list entry. On by default; greyed out until the script exists.
+ */
+function buildDeliverySaverRow() {
+    const settings = getSettings();
+    const installed = deliveryStatus().saver.installed;
+    const row = el('div', 'sillynpc-setting');
+    row.dataset.setting = 'contextSaver.delivery';
+    const line = el('div', 'sillynpc-setting-row');
+    const label = el('label', 'checkbox_label');
+    label.style.cssText = 'display:flex; align-items:center; gap:8px; flex:1;';
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = settings.deliverySaverOn === true;
+    box.disabled = !installed;
+    box.addEventListener('change', () => { settings.deliverySaverOn = box.checked; saveSettings(); syncDeliveryScripts(); });
+    label.append(box, el('span', '', 'Delivery Tags and Sound Effects'));
+    line.append(label);
+
+    const depth = el('input', 'text_pole');
+    depth.type = 'number';
+    depth.min = '0';
+    depth.style.width = '5em';
+    depth.value = String(cleanDepth(settings.deliverySaverDepth ?? 2));
+    depth.disabled = !installed;
+    depth.title = 'How many messages back it starts removing the tags';
+    depth.addEventListener('change', () => {
+        settings.deliverySaverDepth = cleanDepth(depth.value);
+        depth.value = String(settings.deliverySaverDepth);
+        saveSettings();
+        syncDeliveryScripts();
+    });
+    line.append(el('span', 'notes', 'Depth'), depth);
+    row.append(line);
+    if (!installed) row.append(el('small', 'notes', 'Not installed yet. Worldkit adds it the next time it starts.'));
+    return row;
+}
 
 export function buildContextSaverControls() {
     const wrap = el('div');
@@ -57,5 +98,6 @@ export function buildContextSaverControls() {
         if (!script) row.append(el('small', 'notes', `Not imported yet. Import "${saver.names[0]}" from the Content Kit tab, or SillyTavern's Regex menu.`));
         wrap.append(row);
     }
+    wrap.append(buildDeliverySaverRow());
     return wrap;
 }

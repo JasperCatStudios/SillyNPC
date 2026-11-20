@@ -628,12 +628,17 @@
     }
 
     .snpc-bond-head {
-        grid-template-columns: 22px 30px minmax(0, 1fr) 120px auto;
+        grid-template-columns: 22px 30px minmax(0, 1fr) minmax(0, 110px);
         grid-template-areas:
-            "pick caret who value actions"
-            "meter meter meter meter meter"
-            "chips chips chips chips chips";
+            "pick caret who value"
+            "meter meter meter meter"
+            "chips chips chips chips"
+            "actions actions actions actions";
     }
+
+    /* Everything in the row may shrink, and the buttons wrap instead of running off the left edge. */
+    .snpc-bond-head > * { min-width: 0; }
+    .snpc-bond-actions { flex-wrap: wrap; justify-content: flex-end; }
 
     .snpc-bond-th {
         display: none;

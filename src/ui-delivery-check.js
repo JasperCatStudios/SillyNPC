@@ -119,8 +119,22 @@ export function buildDeliveryChecker() {
         ? `the standalone-tag script is installed and ${status.inline.on ? 'on' : 'switched off'} in the Regex list (it hides [pause], [sighs] and the like in the chat)`
         : 'the standalone-tag script is not installed yet (switching Delivery Tags on installs it)');
     item(status.saver.installed && status.saver.on, status.saver.installed
-        ? `the context saver is ${status.saver.on ? 'on: tags (both kinds) are hidden from older messages sent to the model' : 'off: older messages keep their tags when sent to the model'}`
+        ? `the context saver is ${status.saver.on ? 'on: tags (both kinds) and [sfx:] tags are hidden from older messages sent to the model' : 'off: older messages keep their tags when sent to the model'}`
         : 'the context saver is not installed yet');
+    // The saver starts off; a button right on its line turns it on, so the answer is not elsewhere on the page.
+    if (status.saver.installed) {
+        const li = lines.lastChild;
+        const toggle = el('button', 'menu_button', status.saver.on ? 'Turn off' : 'Turn on');
+        toggle.type = 'button';
+        toggle.style.marginLeft = '8px';
+        toggle.addEventListener('click', () => {
+            getSettings().deliverySaverOn = !status.saver.on;
+            saveSettings();
+            applyDelivery();
+            toggle.closest('.sillynpc-delivery-check')?.replaceWith(buildDeliveryChecker());
+        });
+        li.append(toggle);
+    }
     const engine = engineOf();
     item(engineReadsAudioTags(), `the voice engine (${ENGINES[engine]}) ${engineReadsAudioTags() ? 'reads delivery tags' : 'does not read delivery tags: only the words are spoken'}`);
     wrap.append(lines);

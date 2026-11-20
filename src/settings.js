@@ -100,7 +100,7 @@ export const defaultSettings = {
     deliveryTestVoice: '',
     deliveryTestLine: '',
     /** Take the tags out of what is sent back to the model (older messages), starting this many messages back. */
-    deliverySaverOn: false,
+    deliverySaverOn: true,
     deliverySaverDepth: 2,
     /**
      * Whether this block appears in SillyTavern's own prompt list, to be ordered there.

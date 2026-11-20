@@ -3,6 +3,7 @@ import { extension_settings } from '../../../../extensions.js';
 import { placeWritingPrompt } from './prompt-slot.js';
 import { getSettings } from './settings.js';
 import { mergeRegexScripts } from './content-kit.js';
+import { withTrackerSavers } from './saver-scripts.js';
 import { KNOWN_TAG_NAMES } from './eleven-tags.js';
 import { buildDeliveryPrompt, deliveryScripts, deliveryNames, normalizeDeliveryInject, DELIVERY_SCRIPT_IDS } from './delivery-core.js';
 import { deliveryCss, fontsUrl } from './delivery-style.js';
@@ -80,7 +81,7 @@ export function deliveryStatus() {
 
 /**
  * Writes the three regex scripts (display, saver, inline display) into SillyTavern's list for the current tag names and switch. The
- * context saver keeps whatever on/off and depth the owner gave it; it starts off.
+ * context saver keeps whatever on/off and depth the owner gave it; it starts on.
  */
 export function syncDeliveryScripts() {
     const list = Array.isArray(extension_settings.regex) ? extension_settings.regex : [];
@@ -92,9 +93,12 @@ export function syncDeliveryScripts() {
         inline: toneInline(settings),
         extraNames: KNOWN_TAG_NAMES,
     });
-    // Nothing to write while the feature has never been on and the scripts are not there yet.
-    if (!deliveryEnabled() && !list.some(s => s?.id === DELIVERY_SCRIPT_IDS.display)) return;
-    extension_settings.regex = mergeRegexScripts(list, scripts).merged;
+    // While the feature has never been on, only the saver is written (it also hides [sfx:] tags); the display scripts wait.
+    const neverOn = !deliveryEnabled() && !list.some(s => s?.id === DELIVERY_SCRIPT_IDS.display);
+    const toWrite = neverOn ? scripts.filter(s => s.id === DELIVERY_SCRIPT_IDS.saver) : scripts;
+    // The four tracker savers ship with the extension: any that is missing is added, one that is there is left as it is.
+    const withSavers = withTrackerSavers(mergeRegexScripts(list, toWrite).merged);
+    extension_settings.regex = withSavers.list;
     saveSettingsDebounced();
     debugLog('Delivery tag regex scripts brought up to date');
 }
