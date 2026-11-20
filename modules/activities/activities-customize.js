@@ -5,6 +5,7 @@ import {
     copyForEditing, unknownKindHelp, KIND_EXAMPLES, TERM_GUIDE, linesOf, fishToLines, fishFromLines, seedsToLines, seedsFromLines,
     recipesToLines, recipesFromLines, runesFromText,
 } from '../../src/activity-customize-core.js';
+import { allTypes } from '../../src/combat-access.js';
 import { activitySettings, activePreset, allSubjects } from './activities-runtime.js';
 
 /**
@@ -140,6 +141,17 @@ export function renderCustomize(host, { changed }) {
         mine.body.append(field('Copy', copy));
         if (raw) {
             mine.body.append(field('Preset name', textInput(raw.name || active.id, active.name, 60, (v) => { raw.name = v || active.id; changed(); })));
+
+            // The link to a world. Nothing matches by name: the preset is used automatically when its world equals the active combat type.
+            const link = el('select', 'text_pole');
+            link.append(new Option('Not linked (pick it under World preset)', ''));
+            let types = [];
+            try { types = allTypes().map(t => t.type).filter(Boolean); } catch { /* combat not set up */ }
+            for (const t of types) link.append(new Option(`${t.name || t.id}`, t.id));
+            if (raw.world && !types.some(t => t.id === raw.world)) link.append(new Option(`${raw.world} (not one of your combat types)`, raw.world));
+            link.value = raw.world || '';
+            link.addEventListener('change', () => { if (link.value) raw.world = link.value; else delete raw.world; changed(); });
+            mine.body.append(field('Use with combat type', link, 'When World preset above is on "Pick by the active combat type", this preset is used automatically whenever the chosen combat type is the active one. Presets are not matched by name.'));
             const del = el('button', 'menu_button', 'Delete this preset');
             del.type = 'button';
             del.addEventListener('click', () => {
