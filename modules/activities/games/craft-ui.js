@@ -322,7 +322,7 @@ export function runCraft(win, ctx) {
         const state = newTend(params, Math.random);
         const status = stageBox(say('tended', 'Tend the work'), 'Hold the button (or your action key) to raise the gauge, let go to lower it. Stay in the green band.');
         const gauge = el('div', 'snpc-act-gauge');
-        gauge.style.cssText = 'position:relative; width:46px; height:200px; margin:8px auto; border:1px solid #a4947d; border-radius:10px; overflow:hidden;';
+        gauge.style.cssText = 'position:relative; width:46px; height:clamp(90px,calc(28dvh - 90px),200px); margin:8px auto; border:1px solid #a4947d; border-radius:10px; overflow:hidden;';
         const band = el('div');
         band.style.cssText = `position:absolute; left:0; right:0; bottom:${params.band[0] * 100}%; height:${(params.band[1] - params.band[0]) * 100}%; background:#6aa84f88;`;
         const fill = el('div');
@@ -381,7 +381,7 @@ export function runCraft(win, ctx) {
         const row = el('div');
         row.style.cssText = 'display:flex; gap:14px; justify-content:center; align-items:flex-end;';
         const gauge = el('div');
-        gauge.style.cssText = 'position:relative; width:46px; height:200px; border:1px solid #a4947d; border-radius:10px; overflow:hidden;';
+        gauge.style.cssText = 'position:relative; width:46px; height:clamp(90px,calc(28dvh - 90px),200px); border:1px solid #a4947d; border-radius:10px; overflow:hidden;';
         const band = el('div');
         band.style.cssText = `position:absolute; left:0; right:0; bottom:${params.band[0] * 100}%; height:${(params.band[1] - params.band[0]) * 100}%; background:#6aa84f88;`;
         const fill = el('div');
@@ -390,7 +390,7 @@ export function runCraft(win, ctx) {
         gauge.setAttribute('role', 'img');
         gauge.setAttribute('aria-label', 'The heat of the work. Keep it inside the green band.');
         const beat = el('div');
-        beat.style.cssText = 'position:relative; width:46px; height:200px; border:1px solid #a4947d; border-radius:10px; overflow:hidden; opacity:0.35;';
+        beat.style.cssText = 'position:relative; width:46px; height:clamp(90px,calc(28dvh - 90px),200px); border:1px solid #a4947d; border-radius:10px; overflow:hidden; opacity:0.35;';
         const target = el('div');
         target.style.cssText = 'position:absolute; left:0; right:0; top:0; height:24px; background:#6aa84f99;';
         const ball = el('div');

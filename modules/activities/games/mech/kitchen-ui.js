@@ -102,7 +102,7 @@ export function runKitchen(win, ctx) {
     top.append(title, flowBar);
     const hint = el('p', 'snpc-act-note is-small', '');
     const stage = el('div', 'snpc-act-stage');
-    stage.style.cssText = 'position:relative; width:100%; aspect-ratio:16/10; background:#23262b; border-radius:12px; overflow:hidden; touch-action:none; user-select:none;';
+    stage.style.cssText = 'position:relative; width:min(100%, calc(30dvh * 1.6)); margin:0 auto; aspect-ratio:16/10; background:#23262b; border-radius:12px; overflow:hidden; touch-action:none; user-select:none;';
     paintBench(stage);
     const status = el('div', 'snpc-act-status');
     status.setAttribute('aria-live', 'polite');

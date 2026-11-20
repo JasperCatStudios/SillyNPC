@@ -108,7 +108,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         const stop = () => { document.removeEventListener('keydown', onKey, true); document.removeEventListener('mousedown', onMouse, true); setTimeout(showKey, 0); };
         const take = (code) => { s.actionKey = normalizeActionKey(code); changed(); stop(); };
         const onKey = (e) => { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') { stop(); return; } take(e.code); };
-        const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); if (e.target === keyBtn) return; take(`Mouse${e.button}`); };
+        const onMouse = (e) => { if (window.matchMedia?.('(pointer: coarse)').matches) { stop(); return; } e.preventDefault(); e.stopPropagation(); if (e.target === keyBtn) return; take(`Mouse${e.button}`); };
         document.addEventListener('keydown', onKey, true);
         setTimeout(() => document.addEventListener('mousedown', onMouse, true), 150);
     });
@@ -128,7 +128,7 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         const stop = () => { document.removeEventListener('keydown', onKey, true); document.removeEventListener('mousedown', onMouse, true); setTimeout(showFlip, 0); };
         const take = (code) => { s.flipKey = normalizeActionKey(code); changed(); stop(); };
         const onKey = (e) => { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') { stop(); return; } take(e.code); };
-        const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); if (e.target === flipBtn) return; take(`Mouse${e.button}`); };
+        const onMouse = (e) => { if (window.matchMedia?.('(pointer: coarse)').matches) { stop(); return; } e.preventDefault(); e.stopPropagation(); if (e.target === flipBtn) return; take(`Mouse${e.button}`); };
         document.addEventListener('keydown', onKey, true);
         setTimeout(() => document.addEventListener('mousedown', onMouse, true), 150);
     });

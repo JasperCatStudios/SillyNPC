@@ -387,7 +387,7 @@
 
 /* The cooking recipe book: a closed-by-default list of every dish with what it needs and who loves it. */
 .snpc-act-book { margin: 8px 0; border: 1px solid #a4947d; border-radius: 10px; padding: 6px 10px; }
-.snpc-act-book > summary { cursor: pointer; font-weight: bold; min-height: 32px; display: flex; align-items: center; }
+.snpc-act-book > summary { cursor: pointer; font-weight: bold; min-height: 40px; display: flex; align-items: center; }
 .snpc-act-book-list { list-style: none; margin: 8px 0 2px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .snpc-act-book-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 8px; border: 1px solid #a4947d55; opacity: 0.75; }
 .snpc-act-book-list li.is-known { opacity: 1; border-color: #a4947d; }
@@ -424,11 +424,16 @@
 .snpc-act-steeplevel { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(217, 164, 65, 0.85); }
 .snpc-act-steepband { position: absolute; top: 0; bottom: 0; background: rgba(58, 165, 122, 0.6); border-left: 2px solid #9fe08a; border-right: 2px solid #9fe08a; }
 .snpc-act-steepneedle { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: #fff; }
+}
 @media (max-width: 900px) {
     /* Everything has to fit above the chat on a phone: a small portrait, no tall table, and the hint, meter and
        buttons stay in view at the bottom of the pane (the steeping meter used to sit below the fold). */
     .snpc-act-hosttable { aspect-ratio: auto; min-height: 0; padding: 4% 8%; }
     .snpc-act-hostportrait { height: clamp(56px, 9dvh, 80px); }
+    /* Short phones (about 640px high): the partner strip and the chat input have to fit under the activity, and the big
+       buttons and meters get a little smaller so they stay in view while a timer runs. */
+    .snpc-act-chip { min-height: 40px; }
+    .snpc-act-tab { min-height: 40px; }
     .snpc-act-fish .snpc-act-bigtap { position: sticky; bottom: 6px; z-index: 2; }
     .snpc-act-hostbar .snpc-act-bigtap { min-height: 56px; margin: 4px auto; }
     .snpc-act-bigtap[hidden] { display: none; }
@@ -437,5 +442,12 @@
     .snpc-act.is-chat-big .snpc-act-side { flex: 0 0 66%; max-height: none; }
     .snpc-act-chat, .snpc-act-help { min-height: 44px; }
 }
+@media (max-width: 900px) and (max-height: 700px) {
+    .snpc-act-partner { min-height: 0; }
+    .snpc-act-avatar { width: 28px; height: 28px; }
+    .snpc-act-partner-sub { display: none; }
+    .snpc-act-side { max-height: none; }
+    .snpc-act-chat, .snpc-act-help { min-height: 0; flex: 1 1 0; }
+    .snpc-act-bigtap { min-height: 56px; margin: 4px auto; }
 .snpc-act-itemmark[hidden], .snpc-act-itemcheck[hidden] { display: none; }
 .snpc-act-hostgroup .snpc-act-itemname { white-space: normal; text-align: center; line-height: 1.15; max-width: 100%; }

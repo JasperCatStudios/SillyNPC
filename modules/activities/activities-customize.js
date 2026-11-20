@@ -115,6 +115,7 @@ export function renderCustomize(host, { changed }) {
                 : `Press "Make an editable copy" to start from ${active.name}. Your copy is then picked automatically and every card below unlocks.`,
             'the Fire Emblem preset has six activities, its own wording and its own lists. Copy it and change them for your world.');
         const copy = el('button', 'menu_button', raw ? 'Make another copy' : `Make an editable copy of ${active.name}`);
+        copy.style.cssText = 'white-space: normal; max-width: 100%;';
         copy.type = 'button';
         copy.addEventListener('click', () => {
             const source = raw || (BUILT_IN_PRESETS[active.id] ? JSON.parse(JSON.stringify(BUILT_IN_PRESETS[active.id])) : JSON.parse(JSON.stringify(GENERIC_PRESET)));
