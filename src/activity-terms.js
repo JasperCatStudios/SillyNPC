@@ -4,7 +4,7 @@
  * No role or exam word is written into the module's code. "Professor", "certification exam",
  * "seal" and the rest are terms read from the world preset's `terms` block, so a Bleach world can
  * say Captain, Lieutenant or Mentor and "Promotion trial" with no code change. A key the preset
- * does not set uses the neutral default below. See docs/ACTIVITIES-PLAN.md section 11.
+ * does not set uses the neutral default below.
  *
  * Pure: no DOM, no SillyTavern imports, so node can test it.
  */

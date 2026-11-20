@@ -3,7 +3,7 @@
  *
  * A craft type (alchemy, smithing, a talisman craft, ...) is DATA: a few numeric properties, a shelf of materials that have those
  * properties, recipes that ask for slots (by tag) and property ranges, and the stages the player plays. Nothing here names a world.
- * See docs/CRAFTING-DESIGN.md (private) for the design.
+ *
  *
  * Quality: Q = materialWeight * M + (1 - materialWeight) * P + rankBonus, where M is how well the mixture fits the recipe, P the
  * average of the stage performances, and the rank bonus 0.02 per tier of the crafter's skill. A perfect needs M >= 0.85.

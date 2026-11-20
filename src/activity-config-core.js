@@ -13,7 +13,7 @@ import { GENERIC_CRAFTS } from './activity-craft-data.js';
  * named bundle that tells the module how to behave in a world: which activities exist, their
  * wording (terms), runes, class-change rules. The engine never hard-codes a world; it reads the active
  * preset. A world with no preset gets GENERIC_PRESET, so the module runs with nothing installed.
- * See docs/ACTIVITIES-PLAN.md sections 2 and 10.
+ *
  *
  * Pure: no DOM, no SillyTavern imports.
  */
@@ -59,7 +59,7 @@ export const ACTIVITY_SETTINGS_DEFAULTS = Object.freeze({
     soundMapUrl: '',              // a sound map just for activities (music and effects); '' uses the world preset's
     difficulty: 'normal',
     pairs: 8,                     // Study board size: 4, 8 or 12
-    // Tea Time (see docs/TEA-TIME-DESIGN.md)
+    // Tea Time
     teaLlm: true,                 // off: built-in openers and lines, no request
     teaRounds: 3,                 // 3 or 5
     teaFreeText: true,

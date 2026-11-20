@@ -42,7 +42,7 @@ export const MODULES = [
         id: 'combat',
         name: 'Combat',
         icon: 'fa-khanda',
-        blurb: 'Duels and sparring by the rules of a world type: Fire Emblem, Bleach, or your own.',
+        blurb: 'Duels and sparring by the rules of a world type: Fire Emblem, Bleach, Black Clover, or your own.',
         // Drawn by modules/combat/combat.js through registerModulePane, not borrowed from a drawer.
         render: true,
     },
@@ -50,7 +50,7 @@ export const MODULES = [
         id: 'activities',
         name: 'Activities',
         icon: 'fa-seedling',
-        blurb: 'Things to do with a character: study together, and soon tea, cooking, fishing, gardening and training.',
+        blurb: 'Things to do with a character: tea, cooking, fishing, gardening, crafting and study. Beta: more is planned.',
         // Drawn by modules/activities/activities.js through registerModulePane.
         render: true,
     },

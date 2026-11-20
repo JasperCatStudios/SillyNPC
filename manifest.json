@@ -9,5 +9,5 @@
     "version": "0.5.7",
     "homePage": "https://github.com/JasperCatStudios/WorldKit",
     "auto_update": false,
-    "description": "Styles chat messages by speaker with per-character avatars and colours, and tracks an RPG-style status system (stats, inventory, HUD, player sheet) driven by the AI."
+    "description": "Turns a story into a living world: a portrait and colour for every speaker, trackers for feelings, bonds, health and items, plus a phone, table games, combat, scenes and activities."
 }

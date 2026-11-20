@@ -60,7 +60,7 @@ export const BUILTIN_FACTIONS = Object.freeze({
  * A palette in no group (or a faction the user made) is listed under "Other".
  */
 export const FACTION_WORLDS = Object.freeze([
-    { id: 'fe', label: 'Fire Emblem: Three Houses', ids: ['golden_deer', 'black_eagles', 'blue_lions', 'ashen_wolves', 'knights_of_seiros'] },
+    { id: 'fe', label: 'Fire Emblem world', ids: ['golden_deer', 'black_eagles', 'blue_lions', 'ashen_wolves', 'knights_of_seiros'] },
     { id: 'bleach', label: 'Bleach', ids: ['soul_society', 'karakura_town', 'visored', 'quincy', 'bounts', 'xcution', 'mod_souls', 'espada', 'privaron_espada', 'arrancar', 'fraccion', 'hollow'] },
     { id: 'bc', label: 'Black Clover', ids: ['black_bulls', 'golden_dawn', 'blue_rose', 'crimson_lion_kings', 'silver_eagles', 'purple_orcas', 'green_mantis', 'coral_peacocks', 'azure_deer', 'clover_kingdom', 'heart_kingdom', 'diamond_kingdom', 'elves', 'enemy', 'commoner_s_tournament', 'independent'] },
     { id: 'general', label: 'General', ids: ['oc'] },

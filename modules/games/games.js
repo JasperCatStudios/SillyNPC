@@ -14,6 +14,7 @@ import { addRecord, tallyAgainst, rivalryBlock } from '../../src/rivalry.js';
 import { tallyText } from '../../src/rivalry-core.js';
 import { MAX_TABLE_OPPONENTS, clampTable, tableLimit, tableOk, gameRecord, gameTalkEntry } from '../../src/game-seats.js';
 import { parseGroupReply } from '../../src/group-talk.js';
+import { lineTools, editLine } from '../../src/talk-tools.js';
 import { addressees, tableTranscript, tableSystem } from '../../src/table-prompt.js';
 import {
     pigNew, pigRoll as tPigRoll, pigBank as tPigBank, pigBotDie, pigBotShouldBank,
@@ -1570,6 +1571,7 @@ function keepTalk({ result = '', leaving = false, final = false } = {}) {
             date: sceneClock()?.dateText || '',
             lines,
             result: talk.result,
+            teams: tableTeams(),
         }));
     } catch (e) {
         console.warn('[Games] could not keep the table talk', e);
@@ -1582,6 +1584,12 @@ function talkResult() {
     if (gameState.winner === 'user') return `${userName()} won`;
     if (gameState.winner === 'bot') return `${gameState.opponentName} won`;
     return 'draw';
+}
+
+/** The two teams of a four-player whist table, the persona's first. Every other game has no teams. */
+function tableTeams() {
+    const n = gameState.gameType === 'whist' ? gameState.whT?.names : null;
+    return n && n.length === 4 ? { a: [n[0], n[2]], b: [n[1], n[3]] } : null;
 }
 
 let recordedFor = -1;
@@ -1598,11 +1606,18 @@ function recordGameResult() {
         // A poker dealer who does not play is at the table but not in the game: written as looking on.
         const dealt = gameState.pkT && gameState.pkT.fixedDealer ? [gameState.pkT.fixedDealer] : [];
         others = others.filter(n => !dealt.includes(n));
-        const winners = gameState.winners ? gameState.winners : (gameState.winner === 'user' ? [userName()] : gameState.winner === 'bot' ? others : []);
+        let winners = gameState.winners ? gameState.winners : (gameState.winner === 'user' ? [userName()] : gameState.winner === 'bot' ? others : []);
+        // Blackjack: the contest is the persona against the dealer. Others who beat the dealer are not on the persona's team.
+        let versus = '';
+        if (type === 'bj' && gameState.bjT) {
+            versus = gameState.bjT.dealer.name;
+            const mine = (gameState.bjT.results || []).find(x => x.name === userName());
+            winners = !mine ? [] : mine.outcome === 'win' ? [userName()] : mine.outcome === 'push' ? [] : [versus];
+        }
         // One id for the game, shared by this record and its table talk (keepTalk, which reuses
         // `talk`), so the story prompt can tell they are the same game and never sends it twice.
         if (!talk || talk.session !== gameSession) talk = { session: gameSession, id: newTalkId(), result: '' };
-        addRecord(gameRecord({ id: talk.id, label, user: userName(), players: [userName(), ...others], winners, spectators: dealt }));
+        addRecord(gameRecord({ id: talk.id, label, user: userName(), players: [userName(), ...others], winners, spectators: dealt, teams: tableTeams(), versus }));
     } catch (e) { console.warn('[Games] could not record the result', e); }
 }
 
@@ -2612,9 +2627,10 @@ function renderGameModal() {
         gameState.chatLog.forEach(m => {
             const msgClass = m.sender === 'system' ? 'system' : (m.sender === 'user' ? 'user' : 'bot');
             const label = (m.sender === 'bot' && m.who && (gameState.gameType === 'bottle' || engineTable())) ? `<b>${escapeHtml(m.who)}:</b> ` : '';
-            logEl.append(`<div class="rpg-gmsg ${msgClass}">${label}${escapeHtml(m.text)}</div>`);
+            logEl.append(`<div class="rpg-gmsg ${msgClass}">${label}<span class="rpg-gtext">${escapeHtml(m.text)}</span></div>`);
         });
         logEl.scrollTop(logEl[0].scrollHeight);
+        refreshGameTools();
     }
     modal.find('.rpg-game-log-tab').off('click').on('click', function () { const view = this.dataset.view; modal.find('.rpg-game-log-tab').removeClass('is-active').attr('aria-selected', 'false'); $(this).addClass('is-active').attr('aria-selected', 'true'); modal.find('#rpg-game-chat-log').attr('data-view', view); });
     $('.rpg-game-close').off('click').on('click', () => modal.removeClass('visible')); 
@@ -2676,13 +2692,53 @@ function addGameChatMessage(sender, text, who) {
         const msgClass = sender === 'system' ? 'system' : (sender === 'user' ? 'user' : (sender === 'typing' ? 'bot rpg-typing' : 'bot'));
         // with several characters at the table, show who is talking
         const label = (sender === 'bot' && who && (gameState.gameType === 'bottle' || engineTable())) ? `<b>${escapeHtml(who)}:</b> ` : '';
-        log.append(`<div class="rpg-gmsg ${msgClass}">${label}${escapeHtml(text)}</div>`);
+        log.append(`<div class="rpg-gmsg ${msgClass}">${label}<span class="rpg-gtext">${escapeHtml(text)}</span></div>`);
         log.scrollTop(log[0].scrollHeight);
+        refreshGameTools();
     }
 }
 function removeTypingIndicator() {
     $('.rpg-gmsg.rpg-typing').remove();
     gameState.chatLog = gameState.chatLog.filter(m => m.sender !== 'typing');
+    refreshGameTools();
+}
+
+/**
+ * Edit on every spoken line, and Regenerate on the answer to the player's last words. The rows of the log
+ * and the entries of gameState.chatLog are the same list in the same order. A player line carries `redo`,
+ * which asks the table again; regenerating drops the answer and calls it.
+ */
+function refreshGameTools() {
+    const log = document.getElementById('rpg-game-chat-log');
+    if (!log) return;
+    log.querySelectorAll('.snpc-line-tools').forEach(n => n.remove());
+    const L = gameState.chatLog;
+    const rows = [...log.children];
+    if (rows.length !== L.length || L.some(m => m.sender === 'typing')) return;
+    let start = L.length;
+    while (start > 0 && L[start - 1].sender === 'bot') start--;
+    const asked = start > 0 && start < L.length && L[start - 1].sender === 'user' && L[start - 1].redo ? L[start - 1] : null;
+    const regen = () => {
+        if (!asked) return;
+        L.splice(start);
+        rows.slice(start).forEach(r => r.remove());
+        refreshGameTools();
+        asked.redo();
+    };
+    rows.forEach((row, i) => {
+        const m = L[i];
+        if (m.sender !== 'user' && m.sender !== 'bot') return;
+        const text = row.querySelector('.rpg-gtext');
+        if (!text) return;
+        const edit = () => {
+            row.querySelector('.snpc-line-tools')?.remove();
+            editLine(text, m.text, {
+                onSave: (t) => { m.text = t; text.textContent = t; refreshGameTools(); },
+                onCancel: () => { text.textContent = m.text; refreshGameTools(); },
+            });
+        };
+        row.append(lineTools({ edit, regen: asked && i === L.length - 1 ? regen : undefined }));
+    });
 }
 
 /** The characters sitting at the open table (not the persona), for the header. Empty for a one-opponent game. */
@@ -2739,6 +2795,9 @@ async function sendGameMessage() {
     if (!text) return;
     input.val('');
     addGameChatMessage('user', text);
+    const said = gameState.chatLog[gameState.chatLog.length - 1];
+    // The answer is a function of the words and who was spoken to, so asking again repeats exactly this.
+    let answer;
     if (engineTable()) {
         // Spoken to somebody by name, or picked in the box, it is for them; otherwise for the table.
         const picked = String($('#rpg-game-talk-to').val() || '*');
@@ -2746,10 +2805,12 @@ async function sendGameMessage() {
         const to = directed.length ? joinNames(directed) : 'everyone at the table';
         // the person spoken to answers first; the others may then react to both of them
         const speakers = directed.length ? [...directed, ...tableBots().filter(n => !directed.includes(n))] : tableBots();
-        await tableComment(`${userName()} says to ${to}: "${text}"`, speakers, true, { directed });
-        return;
+        answer = () => tableComment(`${userName()} says to ${to}: "${text}"`, speakers, true, { directed });
+    } else {
+        answer = () => generateAiCommentary(`${userName()} said in game chat: "${text}"`, true);
     }
-    await generateAiCommentary(`${userName()} said in game chat: "${text}"`, true);
+    if (said) said.redo = answer;
+    await answer();
 }
 
 /** The game's report as plain text for the chat: what was played, who won, where it stood, what was said at the table. */

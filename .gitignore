@@ -10,12 +10,3 @@ temp_*.txt
 *.rej
 .DS_Store
 Thumbs.db
-
-# Private development plans and notes: kept on disk, never published
-docs/ACTIVITIES-PLAN.md
-docs/MODULARITY-PLAN.md
-docs/TEA-TIME-DESIGN.md
-docs/TEST-CHECKLIST.md
-docs/README.md
-docs/CRAFTING-DESIGN.md
-docs/MECHANICS-DESIGN.md

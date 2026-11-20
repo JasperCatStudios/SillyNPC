@@ -9,7 +9,7 @@ import { GRADE_XP } from './activity-memory-core.js';
  * repeats allowed and 6 tries.
  *
  * Every symbol has a shape and a letter as well as a colour, so colour is never the only cue. A function that needs chance
- * takes an injected `rng`. See docs/ACTIVITIES-PLAN.md section 3.
+ * takes an injected `rng`.
  *
  * Pure: no DOM, no SillyTavern imports.
  */

@@ -20,12 +20,32 @@ const el = (tag, className, text) => {
     return node;
 };
 
+/** Which group of the pane each setting belongs to, by its label. Anything not listed lands in General. */
+const CATEGORIES = [
+    ['general', 'General'],
+    ['talk', 'Table talk and the model'],
+    ['play', 'How the games play'],
+    ['progress', 'Skills, energy and story'],
+    ['sound', 'Music and sound'],
+];
+const CATEGORY_OF = {
+    'Activities on': 'general', 'Show the button': 'general', 'Show How to play': 'general',
+    'Show the table talk': 'talk', 'Built-in lines when the model is off': 'talk', 'The partner talks': 'talk',
+    'Story messages sent': 'talk', 'Seconds between partner requests': 'talk', 'Seconds between spoken lines': 'talk',
+    'Classic cooking': 'play', 'Easier timing (assist)': 'play', 'Study board': 'play', 'Difficulty': 'play', 'Controls': 'play',
+    'Action key': 'play', 'Second action key': 'play',
+    'Skill XP and levels': 'progress', 'Bond nudges': 'progress', 'XP for skills used in fights': 'progress', 'Activities cost energy': 'progress',
+    'Energy per activity': 'progress', 'Story minutes per activity': 'progress',
+    'Activity music': 'sound', 'Music volume': 'sound', 'Sound map address': 'sound',
+};
+
 export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     const s = activitySettings();
     const changed = () => { saveActivitySettings(); window.dispatchEvent(new CustomEvent(ACTIVITIES_CHANGED_EVENT)); };
 
     const row = (label, control, hint) => {
         const wrap = el('div', 'sillynpc-setting-row');
+        wrap.dataset.cat = CATEGORY_OF[label] || 'general';
         const l = el('label', 'sillynpc-setting-label', hint ? `${label} ⓘ` : label);
         if (hint) l.title = hint;
         // The control sits in its own box. The settings CSS stretches any label that is a direct child of a row, which
@@ -62,10 +82,6 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         toggle('Show How to play', 'showHowTo', 'The How to play tab beside each activity.'),
         toggle('Built-in lines when the model is off', 'cannedLines', 'Short ready-made lines for the partner at the start, the end and a few turning points when the partner\'s talk is off or a request fails. Off means silence instead. Moments (a fish bites, a harvest) never use built-in lines.'),
         toggle('The partner talks', 'talkOn', 'Off means short built-in lines and no requests to a model.'),
-        toggle('Tea Time uses the model', 'teaLlm', 'On: the guest voices the conversation and proposes things to say. Off: built-in lines, and the best grade is Good.'),
-        toggle('Tea Time: type your own words', 'teaFreeText', 'Lets you type a line instead of tapping one of the three openers. Only when the model is on.'),
-        toggle('Tea Time: the guest asks questions', 'teaGuestAsks', 'About one round in three the guest asks you something and your choices become answers.'),
-        toggle('Tea Time: show what you have learned', 'teaShowKnown', 'A "Known so far" note about the guest on the Tea Time screen.'),
         toggle('Activity music', 'musicOn', 'Plays an activity\'s looping music from the sound map while it is open (each activity names its tag under Customize an activity; Tea Time uses its preset tag). Off means silence.'),
         toggle('Activities cost energy', 'vitalsOn', 'Each activity costs the player some energy, and one is refused when there is not enough. Only works while the Vitals Tracker is on and tracks energy.'),
         toggle('Classic cooking', 'classicCooking', 'Cooking uses the old three timing taps instead of the hands-on kitchen (chopping, stirring, searing, seasoning). Off is the new kitchen.'),
@@ -167,6 +183,16 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
     mapBox.value = s.soundMapUrl;
     mapBox.addEventListener('change', () => { s.soundMapUrl = mapBox.value.trim(); changed(); });
     pane.append(row('Sound map address', mapBox, 'A sound map just for activities: their music and effects. A world preset can point at its own sound folder. A missing file is silent.'));
+
+    // Group the rows above under headings, in a fixed order.
+    const rows = [...pane.children].filter((n) => n.dataset?.cat);
+    for (const [cat, title] of CATEGORIES) {
+        const inCat = rows.filter((n) => n.dataset.cat === cat);
+        if (!inCat.length) continue;
+        const h = el('h4', 'sillynpc-section-title', title);
+        h.style.marginTop = '14px';
+        pane.append(h, ...inCat);
+    }
 
     // World preset.
     const presetSel = el('select', 'text_pole');

@@ -330,7 +330,7 @@ const L = {
         img_t_or: 'OpenRouter / chat image (nano-banana, grok)', img_t_comfy: 'ComfyUI — local, on your own GPU',
         img_url: 'Image API URL', img_key: 'Image API key', img_model: 'Model', img_model_ph: 'e.g. flux-schnell or google/gemini-2.5-flash-image',
         img_size: 'Size', img_style: 'Style', img_style_ph: 'e.g. anime, soft light', img_tpl: 'Photo prompt · {CAPTION} {NAME} {LOOK} {STYLE}',
-        img_borrowed: 'Connection borrowed from the Rabbit Hole.', img_develop: 'Develop', img_drawing: 'Drawing…', img_retry: 'Failed — click to retry',
+        img_borrowed: 'Connection borrowed from the main connection.', img_develop: 'Develop', img_drawing: 'Drawing…', img_retry: 'Failed — click to retry',
         img_off: 'Turn on "Photos from characters" in the phone settings.', img_retrying: 'Photo: attempt {a} of {b}…', img_cancel: 'Stop', img_redo: 'Redraw',
         comfy_state0: 'not checked yet', comfy_test: '🔌 Check', comfy_ckpt: 'Model (checkpoint)', comfy_first: 'first in the list',
         comfy_lora: 'LoRA', comfy_nolora: 'no LoRA', comfy_lstr: 'Strength', comfy_sampler: 'Sampler', comfy_sched: 'Scheduler', comfy_steps: 'Steps',
@@ -3692,7 +3692,15 @@ function ensureLayer() {
 
         // one wand button holds the extras, so the bar keeps its room for typing
         const wandMenu = document.getElementById('rph-wandmenu');
-        $('#rph-wand').on('click', (e) => { e.stopPropagation(); wandMenu.hidden = !wandMenu.hidden; });
+        $('#rph-wand').on('click', (e) => {
+            e.stopPropagation();
+            wandMenu.hidden = !wandMenu.hidden;
+            if (wandMenu.hidden) return;
+            // opens upward by default; when the bar sits too near the top of the screen for that, it opens downward instead
+            wandMenu.classList.remove('rph-wand-down');
+            const barTop = document.getElementById('rph-bar').getBoundingClientRect().top;
+            if (barTop < wandMenu.offsetHeight + 12) wandMenu.classList.add('rph-wand-down');
+        });
         wandMenu.addEventListener('click', () => { wandMenu.hidden = true; });
         d.addEventListener('click', (e) => { if (!wandMenu.hidden && !e.target.closest('#rph-wand')) wandMenu.hidden = true; });
         $('#rph-view-btn').on('click', () => openPromptViewer(currentContact()));

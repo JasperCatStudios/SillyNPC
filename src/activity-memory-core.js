@@ -8,7 +8,7 @@
  * concentration runs out (the session ends early, with credit for what was found).
  *
  * Every function takes an injected `rng` (a function returning [0, 1)), so a seeded one makes a
- * game repeatable in tests. See docs/ACTIVITIES-PLAN.md section 3.
+ * game repeatable in tests.
  *
  * Pure: no DOM, no SillyTavern imports.
  */

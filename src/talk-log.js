@@ -145,7 +145,9 @@ const withText = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')
 const company = (e, joiner) => {
     const watched = e.spectators?.length ? `, watched by ${withText(e.spectators)}` : '';
     if (e.sideA && e.sideB) return `${joiner}${withText(e.sideA)} against ${withText(e.sideB)}${watched}`;
-    return e.with.length ? `${joiner}${withText(e.with)}` : '';
+    // No sides (a table of several): who was there, then who only watched. `with` already lists the watchers.
+    const players = e.with.filter(n => !(e.spectators || []).includes(n));
+    return players.length ? `${joiner}${withText(players)}${watched}` : '';
 };
 
 /**

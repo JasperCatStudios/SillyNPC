@@ -8,7 +8,7 @@ import { normalizeGarden } from './activity-harvest-core.js';
  * A finished activity may nudge one of a partner's bond meters (affection, trust, respect). The nudge goes
  * through clampGrowth, the same turn caps, slowdown and rolling window a story reply goes through, so spending
  * every evening at tea cannot max a bond. On top of that an activity pays out a bond change once per partner
- * per in-story day (the "daily" record kept in the chat). See docs/ACTIVITIES-PLAN.md section 2.
+ * per in-story day (the "daily" record kept in the chat).
  *
  * Pure: no DOM, no SillyTavern imports.
  */

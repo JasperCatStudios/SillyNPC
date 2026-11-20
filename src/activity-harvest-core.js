@@ -2,7 +2,7 @@ import { matchPref, normKey, isFavoriteMeal } from './likes-core.js';
 import { GRADE_XP, seeded } from './activity-memory-core.js';
 
 /**
- * Cooking, fishing and gardening (fork): the rules, without the screen. See docs/ACTIVITIES-PLAN.md section 3.
+ * Cooking, fishing and gardening (fork): the rules, without the screen.
  *
  * All three are small and tap-based. Cooking and fishing share a timing idea (a marker sweeps, tap when it is in the zone), and
  * the zone gets narrower and the marker faster with the difficulty. Gardening is not timed: plots grow by visits (see tendPlot).

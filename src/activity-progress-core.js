@@ -4,7 +4,7 @@ import { MAX_ABILITIES } from './combat-abilities.js';
 
 /**
  * Progress from activities and fights (fork): proficiency XP, rank-ups, ability unlocks, the
- * class-change gate, and counting the proficiencies a fight used. See docs/ACTIVITIES-PLAN.md section 4.
+ * class-change gate, and counting the proficiencies a fight used.
  *
  * Rank ladders come from the active combat type, so nothing here is Fire Emblem specific: a
  * rank ladder (E- ... S+) and a grade ladder (Bleach, Black Clover) work the same way.

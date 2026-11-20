@@ -9,7 +9,7 @@
  *
  * The effect set extends the weather and sky effects of Doom's Enhancement Suite
  * (Copyright (C) 2026 Jordan (DangerDaza), AGPL-3.0-or-later; itself a fork of RPG Companion by Marysia),
- * modified for Worldkit. See NOTICE.md.
+ * modified for Worldkit. See licenses/NOTICE.md.
  *
  * Pure: no DOM, no SillyTavern imports.
  */

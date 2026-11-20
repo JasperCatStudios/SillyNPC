@@ -3912,3 +3912,12 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 /* A dagger icon of our own (Font Awesome's free set has no knife), used by the Knives tab. It takes the text colour. */
 .sillynpc-icon-dagger { display: inline-block; width: 1em; height: 1em; vertical-align: -0.125em; background-color: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M12%201l2.3%2010H9.7zM6.5%2011h11v2h-11zM11%2013h2v6h-2zM12%2019.4a1.7%201.7%200%201%201%200%203.4%201.7%201.7%200%200%201%200-3.4z%27%2F%3E%3C%2Fsvg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M12%201l2.3%2010H9.7zM6.5%2011h11v2h-11zM11%2013h2v6h-2zM12%2019.4a1.7%201.7%200%201%201%200%203.4%201.7%201.7%200%200%201%200-3.4z%27%2F%3E%3C%2Fsvg%3E") center / contain no-repeat; }
 .sillynpc-icon-dagger::before { content: none !important; }
+
+/* Edit / regenerate buttons on table-talk lines (Combat, Games, Activities) */
+.snpc-line-tools { display: inline-flex; gap: 4px; margin-left: 6px; opacity: 0; transition: opacity 0.12s; vertical-align: middle; }
+:hover > .snpc-line-tools, .snpc-line-tools:focus-within { opacity: 0.85; }
+@media (hover: none) { .snpc-line-tools { opacity: 0.7; } }
+.snpc-line-tool { background: none; border: 0; padding: 0 3px; color: inherit; cursor: pointer; font-size: 0.75em; }
+.snpc-line-tool:hover { opacity: 1; }
+.snpc-line-edit { width: 100%; box-sizing: border-box; resize: vertical; font-size: inherit; }
+.snpc-line-edit-actions { display: flex; gap: 6px; margin-top: 4px; }

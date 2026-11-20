@@ -103,9 +103,9 @@ export function runMeal(win, ctx) {
         speak('moment', '', reaction, `${describeHost(session, { drinkWord: 'drink' })}. Their first reaction: ${reaction}.`);
     }
 
-    win.onSay((text) => {
+    win.onSay((text, { regen = false } = {}) => {
         if (stage === 'done') return;
-        if (stage === 'served') said += 1;
+        if (stage === 'served' && !regen) said += 1;
         speak('chat', text);
     });
 

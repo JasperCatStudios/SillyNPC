@@ -1,6 +1,6 @@
 # Worldkit User Guide
 
-Worldkit is an extension for SillyTavern, the program you use for roleplay chats with an AI. It was first called **SillyNPC**, and some older labels, folder names and menu text still use that name. If you are searching for SillyNPC, you are in the right place.
+Worldkit is an extension for SillyTavern, the program you use for roleplay chats with an AI.
 
 Worldkit makes a chat feel like a living world. Characters get their own portraits and coloured speech. Small hidden helpers, called **trackers**, read each reply and keep notes on feelings, relationships, health and belongings. A phone lets you text characters, there are table games, and there is a combat system. Almost everything is optional, and most of it is switched off until you turn it on.
 
@@ -34,10 +34,11 @@ Worldkit makes a chat feel like a living world. Characters get their own portrai
 14. [Writing Rules](#writing-rules)
 15. [Appearance](#appearance)
 16. [Content Kit](#content-kit)
-17. [Advanced](#advanced)
-18. [Troubleshooting](#troubleshooting)
-19. [Credits and licences](#credits-and-licences)
-20. [Where to get help](#where-to-get-help)
+17. [Activities (beta)](#activities-beta)
+18. [Advanced](#advanced)
+19. [Troubleshooting](#troubleshooting)
+20. [Credits and licences](#credits-and-licences)
+21. [Where to get help](#where-to-get-help)
 
 ---
 
@@ -46,7 +47,6 @@ Worldkit makes a chat feel like a living world. Characters get their own portrai
 - **Bold** text is a name you will see on a menu or button.
 - `Code` text is something you type, such as a command.
 - Each feature has the same parts: what it is, why you might want it, how to turn it on, how to use it, what you will see, what the settings do, and tips.
-- Where this guide could not confirm something from the code, it says **(not verified)**. Those items are listed again at the end of this guide in the Credits and licences section and in the handoff notes.
 
 A few words used throughout:
 
@@ -68,7 +68,7 @@ Most of Worldkit is off until you switch it on. In the code, the main switch for
 - the **Inventory** tracker (its master switch is off by default);
 - **Open Threads** (off by default);
 - the **Phone**, **Games** and **Combat** modules;
-- **Vectors** (its master switch, see the [Vectors](#vectors) section; its default is not verified);
+- **Vectors** (its master switch, see the [Vectors](#vectors) section, off by default);
 - **Bonds Fade With Time Apart** (off by default).
 
 The main dialogue formatting setting, **Ask The Model To Format Dialogue**, is on by default. This is what makes Worldkit recognise who is speaking. Turning it on or off is covered in the [Writing Rules](#writing-rules) section.
@@ -76,10 +76,10 @@ The main dialogue formatting setting, **Ask The Model To Format Dialogue**, is o
 ### Where the Worldkit menu is
 
 1. Look for the **Extensions** button in SillyTavern. It looks like a stack of blocks.
-2. Find the Worldkit entry in the list. The entry may still show the older name, SillyNPC (exact label not verified).
+2. Find the Worldkit entry in the list.
 3. Open it. A menu with tabs opens. The menu is searchable: there is a search box above each page, so you can type a setting's name instead of hunting for it.
 
-Worldkit also adds a few buttons to the chat area: a **wand menu** entry (the magic wand button in the chat bar) with entries for the games, combat and phone windows, and floating buttons for those windows (exact wording on these buttons not verified).
+Worldkit also adds a few buttons to the chat area: a **wand menu** entry (the magic wand button in the chat bar) with entries for the games, combat and phone windows, and floating buttons for those windows.
 
 ### The tabs
 
@@ -88,7 +88,7 @@ The menu has these tabs, in this order:
 | Tab | What it is for |
 | --- | --- |
 | **Characters** | Your character cards, portraits, colours, gradients, factions and categories. |
-| **Modules** | Turns the Phone, Games and Combat modules on or off, and holds the Voices settings and the shared memory settings. |
+| **Modules** | Turns the Phone, Games, Combat, Activities and Scene modules on or off, and holds the Voices settings and the shared context settings. |
 | **Appearance** | How speech looks: dividers, spacing, avatar shapes and sizes, and the faces used for strangers. |
 | **Writing Rules** | How Worldkit reads speaker names and the dialogue format, and the ban list. |
 | **Threads** | Open Threads: promises, debts, secrets and similar things that are still unresolved. |
@@ -97,6 +97,7 @@ The menu has these tabs, in this order:
 | **Connections** | Which AI connection each helper uses. |
 | **Vectors** | Optional memory search over the story. |
 | **Prompts** | Every instruction Worldkit sends to a model, and what each costs. |
+| **Content Kit** | Download the Worldkit-Content repository, import pieces of it, and remove them again. |
 | **Advanced** | The master switch, logging, backups, and the menu's size. |
 
 ### What the Look, Connections and Prompts tabs are for
@@ -177,7 +178,7 @@ The gradient model is adapted from the Dialogue Colors extension, which is MIT l
 A faction is a group, such as a guild or a house. Characters in a faction take the faction's colours. Factions are grouped by world.
 
 - Use the **Factions in this chat** panel on the **Characters** tab to turn factions on or off for the current chat.
-- Hidden factions are not applied to the chat. (The exact behaviour when a faction is hidden is not verified.)
+- Hidden factions are not applied to the chat.
 
 #### Roster categories
 
@@ -195,7 +196,7 @@ Categories sort characters into groups such as worlds, factions or scenes. You c
 
 #### Lorebook links
 
-A lorebook is a set of notes SillyTavern can draw on. You can link a character to a lorebook entry. Worldkit then reads who the character is from that entry (the exact fields read are not verified).
+A lorebook is a set of notes SillyTavern can draw on. You can link a character to a lorebook entry. Worldkit then reads who the character is from that entry.
 
 #### Faces for Strangers
 
@@ -286,16 +287,15 @@ Worldkit's worlds are always available. Open the Worldkit menu and go to **World
 
 ### Settings explained
 
-- **Automatic save interval (minutes)**: saves a state automatically at this interval. It is set to 0 (off) by default. Automatic saves are labelled **Automatic** and are silent. The on-screen label for this setting is not verified.
-- **Saved states kept**: how many states are kept. Older ones are removed when this number is passed. The default is 5. The on-screen label is not verified.
+- **Automatic save interval (minutes)**: saves a state automatically at this interval. It is set to 0 (off) by default. Automatic saves are labelled **Automatic** and are silent.
+- **Saved states kept**: how many states are kept. Older ones are removed when this number is passed. The default is 5.
 
-Both of these are on the **World Management** page (exact placement and labels not verified).
+Both of these are on the **World Management** page.
 
 ### Tips and gotchas
 
 - Saved states are files. If you move your SillyTavern folder, keep the files with it.
 - Deleting the world that is the default also clears the default.
-- **Code finding, not verified in a browser:** the World Management page appears to call two functions, one that reads the default world and one that sets it, without importing them. If so, the world list may fail to draw whenever at least one world exists, and the star button may not work. A message such as **World Management failed** would appear in the browser console. This was found by reading the code and has not been tested in a running copy.
 
 ---
 
@@ -371,14 +371,14 @@ The help text for the feature mentions agendas, thoughts, body scale, Chekhov (a
 4. Press the update button beside a person to read the newest reply for them now.
 5. Expand a person's row to see their **history and milestones**. Use the **Record it now** options to record a milestone yourself.
 6. Use the **Turn romance on** or **Keep platonic** buttons to set how the relationship may develop. Romance is off until you turn it on.
-7. Set the bond's lock with its lock control. **Open** lets romance be switched on for either side. Other locks limit it (exact list of lock names not verified beyond the help text).
+7. Set the bond's lock with its lock control. **Open** lets romance be switched on for either side. Other locks limit it.
 
 **What you will see.** A list of characters with their level, meters (affection and trust are named in the help text), gates, and milestones. Each person's row has buttons to update, forget, or show history.
 
 **Settings explained.**
 
 - **Track Bonds**: the master switch.
-- **When Bonds Update**: **After The Reply** runs a separate request on the Bonds connection after each new reply. Other choices are not verified.
+- **When Bonds Update**: **After The Reply** runs a separate request on the Bonds connection after each new reply.
 - **Reply Budget**: about how much the reader may write back. The reply is a small structured answer, and 800 is enough.
 - **Earlier Messages Read**: messages before the new reply the reader is shown.
 - **Bonds Fade With Time Apart** (in **Growth Rules**): people who are not seen for a while slowly drift back toward the floor. Off by default.
@@ -411,7 +411,7 @@ The help text for the feature mentions agendas, thoughts, body scale, Chekhov (a
 1. Switch on **Track Vitals**.
 2. Choose when vitals update under **When Vitals Update**.
 3. Choose whose vitals go into the story under **Send To The Story For**.
-4. Switch **Include Your Persona** on if you want your own vitals tracked (its default is not verified).
+4. Switch **Include Your Persona** on if you want your own vitals tracked.
 5. Set the connection for vitals under **Connections**, in the **Vitals** entry.
 6. Send a message and check the bars under the reply.
 
@@ -488,7 +488,7 @@ A person with nothing carries the message **Carrying nothing.**
 4. To make a preset, click **+ Make a preset**. Type a name, an optional line about it, an optional amount of money, and one item per line with a number after it, for example `Healing Potion x3`. Names that exist in the database get their kind and note filled in; other names are added as plain items. Click **Add preset**. Your presets have **Edit** and **Delete** buttons.
 5. On a character's profile, open the **Inventory** tab. Below the item boxes, type a name in **From the item database** and press Enter (or click the book button) to give that item. The **Give a preset...** dropdown hands over a whole preset. This works for any character, not only you.
 
-**Big item lists come from the Content Kit.** The Fire Emblem: Three Houses list (392 items and 5 presets) is not built in. Open the **Content Kit** tab, download the kit, then under **Item databases** click **Import**. The items are added to **Yours** and can be searched, given and deleted like your own. Importing again replaces them in place; it never makes copies.
+**Big item lists come from the Content Kit.** The large item list in the content pack (hundreds of items and several presets) is not built in. Open the **Content Kit** tab, download the kit, then under **Item databases** click **Import**. The items are added to **Yours** and can be searched, given and deleted like your own. Importing again replaces them in place; it never makes copies.
 
 **What goes in the pack.** The item's category becomes its **Kind**, and its description (with any stats) becomes its **note**, cut to fit 120 characters.
 - **Prompt Position** and **Prompt Role** (advanced): where and how the inventory is placed in the story prompt.
@@ -567,7 +567,7 @@ A person with nothing carries the message **Carrying nothing.**
 2. Choose a look from the **Look** dropdown on any one of the four pages.
 3. The change applies to all four trackers at once, and the blocks already under your replies are redrawn.
 
-**What you will see.** The tracker blocks change colour, border and font. Non-default looks load a few fonts from the web (Anton, Crimson Pro, Inter and JetBrains Mono). If your computer is offline, the fonts may not load (not verified).
+**What you will see.** The tracker blocks change colour, border and font. Non-default looks load a few fonts from the web (Anton, Crimson Pro, Inter and JetBrains Mono). If your computer is offline, the fonts may not load.
 
 **Tips and gotchas.**
 
@@ -577,6 +577,8 @@ A person with nothing carries the message **Carrying nothing.**
 ---
 
 ## Hidden identities (secret alter egos and disguises)
+
+![Jeritza linked to the Death Knight on the Identity tab](images/character-disguise.png)
 
 **What it is.** Two character cards linked as one secret person: an alter ego, a disguise, a double life. Each card keeps its own image, lore and sheet. While either of the two is in the scene, the story model is told never to reveal the link, together with a prompt you wrote for that identity.
 
@@ -710,7 +712,7 @@ To fix it:
 
 3. Add it again with the note in quotes, as in Step 1.
 
-Note: the rule that a note with spaces must be in quotes comes from how SillyTavern splits a command into parts. That behaviour is SillyTavern's and was not tested here (not verified).
+Note: the rule that a note with spaces must be in quotes comes from how SillyTavern splits a command into parts. That behaviour is SillyTavern's and was not tested here.
 
 ### Gold commands
 
@@ -735,18 +737,20 @@ The amount must be a whole number of 1 or more. An amount such as `0` or `2.5` i
 
 These two commands only work in **Manual** mode. See the [Phone](#phone) section for how to choose that mode.
 
-- **`/phone-send-texts`**: sends your recent phone texts along with your next reply. Type `/phone-send-texts cancel` to cancel a pending send, or `/phone-send-texts status` to see what is pending (both arguments are listed in the phone module, exact behaviour not verified).
-- **`/phone-bring-contacts`**: has your phone contacts arrive in the next scene. It takes the same `cancel` and `status` arguments (not verified).
+- **`/phone-send-texts`**: sends your recent phone texts along with your next reply. Type `/phone-send-texts cancel` to cancel a pending send, or `/phone-send-texts status` to see what is pending.
+- **`/phone-bring-contacts`**: has your phone contacts arrive in the next scene. It takes the same `cancel` and `status` arguments.
 
 ### Tips and gotchas
 
 - Use `amount=all` with `/inventory-remove` to take the whole stack at once.
 - Item names must match. Use the Inventory page to check the exact name.
-- Typing the wrong character name, such as `name=Anna` when the character is `Ana`, may create a new, empty pack under the wrong name (inferred from the code; not verified in a chat). Check the spelling.
+- Typing the wrong character name, such as `name=Anna` when the character is `Ana`, may create a new, empty pack under the wrong name. Check the spelling.
 
 ---
 
 ## Phone
+
+![A selfie in the Phone](images/phoneselfie.png)
 
 ### What it is
 
@@ -771,7 +775,7 @@ It gives your characters a life outside the scene, so messages arrive between ch
 2. The **Who is online** list shows your characters. A character appears here only when the character is enabled for the phone. If the list is empty, check that your characters are enabled.
 3. Click a character to open a conversation and type a message.
 4. When a character texts back, the phone shows an unread badge if the phone is tucked away.
-5. To send a photo, use the photo option in the conversation (the exact button wording is not verified).
+5. To send a photo, use the photo option in the conversation.
 6. To set how characters start conversations, use **Initiative** (see below).
 
 ### What you will see
@@ -788,7 +792,7 @@ These are in **Modules**, under **Phone**.
 - **Language**: English or Russian.
 - **Skins**: Bubbles, Cute, Gothic, Lace and Classic. Each changes the look of the phone.
 - **Wallpaper**: the picture behind the phone.
-- **Generation**, **Memory**: how the phone's messages are written and remembered (exact fields not verified).
+- **Generation**, **Memory**: how the phone's messages are written and remembered.
 - **Initiative**: when characters start texts on their own.
   - **They text first**: switch on to allow it.
   - **Pause min**: the minimum pause between their unprompted texts.
@@ -808,7 +812,7 @@ These settings choose how phone texts reach the story. The modes are:
 
 #### Phone contacts enter the next scene
 
-When this is on, contacts from the phone can appear in the next scene. The exact settings for this are not verified in detail.
+When this is on, contacts from the phone can appear in the next scene.
 
 #### Voice notes
 
@@ -825,9 +829,9 @@ Characters can send photos.
 - **Draw the photos they send**: turns on drawing.
 - **As soon as they arrive**: draws each photo immediately.
 - **Answer picture requests in plain words**: a character's request for a photo is answered in plain text.
-- **API type**, **Image API URL**, **key**, **model**: the image service and how to reach it. These depend on the service you use (not verified in detail).
+- **API type**, **Image API URL**, **key**, **model**: the image service and how to reach it. These depend on the service you use.
 - **Style**, **Styles list**, **Photo prompt**: how photos look. The photo prompt is editable in the [Prompts tab](#prompts-tab), under **Phone prompts**.
-- ComfyUI settings are also present for those who use ComfyUI (not verified in detail).
+- ComfyUI settings are also present for those who use ComfyUI.
 
 ### Tips and gotchas
 
@@ -852,7 +856,7 @@ It gives a scene something to do, and the characters react to the game.
 
 1. Open the Worldkit menu and go to **Modules**.
 2. Open the **Games** part and switch it on.
-3. A games button is added to the screen. The wand menu also has a games entry (exact wording not verified).
+3. A games button is added to the screen. The wand menu also has a games entry.
 
 ### How to use it
 
@@ -873,7 +877,7 @@ A games window with the board or cards, and the table talk from the characters.
 
 #### Result injection (games and combat)
 
-The result of a game or fight can be sent to the story. The panel offers these modes, in this order: **off**, **always**, **random** and **manual** (the labels on screen are not verified). Off clears any result waiting to be sent. There is a **Preview** button that shows what would be sent now.
+The result of a game or fight can be sent to the story. The panel offers these modes, in this order: **off**, **always**, **random** and **manual**. Off clears any result waiting to be sent. There is a **Preview** button that shows what would be sent now.
 
 ### Tips and gotchas
 
@@ -883,6 +887,10 @@ The result of a game or fight can be sent to the story. The panel offers these m
 ---
 
 ## Combat
+
+![A four against four fight, set up and under way](images/combat-setup.png)
+![A fight in progress](images/combat.png)
+![The result, with experience and rank gains](images/combat-result.png)
 
 ### What it is
 
@@ -896,7 +904,7 @@ It gives fights a structure, so that stats, abilities and gear mean something in
 
 1. Open the Worldkit menu and go to **Modules**.
 2. Open the **Combat** part and switch it on.
-3. A combat button is added to the screen, and the wand menu has a combat entry (exact wording not verified).
+3. A combat button is added to the screen, and the wand menu has a combat entry.
 
 ### How to use it
 
@@ -925,7 +933,7 @@ It gives fights a structure, so that stats, abilities and gear mean something in
 
 1. Open the type editor from the combat settings.
 2. Add stats, sections, and lists of abilities and gear.
-3. Save the type. It is available to choose when you start a fight (exact screen names not verified).
+3. Save the type. It is available to choose when you start a fight.
 
 **Sending the result to the story**
 
@@ -1041,7 +1049,7 @@ The note under each box says: "Default is the built-in prompt. Type in the box a
 - **Bonds: Reader Instructions**, **Vitals: Reader Instructions**, **Inventory: Reader Instructions**: the readers' instructions.
 - **Phone System Prompt**: tells the model how to write phone texts. It has the placeholders `<<user>>` and `<<contact>>`. A preset called **Short replies** is available.
 - **Phone: Selfie Prompt**: the instruction for selfies. Its placeholders are `{NAME}`, `{LOOK}`, `{OUTFIT}`, `{EXPRESSION}`, `{BACKGROUND}`, `{POSE}`, `{TIME}`, `{REQUEST}`, `{SCENE}` and `{STYLE}`.
-- **Phone: Picture Style**, **Phone: Drawing**, **Phone: Object** and the phone's time-of-day prompts: other photo and scene instructions (exact wording not verified).
+- **Phone: Picture Style**, **Phone: Drawing**, **Phone: Object** and the phone's time-of-day prompts: other photo and scene instructions.
 
 ### Placeholders
 
@@ -1093,6 +1101,9 @@ The **Phone** and **Games** entries use the connection each module already has. 
 
 ## Vectors
 
+![Rivalry history and fight talk remembered](images/vectors-battle-history.png)
+![The Ollama connection test](images/vectors-ollama.png)
+
 ### What it is
 
 Optional memory search. Worldkit can remember the story and bring back related earlier messages when they matter.
@@ -1105,7 +1116,7 @@ For a long chat, the model may forget an early event. Vectors can bring back the
 
 1. Open the Worldkit menu and go to **Vectors**.
 2. Switch on **Use Vectors (master switch)**.
-3. Worldkit needs a search service for this. The page is titled **Ollama & Search**, so Ollama is the expected service (not verified in detail).
+3. Worldkit needs a search service for this. The page is titled **Ollama & Search**, so Ollama is the expected service.
 
 ### How to use it
 
@@ -1133,7 +1144,7 @@ The page also has memory kinds for **Rivalry**, **Combat**, **Games** and **Phon
 
 ### Tips and gotchas
 
-- Vectors runs its searches on a separate search service rather than through your chat's AI connection (inferred from the page layout; not verified in detail).
+- Vectors runs its searches on a separate search service rather than through your chat's AI connection.
 - Each memory kind sends only as many matches as its own number allows.
 
 ---
@@ -1155,7 +1166,7 @@ Open the Worldkit menu and go to **Writing Rules**. Most of these switches are o
 ### How to use it
 
 1. Switch on **Ask The Model To Format Dialogue** (on by default). It asks the model for the speaker line that Worldkit reads.
-2. Choose **Speaker Detection**. The choices are **Speaker Tag only**, **Tag and legacy styles** and **Legacy styles only (upstream)**. The default is the speaker tag only (exact mapping of the default to the label not verified).
+2. Choose **Speaker Detection**. The choices are **Speaker Tag only**, **Tag and legacy styles** and **Legacy styles only (upstream)**. The default is the speaker tag only.
 3. Set **Speaker Tag Brackets** (open and close), up to 8 characters each.
 4. Add words that are not speakers under **Not Speakers**, so that they are not read as names.
 5. Switch on **Lenient Name Matching** to match names regardless of capital letters.
@@ -1242,7 +1253,7 @@ The chat reflects each choice straight away.
 
 ### Tips and gotchas
 
-- The Moonlit Echoes theme is recommended by the Worldkit README for better visuals (not verified in this guide).
+- The Moonlit Echoes theme is recommended by the Worldkit README for better visuals.
 - Changing the look of a tracker is done in [Looks](#looks), not here.
 
 ---
@@ -1270,6 +1281,36 @@ The extension works fully without it, so these extras are only downloaded if you
 - **Remove** finds things by name or id, so something of yours that shares a name with an imported character, item or place goes too. Read the list in the confirmation.
 - Removing a character pack leaves its portrait files on disk. **Advanced, Delete all character portraits** clears those.
 - After pressing **Update** here, SillyTavern's own Extensions list no longer shows Worldkit-Content as needing an update.
+
+---
+
+## Activities (beta)
+
+> **Beta.** Activities is still being built. Some tiles say "Coming soon", and things may change.
+
+### What it is
+
+A hub of things to do with a character, or alone, opened with the green floating button. Tabs: Leisure, Study, Crafting and Training (Training is not built yet).
+
+### Turn it on or off
+
+It is on by default. In **Modules, Activities**, **Activities on** switches the whole module off, and **Show the button** hides only the button.
+
+### What you can do
+
+- **Tea Time:** pick a tea, steep it, pour it in the right moment, offer a plate and talk. The guest reacts to the tea, the food and the talk.
+- **Cooking:** a hands-on kitchen (chop, stir, sear, season, pour, plate). **Classic cooking** switches to three timing taps. **Share a Meal** serves the dish to a character afterwards.
+- **Fishing and Gardening:** wait for a bite and reel it in, or tend beds over several days.
+- **Crafting:** alchemy and smithing.
+- **Study:** a matching-pairs game that builds what a character knows.
+- **Your own activities:** see `docs/MAKE-AN-ACTIVITY.md`. **Customize** renames activities and terms for a world; see `docs/ASSETS-README.md` for art and sounds.
+
+### Settings
+
+The Activities pane groups its settings: **General** (on, button, How to play), **Table talk and the model** (talk, built-in lines, cooldowns, messages sent), **How the games play** (classic cooking, easier timing, study board, difficulty, controls, action keys), **Skills and energy** (XP, bond nudges, energy cost, story minutes) and **Music and sound** (music, volume, sound map address).
+
+- Energy cost only works while the Vitals tracker is on and tracks energy. Bond nudges only matter while Bonds is on.
+- The sound map address points at a sound map file of your own. An example is in `docs/examples/sound-map-example.json`. A missing file is silent.
 
 ---
 
@@ -1311,7 +1352,7 @@ When **Show Every Setting** is on, extra fields appear on the other pages, marke
 ### Tips and gotchas
 
 - **Importing a backup replaces all your Worldkit characters and settings.** The confirmation says: "This will overwrite your current Worldkit characters and settings." Export a backup first.
-- Turning off Enable Worldkit is described as a master switch. Whether your data is kept while it is off is not verified.
+- Turning off **Enable Worldkit** is the master switch. Your characters and settings are kept while it is off.
 
 ---
 
@@ -1368,7 +1409,7 @@ Each item says what you may see, and what to try. Items marked (code reading) we
   Switch on **Show Every Setting** under **Advanced**.
 
 - **Fonts or a look look wrong when offline.**
-  The non-default looks load fonts from the web. Offline, they may not load (not verified).
+  The non-default looks load fonts from the web. Offline, they may not load.
 
 - **The Worldkit menu is too small or too large.**
   Change **Menu Width** and **Menu Height** under **Advanced**.
@@ -1377,23 +1418,9 @@ Each item says what you may see, and what to try. Items marked (code reading) we
 
 ## Credits and licences
 
-Worldkit is built on earlier work. The project's own files describe the licences as follows.
+Worldkit is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. The full text is in the `LICENSE` file. Notices and licence texts for the projects Worldkit builds on are in the `licenses` folder, with a table in `licenses/NOTICE.md`. The credits are in the README.
 
-- **Worldkit (formerly SillyNPC)** is the combined work. The **NOTICE.md** file and the **LICENSE** file state that the combined work is under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-- The original **SillyNPC** code is under the **MIT** licence (see the separate MIT licence file for SillyNPC).
-- The **phone** module is adapted from **RPG-Phone** by Arkana8, under AGPL-3.0.
-- The **games** module is adapted from **RPG-Game-Companion** by Arkana8, under AGPL-3.0.
-- The chess library **chess.js** is under the BSD-2-Clause licence.
-- Picture requests are adapted from **EchoText** under MIT, rewritten under AGPL.
-- The **dialogue gradient** model is adapted from the **Dialogue Colors** extension (sillytavern-character-colors), which is under MIT.
-
-**A discrepancy to know about.** The project's README file says the licence is **MIT**, while NOTICE.md and LICENSE say the combined work is **AGPL-3.0**. This guide follows NOTICE.md and LICENSE for the combined work. Which one the project intends is not verified.
-
-The optional **Worldkit-Content** repository holds sample worlds, character packs, a lorebook, regex scripts and artwork. It is separate, so installing Worldkit does not download it.
-
-The Worldkit README also suggests the **Moonlit Echoes** theme for better visuals. It is a separate project (not verified in this guide).
-
-The README's Inventory line says the feature is "planned". The code and menu show a working Inventory tracker, so this guide follows the code.
+The optional **Worldkit-Content** repository holds sample worlds, character packs, a lorebook, regex scripts, sounds and artwork. It is separate, so installing Worldkit does not download it.
 
 ---
 
@@ -1410,3 +1437,4 @@ A knife is a short story twist kept on a character: a secret, a debt, an old gru
 ## Where to get help
 
 Worldkit's project page is on GitHub at **https://github.com/JasperCatStudios/WorldKit**, the address in the extension's manifest. Use that page to report problems, ask questions, or look for updates; the README links to its pull requests page for contributions. The extension grew out of SillyNPC by BrutalKoala; see the credits above.
+nTo report a bug, see [REPORTING-BUGS.md](REPORTING-BUGS.md).

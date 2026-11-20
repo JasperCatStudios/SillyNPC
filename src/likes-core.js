@@ -8,7 +8,7 @@
  *     note: '' }
  * Values are short strings (PREF_MAX_CHARS), at most PREF_MAX_PER_LIST per list, compared without
  * regard to case, spaces or dashes. A card with no `prefs` field means "nothing set"; nothing here
- * adds the field to a card just by reading it. See docs/ACTIVITIES-PLAN.md section 5.
+ * adds the field to a card just by reading it.
  *
  * Pure: no DOM, no SillyTavern imports, so node can test it.
  */

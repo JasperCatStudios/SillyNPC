@@ -9,7 +9,7 @@ import { elementalEdge } from './combat-elements.js';
  * and a random source, it says what band the attack landed in and how much damage it did. It
  * reads roles only, so Fire Emblem's threshold roll and Bleach's opposed roll go through the
  * same code with different formulas. Turn order and pools are combat-fight.js; the battle
- * window is modules/combat/combat-window.js. Abilities come later.
+ * window is modules/combat/combat-window.js.
  *
  * Pure: no DOM, no SillyTavern imports.
  */

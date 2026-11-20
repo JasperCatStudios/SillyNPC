@@ -2,7 +2,7 @@ import { matchPref, normKey, normalizePrefs } from './likes-core.js';
 import { GRADES, GRADE_XP } from './activity-memory-core.js';
 
 /**
- * Tea Time (fork): the rules, without the screen or the model. See docs/TEA-TIME-DESIGN.md.
+ * Tea Time (fork): the rules, without the screen or the model.
  *
  * Rule: the engine computes every number. The model proposes the openers and gives one word per round
  * (how the guest reacts); this file turns that word into a bounded score, and scores the tea and the thing

@@ -4,7 +4,7 @@
  * The engine decides what happened; the model only voices it. A prompt holds the story context, the persona and
  * memory blocks, the rivalry line, what the partner likes (one short line), the activity state in plain words,
  * and the beat to react to. With talk switched off, or when the model fails, CANNED lines are used so the game
- * is never silent by accident. See docs/ACTIVITIES-PLAN.md section 3.
+ * is never silent by accident.
  *
  * Pure: no DOM, no SillyTavern imports.
  */

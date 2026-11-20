@@ -15,6 +15,8 @@ const el = (tag, className, text) => {
     return node;
 };
 
+import { lineTools, editLine } from '../../src/talk-tools.js';
+
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -154,6 +156,39 @@ export function createActivityWindow({ onClose } = {}) {
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     });
 
+    /**
+     * Edit on every said line, and Regenerate on the partner's last answer to the player.
+     * Regenerating drops that answer and asks the activity again with the same words
+     * (sayHandler gets { regen: true } so it can skip anything it only counts once).
+     */
+    function refreshTools() {
+        chat.querySelectorAll('.snpc-line-tools').forEach(n => n.remove());
+        if (chat.querySelector('.is-typing')) return;
+        let start = lines.length;
+        while (start > 0 && lines[start - 1].kind === 'bot') start--;
+        const asked = start > 0 && start < lines.length && lines[start - 1].kind === 'user' ? lines[start - 1] : null;
+        const regen = () => {
+            if (!asked) return;
+            const gone = new Set(lines.splice(start));
+            chat.querySelectorAll('.snpc-act-msg').forEach(r => { if (gone.has(r._line)) r.remove(); });
+            refreshTools();
+            sayHandler?.(asked.text, { regen: true });
+        };
+        for (const row of chat.querySelectorAll('.snpc-act-msg')) {
+            const line = row._line;
+            if (!line || (line.kind !== 'bot' && line.kind !== 'user')) continue;
+            const text = row.querySelector('.snpc-act-text');
+            const edit = () => {
+                row.querySelector('.snpc-line-tools')?.remove();
+                editLine(text, line.text, {
+                    onSave: (t) => { line.text = t; text.textContent = t; refreshTools(); },
+                    onCancel: () => { text.textContent = line.text; refreshTools(); },
+                });
+            };
+            row.append(lineTools({ edit, regen: asked && lines.indexOf(line) === lines.length - 1 ? regen : undefined }));
+        }
+    }
+
     const api = {
         root, main, userName: 'You',
         /** Sets the title (with an icon class like 'fa-seedling'). */
@@ -202,15 +237,18 @@ export function createActivityWindow({ onClose } = {}) {
         resetTalk() { lines.length = 0; chat.replaceChildren(); },
         /** kind: 'bot' (the partner), 'user', 'system' (shows in the Log tab only), 'typing' (removed by removeTyping). */
         addLine(name, text, kind = 'bot') {
-            if (kind !== 'typing') lines.push({ who: name, text, kind });
+            const line = kind !== 'typing' ? { who: name, text, kind } : null;
+            if (line) lines.push(line);
             const row = el('div', `snpc-act-msg ${kind === 'typing' ? 'bot is-typing' : kind}`);
             if (kind === 'bot' || kind === 'typing') row.append(el('b', '', `${name}: `));
-            row.append(document.createTextNode(text));
+            row.append(el('span', 'snpc-act-text', text));
+            if (line) row._line = line;
             chat.append(row);
             chat.scrollTop = chat.scrollHeight;
+            refreshTools();
             return row;
         },
-        removeTyping() { chat.querySelectorAll('.is-typing').forEach(n => n.remove()); },
+        removeTyping() { chat.querySelectorAll('.is-typing').forEach(n => n.remove()); refreshTools(); },
         /** The partner's and the player's lines (not the log), for the talk entry kept in the chat history. */
         talk() { return lines.filter(l => l.kind === 'bot' || l.kind === 'user').map(l => ({ who: l.who, text: l.text })); },
         onSay(fn) { sayHandler = fn; },

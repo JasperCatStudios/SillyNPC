@@ -1,0 +1,14 @@
+{
+  "format": "worldkit-sounds",
+  "version": 1,
+  "name": "My sounds (example)",
+  "sounds": {
+    "door_knock": {
+      "files": ["audio/door_knock.mp3"],
+      "volume": 0.8,
+      "loop": false,
+      "group": "effects",
+      "description": "three knocks on a wooden door"
+    }
+  }
+}

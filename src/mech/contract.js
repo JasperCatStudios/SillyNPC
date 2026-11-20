@@ -12,7 +12,7 @@
  *     controls: 'pointer' | 'button' }       which way the player is playing
  * Every mechanic accepts a frame with only some of these (a missing field is "nothing happened").
  *
- * The contract of a mechanic core (see docs/MECHANICS-DESIGN.md, private):
+ * The contract of a mechanic core:
  *   meta       { id, input: { pointer, button }, events, defaults }
  *   newRun(params, rng, ctx)           ctx: { controls, assist, scale }
  *   step(state, dtMs, input, rng)      mutates and returns the state; never moves a finished run

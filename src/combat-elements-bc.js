@@ -2,7 +2,7 @@
  * Black Clover: the Elemental Interaction Wheel, Grades and Stages (fork). Pure data, no imports.
  *
  * Read by the generic elemental hook (combat-elements.js) through type.elements. The wheel is the
- * world's own notes with their gaps closed; BLACKCLOVER-DESIGN.md says which relation came from
+ * world's own notes with their gaps closed; the notes say which relation came from
  * the notes and which was added, and why. In short:
  *
  *   - an advantage is +2 on the roll, "like one grade higher" (a grade is +2 on this world's ladder)

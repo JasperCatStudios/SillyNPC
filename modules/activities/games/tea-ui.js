@@ -65,7 +65,7 @@ export function runTea(win, ctx) {
     const speak = talker(win, partner, label, () => describeHost(hostSession({ guest: partner, drink: chosenTea, food: chosenFood ? { name: chosenFood } : null, perf, brewWord, prefs }), { drinkWord: teaWord, stage: stage === 'offered' ? 'offered' : 'before' }));
     const table = createHostTable({
         partner, portraitUrl: card?.teaPortrait || card?.imageUrl || '',
-        groups: [{ id: 'tins', cols: 4, label: `${teaWord} tins` }, { id: 'set', cols: 1, label: 'The tea set' }, { id: 'plates', cols: 2, label: 'Things to eat' }],
+        groups: [{ id: 'tins', cols: 5, label: `${teaWord} tins` }, { id: 'set', cols: 1, label: 'The tea set' }, { id: 'plates', cols: 2, label: 'Things to eat' }],
     });
     win.main.replaceChildren(table.el);
 
@@ -215,9 +215,9 @@ export function runTea(win, ctx) {
         speak('moment', '', reaction, `${describeHost(session, { drinkWord: teaWord })}. Their first reaction: ${reaction}.`);
     }
 
-    win.onSay((text) => {
+    win.onSay((text, { regen = false } = {}) => {
         if (stage === 'done') return;
-        if (stage === 'offered') said += 1;
+        if (stage === 'offered' && !regen) said += 1;
         speak('chat', text);
     });
 

@@ -28,6 +28,7 @@ import { recordTalk } from '../../src/talk-store.js';
 import { andList, sidesOfFight, talkEntry, fightRecord } from '../../src/combat-talk.js';
 import { groupInstruction, parseGroupReply } from '../../src/group-talk.js';
 import { newTalkId } from '../../src/talk-log.js';
+import { lineTools, editLine } from '../../src/talk-tools.js';
 import {
     startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, autoTurn,
     activeAbilities, toolActions, fleeChance, attemptFlee, defensiveLocked,
@@ -1541,7 +1542,7 @@ async function groupReply(names, me) {
     for (const { who, text } of lines) {
         const line = dialogueOnly(text, who);
         if (!line || !session) continue;
-        session.chat.push({ who, text: line });
+        session.chat.push({ who, text: line, reply: true });
         speakLine(who, line);
     }
 }
@@ -1550,10 +1551,18 @@ async function sendTalk(text) {
     if (!session || session.talking || !text.trim()) return;
     const to = session.talkTo || chatCast()[0];
     if (!to) { toastr.info('Nobody to talk to.', PRODUCT_NAME); return; }
+    if (!talkTargets(to).length) return;
+    const me = session.state.fighters.player?.name || 'You';
+    session.chat.push({ who: me, text: text.trim(), mine: true, to });
+    await answerTalk(to);
+}
+
+/** The reply to the last thing the player said, to one person or a group. Its lines are marked `reply` so they can be regenerated. */
+async function answerTalk(to) {
+    if (!session || session.talking) return;
     const targets = talkTargets(to).slice(0, GROUP_TALK_MAX);
     if (!targets.length) return;
     const me = session.state.fighters.player?.name || 'You';
-    session.chat.push({ who: me, text: text.trim(), mine: true });
     session.talking = true;
     drawChat();
     try {
@@ -1567,7 +1576,7 @@ async function sendTalk(text) {
             const reply = String(await requestOnConnection('combatProfileId', chatSystem(name),
                 `${history}\n${name}:`, 300) || '').trim().replace(new RegExp(`^${label}\\s*:\\s*`, 'i'), '');
             const line = dialogueOnly(reply, name);
-            if (session) session.chat.push({ who: name, text: line || '...' });
+            if (session) session.chat.push({ who: name, text: line || '...', reply: true });
             if (line) speakLine(name, line);
         }
     } catch (err) {
@@ -1582,9 +1591,14 @@ async function sendTalk(text) {
 async function sendReadyTalk(text) {
     const current = ready;
     if (!current || current.talking || !text.trim() || !current.talkTo) return;
-    const name = current.talkTo;
     current.chat ||= [];
-    current.chat.push({ who: 'You', text: text.trim(), mine: true });
+    current.chat.push({ who: 'You', text: text.trim(), mine: true, to: current.talkTo });
+    await answerReadyTalk(current.talkTo);
+}
+
+async function answerReadyTalk(name) {
+    const current = ready;
+    if (!current || current.talking || !name) return;
     current.talking = true;
     draw();
     try {
@@ -1595,11 +1609,35 @@ async function sendReadyTalk(text) {
         const prompt = [...contextBlocks('combat'), `You are ${name}, preparing for a ${current.mode === 'spar' ? 'spar' : 'fight'} in ${current.type.name}. The fight has not started. Respond in character without deciding the outcome. ${DIALOGUE_RULE}`, profile ? `[ABOUT ${name}:\n${profile}\n]` : ''].filter(Boolean).join('\n\n');
         const reply = await requestOnConnection('combatProfileId', prompt, `${history}\n${name}:`, 300);
         const line = dialogueOnly(String(reply || ''), name);
-        current.chat.push({ who: name, text: line || '...' });
+        current.chat.push({ who: name, text: line || '...', reply: true });
         if (line) speakLine(name, line);
     } catch (err) { console.error('[Worldkit] preparation talk failed', err); toastr.error('They could not answer.', PRODUCT_NAME); }
     current.talking = false;
     if (ready === current) draw();
+}
+
+/** Drops the answer to the player's last line (the trailing `reply` lines) and returns that line, or null when there is no answer to redo. */
+function takeBackReply(chat) {
+    let i = chat.length;
+    while (i > 0 && chat[i - 1].reply) i--;
+    const mine = chat[i - 1];
+    if (!mine?.mine || i === chat.length) return null;
+    chat.length = i;
+    return mine;
+}
+
+/** One line of table talk with its edit button, and a regenerate button when it is the last answer to the player. */
+function talkBubble(chat, m, { busy, redraw, regen, persist }) {
+    const row = el('div', `snpc-fight-bubble${m.mine ? ' is-mine' : ''}`);
+    const body = el('span', '', m.text);
+    row.append(el('b', '', m.who), body);
+    if (!busy) {
+        row.append(lineTools({
+            edit: () => editLine(body, m.text, { onSave: (t) => { m.text = t; persist(); redraw(); }, onCancel: redraw }),
+            regen: m.reply && m === chat[chat.length - 1] ? regen : undefined,
+        }));
+    }
+    return row;
 }
 
 function drawReadyChat(pane) {
@@ -1616,7 +1654,14 @@ function drawReadyChat(pane) {
     pane.append(to);
     const log = el('div', 'snpc-fight-chat-log');
     if (!current.chat.length) log.append(el('p', 'notes', 'Talk while preparing equipment.'));
-    for (const m of current.chat) { const row = el('div', `snpc-fight-bubble${m.mine ? ' is-mine' : ''}`); row.append(el('b', '', m.who), el('span', '', m.text)); log.append(row); }
+    for (const m of current.chat) {
+        log.append(talkBubble(current.chat, m, {
+            busy: current.talking,
+            redraw: () => draw(),
+            persist: () => {},
+            regen: () => { const mine = takeBackReply(current.chat); if (mine) answerReadyTalk(mine.to || current.talkTo); },
+        }));
+    }
     if (current.talking) log.append(el('p', 'notes', 'Typing...'));
     pane.append(log);
     const form = el('div', 'snpc-fight-chat-form');
@@ -1669,9 +1714,15 @@ function drawChat() {
     const log = el('div', 'snpc-fight-chat-log');
     if (!session.chat.length) log.append(el('p', 'notes', session.spectator ? 'Talk to the fighters while you watch.' : 'Say something to them while you fight.'));
     for (const m of session.chat) {
-        const row = el('div', `snpc-fight-bubble${m.mine ? ' is-mine' : ''}`);
-        row.append(el('b', '', m.who), el('span', '', m.text));
-        log.append(row);
+        log.append(talkBubble(session.chat, m, {
+            busy: session.talking,
+            redraw: () => drawChat(),
+            persist: () => keepTalk(),
+            regen: () => {
+                const mine = takeBackReply(session.chat);
+                if (mine) answerTalk(mine.to || session.talkTo).then(() => keepTalk());
+            },
+        }));
     }
     if (session.talking) log.append(el('p', 'notes', 'Typing...'));
     target.append(log);

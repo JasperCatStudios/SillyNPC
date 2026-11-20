@@ -11,7 +11,7 @@ import { parseTeaReply, moodWord, historyLine, KINDS } from '../../src/activity-
 import { activitySettings, cardOf, userName } from './activities-runtime.js';
 
 /**
- * Tea Time's talk with the model (fork): builds the prompts of docs/TEA-TIME-DESIGN.md section 4 and reads the
+ * Tea Time's talk with the model (fork): builds the prompts and reads the
  * replies. The model proposes the openers and gives one word for how the guest reacts; every number is decided
  * by src/activity-tea-core.js. A failed request returns null and that round plays from the built-in bank.
  *

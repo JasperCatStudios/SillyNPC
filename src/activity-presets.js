@@ -8,15 +8,15 @@
  * Pure data: no DOM, no SillyTavern imports.
  */
 
-/** Fire Emblem: Three Houses style. The world is the built-in combat type 'fe'. */
+/** The Fire Emblem world preset. The world is the built-in combat type 'fe'. */
 export const FIRE_EMBLEM_PRESET = Object.freeze({
     format: 'worldkit-activities',
     version: 1,
     id: 'fire-emblem',
     name: 'Fire Emblem',
     world: 'fe',
-    // The owner's private sound folder in the Fire Emblem profile (music and the activity effects). A missing file is silent.
-    soundMap: '/user/files/fe-sounds/map.json',
+    // No sound map is bundled. Point this (or the Activities pane) at your own map; a missing file is silent. See docs/examples/sound-map-example.json.
+    soundMap: '',
     activities: [
         { id: 'study', label: 'Study', kind: 'memory', tab: 'study', icon: 'fa-book-open', blurb: 'Match the runes in the library. What you learn counts toward a class change.', solo: true },
         { id: 'potion', label: 'Brewing', kind: 'mastermind', off: true, tab: 'study', icon: 'fa-flask', blurb: 'Work out the recipe from the clues and brew a tonic.', solo: true },
@@ -35,7 +35,7 @@ export const FIRE_EMBLEM_PRESET = Object.freeze({
         names: { red: 'Redroot', blue: 'Bluebell', green: 'Mint Leaf', yellow: 'Sunpetal', purple: 'Nightshade', orange: 'Ember Pepper', teal: 'Seagrass', pink: 'Rosehip' },
         profs: ['faith'],
     },
-    // The teas come from the item database (the Fire Emblem item pack) and from the cast's tastes.
+    // The teas come from the item database (the item pack in the Content Kit) and from the cast's tastes.
     tea: { category: 'Tea', music: 'activity_tea_music' },
     classChange: { mode: 'both', studyKnowledge: 100, rankGate: null },
     terms: {

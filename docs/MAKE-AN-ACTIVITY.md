@@ -15,7 +15,7 @@ That is the whole mechanism: **a `.js` file in, a tile out.** To use your own fi
 
 ## Writing your own file
 
-1. Copy [`docs/examples/quick-cast-activity.js`](examples/quick-cast-activity.js) to a new file on your computer, for example `river-fishing.js`. (It is in the extension folder, `SillyNPC/docs/examples/`.)
+1. Copy [`docs/examples/quick-cast-activity.js`](examples/quick-cast-activity.js) to a new file on your computer, for example `river-fishing.js`. (It is in the extension folder, `WorldKit/docs/examples/`.)
 2. Open it in any text editor. Change three things at the top:
    - `id`: a unique short name (letters, numbers and dashes), e.g. `'river-fishing'`.
    - `label`: the name on the tile, e.g. `'River Fishing'`.

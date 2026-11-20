@@ -10,7 +10,7 @@
  *   creative   the contact is only the artist ("draw me a cartoon cat"). Their look is NOT used.
  *   object     a photo of something that is not them (a place or thing from the chat). Their look is NOT used.
  *
- * Adapted from the request handling of EchoText by mattjaybe (MIT, see LICENSE-MIT-EchoText),
+ * Adapted from the request handling of EchoText by mattjaybe (MIT, see licenses/EchoText-MIT.txt),
  * rewritten as plain functions with no DOM and no SillyTavern imports, so they are tested in node.
  *
  * A chat history here is a list of { who: 'user' | 'char', text }, oldest first.

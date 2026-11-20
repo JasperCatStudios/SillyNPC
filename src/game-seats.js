@@ -69,32 +69,59 @@ const uniq = (names) => [...new Set((names || []).map(n => String(n ?? '').trim(
  * winners: who won (empty for a draw).
  * @param {{ id: string, label: string, user: string, players: string[], winners?: string[], spectators?: string[], at?: number }} g
  */
-export function gameRecord({ id, label, user, players, winners = [], spectators = [], at, summary = '' }) {
-    const all = uniq(players);
+export function gameRecord({ id, label, user, players, winners = [], spectators = [], at, summary = '', teams = null, versus = '' }) {
+    const everyone = uniq(players);
+    // versus: a game where each player faces one person, not each other (blackjack's dealer). Only that pair is the contest.
+    const all = versus ? everyone.filter(n => n === user || n === versus) : everyone;
     const others = all.filter(n => n !== user);
     const won = uniq(winners).filter(n => all.includes(n));
     const watchers = uniq(spectators).filter(n => !all.includes(n));
     const userWon = won.includes(user);
-    // The ordinary layout: the persona (with their side) against everyone else, as one result.
-    const classic = !won.length || userWon || others.every(n => won.includes(n));
     let sideA;
     let sideB;
     let winner;
     let userSide;
-    if (classic) {
+    let result;
+    const teamA = teams ? uniq(teams.a) : [];
+    const teamB = teams ? uniq(teams.b) : [];
+    if (teamA.includes(user) && teamB.length) {
+        // A real team game (whist): the persona's team against the other, and the team that won.
+        sideA = teamA;
+        sideB = teamB;
+        userSide = 'A';
+        winner = !won.length ? 'draw' : userWon ? 'A' : 'B';
+        result = !won.length ? `${list(teamA)} drew with ${list(teamB)}`
+            : userWon ? `${list(teamA)} beat ${list(teamB)}` : `${list(teamB)} beat ${list(teamA)}`;
+    } else if (!won.length) {
         sideA = [user];
         sideB = others;
-        winner = !won.length ? 'draw' : userWon ? 'A' : 'B';
+        winner = 'draw';
         userSide = 'A';
+        result = `${user} drew with ${list(others)}`;
+    } else if (userWon) {
+        // Everyone plays for themselves: the persona beat the others, but not the ones who won alongside them.
+        const beaten = others.filter(n => !won.includes(n));
+        sideA = [user];
+        sideB = beaten.length ? beaten : others;
+        winner = beaten.length ? 'A' : 'draw';
+        userSide = 'A';
+        result = beaten.length ? `${user} beat ${list(beaten)}` : `${user} shared the win with ${list(others)}`;
+    } else if (others.every(n => won.includes(n))) {
+        // Everyone else won (a game for two, or a dealer who beat the persona): the persona against them, and they won.
+        sideA = [user];
+        sideB = others;
+        winner = 'B';
+        userSide = 'A';
+        result = `${list(others)} beat ${user}`;
     } else {
-        // One of several opponents won: the winner(s) against everyone else, the persona among them.
+        // Someone else won. Each loser lost to them in their own history; this is not a team (see the summary).
+        const lost = all.filter(n => !won.includes(n));
         sideA = won;
-        sideB = all.filter(n => !won.includes(n));
+        sideB = lost;
         winner = 'A';
         userSide = 'B';
+        result = `${list(won)} beat ${list(lost)}`;
     }
-    const result = !won.length ? `${user} drew with ${list(others)}`
-        : userWon ? `${user} beat ${list(others)}` : `${list(won)} beat ${list(all.filter(n => !won.includes(n)))}`;
     return {
         ...(id ? { event: id } : {}),
         ...(at ? { at } : {}),
@@ -107,13 +134,18 @@ export function gameRecord({ id, label, user, players, winners = [], spectators 
 }
 
 /** The table-talk entry for a game: everyone who sat down, what was said, how it ended. */
-export function gameTalkEntry({ id, at = Date.now(), label, user, players, spectators = [], date = '', lines = [], result = '' }) {
+export function gameTalkEntry({ id, at = Date.now(), label, user, players, spectators = [], date = '', lines = [], result = '', teams = null }) {
     const others = uniq(players).filter(n => n !== user);
     const watchers = uniq(spectators).filter(n => n !== user && !others.includes(n));
+    // Sides only where there are sides: a game for two, or real teams. Everyone else at a table is just "with".
+    const teamA = teams ? uniq(teams.a) : [];
+    const teamB = teams ? uniq(teams.b) : [];
+    const sides = teamA.includes(user) && teamB.length ? { sideA: teamA, sideB: teamB }
+        : others.length === 1 ? { sideA: [user], sideB: others } : {};
     return {
         id, at, title: label,
         with: [...others, ...watchers],
-        sideA: [user], sideB: others,
+        ...sides,
         ...(watchers.length ? { spectators: watchers } : {}),
         date, lines, result,
     };
