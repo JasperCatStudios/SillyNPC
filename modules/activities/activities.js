@@ -1,3 +1,4 @@
+import { assistOn } from '../../src/touch-ease.js';
 import { getContext } from '../../../../../extensions.js';
 import { eventSource, event_types } from '../../../../../../script.js';
 import { ensureButtonRow } from '../../src/floating-buttons.js';
@@ -495,7 +496,7 @@ function showCookSetup(activity) {
             runCook(w, { partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, onLeave: () => showHub(), onAgain: () => showCookSetup(activity) });
         } else {
             runKitchen(w, {
-                partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, assist: s.assist, tier: craftTier('cooking'),
+                partner: partner.name, activityId: activity.id, label: activity.label, recipe, difficulty: s.difficulty, assist: assistOn(s), tier: craftTier('cooking'),
                 pack: tracked ? packItems() : null, prefs: partner.alone ? undefined : cardOf(partner.name)?.prefs, onLeave: () => showHub(), onAgain: () => showCookSetup(activity),
                 onShare: partner.alone ? null : ({ recipe: made, grade }) => showMealSetup(activity, partner, made, grade),
             });
@@ -582,7 +583,7 @@ function showCraft(activity) {
     seat(w, partner, craft.terms?.workplace ? `In ${craft.terms.workplace}` : activity.label);
     w.userName = userName();
     const start = () => runCraft(w, {
-        partner: partner.name, activityId: activity.id, label: activity.label, craft, difficulty: s.difficulty, assist: s.assist,
+        partner: partner.name, activityId: activity.id, label: activity.label, craft, difficulty: s.difficulty, assist: assistOn(s),
         tier: craftTier(craft.prof), partnerTier: partner.alone ? 0 : craftTier(craft.prof, partner.name), partnerFeedback: partner.alone ? {} : feedbackOf(partner.name), pack: inventoryActive() ? packItems() : null, onLeave: () => showHub(), onAgain: start,
     });
     start();

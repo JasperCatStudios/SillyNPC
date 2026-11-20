@@ -227,6 +227,8 @@ export function recipeLevel(recipe) {
 /* ------------------------------------------------------------------ fishing */
 
 export const BITE_WINDOW_MS = 1400;
+/** With assist (and always on a touch screen) the bite window lasts this many times longer. */
+export const BITE_ASSIST = 2;
 export const REEL_TIMEOUT_MS = 22000;
 
 /** One fish from a table by weight. */
@@ -251,12 +253,12 @@ export function newCast({ fish, difficulty = 'normal', rng = Math.random } = {})
 }
 
 /** Time passes while waiting. Returns 'bite' when the fish takes, 'escaped' when the bite window runs out, else ''. */
-export function advanceWait(cast, dtMs) {
+export function advanceWait(cast, dtMs, assist = false) {
     if (cast.phase === 'wait') {
         cast.waited += dtMs;
         if (cast.waited >= cast.delay) { cast.phase = 'bite'; cast.windowLeft = BITE_WINDOW_MS; return 'bite'; }
     } else if (cast.phase === 'bite') {
-        cast.windowLeft -= dtMs;
+        cast.windowLeft -= assist ? dtMs / BITE_ASSIST : dtMs;
         if (cast.windowLeft <= 0) { cast.phase = 'done'; cast.result = { caught: false, why: 'escaped', fish: cast.fish, quality: 0 }; return 'escaped'; }
     }
     return '';
@@ -300,15 +302,16 @@ export function stepReel(cast, dtMs, holding, rng = Math.random, assist = false)
     const fd = clamp(whole(cast.fish?.difficulty) || 1, 1, 3);
     r.retarget -= dtMs;
     if (r.retarget <= 0) { r.target = rng(); r.retarget = 600 + rng() * 900; }
-    const speed = 0.3 + 0.18 * fd;
+    const calm = assist ? ASSIST_SLOWER : 1;   // on a phone (assist) the fish and the cursor move more slowly and a miss costs less
+    const speed = (0.3 + 0.18 * fd) / calm;
     r.fish += clamp(r.target - r.fish, -speed * dt, speed * dt);
-    r.vel = clamp(r.vel + (holding ? 2.4 : -1.9) * dt, -0.9, 0.9);
+    r.vel = clamp(r.vel + (holding ? 2.4 : -1.9) / calm * dt, -0.9, 0.9);
     r.cursor += r.vel * dt;
     if (r.cursor < 0) { r.cursor = 0; r.vel = 0; }
     if (r.cursor > 1) { r.cursor = 1; r.vel = 0; }
     const band = Math.min(0.7, r.band * (assist ? ASSIST_WIDER : 1));
     const inBand = Math.abs(r.cursor - r.fish) <= band / 2;
-    r.progress += (inBand ? 0.30 : -0.17 - 0.03 * fd) * dt;
+    r.progress += (inBand ? 0.30 : (-0.17 - 0.03 * fd) * (assist ? 0.7 : 1)) * dt;
     r.totalMs += dtMs;
     if (inBand) r.inBandMs += dtMs;
     const quality = r.totalMs > 0 ? r.inBandMs / r.totalMs : 0;

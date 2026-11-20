@@ -1,3 +1,4 @@
+import { assistOn } from '../../../src/touch-ease.js';
 import {
     zoneWidth, sweepMs, markerAt, hitQuality, newCook, tapStep, cookRewards, COOK_STEPS,
     newCast, advanceWait, tapCast, stepReel, pickFish, rivalCasts, contestWinner, totalWeight, fishRewards, catchItem,
@@ -78,7 +79,7 @@ export function createMeter({ difficulty, assist, scale = 1 }) {
 export function bigButton(win, label, onPress, onRelease) {
     const button = el('button', 'snpc-act-bigtap', label);
     button.type = 'button';
-    const down = (e) => { e.preventDefault(); onPress?.(); };
+    const down = (e) => { e.preventDefault(); try { button.setPointerCapture(e.pointerId); } catch { /* no capture: a slide off lets go */ } onPress?.(); };
     const up = () => onRelease?.();
     button.addEventListener('pointerdown', down);
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) button.addEventListener(ev, up);
@@ -162,7 +163,7 @@ function resultCard({ title, grade, extra, lines, again, onAgain, onLeave, win }
  */
 export function runCook(win, ctx) {
     const { partner, label, recipe, onLeave, onAgain } = ctx;
-    const assist = activitySettings().assist;
+    const assist = assistOn(activitySettings());
     const state = newCook({ recipe, difficulty: ctx.difficulty });
     const prefs = partner ? cardOf(partner)?.prefs : undefined;
     let busy = false;
@@ -259,7 +260,7 @@ const CASTS = 3;
 export function runFish(win, ctx) {
     const { partner, label, table, onLeave, onAgain } = ctx;
     const contest = Boolean(ctx.contest && partner);
-    const assist = activitySettings().assist;
+    const assist = assistOn(activitySettings());
     const results = [];
     let cast = null;
     let mode = 'idle';           // idle: ready to cast; cast: a line is out; done: all casts made
@@ -350,7 +351,7 @@ export function runFish(win, ctx) {
         const dt = Math.min(100, now - last);
         last = now;
         if (cast.phase === 'wait' || cast.phase === 'bite') {
-            const ev = advanceWait(cast, dt);
+            const ev = advanceWait(cast, dt, assist);
             if (ev === 'bite') { speak('moment', '', '', 'a fish just took the bait'); status.textContent = 'A bite! Tap now!'; note.textContent = 'The line twitches!'; press.button.textContent = 'Hook it!'; sfx('activity_fish_bite'); }
             if (ev === 'escaped') { endCast(); return; }
         } else if (cast.phase === 'reel') {
@@ -361,12 +362,16 @@ export function runFish(win, ctx) {
         raf = requestAnimationFrame(frame);
     };
 
+    let castAt = 0;
     function onPress() {
         if (!alive()) return;
+        // A double-tap on "Cast line" must not count as a tap that scares the fish.
+        if (cast && cast.phase === 'wait' && performance.now() - castAt < 400) return;
         if (mode === 'done') { finish(); return; }
         if (mode === 'idle') {
             cast = newCast({ fish: pickFish(table), difficulty: ctx.difficulty });
             mode = 'cast';
+            castAt = performance.now();
             sfx('activity_fish_cast');
             note.textContent = 'The line is out. Wait for a bite...';
             status.textContent = 'Wait for the line to twitch. Do not tap yet.';
@@ -434,7 +439,7 @@ export function runFish(win, ctx) {
 export function runGarden(win, ctx) {
     const { partner, label, preset, onLeave } = ctx;
     const gardenPlace = term(preset, 'gardenPlace');
-    const assist = activitySettings().assist;
+    const assist = assistOn(activitySettings());
     const day = currentDay();
     let garden = gardenState();
     const acts = [];

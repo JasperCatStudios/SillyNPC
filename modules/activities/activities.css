@@ -423,8 +423,17 @@
 .snpc-act-steepband { position: absolute; top: 0; bottom: 0; background: rgba(58, 165, 122, 0.6); border-left: 2px solid #9fe08a; border-right: 2px solid #9fe08a; }
 .snpc-act-steepneedle { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: #fff; }
 @media (max-width: 900px) {
-    .snpc-act-hosttable { aspect-ratio: auto; min-height: 340px; padding: 9% 12%; }
-    .snpc-act-hostportrait { height: clamp(120px, 22dvh, 190px); }
+    /* Everything has to fit above the chat on a phone: a small portrait, no tall table, and the hint, meter and
+       buttons stay in view at the bottom of the pane (the steeping meter used to sit below the fold). */
+    .snpc-act-hosttable { aspect-ratio: auto; min-height: 0; padding: 4% 8%; }
+    .snpc-act-hostportrait { height: clamp(56px, 9dvh, 80px); }
+    .snpc-act-fish .snpc-act-bigtap { position: sticky; bottom: 6px; z-index: 2; }
+    .snpc-act-hostbar .snpc-act-bigtap { min-height: 56px; margin: 4px auto; }
+    .snpc-act-bigtap[hidden] { display: none; }
+    .snpc-act-hostbar { position: sticky; bottom: 0; z-index: 2; padding: 6px 0; background: #2b2a2c; }
+    .snpc-act-side { flex: 0 0 auto; min-height: 0; max-height: 34%; overflow: hidden; }
+    .snpc-act.is-chat-big .snpc-act-side { flex: 0 0 66%; max-height: none; }
+    .snpc-act-chat, .snpc-act-help { min-height: 44px; }
 }
 .snpc-act-itemmark[hidden], .snpc-act-itemcheck[hidden] { display: none; }
 .snpc-act-hostgroup .snpc-act-itemname { white-space: normal; text-align: center; line-height: 1.15; max-width: 100%; }

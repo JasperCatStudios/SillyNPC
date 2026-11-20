@@ -1,7 +1,8 @@
+import { assistOn } from '../../../src/touch-ease.js';
 import { mealRestore, gradedRestore } from '../../../src/activity-hunger-core.js';
 import { teaSprite, snackSprite, knownLine } from '../../../src/activity-tea-core.js';
 import {
-    newSteep, stepSteep, steepPerformance, steepWord, hostSession, offerReaction, cannedReaction, hostRewards, describeHost,
+    STEEP_DEFAULTS, newSteep, stepSteep, steepPerformance, steepWord, hostSession, offerReaction, cannedReaction, hostRewards, describeHost,
 } from '../../../src/activity-host-core.js';
 import { normalizeActionKey, actionKeyLabel } from '../../../src/activity-config-core.js';
 import { term } from '../../../src/activity-terms.js';
@@ -141,14 +142,21 @@ export function runTea(win, ctx) {
     const needle = el('span', 'snpc-act-steepneedle');
     meter.append(level, band, needle);
     table.slot.append(meter);
+    // A big button to pour: easier than hitting the tea set on a phone (the tea set and the key still work).
+    const pourBtn = el('button', 'snpc-act-bigtap', 'Pour now');
+    pourBtn.type = 'button';
+    pourBtn.hidden = true;
+    pourBtn.addEventListener('click', () => pourTea());
+    table.slot.append(pourBtn);
 
     function startSteep() {
         if (stage !== 'tin' || !chosenTea) return;
         stage = 'steeping';
-        steep = newSteep({ ease: settings.assist ? 1.4 : 1 });
+        steep = newSteep({ ease: assistOn(settings) ? 1.4 : 1, seconds: assistOn(settings) ? STEEP_DEFAULTS.seconds * 1.4 : STEEP_DEFAULTS.seconds });
         band.style.left = `${steep.band[0] * 100}%`;
         band.style.width = `${(steep.band[1] - steep.band[0]) * 100}%`;
         meter.hidden = false;
+        pourBtn.hidden = false;
         sfx('activity_tea_pour');
         table.setHint(`Steeping ${chosenTea}... click the tea set (or press ${key} or Space) when the strength is in the green.`);
         paintChoices();
@@ -174,6 +182,7 @@ export function runTea(win, ctx) {
         brewWord = steepWord(perf, steep.pouredAt);
         stage = 'made';
         meter.hidden = true;
+        pourBtn.hidden = true;
         sfx(perf >= 0.55 ? 'activity_tea_good' : 'activity_tea_cup');
         cupDecor = table.addDecor('set', { layers: [{ key: 'tea.cup', vars: { sprite: teaSprite(chosenTea) } }], label: `A cup of ${chosenTea}` });
         table.setHint(`The ${teaWord} is ${brewWord}. Choose something to eat if you like, then press "Offer it".`);
