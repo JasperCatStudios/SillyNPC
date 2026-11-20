@@ -31,7 +31,9 @@ const DONE_BUTTON = new Set(['sprinkle', 'pour', 'plate', 'assemble']);
 function soundFor(e) {
     const grade = e.grade === 'perfect' ? 'activity_mech_perfect' : e.grade === 'good' ? 'activity_mech_good' : e.grade === 'miss' ? 'activity_mech_miss' : '';
     if (e.type === 'stroke-done' || e.type === 'lock') return grade;
+    // The seal also has its own thud, played on top (see the loop below).
     if (e.type === 'stamp') return 'activity_mech_plate_place';
+    if (e.type === 'start') return 'activity_mech_trace_brush';
     if (e.type === 'place') return 'activity_mech_plate_place';
     return ({
         stray: 'activity_mech_miss', blot: 'activity_mech_slice_guard', dry: 'activity_mech_sear_warn', dip: 'activity_potion_pour',
@@ -285,6 +287,7 @@ export function runMechSteps(opts) {
         for (const e of session.events) {
             const snd = soundFor(e);
             if (snd) sfx(snd);
+            if (e.type === 'stamp') sfx('activity_mech_stamp_thud');
             const word = e.grade ? POPUP[e.grade] : POPUP[e.type];
             if (word && e.type !== 'step-done') say(word);
             if (e.type === 'stray' || e.type === 'blot' || e.type === 'dry') speak('moment', '', '', describeSession(session));

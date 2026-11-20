@@ -20,7 +20,7 @@ import { glyphStrokes } from './glyphs.js';
 export const meta = {
     id: 'trace',
     input: { pointer: 'drag-along-the-line', button: 'hold' },
-    events: ['stroke-done', 'stray', 'blot', 'dry', 'dip', 'done'],
+    events: ['start', 'stroke-done', 'stray', 'blot', 'dry', 'dip', 'done'],
     defaults: { glyph: 'cross', width: 0.06, inkPerUnit: 0.3, ink: true, timeLimitMs: 70000, beadSpeed: 0.5 },
 };
 
@@ -123,6 +123,7 @@ function sample(s, t, x, y) {
         s.strayHold = false;
         s.lastPt = p;
         s.lastT = t;
+        s.events.push({ type: 'start', at: s.t });
         return;
     }
     const dtS = Math.max(1, t - s.lastT) / 1000;
