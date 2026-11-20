@@ -91,7 +91,7 @@ export function speakLine(name, text, { save = true, tone } = {}) {
     try {
         // Taken even when nothing is spoken, so an unspoken line does not leave its tone behind.
         const remembered = takeTone(name, text);
-        if (!getSettings().ttsEnabled || !getSettings().ttsAutoSpeak || !text) return;
+        if (!getSettings().ttsEnabled || getSettings().ttsSpeakModules === false || !text) return;
         Promise.resolve(speakNamed(name, text, { save, tone: tone ?? remembered })).catch(() => {});
     } catch { /* speech is optional */ }
 }

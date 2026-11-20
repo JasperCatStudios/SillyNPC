@@ -227,6 +227,8 @@ export const defaultSettings = {
     ttsEnabled: false,
     /** Read each new reply aloud, one voice per speaker, when it finishes. */
     ttsAutoSpeak: false,
+    /** Read the lines said in Combat, Games and Activities aloud (separate from the chat toggle above). */
+    ttsSpeakModules: true,
     /** Whether (parenthesised) thoughts are read. Off: a thought is not said out loud. */
     ttsSpeakThoughts: false,
     /** Whether untagged narration is read, in the TTS panel's default voice. */

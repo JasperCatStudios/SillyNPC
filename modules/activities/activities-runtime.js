@@ -142,7 +142,7 @@ let warnedNoVoice = false;
 export function speakAsPlayer(text) {
     try {
         const s = getSettings();
-        if (!s.ttsEnabled || !s.ttsAutoSpeak || !text) return;
+        if (!s.ttsEnabled || s.ttsSpeakModules === false || !text) return;
         const me = userName();
         if (hasVoiceFor(me)) { speakLine(me, text, { save: false }); return; }
         if (!warnedNoVoice) {

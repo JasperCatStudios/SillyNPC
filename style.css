@@ -3632,6 +3632,9 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
     #rpg-game-modal .rpg-game-header,
     .snpc-fight .snpc-fight-head,
     .snpc-hist-head { flex-direction: row-reverse; justify-content: flex-end; gap: 12px; }
+    /* Close buttons were 11-30px wide: make them a thumb-sized target without moving the layout. */
+    #rpg-game-modal .rpg-game-close { padding: 14px; margin: -14px; font-size: 1.3rem; }
+    .snpc-fight-close, .snpc-hist-close, .rph-roster-close { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
     /* The table and the mini chat stack instead of sitting side by side. */
     #rpg-game-modal .rpg-game-body { flex-direction: column; padding: 8px; gap: 8px; }
     #rpg-game-modal .rpg-game-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; }

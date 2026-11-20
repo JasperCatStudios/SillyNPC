@@ -338,6 +338,12 @@ function drawVoiceSettings(container) {
             + 'the Voices settings here only; SillyTavern\'s own TTS is not involved.',
     }));
     container.append(buildSettingToggle({
+        key: 'ttsSpeakModules',
+        label: 'Read Combat, Games and Activities Lines Aloud',
+        help: 'The lines characters say during a fight, a game or an activity are read in their voices. '
+            + 'This is separate from "Read New Replies Aloud", which is only for the chat.',
+    }));
+    container.append(buildSettingToggle({
         key: 'ttsSpeakThoughts',
         label: 'Read Thoughts',
         help: 'Text in (parentheses), in the speaker’s voice.',
