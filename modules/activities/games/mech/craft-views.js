@@ -137,4 +137,92 @@ export function stampView(svg, step) {
     };
 }
 
-export const CRAFT_VIEWS = Object.freeze({ trace: traceView, stamp: stampView });
+/* ------------------------------------------------------------------ assemble */
+
+const PART_GRADE = { perfect: '#6aa84f', good: '#e8b84a', miss: '#c0504d' };
+
+export function assembleView(svg, step) {
+    S('rect', { x: 0, y: 0, width: 160, height: 100, fill: '#2b2622' }, svg);
+    S('rect', { x: 6, y: 5, width: 148, height: 90, rx: 4, fill: '#3a322b', stroke: '#5a4d40', 'stroke-width': 0.8 }, svg);
+    const g = S('g', {}, svg);
+    const cross = S('g', { opacity: 0 }, svg);
+    const vline = S('line', { y1: 5, y2: 95, stroke: '#fff', 'stroke-width': 0.7, opacity: 0.85 }, cross);
+    const hline = S('line', { x1: 6, x2: 154, stroke: '#fff', 'stroke-width': 0.7, opacity: 0.85 }, cross);
+    const name = S('text', { x: 80, y: 11, 'text-anchor': 'middle', 'font-size': 5, fill: '#e8d6b9' }, svg);
+    const spots = [];
+    const pieces = [];
+    let built = false;
+    const shape = (parent, part, attrs) => S('rect', { x: -part.w * 80, y: -part.h * 50, width: part.w * 160, height: part.h * 100, rx: Math.min(part.w * 80, part.h * 50, 3), ...attrs }, parent);
+    return {
+        update(v) {
+            if (!built) {
+                built = true;
+                v.parts.forEach((part) => {
+                    const spot = S('g', { transform: `translate(${X(part.x)} ${Y(part.y)})`, opacity: 0.35 }, g);
+                    shape(spot, part, { fill: 'rgba(255,255,255,0.05)', stroke: '#e8d6b9', 'stroke-width': 0.8, 'stroke-dasharray': '2 2' });
+                    spots.push(spot);
+                    const piece = S('g', { opacity: 0 }, g);
+                    shape(piece, part, { fill: '#b9b2a4', stroke: '#6b6458', 'stroke-width': 0.8 });
+                    pieces.push(piece);
+                });
+            }
+            v.parts.forEach((part, i) => {
+                const current = i === v.index && !v.over;
+                set(spots[i], { opacity: part.at ? 0.15 : current ? 1 : 0.35 });
+                const rect = spots[i].firstChild;
+                set(rect, { stroke: current ? '#f1c232' : '#e8d6b9', 'stroke-width': current ? 1.4 : 0.8 });
+                const piece = pieces[i];
+                if (part.at) {
+                    set(piece, { opacity: 1, transform: `translate(${X(part.at.x)} ${Y(part.at.y)})` });
+                    piece.firstChild.setAttribute('stroke', PART_GRADE[part.grade] || '#6b6458');
+                    piece.firstChild.setAttribute('stroke-width', 1.4);
+                } else if (current) {
+                    // The next part: waiting at the left edge until it is picked up, then following the pointer.
+                    const at = v.carrying || v.controls === 'button' ? v.pos : { x: 0.07, y: 0.5 };
+                    set(piece, { opacity: 1, transform: `translate(${X(at.x)} ${Y(at.y)})` });
+                    piece.firstChild.setAttribute('stroke', '#f1c232');
+                    piece.firstChild.setAttribute('stroke-width', 1.2);
+                } else set(piece, { opacity: 0 });
+            });
+            const next = v.parts[v.index];
+            name.textContent = next && !v.over ? next.id.replace(/-/g, ' ') : '';
+            if (v.controls === 'button' && !v.over) {
+                set(cross, { opacity: 1 });
+                if (v.phase === 'x') { set(vline, { x1: X(v.pos.x), x2: X(v.pos.x) }); set(hline, { opacity: 0 }); } else { set(vline, { x1: X(v.lockX), x2: X(v.lockX) }); set(hline, { y1: Y(v.pos.y), y2: Y(v.pos.y), opacity: 0.85 }); }
+            } else set(cross, { opacity: 0 });
+        },
+    };
+}
+
+/* ------------------------------------------------------------------ tune */
+
+export function tuneView(svg, step) {
+    S('rect', { x: 0, y: 0, width: 160, height: 100, fill: '#1d2a24' }, svg);
+    const frame = S('rect', { x: 8, y: 14, width: 144, height: 80, rx: 4, fill: '#24382f', stroke: '#3d5a4b', 'stroke-width': 1 }, svg);
+    const prog = S('rect', { x: 8, y: 6, width: 144, height: 3, rx: 1.5, fill: '#00000044' }, svg);
+    const progFill = S('rect', { x: 8, y: 6, width: 0, height: 3, rx: 1.5, fill: '#8fd3c9' }, svg);
+    const trail = S('g', {}, svg);
+    const blob = S('circle', { cx: 80, cy: 50, r: 4, fill: '#8fd3c9', stroke: '#e8fff9', 'stroke-width': 0.8 }, svg);
+    const halo = S('circle', { cx: 80, cy: 50, r: 7, fill: 'none', stroke: '#8fd3c9', 'stroke-width': 0.6, opacity: 0.4 }, svg);
+    const ring = S('circle', { cx: 80, cy: 72, r: 8, fill: 'none', stroke: '#fff', 'stroke-width': 1.4 }, svg);
+    const dot = S('circle', { cx: 80, cy: 72, r: 0.9, fill: '#fff' }, svg);
+    let wobble = 0;
+    return {
+        update(v, dt) {
+            wobble += (dt || 16) / 180;
+            set(blob, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 4 + Math.sin(wobble) * 0.5 });
+            set(halo, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 7 + Math.sin(wobble * 0.7) * 1.2 + (v.surge ? 4 : 0), opacity: v.surge ? 0.9 : 0.4 });
+            set(ring, { cx: X(v.ring.x), cy: Y(v.ring.y), r: v.band * 100, stroke: v.inBand ? '#6aa84f' : '#e69138' });
+            set(dot, { cx: X(v.ring.x), cy: Y(v.ring.y) });
+            set(progFill, { width: 144 * v.progress });
+            set(frame, { stroke: v.surge ? '#e69138' : '#3d5a4b' });
+            // Sparks when the ring is off the target, a few short lines from the blob.
+            if (!v.inBand && Math.random() < 0.12 && trail.childNodes.length < 24) {
+                const sp = S('line', { x1: X(v.blob.x), y1: Y(v.blob.y), x2: X(v.blob.x) + (Math.random() - 0.5) * 8, y2: Y(v.blob.y) + (Math.random() - 0.5) * 8, stroke: '#f1c232', 'stroke-width': 0.6 }, trail);
+                setTimeout(() => sp.remove(), 220);
+            }
+        },
+    };
+}
+
+export const CRAFT_VIEWS = Object.freeze({ trace: traceView, stamp: stampView, assemble: assembleView, tune: tuneView });

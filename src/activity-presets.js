@@ -251,6 +251,87 @@ const BL_SEALING = {
 };
 
 /**
+ * The Bleach gigai craft: a body built for a soul, from parts. It is a hands-on craft (its only stage is the recipe's script): seat the
+ * parts on their outlines, wire the nerves along a circuit, tune the soul by keeping a ring on it as it drifts, and seat the core.
+ * Materials steer it through effects on the \`mech\` stage: a good fit eases every step, an unstable build makes the soul drift more.
+ */
+const BL_GIGAI_WIRES = [
+    [[0.25, 0.3], [0.25, 0.5], [0.45, 0.5]],
+    [[0.45, 0.5], [0.65, 0.5], [0.65, 0.3]],
+    [[0.45, 0.5], [0.45, 0.75], [0.7, 0.75]],
+    [[0.7, 0.75], [0.8, 0.5], [0.65, 0.3]],
+];
+
+const BL_GIGAI_STEPS = (parts, wires, drift, band, surges) => [
+    { id: 'seat', mech: 'assemble', weight: 1, params: { count: parts }, art: { surface: 'bench' }, words: { title: 'Seat the parts', hint: 'Press and drag each part to its outline. The lit one goes next.', done: 'Every part seated.', action: 'Stop the marker' } },
+    { id: 'wire', mech: 'trace', weight: 1, params: { paths: BL_GIGAI_WIRES.slice(0, wires), width: 0.06, ink: false }, art: { surface: 'board' }, words: { title: 'Wire the nerves', hint: 'Draw along each wire from its dot, staying on the line.', done: 'Wired up.', action: 'Draw (hold)' } },
+    { id: 'tune', mech: 'tune', weight: 3, params: { durationMs: 11000, drift, band, surges }, art: { surface: 'board' }, words: { title: 'Tune the soul', hint: 'Press and drag: the ring moves as far as you drag. Keep it on the glowing soul.', done: 'The soul settles.', action: 'Hold to chase' } },
+    { id: 'core', mech: 'stamp', weight: 1, params: { rings: 1, markR: 0.09 }, art: { surface: 'board' }, words: { title: 'Seat the core', hint: 'Tap the mark just as the ring closes on it.', done: 'Core seated.', action: 'Seat it' } },
+];
+
+const BL_GIGAI = {
+    id: 'gigai',
+    label: 'Gigai Workshop',
+    icon: 'fa-person',
+    prof: 'gadgetry',
+    music: 'activity_craft_gigai_music',
+    materialWeight: 0.3,
+    properties: [
+        { id: 'vitality', label: 'Vitality', mix: 'sum', max: 20, icon: 'fa-heart-pulse' },
+        { id: 'fit', label: 'Fit', mix: 'avg', max: 10, icon: 'fa-puzzle-piece' },
+        { id: 'instability', label: 'Instability', mix: 'max', max: 10, icon: 'fa-burst' },
+    ],
+    materials: [
+        { id: 'plain-frame', name: 'Plain Frame', match: ['plain frame'], category: 'Frame', props: { vitality: 1, fit: 6, instability: 0 }, tags: ['frame'], tier: 1, starter: true, shape: '■', letter: 'F', color: '#b9b2a4' },
+        { id: 'cotton-stuffing', name: 'Cotton Stuffing', match: ['cotton stuffing'], category: 'Filler', props: { vitality: 1, fit: 7, instability: 0 }, tags: ['filler'], tier: 1, starter: true, shape: '●', letter: 'S', color: '#f1ece0' },
+        { id: 'copper-wire', name: 'Copper Wire', match: ['copper wire'], category: 'Part', props: { vitality: 2, fit: 6, instability: 1 }, tags: ['wire'], tier: 1, starter: true, shape: '▲', letter: 'W', color: '#cc7a3a' },
+        { id: 'rice-paste', name: 'Rice Paste', match: ['rice paste'], category: 'Binder', props: { vitality: 1, fit: 7, instability: 0 }, tags: ['binder'], tier: 1, starter: true, shape: '♣', letter: 'P', color: '#f3efe0' },
+        { id: 'reishi-dust', name: 'Reishi Dust', match: ['reishi dust'], category: 'Reishi', props: { vitality: 4, fit: 5, instability: 2 }, tags: ['reishi'], tier: 1, starter: true, shape: '⬟', letter: 'D', color: '#9fc5e8' },
+        { id: 'reishi-crystal', name: 'Reishi Crystal', match: ['reishi crystal'], category: 'Reishi', props: { vitality: 8, fit: 6, instability: 4 }, tags: ['reishi'], tier: 2, shape: '◆', letter: 'C', color: '#6fa8dc' },
+        { id: 'spring-coil', name: 'Spring Coil', match: ['spring coil'], category: 'Part', props: { vitality: 3, fit: 8, instability: 2 }, tags: ['wire', 'fine'], tier: 2, shape: '★', letter: 'L', color: '#a0a8b0' },
+        { id: 'clear-shard', name: 'Clear Shard', match: ['clear shard'], category: 'Reishi', props: { vitality: 6, fit: 9, instability: 1 }, tags: ['reishi', 'fine'], tier: 3, shape: '♥', letter: 'H', color: '#e8f4ff' },
+        { id: 'hollow-residue', name: 'Hollow Residue', match: ['hollow residue'], category: 'Reishi', props: { vitality: 10, fit: 2, instability: 8 }, tags: ['reishi', 'volatile'], tier: 3, shape: '⬢', letter: 'R', color: '#7b4a8c' },
+    ],
+    effects: [
+        { prop: 'instability', stage: 'mech', param: 'drift', per: 0.1, from: 3, label: 'An unstable build: the soul will drift more.' },
+        { prop: 'fit', stage: 'mech', param: 'ease', per: 0.03, from: 6, label: 'A good fit: every step is a little easier.' },
+        { prop: 'vitality', stage: 'mech', param: 'ease', per: -0.015, from: 8, label: 'A strong soul is harder to settle.' },
+    ],
+    stages: [{ stage: 'mech', weight: 1 }],
+    terms: { craftVerb: 'Build', workplace: 'the workshop' },
+    recipes: [
+        {
+            id: 'mod-soul-dummy', name: 'Mod Soul Dummy', level: 1, desc: 'A plain figure for a soul to rest in. A frame, stuffing and a little reishi.',
+            slots: [{ id: 'frame', label: 'a frame', tags: ['frame'] }, { id: 'filler', label: 'stuffing', tags: ['filler'] }, { id: 'reishi', label: 'reishi', tags: ['reishi'] }],
+            targets: { fit: { min: 4, ideal: [5, 9], max: 10 }, instability: { ideal: [0, 4], max: 6 } },
+            steps: BL_GIGAI_STEPS(4, 2, 0.22, 0.1, 0), set: 'workshop',
+            outputs: { perfect: { name: 'Mod Soul Dummy', note: 'sits up straight', qty: 1 }, good: { name: 'Mod Soul Dummy', note: 'well made' }, fair: { name: 'Mod Soul Dummy', note: 'a bit floppy' }, poor: { name: 'Mod Soul Dummy', note: 'lopsided' }, failed: { name: 'Fizzled Gadget', note: 'a failed build' } },
+        },
+        {
+            id: 'cloth-puppet', name: 'Cloth Puppet', level: 1, desc: 'A soft puppet that moves on wires. A frame, stuffing and some paste to hold it.',
+            slots: [{ id: 'frame', label: 'a frame', tags: ['frame'] }, { id: 'filler', label: 'stuffing', tags: ['filler'] }, { id: 'binder', label: 'a binder', tags: ['binder'] }],
+            targets: { fit: { min: 4, ideal: [5, 10], max: 10 }, instability: { ideal: [0, 3], max: 5 } },
+            steps: BL_GIGAI_STEPS(4, 2, 0.2, 0.1, 0), set: 'workshop',
+            outputs: { perfect: { name: 'Cloth Puppet', note: 'moves smoothly', qty: 1 }, good: { name: 'Cloth Puppet', note: 'well made' }, fair: { name: 'Cloth Puppet', note: 'a little stiff' }, failed: { name: 'Fizzled Gadget', note: 'a failed build' } },
+        },
+        {
+            id: 'practice-gigai', name: 'Practice Gigai', level: 2, desc: 'A body for a soul to practise in. Five parts, nerves of wire, and reishi to wake it.',
+            slots: [{ id: 'frame', label: 'a frame', tags: ['frame'] }, { id: 'filler', label: 'stuffing', tags: ['filler'] }, { id: 'wire', label: 'wire', tags: ['wire'] }, { id: 'reishi', label: 'reishi', tags: ['reishi'] }],
+            targets: { vitality: { min: 5, ideal: [6, 12], max: 16 }, fit: { min: 4, ideal: [5, 10], max: 10 }, instability: { ideal: [0, 4], max: 6 } },
+            steps: BL_GIGAI_STEPS(5, 3, 0.28, 0.085, 2), set: 'workshop',
+            outputs: { perfect: { name: 'Practice Gigai', note: 'moves naturally', qty: 1 }, good: { name: 'Practice Gigai', note: 'well made' }, fair: { name: 'Practice Gigai', note: 'moves stiffly' }, failed: { name: 'Fizzled Gadget', note: 'a failed build' } },
+        },
+        {
+            id: 'custom-gigai', name: 'Custom Gigai', level: 3, desc: 'A body made to measure. Six parts, fine wire and a strong, steady soul.',
+            slots: [{ id: 'frame', label: 'a frame', tags: ['frame'] }, { id: 'wire', label: 'fine wire', tags: ['fine'] }, { id: 'reishi', label: 'reishi', tags: ['reishi'] }, { id: 'reishi2', label: 'a fine reishi', tags: ['reishi'] }],
+            targets: { vitality: { min: 9, ideal: [11, 17], max: 20 }, fit: { min: 6, ideal: [7, 10], max: 10 }, instability: { ideal: [0, 4], max: 6 } },
+            steps: BL_GIGAI_STEPS(6, 4, 0.32, 0.075, 3), set: 'workshop',
+            outputs: { perfect: { name: 'Custom Gigai', note: 'indistinguishable from life', qty: 1 }, good: { name: 'Custom Gigai', note: 'convincing' }, fair: { name: 'Custom Gigai', note: 'a little uncanny' }, failed: { name: 'Fizzled Gadget', note: 'a failed build' } },
+        },
+    ],
+};
+
+/**
  * The Bleach world preset. The world is the built-in combat type 'bleach'. Everything world-specific lives here as data: the wording,
  * the kanji tiles, the drills (each trains one of the Bleach type's skills), the dishes, fish and seeds, and the promotion trial.
  * Names are the common ones of the setting; no character names.
@@ -272,6 +353,7 @@ export const BLEACH_PRESET = Object.freeze({
         { id: 'sewing', label: 'Sewing', kind: 'craft', craft: 'sewing', tab: 'crafting', icon: 'fa-scissors', blurb: 'Choose cloth, thread and buttons, cut, stitch and knot off a small good.', solo: true },
         { id: 'gadgetry', label: 'Gadgetry', kind: 'craft', craft: 'gadgetry', tab: 'crafting', icon: 'fa-gears', blurb: 'Assemble reishi, wire and casings into a shop invention, then tune and seal it.', solo: true },
         { id: 'sealing', label: 'Sealing Tags', kind: 'craft', craft: 'sealing', tab: 'crafting', icon: 'fa-scroll', blurb: 'Write a charm stroke by stroke with a brush and ink, then press the seal.', solo: true },
+        { id: 'gigai', label: 'Gigai Workshop', kind: 'craft', craft: 'gigai', tab: 'crafting', icon: 'fa-person', blurb: 'Seat the parts, wire the nerves, tune the soul and seat the core.', solo: true },
         { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'crafting', icon: 'fa-utensils', blurb: 'Cook a dish in the kitchen, hands on.', solo: true },
         { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite at the river, hook it and reel it in.', solo: true },
         { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Tend the garden beds. Plants grow as you tend them on different days.', solo: true },
@@ -288,7 +370,7 @@ export const BLEACH_PRESET = Object.freeze({
         kido: { id: 'kido', label: 'Kidō Practice', prof: 'kido', rounds: 6, wobble: 0, speed: 1, ring: 1, blurb: 'Hold the incantation, then release when the mark is inside the ring.', sound: 'magic_cast', terms: { mark: 'target', action: 'Release', place: 'the training grounds' } },
         hoho: { id: 'hoho', label: 'Flash Step Drill', prof: 'hoho', rounds: 8, wobble: 0.6, speed: 1.2, ring: 0.85, blurb: 'The marker darts and slows. Step when it is inside the ring.', sound: 'flash_step', terms: { mark: 'marker', action: 'Step', place: 'the training grounds' } },
     },
-    crafts: { sewing: BL_SEWING, gadgetry: BL_GADGETRY, sealing: BL_SEALING },
+    crafts: { sewing: BL_SEWING, gadgetry: BL_GADGETRY, sealing: BL_SEALING, gigai: BL_GIGAI },
     potion: { recipe: 'Soul Remedy', failed: 'Bitter Draught', names: {}, profs: [] },
     harvest: {
         recipes: [
