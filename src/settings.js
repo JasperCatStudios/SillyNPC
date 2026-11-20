@@ -865,6 +865,8 @@ export function normalizeSettings(settings) {
         if (typeof char.imagePrompt !== 'string') char.imagePrompt = '';
         if (typeof char.imageNegative !== 'string') char.imageNegative = '';
         if (typeof char.ttsVoice !== 'string') char.ttsVoice = '';
+        // Fork: the character's own tags (such as "mentor"), read by the Activities exam when a world lets only tagged characters examine.
+        char.tags = (Array.isArray(char.tags) ? char.tags : []).map(t => String(t).trim()).filter(Boolean).slice(0, 12);
         // Knives: saved story twists, [{ id, text, used, theme? }] (see knives-core.js).
         if (!Array.isArray(char.knives)) char.knives = [];
     }

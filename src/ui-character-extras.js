@@ -110,6 +110,8 @@ export function renderCharacterExtras(char, container, options = {}) {
 
     }
 
+    container.append(buildTagsField(char));
+
     if (!wantVoice) return;
     // --- Voice -----------------------------------------------------------------------
     container.append(buildVoicePicker({
@@ -119,6 +121,22 @@ export function renderCharacterExtras(char, container, options = {}) {
         sample: `${char.name}. This is what I sound like.`,
     }));
     container.append(buildPhoneticField(char));
+}
+
+/** The character's own tags, comma separated. Used by the Activities exam (a world can let only tagged characters examine). */
+export function buildTagsField(char) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'text_pole';
+    input.style.cssText = 'flex:1; min-width:12em;';
+    input.placeholder = 'e.g. mentor, professor';
+    input.title = 'Words that describe this character, separated by commas. A world can let only characters with a certain tag (such as mentor) examine in Activities. Not case sensitive.';
+    input.value = (char.tags || []).join(', ');
+    input.addEventListener('input', () => { char.tags = input.value.split(',').map(t => t.trim()).filter(Boolean).slice(0, 12); saveSettings(); });
+    row.append(label('Tags'), input);
+    return row;
 }
 
 /** How the name is said: sent to the voice engine in place of the name wherever it appears in a line. */

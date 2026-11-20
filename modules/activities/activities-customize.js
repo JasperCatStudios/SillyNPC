@@ -196,6 +196,18 @@ export function renderCustomize(host, { changed }) {
             for (const t of TERM_GUIDE.filter(x => x.group === g)) {
                 sub.append(field(t.label, textInput(terms[t.key], FE.terms?.[t.key] || DEFAULT_TERMS[t.key], 40, (v) => { if (v) terms[t.key] = v; else delete terms[t.key]; changed(); }), `Shows in: ${t.where}. Neutral default: ${DEFAULT_TERMS[t.key]}.`));
             }
+            if (g === 'People and exams') {
+                // Who may examine: any partner, only characters carrying a tag, or only someone who already holds the skill at the rank asked.
+                const rule = el('select', 'text_pole');
+                for (const [v, label] of [['partner', 'Any partner'], ['tag', 'Only characters with a tag'], ['any-with-rank', 'Only someone who holds the skill at that rank']]) rule.append(new Option(label, v));
+                rule.value = ['partner', 'tag', 'any-with-rank'].includes(terms.examinerRule) ? terms.examinerRule : 'partner';
+                const tagBox = textInput(terms.examinerTag, 'mentor', 40, (v) => { if (v) terms.examinerTag = v.toLowerCase(); else delete terms.examinerTag; changed(); });
+                const tagRow = field('Examiner tag', tagBox, 'The tag a character needs (add it to their Tags on their Worldkit page). Not case sensitive.');
+                const showTag = () => { tagRow.hidden = rule.value !== 'tag'; };
+                rule.addEventListener('change', () => { terms.examinerRule = rule.value; changed(); showTag(); });
+                showTag();
+                sub.append(field('Who may examine', rule, 'Who can set the exam: any partner you pick, only characters with the tag below, or only someone who already holds that skill at the rank you are testing for.'), tagRow);
+            }
             wording.body.append(sub);
         }
         host.append(wording.box);
