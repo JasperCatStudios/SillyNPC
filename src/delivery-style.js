@@ -118,7 +118,13 @@ export function styleFor(styles, name) {
     return cleanStyle(own ?? DEFAULT_DELIVERY_STYLES[name] ?? BASE);
 }
 
-const selector = (name) => `.wk-tone[data-tone="${String(name).replace(/[^a-z0-9_-]/gi, '')}" i]`;
+/*
+ * SillyTavern's message sanitizer puts "custom-" in front of every class in a chat message, so the span the display script
+ * writes (class="wk-tone") reaches the page as class="custom-wk-tone". The menu's own preview span is not sanitized and keeps
+ * the plain name. Both are matched; the data-tone attribute is what says which tag it is.
+ */
+const TONE_SPAN = ':is(.wk-tone, .custom-wk-tone)';
+const selector = (name) => `${TONE_SPAN}[data-tone="${String(name).replace(/[^a-z0-9_-]/gi, '')}" i]`;
 
 /** The CSS for the given tag names. */
 export function deliveryCss(styles, names) {
@@ -148,7 +154,7 @@ export function deliveryCss(styles, names) {
         if (s.effect === 'glow') rules.push('animation: wk-tone-glow 2.6s ease-in-out infinite');
         if (rules.length) out.push(`${selector(name)} { ${rules.join('; ')}; }`);
     }
-    out.push('@media (prefers-reduced-motion: reduce) { .wk-tone[data-tone] { animation: none !important; } }');
+    out.push(`@media (prefers-reduced-motion: reduce) { ${TONE_SPAN}[data-tone] { animation: none !important; } }`);
     return out.join('\n');
 }
 
