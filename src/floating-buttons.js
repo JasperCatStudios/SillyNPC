@@ -25,8 +25,11 @@ function place(holder) {
         holder.style.top = `${top}px`;
         holder.style[saved.side === 'left' ? 'left' : 'right'] = `${g}px`;
     } else {
+        // Anchored with top, not bottom: on a phone SillyTavern's html element has no height (body is fixed),
+        // and `bottom` is measured against it, which put the buttons above the screen.
         holder.style.right = `${g}px`;
-        holder.style.bottom = window.innerWidth <= NARROW ? '110px' : '20px';
+        const gap = window.innerWidth <= NARROW ? 110 : 20;
+        holder.style.top = `${Math.max(10, window.innerHeight - holder.offsetHeight - gap)}px`;
     }
 }
 
@@ -92,5 +95,6 @@ export function ensureButtonRow() {
         if (records.every(r => r.target === holder)) return;
         place(holder);
     }).observe(holder, { childList: true, attributes: true, subtree: true, attributeFilter: ['style'] });
+    requestAnimationFrame(() => place(holder));
     return holder;
 }
