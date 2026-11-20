@@ -13,7 +13,9 @@
 
 export const MIX_RULES = Object.freeze(['sum', 'avg', 'max', 'min']);
 export const GRADES = Object.freeze(['failed', 'poor', 'fair', 'good', 'perfect']);
-export const STAGE_IDS = Object.freeze(['prep', 'tend', 'work', 'finish']);
+import { normalizeScript } from '../mech/script-core.js';
+
+export const STAGE_IDS = Object.freeze(['prep', 'tend', 'work', 'finish', 'mech']);
 
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -99,6 +101,8 @@ function normalizeRecipe(raw, propIds, at) {
     const r = obj(raw);
     const name = text(r.name, 50);
     if (!name) return null;
+    // A recipe may carry `steps`: a script of hands-on steps for the craft's `mech` stage (the same format cooking recipes use).
+    const script = Array.isArray(r.steps) && r.steps.length ? normalizeScript({ set: r.set, steps: r.steps }).script : null;
     const targets = {};
     for (const [k, v] of Object.entries(obj(r.targets))) if (propIds.includes(k)) targets[k] = normalizeTarget(v);
     const slots = list(r.slots).slice(0, 4).map(normalizeSlot);
@@ -108,6 +112,7 @@ function normalizeRecipe(raw, propIds, at) {
         slots: slots.length ? slots : [normalizeSlot({ id: 'base', label: 'an ingredient' }, 0)],
         targets, outputs: normalizeOutputs(r.outputs, name),
         ...(r.hidden === true ? { hidden: true } : {}),
+        ...(script ? { script } : {}),
     };
 }
 

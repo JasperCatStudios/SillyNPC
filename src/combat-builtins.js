@@ -240,6 +240,7 @@ const BLEACH = {
         // Crafting skills (no part in a fight): they rise by making things in the Crafting tab of the Activities hub.
         { id: 'sewing', label: 'Sewing', ladder: 'grade', roles: ['crafting'] },
         { id: 'gadgetry', label: 'Gadgetry', ladder: 'grade', roles: ['crafting'] },
+        { id: 'calligraphy', label: 'Calligraphy', ladder: 'grade', roles: ['crafting'] },
         { id: 'cooking', label: 'Cooking', ladder: 'grade', roles: ['crafting'] },
     ],
     skillCards: {

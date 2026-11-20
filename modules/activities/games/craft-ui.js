@@ -7,6 +7,7 @@ import { newWork, stepWork, workParams, performance as workPerformance, describe
 import { settleActivity, sfx, activitySettings } from '../activities-runtime.js';
 import { actionKeyLabel } from '../../../src/activity-config-core.js';
 import { createMeter, bigButton, talker } from './harvest-ui.js';
+import { runMechSteps } from './mech/runner.js';
 
 /**
  * The crafting screen (fork): choose materials, then play the craft's stages (prep, tend, finish) and settle. The rules are in
@@ -220,6 +221,7 @@ export function runCraft(win, ctx) {
         if (stage.stage === 'prep') stagePrep(stage, next);
         else if (stage.stage === 'tend') stageTend(stage, next);
         else if (stage.stage === 'work') stageWork(stage, next);
+        else if (stage.stage === 'mech') stageMech(stage, next);
         else stageFinish(stage, next);
     }
 
@@ -367,6 +369,42 @@ export function runCraft(win, ctx) {
      * Heat and strike: hold to heat the work until it is ready, then tap on the beat while it cools; heat it again when it goes
      * cold (striking cold work cracks it). The action button does both: holding heats, a tap strikes.
      */
+    /**
+     * Hands-on steps (draw, stamp, ...): the recipe's own script, played by the shared step runner. Materials steer it through the craft's
+     * `effects` (stage 'mech'): param 'ease' widens tolerances, 'ink' makes the brush thirstier or not, 'drift' steadies or unsteadies a
+     * moving target. The result is one performance for the stage, like any other.
+     */
+    function stageMech(stage, next) {
+        const script = recipe.script;
+        if (!script) { results.push({ stage: 'mech', weight: stage.weight, performance: 0.5 }); next(); return; }
+        const easeEff = effectScale(craft, mix, 'mech', 'ease');
+        const inkEff = effectScale(craft, mix, 'mech', 'ink');
+        const driftEff = effectScale(craft, mix, 'mech', 'drift');
+        const tweaked = {
+            ...script,
+            steps: script.steps.map(s => ({
+                ...s,
+                params: {
+                    ...s.params,
+                    ...(s.mech === 'trace' && typeof s.params.inkPerUnit === 'number' ? { inkPerUnit: s.params.inkPerUnit * inkEff } : {}),
+                    ...(s.mech === 'tune' && typeof s.params.drift === 'number' ? { drift: s.params.drift * driftEff } : {}),
+                },
+            })),
+        };
+        const level = difficultyScale(recipe.level, tier);
+        wrap.replaceChildren();
+        const run = runMechSteps({
+            win, container: wrap, script: tweaked, ctx: { tier, scale: level * easeEff, assist }, partner, speak, alive,
+            onDone: (res) => {
+                ruined = res.ruined;
+                results.push({ stage: 'mech', weight: stage.weight, performance: res.P });
+                sfx(ruined ? 'activity_potion_fail' : 'activity_cook_done');
+                setTimeout(() => (ruined ? settle() : next()), 500);
+            },
+        });
+        cleanups.push(() => run.stop());
+    }
+
     function stageWork(stage, next) {
         const scale = difficultyScale(recipe.level, tier);
         const params = workParams({

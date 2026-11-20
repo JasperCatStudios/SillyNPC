@@ -9,8 +9,10 @@ import * as sear from './sear-core.js';
 import * as sprinkle from './sprinkle-core.js';
 import * as pour from './pour-core.js';
 import * as plate from './plate-core.js';
+import * as trace from './trace-core.js';
+import * as stamp from './stamp-core.js';
 
-export const MECHANICS = Object.freeze({ slice, stir, sear, sprinkle, pour, plate });
+export const MECHANICS = Object.freeze({ slice, stir, sear, sprinkle, pour, plate, trace, stamp });
 
 /** The mechanic with this id, or null. */
 export const mechanicOf = (id) => MECHANICS[String(id ?? '')] || null;

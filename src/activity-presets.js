@@ -180,6 +180,77 @@ const BL_GADGETRY = {
 };
 
 /**
+ * The Bleach sealing craft: paper charms written with a brush and sealed with a stamp. It is a hands-on craft: after the paper is
+ * prepared, the player plays the recipe's steps (draw each stroke of the glyph along the guide, then press the seal on the mark).
+ * Materials steer it through effects on the `mech` stage: crisp paper makes the lines easier, bleeding paper makes the brush thirstier.
+ */
+const BL_SEAL_STEPS = (glyph, rings, width, ink) => [
+    { id: 'write', mech: 'trace', weight: 3, params: { glyph, width, inkPerUnit: ink }, art: { surface: 'paper' }, words: { title: 'Write the charm', hint: 'Draw each numbered stroke from its dot, staying on the line. Touch the ink well to dip when the ink runs low.', done: 'Neatly written.', action: 'Draw (hold)' } },
+    { id: 'seal', mech: 'stamp', weight: 1, params: { rings, markR: 0.085 }, art: { surface: 'paper' }, words: { title: 'Press the seal', hint: 'Tap the seal mark just as the ring closes on it.', done: 'Sealed.', action: 'Stamp' } },
+];
+
+const BL_SEALING = {
+    id: 'sealing',
+    label: 'Sealing Tags',
+    icon: 'fa-scroll',
+    prof: 'calligraphy',
+    music: 'activity_craft_sealing_music',
+    materialWeight: 0.3,
+    properties: [
+        { id: 'potency', label: 'Potency', mix: 'sum', max: 20, icon: 'fa-bolt' },
+        { id: 'crispness', label: 'Crispness', mix: 'avg', max: 10, icon: 'fa-pen-nib' },
+        { id: 'bleed', label: 'Bleed', mix: 'max', max: 10, icon: 'fa-droplet' },
+    ],
+    materials: [
+        { id: 'rice-paper', name: 'Rice Paper', match: ['rice paper'], category: 'Paper', props: { potency: 1, crispness: 6, bleed: 3 }, tags: ['paper'], tier: 1, starter: true, shape: '■', letter: 'P', color: '#f4ecd8' },
+        { id: 'black-ink', name: 'Black Ink', match: ['black ink'], category: 'Ink', props: { potency: 3, crispness: 5, bleed: 2 }, tags: ['ink'], tier: 1, starter: true, shape: '●', letter: 'I', color: '#1d1a22' },
+        { id: 'plain-cord', name: 'Plain Cord', match: ['plain cord'], category: 'Trim', props: { potency: 1, crispness: 4, bleed: 0 }, tags: ['cord'], tier: 1, starter: true, shape: '▲', letter: 'C', color: '#b7a97a' },
+        { id: 'washi-paper', name: 'Washi Paper', match: ['washi paper'], category: 'Paper', props: { potency: 1, crispness: 8, bleed: 1 }, tags: ['paper', 'fine'], tier: 2, shape: '◆', letter: 'W', color: '#fbf6e6' },
+        { id: 'cinnabar-ink', name: 'Cinnabar Ink', match: ['cinnabar ink'], category: 'Ink', props: { potency: 7, crispness: 6, bleed: 4 }, tags: ['ink', 'potent'], tier: 2, shape: '♣', letter: 'N', color: '#b3402d' },
+        { id: 'red-cord', name: 'Red Cord', match: ['red cord'], category: 'Trim', props: { potency: 3, crispness: 6, bleed: 0 }, tags: ['cord', 'fine'], tier: 2, shape: '★', letter: 'R', color: '#c0504d' },
+        { id: 'gilded-paper', name: 'Gilded Paper', match: ['gilded paper'], category: 'Paper', props: { potency: 3, crispness: 9, bleed: 0 }, tags: ['paper', 'fine'], tier: 3, shape: '♥', letter: 'G', color: '#e8cf8a' },
+        { id: 'spirit-ink', name: 'Spirit Ink', match: ['spirit ink'], category: 'Ink', props: { potency: 10, crispness: 8, bleed: 2 }, tags: ['ink', 'potent'], tier: 3, shape: '⬟', letter: 'S', color: '#6fa8dc' },
+    ],
+    effects: [
+        { prop: 'bleed', stage: 'mech', param: 'ink', per: 0.12, from: 3, label: 'A bleeding paper: the brush runs dry sooner.' },
+        { prop: 'crispness', stage: 'mech', param: 'ease', per: 0.03, from: 5, label: 'Crisp paper: the lines are easier to draw.' },
+        { prop: 'potency', stage: 'mech', param: 'ease', per: -0.02, from: 6, label: 'A strong ink: it is harder to keep steady.' },
+    ],
+    stages: [{ stage: 'prep', weight: 1 }, { stage: 'mech', weight: 4 }],
+    terms: { craftVerb: 'Write', workplace: 'the writing desk', prep: 'Trim', finish: 'Seal' },
+    recipes: [
+        {
+            id: 'plain-ward-tag', name: 'Plain Ward Tag', level: 1, desc: 'A simple charm of two strokes. Any paper and ink.',
+            slots: [{ id: 'paper', label: 'paper', tags: ['paper'] }, { id: 'ink', label: 'ink', tags: ['ink'] }],
+            targets: { crispness: { min: 3, ideal: [4, 9], max: 10 }, bleed: { ideal: [0, 4], max: 6 } },
+            steps: BL_SEAL_STEPS('cross', 1, 0.065, 0.3), set: 'desk',
+            outputs: { perfect: { name: 'Plain Ward Tag', note: 'cleanly written', qty: 2 }, good: { name: 'Plain Ward Tag', note: 'well written' }, fair: { name: 'Plain Ward Tag', note: 'a little smudged' }, poor: { name: 'Plain Ward Tag', note: 'faint' }, failed: { name: 'Blank Tag', note: 'the ink ran' } },
+        },
+        {
+            id: 'calling-tag', name: 'Calling Tag', level: 1, desc: 'A flowing charm drawn in one stroke. Any paper and ink.',
+            slots: [{ id: 'paper', label: 'paper', tags: ['paper'] }, { id: 'ink', label: 'ink', tags: ['ink'] }],
+            targets: { crispness: { min: 3, ideal: [4, 9], max: 10 }, potency: { min: 2, ideal: [3, 10], max: 14 } },
+            steps: BL_SEAL_STEPS('wave', 1, 0.07, 0.35), set: 'desk',
+            outputs: { perfect: { name: 'Calling Tag', note: 'cleanly written', qty: 2 }, good: { name: 'Calling Tag', note: 'well written' }, fair: { name: 'Calling Tag', note: 'wobbly' }, failed: { name: 'Blank Tag', note: 'the ink ran' } },
+        },
+        {
+            id: 'binding-tag', name: 'Binding Tag', level: 2, desc: 'A charm of three strokes, tied with cord. Needs a firm hand.',
+            slots: [{ id: 'paper', label: 'paper', tags: ['paper'] }, { id: 'ink', label: 'ink', tags: ['ink'] }, { id: 'cord', label: 'a cord', tags: ['cord'] }],
+            targets: { potency: { min: 5, ideal: [6, 12], max: 16 }, crispness: { min: 4, ideal: [5, 10], max: 10 }, bleed: { ideal: [0, 4], max: 6 } },
+            steps: BL_SEAL_STEPS('peak', 2, 0.055, 0.32), set: 'desk',
+            outputs: { perfect: { name: 'Binding Tag', note: 'holds firm', qty: 1 }, good: { name: 'Binding Tag', note: 'well made' }, fair: { name: 'Binding Tag', note: 'loose' }, failed: { name: 'Blank Tag', note: 'the ink ran' } },
+        },
+        {
+            id: 'barrier-seal', name: 'Barrier Seal', level: 3, desc: 'A boxed charm of three strokes, sealed three times. Fine paper and strong ink.',
+            slots: [{ id: 'paper', label: 'fine paper', tags: ['fine'] }, { id: 'ink', label: 'a strong ink', tags: ['potent'] }, { id: 'cord', label: 'a cord', tags: ['cord'] }],
+            targets: { potency: { min: 8, ideal: [10, 16], max: 20 }, crispness: { min: 5, ideal: [6, 10], max: 10 }, bleed: { ideal: [0, 3], max: 5 } },
+            steps: BL_SEAL_STEPS('box', 3, 0.05, 0.34), set: 'desk',
+            outputs: { perfect: { name: 'Barrier Seal', note: 'flawless', qty: 1 }, good: { name: 'Barrier Seal', note: 'sound' }, fair: { name: 'Barrier Seal', note: 'weak in places' }, failed: { name: 'Blank Tag', note: 'the ink ran' } },
+        },
+    ],
+};
+
+/**
  * The Bleach world preset. The world is the built-in combat type 'bleach'. Everything world-specific lives here as data: the wording,
  * the kanji tiles, the drills (each trains one of the Bleach type's skills), the dishes, fish and seeds, and the promotion trial.
  * Names are the common ones of the setting; no character names.
@@ -200,6 +271,7 @@ export const BLEACH_PRESET = Object.freeze({
         { id: 'tea', label: 'Tea Time', kind: 'tea', tab: 'leisure', icon: 'fa-mug-hot', blurb: 'Share a cup of tea and a sweet, and see how the talk goes.' },
         { id: 'sewing', label: 'Sewing', kind: 'craft', craft: 'sewing', tab: 'crafting', icon: 'fa-scissors', blurb: 'Choose cloth, thread and buttons, cut, stitch and knot off a small good.', solo: true },
         { id: 'gadgetry', label: 'Gadgetry', kind: 'craft', craft: 'gadgetry', tab: 'crafting', icon: 'fa-gears', blurb: 'Assemble reishi, wire and casings into a shop invention, then tune and seal it.', solo: true },
+        { id: 'sealing', label: 'Sealing Tags', kind: 'craft', craft: 'sealing', tab: 'crafting', icon: 'fa-scroll', blurb: 'Write a charm stroke by stroke with a brush and ink, then press the seal.', solo: true },
         { id: 'cook', label: 'Cooking', kind: 'harvest', tab: 'crafting', icon: 'fa-utensils', blurb: 'Cook a dish in the kitchen, hands on.', solo: true },
         { id: 'fish', label: 'Fishing', kind: 'harvest', tab: 'leisure', icon: 'fa-fish', blurb: 'Wait for a bite at the river, hook it and reel it in.', solo: true },
         { id: 'garden', label: 'Gardening', kind: 'harvest', tab: 'leisure', icon: 'fa-seedling', blurb: 'Tend the garden beds. Plants grow as you tend them on different days.', solo: true },
@@ -216,7 +288,7 @@ export const BLEACH_PRESET = Object.freeze({
         kido: { id: 'kido', label: 'Kidō Practice', prof: 'kido', rounds: 6, wobble: 0, speed: 1, ring: 1, blurb: 'Hold the incantation, then release when the mark is inside the ring.', sound: 'magic_cast', terms: { mark: 'target', action: 'Release', place: 'the training grounds' } },
         hoho: { id: 'hoho', label: 'Flash Step Drill', prof: 'hoho', rounds: 8, wobble: 0.6, speed: 1.2, ring: 0.85, blurb: 'The marker darts and slows. Step when it is inside the ring.', sound: 'flash_step', terms: { mark: 'marker', action: 'Step', place: 'the training grounds' } },
     },
-    crafts: { sewing: BL_SEWING, gadgetry: BL_GADGETRY },
+    crafts: { sewing: BL_SEWING, gadgetry: BL_GADGETRY, sealing: BL_SEALING },
     potion: { recipe: 'Soul Remedy', failed: 'Bitter Draught', names: {}, profs: [] },
     harvest: {
         recipes: [
