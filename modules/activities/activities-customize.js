@@ -105,14 +105,25 @@ export function renderCustomize(host, { changed }) {
         const head = el('div');
         head.append(el('h3', 'sillynpc-section-title', 'Customize an activity'));
         head.append(el('p', 'notes', 'Change what the activities are about, not how they play. The rules stay the same in every world; only the names, words and lists change. '
-            + 'For example, in Fire Emblem the Study game trains Reason; in a Bleach world the same game can be Kido study, in a different room, with different wording. '
-            + 'Each card below says what it is for, how to use it, and shows the Fire Emblem version so you know what to replace.'));
+            + 'For example, in Fire Emblem the Study game trains Reason; in a Bleach world the same game can be Kido study, in a different room, with different wording.'));
+        if (!raw) {
+            // Said first and plainly: the cards below do not exist until the owner has their own copy.
+            const first = el('p', 'notes');
+            first.style.cssText = 'border-left: 3px solid var(--SmartThemeQuoteColor, #7aa7d9); padding: 6px 10px; border-radius: 4px; background: rgba(128, 128, 128, .1);';
+            first.append(el('b', '', `Start here: "${active.name}" is built in and cannot be changed. `),
+                document.createTextNode('Make an editable copy of it first (the button just below). Your copy is picked for you, and the editing cards then appear under it.'));
+            head.append(first);
+        } else {
+            head.append(el('p', 'notes', `You are editing your copy "${raw.name || active.id}". Each card below says what it is for and shows the Fire Emblem version so you know what to replace. Changes save as you finish typing.`));
+        }
         host.append(head);
 
         /* ---------------- 1. your preset */
-        const mine = card('Your preset', 'A preset is one world\'s set of activities and wording. Built-in presets cannot be edited, so you work on your own copy.',
-            raw ? 'Rename it below, or make another copy to try a variation. Your copy is used while it is picked under World preset above.'
-                : `Press "Make an editable copy" to start from ${active.name}. Your copy is then picked automatically and every card below unlocks.`,
+        const mine = card(raw ? 'Your editable copy' : 'Step 1: make an editable copy',
+            raw ? `A preset is one world's set of activities and wording. This is your own copy, so everything below can be changed. The built-in presets stay as they are.`
+                : `The preset in use, ${active.name}, is built in and read-only. To change anything, you first need your own copy of it to edit.`,
+            raw ? 'Rename it below, or make another copy to try a variation. Your copy is used while it is chosen under World preset above.'
+                : `Press "Make an editable copy of ${active.name}". The copy is chosen for you automatically and the cards for names, wording, study and the rest appear below it.`,
             'the Fire Emblem preset has six activities, its own wording and its own lists. Copy it and change them for your world.');
         const copy = el('button', 'menu_button', raw ? 'Make another copy' : `Make an editable copy of ${active.name}`);
         copy.style.cssText = 'white-space: normal; max-width: 100%;';

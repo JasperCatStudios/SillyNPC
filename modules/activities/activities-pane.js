@@ -39,9 +39,14 @@ const CATEGORY_OF = {
     'Activity music': 'sound', 'Music volume': 'sound', 'Sound map address': 'sound',
 };
 
-export function renderActivitiesPane(pane, { makeSwitch } = {}) {
+export function renderActivitiesPane(pane, { head, makeSwitch } = {}) {
     const s = activitySettings();
     const changed = () => { saveActivitySettings(); window.dispatchEvent(new CustomEvent(ACTIVITIES_CHANGED_EVENT)); };
+
+    // The master switch sits in the pane's header like every other module's, where it is seen first.
+    if (head && typeof makeSwitch === 'function') {
+        head.append(makeSwitch(Boolean(s.enabled), (on) => { s.enabled = on; changed(); if (!on) stopMusic(); }));
+    }
 
     const row = (label, control, hint) => {
         const wrap = el('div', 'sillynpc-setting-row');
@@ -75,8 +80,9 @@ export function renderActivitiesPane(pane, { makeSwitch } = {}) {
         return sel;
     };
 
+    // Without a header to put it in (an older host), the master switch stays a row.
+    if (!head || typeof makeSwitch !== 'function') pane.append(toggle('Activities on', 'enabled', 'Turns the whole module off, including its button.'));
     pane.append(
-        toggle('Activities on', 'enabled', 'Turns the whole module off, including its button.'),
         toggle('Show the button', 'buttonShown', 'Hides the green floating button but keeps the module on.'),
         toggle('Show the table talk', 'showTalk', 'The Chat and Log tabs beside each activity. Off hides them (and nothing is asked of the model for them).'),
         toggle('Show How to play', 'showHowTo', 'The How to play tab beside each activity.'),
