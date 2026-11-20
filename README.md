@@ -20,6 +20,38 @@ Most parts are off until you switch them on, so you can start small.
 
 Almost no SillyTavern extension works well with **narrator cards**, where one character speaks for a whole cast. Worldkit reads who is speaking inside a reply (`⟦Name⟧ "line"` or `[[Name]] "line"`) and treats each person as their own character, so what other extensions do for one card can work for everyone in your story.
 
+## Screenshots
+
+Click any picture to see it full size.
+
+| Chat styling | Character roster and worlds |
+| :---: | :---: |
+| [![Chat styling](docs/images/chat-styling.png)](docs/images/chat-styling.png) | [![Character roster and worlds](docs/images/roster.png)](docs/images/roster.png) |
+
+| Trackers | Character disguises |
+| :---: | :---: |
+| [![Trackers](docs/images/trackers.png)](docs/images/trackers.png) | [![Character disguises](docs/images/character-disguise.png)](docs/images/character-disguise.png) |
+
+| Phone selfie | Games table |
+| :---: | :---: |
+| [![Phone selfie](docs/images/phoneselfie.png)](docs/images/phoneselfie.png) | [![Games table](docs/images/games.png)](docs/images/games.png) |
+
+| Combat, 4 against 4 | Combat result |
+| :---: | :---: |
+| [![Combat, 4 against 4](docs/images/combat.png)](docs/images/combat.png) | [![Combat result](docs/images/combat-result.png)](docs/images/combat-result.png) |
+
+| Activities hub (beta) | Tea Time (beta) |
+| :---: | :---: |
+| [![Activities hub (beta)](docs/images/activities-hub.png)](docs/images/activities-hub.png) | [![Tea Time (beta)](docs/images/activities-tea.png)](docs/images/activities-tea.png) |
+
+| Kitchen (beta) | Scene and weather |
+| :---: | :---: |
+| [![Kitchen (beta)](docs/images/activities-kitchen.png)](docs/images/activities-kitchen.png) | [![Scene and weather](docs/images/scene-settings.png)](docs/images/scene-settings.png) |
+
+| Remembering battle history | Content Kit |
+| :---: | :---: |
+| [![Remembering battle history](docs/images/vectors-battle-history.png)](docs/images/vectors-battle-history.png) | [![Content Kit](docs/images/content-kit.png)](docs/images/content-kit.png) |
+
 ## Features
 
 **Core** (each has its own switch)
@@ -42,12 +74,6 @@ Almost no SillyTavern extension works well with **narrator cards**, where one ch
 | **Combat** | Duels by the rules of a world type. Presets for Fire Emblem, Bleach and Black Clover, or build your own. |
 | **Scene** | A map of places with backgrounds, and weather over the chat. |
 | **Activities** (beta) | Tea, cooking, fishing, gardening, crafting and study. See [Activities](docs/ACTIVITIES.md). |
-
-![The character roster](docs/images/roster.png)
-![The trackers tab](docs/images/trackers.png)
-![Character disguises on the Identity tab](docs/images/character-disguise.png)
-![A selfie in the Phone](docs/images/phoneselfie.png)
-![A four against four fight](docs/images/combat.png)
 
 ## Install
 
