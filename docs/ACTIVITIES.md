@@ -11,7 +11,7 @@ Activities is a hub (the green floating button) of things to do with a character
 Activities fits itself to the combat type you are playing. Two worlds come ready made, and any other combat type gets the neutral set:
 
 - **Fire Emblem:** classes, seals, a professor, the library, the greenhouse and the pond.
-- **Bleach:** kanji tiles for Study, a captain who sets the promotion trial, writs as the credentials (Academy, Officer, Lieutenant, Captain), sword, kidō and flash step drills, Japanese dishes, river fish and garden seeds. Skills climb the E to SS grade ladder, and the crafting skills (Spirit Medicine, Zanpakutō Forging, Cooking) sit on the same ladder.
+- **Bleach:** kanji tiles for Study, a captain who sets the promotion trial, writs as the credentials (Academy, Officer, Lieutenant, Captain), sword, kidō and flash step drills, Japanese dishes, river fish and garden seeds. Crafting is sewing (cloth, thread and buttons made into clothes and small goods) and gadgetry (shop-style inventions such as Soul Candy and sensors built from reishi, wire and casings), plus cooking. Healing and swords are not crafted, since kidō and special abilities do the healing. Skills climb the E to SS grade ladder, and the crafting skills sit on the same ladder.
 
 You can copy either one under **Customize an activity** and change it for your own world.
 
