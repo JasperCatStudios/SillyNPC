@@ -185,8 +185,10 @@
 /* ---- Phone: a sheet that fits the screen; the talk becomes a strip under the activity ---- */
 @media (max-width: 900px) {
     .snpc-act {
-        top: 0; left: 0; right: 0; bottom: 0; transform: none; width: auto; max-width: none; height: 100vh; height: 100dvh;
-        border-radius: 0; padding-bottom: env(safe-area-inset-bottom);
+        /* Same as the Games window: below SillyTavern's top bar (48px) so the close button and menu are not covered. */
+        top: 48px; left: 2vw; right: 2vw; bottom: auto; transform: none; width: auto; max-width: none;
+        height: calc(100vh - 58px); height: calc(100dvh - 58px);
+        border-radius: 8px; padding-bottom: env(safe-area-inset-bottom);
     }
     /* The close button goes to the left, away from a floating button another extension keeps at the top right. */
     .snpc-act-head { flex-direction: row-reverse; justify-content: flex-end; gap: 12px; padding: 8px 12px; }
