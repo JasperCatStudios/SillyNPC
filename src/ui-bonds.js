@@ -16,6 +16,7 @@ import {
     levelFor, personGateText, normalizePerson, addMilestone, editMilestone, removeMilestone,
     toggleMilestone, hasMilestone, newId, platonicValue, setMeter, romanceState, meterFloor,
     gateOverridden, setGateOverride, setGateOverridePart, clearGateOverride, levelName, meterTicks,
+    missingMilestoneDefaults, personLevels, setLevelOverride,
 } from './bonds-core.js';
 
 import { PRODUCT_NAME } from './constants.js';
@@ -127,6 +128,60 @@ function updateSettings(change, redraw) {
     if (redraw) redraw();
 }
 
+/* ---- folding sections ---------------------------------------------------------------- */
+
+const FOLD_KEY = 'worldkit.bondFolds';
+/** Which sections and groups the owner opened or closed, by id. Kept in the browser so the tab comes back as it was left. */
+const foldState = (() => {
+    try { return new Map(Object.entries(JSON.parse(localStorage.getItem(FOLD_KEY) || '{}'))); } catch { return new Map(); }
+})();
+const rememberFold = (id, open) => {
+    foldState.set(id, open);
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(Object.fromEntries(foldState))); } catch { /* private window: just not remembered */ }
+};
+
+/**
+ * Draws a section into a folding <details>. The section's own heading becomes the summary; a sub-group (a block that starts
+ * with a small heading, like "Friendship" or "Pace over several turns") folds the same way inside it.
+ */
+function folded(view, id, render, rerender, defaultOpen = false) {
+    const tmp = el('div');
+    render(tmp, rerender);
+    const heading = tmp.querySelector(':scope > h3.sillynpc-section-title');
+    const det = el('details', 'snpc-bond-fold');
+    det.dataset.fold = id;
+    det.open = foldState.has(id) ? foldState.get(id) : defaultOpen;
+    det.addEventListener('toggle', (e) => { if (e.target === det) rememberFold(id, det.open); });
+    det.append(el('summary', 'snpc-bond-fold-summary', heading?.textContent || id));
+    heading?.remove();
+    for (const group of [...tmp.children]) foldGroup(group, id);
+    det.append(...tmp.childNodes);
+    view.append(det);
+}
+
+/**
+ * Inside a block, every small heading (snpc-bond-subhead) starts a folding group that runs to the next one, open unless
+ * the owner closed it. A block without such headings is left as it is.
+ */
+function foldGroup(group, sectionId) {
+    if (!group.querySelector?.(':scope > .snpc-bond-subhead')) return;
+    const nodes = [...group.childNodes];
+    group.replaceChildren();
+    let det = null;
+    for (const node of nodes) {
+        if (node.classList?.contains('snpc-bond-subhead')) {
+            const id = `${sectionId}.${node.textContent}`;
+            det = el('details', 'snpc-bond-subfold');
+            det.open = foldState.has(id) ? foldState.get(id) : true;
+            const mine = det;
+            mine.addEventListener('toggle', (e) => { if (e.target === mine) rememberFold(id, mine.open); });
+            mine.append(el('summary', 'snpc-bond-subfold-summary', node.textContent));
+            group.append(mine);
+        } else if (det) det.append(node);
+        else group.append(node);
+    }
+}
+
 /* ---- the tab ------------------------------------------------------------------------- */
 
 export function renderBondsView(view) {
@@ -158,12 +213,13 @@ export function renderBondsView(view) {
         view.append(el('p', 'notes snpc-bond-off', 'The tracker is off: nothing is read, changed or sent to the story. '
             + 'Everything below can still be set up, and the bonds already recorded are kept.'));
     }
-    renderPeople(view, rerender);
-    renderGrowth(view, rerender);
-    renderLevels(view, rerender);
-    renderGates(view, rerender);
-    renderMilestonePresets(view, rerender);
-    renderInjection(view, rerender);
+    // Each section folds, so the tab is short enough to find things on a phone. The people open, the rule sections closed.
+    folded(view, 'people', renderPeople, rerender, true);
+    folded(view, 'growth', renderGrowth, rerender);
+    folded(view, 'levels', renderLevels, rerender);
+    folded(view, 'gates', renderGates, rerender);
+    folded(view, 'milestones', renderMilestonePresets, rerender);
+    folded(view, 'inject', renderInjection, rerender);
 
     const panel = view.closest('.sillynpc-tab-panel');
     if (panel) panel.scrollTop = scroll;
@@ -317,6 +373,13 @@ function renderPeople(view, rerender) {
     pickRow.append(pickShown, clearPicks, untrackAll, el('span', 'snpc-bond-spacer'), trackSel, untrackSel, updateSel);
     bar.append(name, add);
     view.append(searchRow, pickRow, bar);
+    view.append(namespaced(buildSettingToggle({
+        store: STORE,
+        key: 'hideAbsent',
+        label: 'Hide Characters Who Are Not In The Scene From The Tracker',
+        help: 'Tracked characters who are not in the scene right now are left out of the tracker block under each reply. '
+            + 'Their bonds are kept and still change when they appear. A character whose bond this reply changed is always shown.',
+    })));
 
     if (!people.length) {
         view.append(el('p', 'notes', 'Nobody yet. People are added as the tracker meets them, or by name above.'));
@@ -381,7 +444,7 @@ function personCard(person, settings, redrawOne, onPick = () => {}) {
     // An edit redraws this card only. Redrawing the whole tab for every click was the lag with 100+ people.
     const rerender = () => redrawOne(person.name);
     const open = expanded.has(key);
-    const { level, next } = levelFor(person.value, settings.levels);
+    const { level, next } = levelFor(person.value, personLevels(person, settings));
     const wrap = el('div', `snpc-bond-person${person.tracked ? '' : ' is-off'}${person.untracked ? ' is-new' : ''}`);
 
     wrap.dataset.key = key;
@@ -469,6 +532,7 @@ function personCard(person, settings, redrawOne, onPick = () => {}) {
     if (person.suggestion && !person.untracked) wrap.append(suggestionBanner(person, rerender));
     wrap.append(playerSide(person, settings, rerender));
     wrap.append(personGates(person, settings, rerender));
+    wrap.append(personRules(person, settings, rerender));
     if (open) wrap.append(personBody(person, settings, rerender));
     return wrap;
 }
@@ -566,7 +630,7 @@ function playerSide(person, settings, rerender) {
     const side = el('details', 'snpc-bond-side');
     side.open = sideOpen.has(key);
     side.addEventListener('toggle', () => { if (side.open) sideOpen.add(key); else sideOpen.delete(key); });
-    const level = levelFor(platonicValue(person.edges?.fromPlayer), settings.levels).level;
+    const level = levelFor(platonicValue(person.edges?.fromPlayer), personLevels(person, settings)).level;
     const romance = romanceState(person, 'fromPlayer', settings.romanceLevels);
     const romanceNote = romance.active ? ` · Romance: ${romance.level ? romance.level.name : 'none yet'}` : '';
     side.append(el('summary', 'snpc-bond-side-summary', `${you}'s side: ${levelName(level, person)}${romanceNote}`));
@@ -580,6 +644,71 @@ function playerSide(person, settings, rerender) {
         side.append(rows);
     });
     return side;
+}
+
+/** People whose "Rules for" panel is open. */
+const rulesOpen = new Set();
+
+/**
+ * This person's own growth rules and level names: what raises and lowers their bond, and how they read each level. Empty
+ * or equal to the global text means "use the global one". Collapsed; the summary says when something differs.
+ */
+function personRules(person, settings, rerender) {
+    const key = person.name.toLowerCase();
+    const details = el('details', 'snpc-bond-side snpc-bond-gov');
+    details.open = rulesOpen.has(key);
+    details.addEventListener('toggle', () => { if (details.open) rulesOpen.add(key); else rulesOpen.delete(key); });
+    const levelsChanged = Object.keys(person.levelOverrides || {}).length;
+    const own = [person.raises?.trim() ? 'raises' : '', person.lowers?.trim() ? 'lowers' : '', levelsChanged ? `${levelsChanged} level${levelsChanged === 1 ? '' : 's'}` : ''].filter(Boolean);
+    details.append(el('summary', 'snpc-bond-side-summary', `Rules for ${person.name}${own.length ? ` · own: ${own.join(', ')}` : ''}`));
+    buildWhenOpened(details, () => {
+        details.append(el('small', 'notes', `What moves ${person.name}'s bond and what each level means for them. Empty uses the general rules under Growth Rules and Levels.`));
+        const area = (label, field, globalText) => {
+            const wrap = el('label', 'snpc-bond-field');
+            wrap.append(el('span', 'snpc-bond-field-label', label));
+            const box = el('textarea', 'text_pole');
+            box.rows = 4;
+            box.value = person[field] || '';
+            box.placeholder = `General: ${String(globalText || '').split('\n').filter(Boolean).join('; ')}`;
+            box.addEventListener('change', () => { editPerson(person.name, (p) => { p[field] = box.value.slice(0, 1500); }); rerender(); });
+            wrap.append(box);
+            return wrap;
+        };
+        details.append(
+            area(`What raises ${person.name}'s bond (one per line)`, 'raises', settings.growth.raises),
+            area(`What lowers ${person.name}'s bond (one per line)`, 'lowers', settings.growth.lowers),
+        );
+
+        details.append(el('div', 'snpc-bond-subhead', 'Levels for this character'));
+        const rows = el('div', 'snpc-bond-gov-rows');
+        for (const base of settings.levels) {
+            const mine = person.levelOverrides?.[base.id] || {};
+            const row = el('div', `snpc-bond-gov-row snpc-bond-lvl-row${Object.keys(mine).length ? ' is-changed' : ''}`);
+            const name = input('text', mine.name ?? '', (v) => { editPerson(person.name, (p) => setLevelOverride(p, base.id, { name: v }, settings)); rerender(); }, { placeholder: base.name });
+            name.title = `What ${person.name} calls this level (general: ${base.name})`;
+            const min = input('number', mine.min ?? '', (v) => { editPerson(person.name, (p) => setLevelOverride(p, base.id, { min: Number.isFinite(v) && min.value !== '' ? v : '' }, settings)); rerender(); }, { placeholder: String(base.min) });
+            min.title = `Bond value where this level starts for ${person.name} (general: ${base.min})`;
+            const desc = input('text', mine.description ?? '', (v) => { editPerson(person.name, (p) => setLevelOverride(p, base.id, { description: v }, settings)); rerender(); }, { placeholder: base.description || 'How they act at this level' });
+            const reset = iconButton('fa-rotate-left', 'Back to the general level', () => {
+                editPerson(person.name, (p) => { const o = { ...(p.levelOverrides || {}) }; delete o[base.id]; p.levelOverrides = o; });
+                rerender();
+            }, `snpc-bond-gov-reset${Object.keys(mine).length ? '' : ' disabled'}`);
+            const label = el('div', 'snpc-bond-gov-label');
+            label.append(el('span', 'snpc-bond-gov-name', base.name), el('span', 'snpc-bond-gov-global', `General: ${base.min}+`));
+            row.append(label, name, min, desc, reset);
+            rows.append(row);
+        }
+        details.append(rows);
+        const reset = button('Reset this character\'s rules', 'fa-rotate-left', `Use the general rules and levels for ${person.name} again`, () => {
+            editPerson(person.name, (p) => { p.raises = ''; p.lowers = ''; p.levelOverrides = {}; });
+            rerender();
+        }, 'snpc-bond-gov-resetall');
+        reset.disabled = !own.length;
+        const bar = el('div', 'snpc-bond-toolbar');
+        bar.append(reset);
+        details.append(bar);
+    });
+    return details;
 }
 
 /**
@@ -738,10 +867,12 @@ function personBody(person, settings, rerender) {
     const checklist = el('div', 'snpc-bond-checklist');
     for (const preset of settings.milestones) {
         const has = hasMilestone(person, preset.id);
-        checklist.append(chip(preset.label, has, has ? 'Recorded. Click to remove it.' : `Record it now${preset.hint ? `: ${preset.hint}` : ''}`, () => {
+        const c = chip(preset.label, has, has ? 'Recorded. Click to remove it.' : `Record it now${preset.hint ? `: ${preset.hint}` : ''}`, () => {
             editPerson(person.name, (p) => { toggleMilestone(p, preset.id, settings.milestones, { ...todayForMilestone() }); });
             rerender();
-        }));
+        });
+        if (preset.tone === 'negative') c.classList.add('is-negative');
+        checklist.append(c);
     }
     body.append(checklist);
 
@@ -760,6 +891,7 @@ function personBody(person, settings, rerender) {
         const tr = el('div', 'snpc-bond-tr');
         const date = input('text', m.date, (v) => { editPerson(person.name, (p) => editMilestone(p, m.id, { date: v })); rerender(); }, { placeholder: 'Date' });
         date.title = { story: 'Story date', real: 'Real date (the story had no clock)', manual: 'Typed by hand' }[m.dateSource] || '';
+        if (m.tone === 'negative') tr.classList.add('is-negative');
         const label = input('text', m.label, (v) => { editPerson(person.name, (p) => editMilestone(p, m.id, { label: v })); rerender(); });
         if (m.auto) label.title = 'Recorded automatically';
         const note = input('text', m.note, (v) => { editPerson(person.name, (p) => editMilestone(p, m.id, { note: v })); }, { placeholder: 'Note' });
@@ -1028,27 +1160,35 @@ function renderMilestonePresets(view, rerender) {
         + 'dated by the story clock when the story has one, or today\'s date otherwise.'));
     const table = el('div', 'snpc-bond-table snpc-bond-presets');
     const header = el('div', 'snpc-bond-tr snpc-bond-th');
-    header.append(el('span', '', 'Milestone'), el('span', '', 'When to record it'), el('span', 'snpc-bond-center', 'Auto'), el('span', 'snpc-bond-center', 'Once'), el('span', '', ''));
+    header.append(el('span', '', 'Milestone'), el('span', '', 'When to record it'), el('span', 'snpc-bond-center', 'Auto'), el('span', 'snpc-bond-center', 'Once'), el('span', 'snpc-bond-center', 'Bad'), el('span', '', ''));
     table.append(header);
     for (const preset of s.milestones) {
-        const tr = el('div', 'snpc-bond-tr');
+        const tr = el('div', `snpc-bond-tr${preset.tone === 'negative' ? ' is-negative' : ''}`);
         const set = (patch, redraw) => updateSettings(x => { const p = x.milestones.find(y => y.id === preset.id); if (p) Object.assign(p, patch); }, redraw);
         const label = input('text', preset.label, (v) => { if (v.trim()) set({ label: v }); });
         const hint = input('text', preset.hint, (v) => set({ hint: v }), { placeholder: 'What counts' });
         const auto = chip('', preset.auto, 'Recorded automatically when it happens', (on) => set({ auto: on }, rerender));
         const once = chip('', preset.once, 'Only once per person', (on) => set({ once: on }, rerender));
+        const bad = chip('', preset.tone === 'negative', 'A bad moment (betrayal, a lie exposed): shown in red and sent to the story as hurtful', (on) => set({ tone: on ? 'negative' : 'positive' }, rerender));
         auto.classList.add('snpc-bond-chip-solo');
         once.classList.add('snpc-bond-chip-solo');
+        bad.classList.add('snpc-bond-chip-solo');
         const del = iconButton('fa-trash-can', 'Delete this milestone type (recorded ones are kept)', () => updateSettings(x => { x.milestones = x.milestones.filter(y => y.id !== preset.id); }, rerender), 'snpc-bond-danger');
-        tr.append(label, hint, auto, once, del);
+        tr.append(label, hint, auto, once, bad, del);
         table.append(tr);
     }
     wrap.append(table);
     const bar = el('div', 'snpc-bond-toolbar');
     bar.append(
         button('Add milestone', 'fa-plus', 'Add your own milestone type', () => updateSettings(x => {
-            x.milestones.push({ id: newId('p'), label: 'New milestone', hint: '', auto: true, once: true });
+            x.milestones.push({ id: newId('p'), label: 'New milestone', hint: '', auto: true, once: true, tone: 'positive' });
         }, rerender)),
+        button('Add new examples', 'fa-circle-plus', 'Add the built-in milestone types this list does not have yet (betrayal, a lie exposed and other bad moments). Yours are kept as they are.', () => {
+            const more = missingMilestoneDefaults(bondSettings().milestones);
+            if (!more.length) { toastr.info('You already have every built-in milestone.', PRODUCT_NAME); return; }
+            updateSettings(x => { x.milestones.push(...more); }, rerender);
+            toastr.success(`${more.length} added.`, PRODUCT_NAME);
+        }),
         el('span', 'snpc-bond-spacer'),
         button('Restore defaults', 'fa-rotate-left', 'Put back the built-in milestone types', async () => {
             const ok = await Popup.show.confirm('Restore the default milestones?', 'Your milestone types will be replaced. Milestones already recorded are kept.');

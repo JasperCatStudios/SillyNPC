@@ -15,10 +15,11 @@ import { asRecords, sideNames, sidesText, winnerText } from './rivalry-core.js';
 
 /*
  * Only histories of what happened are vectorized. Bond numbers are the current state, not a
- * history, so the Bond Tracker is never vectorized (an old `modules.bonds` setting is dropped).
+ * history, so they never are; the bond milestones (the dated moments that marked a bond) are.
  */
 export const VECTOR_MODULES = Object.freeze({
     rivalry: { label: 'Rivalry history', scope: 'chat', noun: 'record', nouns: 'records' },
+    bonds: { label: 'Bond milestones', scope: 'chat', noun: 'milestone', nouns: 'milestones' },
     phone: { label: 'Phone conversations', scope: 'contact', noun: 'memory', nouns: 'memories' },
     games: { label: 'Games table talk', scope: 'chat', noun: 'game', nouns: 'games' },
     combat: { label: 'Fight table talk', scope: 'chat', noun: 'fight', nouns: 'fights' },
@@ -59,6 +60,8 @@ export const VECTOR_DEFAULTS = Object.freeze({
     /** Per module, `amountTokens`: 0 is "a share of the total"; more is its own fixed room. */
     modules: Object.freeze({
         rivalry: Object.freeze({ enabled: false, amountTokens: 0 }),
+        // Milestones are short and kept to each person's own slots, so no room of their own.
+        bonds: Object.freeze({ enabled: false }),
         phone: Object.freeze({ enabled: false, chunkSize: 25, recall: 3, amountTokens: 0 }),
         games: Object.freeze({ enabled: false, recall: 2, amountTokens: 0 }),
         combat: Object.freeze({ enabled: false, recall: 2, amountTokens: 0 }),
@@ -101,9 +104,10 @@ export function normalizeVectorSettings(raw) {
         injectDepth: int(r.injectDepth, 0, 100, d.injectDepth),
         injectRole: INJECT_ROLES.includes(r.injectRole) ? r.injectRole : d.injectRole,
         ...normalizeHistoryAmount(r),
-        // Only the modules listed are kept: an old `bonds` entry is dropped here.
+        // Only the modules listed are kept.
         modules: {
             rivalry: { enabled: Boolean(mod('rivalry').enabled), amountTokens: ownAmount(mod('rivalry').amountTokens) },
+            bonds: { enabled: Boolean(mod('bonds').enabled) },
             phone: {
                 enabled: Boolean(mod('phone').enabled),
                 chunkSize: int(mod('phone').chunkSize, 5, 60, 25),
@@ -338,6 +342,10 @@ export function historySourceLine(moduleId, on) {
             return on
                 ? 'Rivalry history reaches the story through: Vectors (the records that matter to the scene, in the shared-history block).'
                 : 'Rivalry history reaches the story through: the shared-history block (the newest records).';
+        case 'bonds':
+            return on
+                ? 'Bond milestones reach the story through: Vectors (the moments that matter to the scene fill each character\'s milestone slots).'
+                : 'Bond milestones reach the story through: the newest ones, as many as the Bond Tracker\'s history count.';
         case 'games':
             return on
                 ? 'Games reach the story through: Vectors (whole games that match the scene).'
@@ -361,6 +369,7 @@ export function historySourceLine(moduleId, on) {
 export const VECTORIZE_CHOICES = Object.freeze([
     { value: 'all', label: 'All' },
     { value: 'rivalry', label: 'Rivalry' },
+    { value: 'bonds', label: 'Bond milestones' },
     { value: 'combat', label: 'Combat (fight talk)' },
     { value: 'games', label: 'Games' },
     { value: 'phone', label: 'Phone' },
@@ -376,7 +385,7 @@ export const VECTORIZE_CHOICES = Object.freeze([
  * @returns {{ id: string, scope: string }[]}
  */
 export function vectorizeTargets(choice, { contact = '', contacts = [] } = {}) {
-    const ids = choice === 'all' ? ['rivalry', 'combat', 'games', 'phone'] : (VECTOR_MODULES[choice] ? [choice] : []);
+    const ids = choice === 'all' ? ['rivalry', 'bonds', 'combat', 'games', 'phone'] : (VECTOR_MODULES[choice] ? [choice] : []);
     const out = [];
     for (const id of ids) {
         if (id !== 'phone') { out.push({ id, scope: '' }); continue; }
@@ -407,6 +416,7 @@ export function vectorizeCounts(rows) {
 
 const EMPTY_WHAT = {
     rivalry: 'No rivalry history in this chat yet',
+    bonds: 'No bond milestones in this chat yet',
     combat: 'No fight table talk in this chat yet',
     games: 'No games table talk in this chat yet',
 };
@@ -613,6 +623,11 @@ export const TEMPLATES = Object.freeze({
         if (r.summary) bits.push(r.summary);
         if (r.note) bits.push(r.note);
         return bits.join(' ');
+    },
+    /** One bond milestone as a sentence naming both people, so a search for either finds it. */
+    bonds(m, player = 'the player') {
+        const bad = m.tone === 'negative' ? ' (a hurtful moment between them)' : '';
+        return `${m.person} and ${player}: ${m.label}${bad}${m.date ? `, ${m.date}` : ''}.${m.note ? ` ${m.note}` : ''}`;
     },
     phone(c, player = 'the player') {
         const lines = (c.messages || []).map(m => `${m.who === 'user' ? player : (m.name || c.contact)}: ${m.text}`);

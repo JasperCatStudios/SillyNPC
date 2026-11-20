@@ -16,6 +16,8 @@ import {
     historyTotal, publishRivalryRoom,
 } from './vector-service.js';
 import { listRecords, removeRecord, RIVALRY_CHANGED_EVENT } from './rivalry.js';
+import { chatStore, editPerson, BONDS_CHANGED_EVENT } from './bonds.js';
+import { bondEntryId, removeMilestone } from './bonds-core.js';
 import { sidesText, winnerText, sideNames } from './rivalry-core.js';
 import { listTalk, removeTalk, TALK_CHANGED_EVENT } from './talk-store.js';
 import { talkEmbedText, talkImportance, buildTalkInjectionReport, TALK_KINDS } from './talk-log.js';
@@ -25,8 +27,8 @@ import { sceneNames, sceneSet } from './scene-cast.js';
 /**
  * Vectors for Worldkit's histories (fork): SillyTavern wiring.
  *
- * Only histories of what happened are vectorized: the rivalry record, phone threads, and the
- * table talk of games and fights. Bonds are current state and never vectorized.
+ * Only histories of what happened are vectorized: the rivalry record, the bond milestones, phone
+ * threads, and the table talk of games and fights. Bond numbers are current state and never are.
  *
  * Each module gets an adapter that lists its entries in vector-core's plain shape. A sync embeds
  * what is new or edited and removes what was disabled, deleted or changed. Before a generation a
@@ -161,6 +163,36 @@ const ADAPTERS = {
         },
         remove(entry) {
             return removeRecord(entry.id);
+        },
+    },
+    bonds: {
+        // Every dated moment of every person in this chat's bond store; the id names the person, since milestone ids are only unique per person.
+        entries() {
+            const you = player();
+            const out = [];
+            for (const person of chatStore()?.people || []) {
+                for (const m of person.history || []) {
+                    out.push({
+                        id: bondEntryId(person, m),
+                        text: TEMPLATES.bonds({ person: person.name, label: m.label, tone: m.tone, date: m.date, note: m.note }, you),
+                        at: Number(m.at) || 0,
+                        // A hurtful moment is worth more than a pleasant one when both match equally well.
+                        importance: m.tone === 'negative' ? 1 : 0,
+                        eligible: true,
+                        label: `${person.name}: ${m.label}`,
+                        sub: [m.date, m.tone === 'negative' ? 'hurtful' : '', m.note].filter(Boolean).join(' · '),
+                        people: [person.name],
+                        person: person.name,
+                        milestoneId: m.id,
+                    });
+                }
+            }
+            return out;
+        },
+        remove(entry) {
+            if (!entry.person) return false;
+            editPerson(entry.person, (p) => removeMilestone(p, entry.milestoneId));
+            return true;
         },
     },
     phone: {
@@ -472,7 +504,7 @@ async function onGenerationStarted(type, _options, dryRun) {
 async function searchChatModules(type) {
     const s = vectorSettings();
     if (!s.enabled) return;
-    const active = ['rivalry', ...TALK_KINDS].filter(id => moduleActive(s, id, flags()));
+    const active = ['rivalry', 'bonds', ...TALK_KINDS].filter(id => moduleActive(s, id, flags()));
     const phoneOn = moduleActive(s, 'phone', flags());
     if (!active.length && !phoneOn) return;
     const chat = getContext()?.chat || [];
@@ -690,6 +722,7 @@ export function initVectors() {
     eventSource.makeFirst(event_types.GENERATION_STARTED, onGenerationStarted);
 
     eventSource.on(RIVALRY_CHANGED_EVENT, () => scheduleSync('rivalry'));
+    eventSource.on(BONDS_CHANGED_EVENT, () => scheduleSync('bonds'));
     eventSource.on(TALK_CHANGED_EVENT, (kind) => { if (TALK_KINDS.includes(kind)) scheduleSync(kind); });
     eventSource.on(PHONE_CHANGED_EVENT, (contact) => { if (contact) scheduleSync('phone', String(contact)); });
     eventSource.on(event_types.CHAT_CHANGED, () => {
@@ -700,6 +733,6 @@ export function initVectors() {
         // The last chat's remembered games, fights and texts must not reach the next one.
         applyTalkInjection();
         // Catch up on anything written while vectors were off or Ollama was down.
-        for (const id of ['rivalry', ...TALK_KINDS]) scheduleSync(id);
+        for (const id of ['rivalry', 'bonds', ...TALK_KINDS]) scheduleSync(id);
     });
 }

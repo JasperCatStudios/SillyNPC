@@ -156,7 +156,7 @@ const REMOVED_LEVEL_MAP = Object.freeze({ romantic: 'attraction', partner: 'part
 export const DEFAULT_MILESTONES = Object.freeze([
     { id: 'first_meeting', label: 'First meeting', hint: 'They meet for the first time on screen.' },
     { id: 'first_conversation', label: 'First real conversation', hint: 'A conversation of substance, beyond small talk.' },
-    { id: 'first_argument', label: 'First argument', hint: 'A real disagreement with raised feelings.' },
+    { id: 'first_argument', label: 'First argument', hint: 'A real disagreement with raised feelings.', tone: 'negative' },
     { id: 'first_reconciliation', label: 'First apology or reconciliation', hint: 'One of them sincerely apologises or they make up.' },
     { id: 'first_gift', label: 'First gift', hint: 'One gives the other a gift.' },
     { id: 'first_date', label: 'First date', hint: 'An outing both understand as a date.' },
@@ -164,11 +164,21 @@ export const DEFAULT_MILESTONES = Object.freeze([
     { id: 'first_kiss', label: 'First kiss', hint: 'They kiss for the first time.' },
     { id: 'first_love', label: 'First "I love you"', hint: 'One says "I love you" (or plainly the same) for the first time.' },
     { id: 'first_intimacy', label: 'First intimacy', hint: 'They are sexually intimate for the first time.' },
-    { id: 'first_betrayal', label: 'First betrayal', hint: 'One betrays the trust of the other.' },
-    { id: 'first_fight', label: 'First fight', hint: 'They come to blows or fight each other.' },
+    { id: 'first_betrayal', label: 'First betrayal', hint: 'One betrays the trust of the other.', tone: 'negative' },
+    { id: 'first_fight', label: 'First fight', hint: 'They come to blows or fight each other.', tone: 'negative' },
     { id: 'promise', label: 'A promise made', hint: 'One makes the other a meaningful promise.', once: false },
     { id: 'secret', label: 'A secret shared', hint: 'One confides a real secret to the other.', once: false },
     { id: 'saved', label: 'Saved their life', hint: 'One rescues the other from real danger.', once: false },
+    ...[
+        { id: 'betrayed', label: 'Betrayed them', hint: 'One deliberately betrays the other: sells them out, turns on them, or breaks a vow that mattered.' },
+        { id: 'promise_broken', label: 'A promise broken', hint: 'A meaningful promise is knowingly broken.' },
+        { id: 'lie_exposed', label: 'A lie exposed', hint: 'A significant lie or hidden truth comes out and the other finds out.' },
+        { id: 'abandoned', label: 'Abandoned them', hint: 'One leaves the other behind or fails them when they were needed most.' },
+        { id: 'humiliated', label: 'Humiliated them', hint: 'One shames or mocks the other in front of people.' },
+        { id: 'rejected', label: 'Rejected them', hint: 'One turns the other down: a confession, an offer, a plea for help.' },
+        { id: 'hurt_them', label: 'Hurt them', hint: 'One causes the other real harm, physical or emotional.' },
+        { id: 'estranged', label: 'Fell out', hint: 'They stop speaking or cut ties after a serious break.' },
+    ].map(m => ({ ...m, once: false, tone: 'negative' })),
 ]);
 
 export const DEFAULT_GROWTH = Object.freeze({
@@ -239,6 +249,8 @@ export const BOND_DEFAULTS = Object.freeze({
     gates: DEFAULT_GATES,
     milestones: DEFAULT_MILESTONES,
     inject: DEFAULT_INJECT,
+    /** Leave tracked characters who are not in the scene out of the tracker block under the reply (their bonds are kept). */
+    hideAbsent: false,
     /** See ROMANCE_UNLOCKS. */
     romanceUnlock: 'manual',
     /** The platonic value (lower of affection and trust) a character needs before a romance suggestion counts. */
@@ -416,6 +428,15 @@ export function normalizeGates(raw, levels, romanceLevels = DEFAULT_ROMANCE_LEVE
     return out;
 }
 
+/** The tone a built-in milestone has, for settings saved before tones existed. */
+const defaultTone = (id) => DEFAULT_MILESTONES.find(d => d.id === id)?.tone;
+
+/** The built-in milestones this settings list does not have yet (new examples added in an update), for the "Add the new examples" button. */
+export function missingMilestoneDefaults(presets) {
+    const have = new Set((presets || []).map(p => p.id));
+    return DEFAULT_MILESTONES.filter(d => !have.has(d.id)).map(d => ({ ...d }));
+}
+
 export function normalizeMilestonePresets(raw) {
     const list = Array.isArray(raw) ? raw : clone(DEFAULT_MILESTONES);
     const seen = new Set();
@@ -435,6 +456,8 @@ export function normalizeMilestonePresets(raw) {
             auto: m.auto !== false,
             // A "first" happens once; a promise can be made many times.
             once: m.once !== false,
+            // A bad moment (betrayal, a lie exposed) reads differently from a good one: shown red, and sent to the story as a wound.
+            tone: (m.tone ?? defaultTone(id)) === 'negative' ? 'negative' : 'positive',
         });
     }
     return out;
@@ -476,6 +499,7 @@ export function normalizeBondSettings(raw) {
         gates: normalizeGates(migrateGates(r.gates, new Set(levels.map(l => l.id))), levels, romanceLevels),
         milestones: normalizeMilestonePresets(r.milestones),
         inject: normalizeBondInject(r.inject),
+        hideAbsent: r.hideAbsent === true,
         romanceUnlock: pick(r.romanceUnlock, ROMANCE_UNLOCKS, BOND_DEFAULTS.romanceUnlock),
         romanceMinBond: int(r.romanceMinBond, 0, 100, BOND_DEFAULTS.romanceMinBond),
         romanceCooldown: int(r.romanceCooldown, 0, 200, BOND_DEFAULTS.romanceCooldown),
@@ -515,6 +539,61 @@ export function levelFor(value, levels) {
     let index = 0;
     for (let i = 0; i < list.length; i++) if (Number(value) >= list[i].min) index = i;
     return { index, level: list[index], next: list[index + 1] || null };
+}
+
+/**
+ * A person's own level overrides, repaired: { levelId: { name?, min?, description? } }. They change how one character
+ * reads a level, never which levels exist, so gates (which name levels by id) keep working. With levels, ids that no
+ * longer exist are dropped.
+ */
+export function normalizeLevelOverrides(raw, levels = null) {
+    const out = {};
+    if (!isObj(raw)) return out;
+    const ids = Array.isArray(levels) ? new Set(levels.map(l => l.id)) : null;
+    for (const [id, o] of Object.entries(raw)) {
+        if (!id || !isObj(o) || (ids && !ids.has(id))) continue;
+        const clean = {};
+        if (typeof o.name === 'string' && o.name.trim()) clean.name = str(o.name, 60);
+        if (o.min !== undefined && o.min !== null && o.min !== '' && Number.isFinite(Number(o.min))) clean.min = Math.round(Number(o.min));
+        if (typeof o.description === 'string' && o.description.trim()) clean.description = str(o.description, 300);
+        if (Object.keys(clean).length) out[id] = clean;
+    }
+    return out;
+}
+
+/** The levels as this person reads them: the global list with their own names, thresholds and descriptions laid over. */
+export function personLevels(person, settings) {
+    const base = settings?.levels?.length ? settings.levels : DEFAULT_LEVELS;
+    const over = person?.levelOverrides;
+    if (!isObj(over) || !Object.keys(over).length) return base;
+    return base.map(l => (over[l.id] ? { ...l, ...over[l.id] } : l));
+}
+
+/**
+ * Sets one field (name, min or description) of one level for one person. A value empty or equal to the global one clears
+ * that field, so "same as everyone" is never stored.
+ */
+export function setLevelOverride(person, levelId, patch, settings) {
+    const base = (settings?.levels || []).find(l => l.id === levelId);
+    if (!base || !person) return;
+    const cur = { ...(person.levelOverrides?.[levelId] || {}) };
+    for (const key of ['name', 'min', 'description']) {
+        if (!(key in (patch || {}))) continue;
+        const v = patch[key];
+        if (v === '' || v === null || v === undefined || String(v).trim() === String(base[key] ?? '')) delete cur[key];
+        else cur[key] = v;
+    }
+    const next = { ...(person.levelOverrides || {}) };
+    const clean = normalizeLevelOverrides({ [levelId]: cur }, settings.levels)[levelId];
+    if (clean) next[levelId] = clean; else delete next[levelId];
+    person.levelOverrides = next;
+}
+
+/** The text of "what raises / lowers a bond" for one person: their own when they have one, else the global rules. */
+export function personRules(person, settings) {
+    const g = settings?.growth || DEFAULT_GROWTH;
+    const own = (v) => (typeof v === 'string' && v.trim() ? v : '');
+    return { raises: own(person?.raises) || g.raises, lowers: own(person?.lowers) || g.lowers };
 }
 
 /** The romance level a desire sits at: index -1 and level null below the first threshold. */
@@ -681,7 +760,7 @@ export function clearGateOverride(person, gateId = '') {
  * @returns {{ open: boolean, why: string, needs: object|null }}
  */
 export function evaluateGate(rawGate, person, settings) {
-    const levels = settings.levels;
+    const levels = personLevels(person, settings);
     const shut = (why, needs = null) => ({ open: false, why, needs });
     if (rawGate?.track === 'romance' && (person?.lock ?? 'open') !== 'open') return shut('lock');
     const gate = effectiveGate(rawGate, person, settings);
@@ -823,6 +902,7 @@ export function normalizeMilestone(raw) {
         dateSource: pick(m.dateSource, { story: 1, real: 1, manual: 1 }, 'manual'),
         at: Number.isFinite(Number(m.at)) ? Number(m.at) : Date.now(),
         note: str(m.note, 600),
+        tone: (m.tone ?? defaultTone(m.type)) === 'negative' ? 'negative' : 'positive',
         auto: Boolean(m.auto),
         messageId: Number.isInteger(m.messageId) ? m.messageId : null,
     };
@@ -887,7 +967,7 @@ export function meterTicks(meter, settings, person = null) {
     const romance = meter === 'desire';
     const list = romance
         ? (settings?.romanceLevels?.length ? settings.romanceLevels : DEFAULT_ROMANCE_LEVELS)
-        : (settings?.levels?.length ? settings.levels : DEFAULT_LEVELS);
+        : personLevels(person, settings);
     return list
         .filter(l => l.min > lo && l.min < g.max)
         .map(l => ({ id: l.id, name: romance ? l.name : levelName(l, person), min: l.min, left: ((l.min - lo) / span) * 100 }));
@@ -931,6 +1011,11 @@ export function normalizePerson(raw, growth = DEFAULT_GROWTH, settings = null) {
         lock: pick(p.lock, BOND_LOCKS, 'open'),
         /** This person's own gates, laid over the global ones. See effectiveGate. */
         gateOverrides: normalizeGateOverrides(p.gateOverrides, settings),
+        /** What raises / lowers this person's bond, instead of the global rules. Empty means the global text. */
+        raises: typeof p.raises === 'string' ? p.raises.slice(0, 1500) : '',
+        lowers: typeof p.lowers === 'string' ? p.lowers.slice(0, 1500) : '',
+        /** How this person reads each level. See normalizeLevelOverrides. */
+        levelOverrides: normalizeLevelOverrides(p.levelOverrides, settings?.levels),
         edges: { toPlayer, fromPlayer },
         inject: {
             level: inj.level !== false,
@@ -1130,6 +1215,7 @@ export function addMilestone(person, entry, presets = []) {
         id: undefined,
         type: preset ? preset.id : 'custom',
         label: str(entry?.label) || preset?.label || 'Milestone',
+        tone: entry?.tone || preset?.tone,
     });
     person.history.push(m);
     // Kept in story order by the time it was recorded; editing a date never reorders silently.
@@ -1512,7 +1598,7 @@ export function meterText(edge) {
 /** The level name of the player's hand-set side, or '' when there is no such edge. */
 function playerSideLevel(person, levels) {
     const edge = person?.edges?.fromPlayer;
-    return edge ? levelName(levelFor(platonicValue(edge), levels).level, person) : '';
+    return edge ? levelName(levelFor(platonicValue(edge), personLevels(person, { levels })).level, person) : '';
 }
 
 const LOCK_TEXT = Object.freeze({
@@ -1563,7 +1649,7 @@ export function bondBlock(person, settings, playerName = 'the player', picks = n
     if (!flags.level && !flags.gates && !flags.history) return '';
     const { levels, growth, inject } = settings;
     const value = bondValue(person);
-    const { level, next } = levelFor(value, levels);
+    const { level, next } = levelFor(value, personLevels(person, settings));
     const out = [];
     if (flags.level) {
         const meters = person.edges?.toPlayer ? meterText(person.edges.toPlayer) : fmt(value);
@@ -1586,7 +1672,8 @@ export function bondBlock(person, settings, playerName = 'the player', picks = n
     if (flags.history && inject.historyCount > 0 && person.history.length) {
         // Vectors only change which milestones fill the slots; without picks it is the newest, as always.
         const recent = chooseEntries(person.history, picks, inject.historyCount, { idOf: (m) => bondEntryId(person, m) }).reverse();
-        out.push(`Milestones: ${recent.map(m => `${m.label}${m.date ? ` (${m.date})` : ''}${m.note ? ` - ${m.note}` : ''}`).join('; ')}.`);
+        // A hurtful one is marked, so the character carries it as a wound rather than a fond memory.
+        out.push(`Milestones: ${recent.map(m => `${m.label}${m.tone === 'negative' ? ' [hurtful]' : ''}${m.date ? ` (${m.date})` : ''}${m.note ? ` - ${m.note}` : ''}`).join('; ')}.`);
     }
     return out.join('\n');
 }
@@ -1670,7 +1757,7 @@ function rulesText(settings, people, playerName, lastDate = '', turn = undefined
     if (people.length) {
         out.push(`Current bonds with ${playerName}:`);
         for (const p of people) {
-            const { level } = levelFor(bondValue(p), settings.levels);
+            const { level } = levelFor(bondValue(p), personLevels(p, settings));
             const meters = p.edges?.toPlayer ? meterText(p.edges.toPlayer) : fmt(bondValue(p));
             const side = playerSideLevel(p, settings.levels);
             const done = settings.milestones.filter(m => m.once && hasMilestone(p, m.id)).map(m => m.id);
@@ -1682,6 +1769,15 @@ function rulesText(settings, people, playerName, lastDate = '', turn = undefined
                 + `${side ? `; ${playerName} feels about them: ${side}` : ''}`
                 + `${pr.active ? `; ${playerName}'s romance: ${pr.level ? pr.level.name : 'none yet'}` : ''}`
                 + `${done.length ? `; already recorded: ${done.join(', ')}` : ''}`);
+        }
+        // A character with their own rules or level thresholds is judged by those, not the general ones above.
+        for (const p of people) {
+            const own = [];
+            if (p.raises?.trim()) own.push(`raises their bond: ${lines(p.raises).join('; ')}`);
+            if (p.lowers?.trim()) own.push(`lowers their bond: ${lines(p.lowers).join('; ')}`);
+            const lv = Object.keys(p.levelOverrides || {}).length ? personLevels(p, settings).map(l => `${levelName(l, p)} (${l.min}+)`).join(', ') : '';
+            if (lv) own.push(`their levels: ${lv}`);
+            if (own.length) out.push(`For ${p.name} only (instead of the general rules): ${own.join('. ')}.`);
         }
     }
     return out.join('\n');
@@ -1726,7 +1822,16 @@ const signed = (n, plus = '') => `${n < 0 ? '-' : plus}${Math.abs(n)}`;
  *   - <b>Kaito</b> → <b>Mira</b> | AFFECTION: +34 | TRUST: 20 | RESPECT: 15 | DESIRE: 40 | LEVEL: Friend · Courting (+2 affection)
  */
 export function trackerBlockHtml(store, record, settings, playerName) {
-    const people = (store?.people || []).filter(p => p.tracked).slice(0, 12);
+    let people = (store?.people || []).filter(p => p.tracked);
+    // Optionally leave out tracked characters who are not in the scene, unless this reply changed them. Kept: their bonds, only the rows are hidden.
+    if (settings?.hideAbsent) {
+        const here = presentNow();
+        if (here) {
+            const moved = new Set((record?.changes || []).filter(c => Number(c.delta)).map(c => c.name));
+            people = people.filter(p => here.has(p.name.toLowerCase()) || moved.has(p.name));
+        }
+    }
+    people = people.slice(0, 12);
     if (!people.length) return '';
     const changes = record?.changes || [];
     const lines = people.map((person) => {
@@ -1739,12 +1844,22 @@ export function trackerBlockHtml(store, record, settings, playerName) {
 
 const TRACKER_SUMMARY = '💞 BOND TRACKER';
 
+let presenceProvider = null;
+/** Who is in the scene, as a Set of lowercase names, or null when that cannot be known (the rows are then all shown). Set by bonds.js. */
+export function setPresenceProvider(fn) { presenceProvider = typeof fn === 'function' ? fn : null; }
+function presentNow() {
+    try {
+        const set = presenceProvider ? presenceProvider() : null;
+        return set && set.size ? set : null;
+    } catch { return null; }
+}
+
 /** One person's BOND TRACKER line, as the display regexes expect it. note is the bracketed change, or ''. */
 function trackerLine(person, settings, playerName, note = '') {
     const edge = person.edges?.toPlayer || {};
     const value = person.edges?.toPlayer ? platonicValue(edge) : Number(person.value) || 0;
     const romance = romanceState(person, 'toPlayer', settings.romanceLevels);
-    const level = [levelName(levelFor(value, settings.levels)?.level, person), romance.level?.name || ''].filter(Boolean).join(' · ');
+    const level = [levelName(levelFor(value, personLevels(person, settings))?.level, person), romance.level?.name || ''].filter(Boolean).join(' · ');
     const r = (k) => Math.round(Number(edge[k]) || 0);
     const desire = romance.active ? ` | DESIRE: ${Math.max(0, r('desire'))}` : '';
     return `- <b>${person.name}</b> → <b>${playerName}</b> | AFFECTION: ${signed(r('affection'), '+')} | TRUST: ${signed(r('trust'))} | RESPECT: ${signed(r('respect'))}${desire} | LEVEL: ${level}${note}`;

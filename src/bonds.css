@@ -372,7 +372,7 @@
 .snpc-bond-levels       .snpc-bond-tr { grid-template-columns: minmax(0, 1.2fr) 80px minmax(0, 3fr) 30px; }
 .snpc-bond-levels.has-familial .snpc-bond-tr { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 80px minmax(0, 3fr) 30px; }
 .snpc-bond-gates-table  .snpc-bond-tr { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 30px; }
-.snpc-bond-presets      .snpc-bond-tr { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.5fr) 30px 30px 30px; }
+.snpc-bond-presets      .snpc-bond-tr { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.5fr) 30px 30px 30px 30px; }
 
 .snpc-bond-th {
     font-size: var(--sillynpc-text-xs, 0.72em);
@@ -673,7 +673,7 @@
     }
 
     .snpc-bond-presets .snpc-bond-tr {
-        grid-template-columns: minmax(0, 1fr) 30px 30px 30px;
+        grid-template-columns: minmax(0, 1fr) 30px 30px 30px 30px;
         padding-bottom: var(--snpc-bond-gap);
         border-bottom: 1px solid var(--snpc-bond-line);
     }
@@ -717,4 +717,76 @@
     margin: 0 0 var(--sillynpc-space-md, 12px);
     padding: 4px 10px;
     border-left: 3px solid var(--sillynpc-warning, #ffb020);
+}
+
+/* ---- folding sections ---- */
+.snpc-bond-fold {
+    margin: 0 0 var(--sillynpc-space-md, 12px);
+    border: 1px solid var(--snpc-bond-line);
+    border-radius: var(--snpc-bond-radius);
+    padding: 0 10px;
+    min-width: 0;
+}
+.snpc-bond-fold-summary {
+    cursor: pointer;
+    padding: 10px 0;
+    min-height: 24px;
+    font-weight: 600;
+    font-size: 1.05em;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.snpc-bond-fold-summary::-webkit-details-marker { display: none; }
+.snpc-bond-fold-summary::before,
+.snpc-bond-subfold-summary::before {
+    content: "\25B8";
+    display: inline-block;
+    transition: transform 0.12s;
+}
+.snpc-bond-fold[open] > .snpc-bond-fold-summary::before,
+.snpc-bond-subfold[open] > .snpc-bond-subfold-summary::before { transform: rotate(90deg); }
+.snpc-bond-fold[open] > .snpc-bond-fold-summary { border-bottom: 1px solid var(--snpc-bond-line); margin-bottom: 8px; }
+.snpc-bond-subfold { margin: 6px 0; min-width: 0; }
+.snpc-bond-subfold-summary {
+    cursor: pointer;
+    padding: 6px 0;
+    min-height: 24px;
+    font-weight: 600;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--snpc-bond-muted);
+}
+.snpc-bond-subfold-summary::-webkit-details-marker { display: none; }
+
+/* ---- bad milestones ---- */
+.snpc-bond-chip.is-negative { border-color: color-mix(in srgb, #d14b4b 55%, transparent); }
+.snpc-bond-chip.is-negative.is-on { border-color: #d14b4b; background: color-mix(in srgb, #d14b4b 18%, transparent); }
+.snpc-bond-tr.is-negative { box-shadow: inset 3px 0 0 #d14b4b; }
+
+/* ---- a character's own rules ---- */
+.snpc-bond-gov .snpc-bond-field { display: block; margin: 6px 0; }
+.snpc-bond-gov .snpc-bond-field textarea { width: 100%; box-sizing: border-box; }
+.snpc-bond-gov-rows .snpc-bond-gov-row > input.text_pole { min-width: 0; width: 100%; box-sizing: border-box; }
+/* A level row: its general name on top, then their name, their threshold and the reset, then the description across. */
+.snpc-bond-lvl-row {
+    grid-template-columns: minmax(0, 1fr) 72px 26px;
+    grid-template-areas:
+        "label label label"
+        "name min reset"
+        "desc desc desc";
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--snpc-bond-line);
+}
+.snpc-bond-lvl-row > :nth-child(1) { grid-area: label; }
+.snpc-bond-lvl-row > :nth-child(2) { grid-area: name; }
+.snpc-bond-lvl-row > :nth-child(3) { grid-area: min; }
+.snpc-bond-lvl-row > :nth-child(4) { grid-area: desc; }
+.snpc-bond-lvl-row > :nth-child(5) { grid-area: reset; }
+@media (max-width: 700px) {
+    .snpc-bond-lvl-row { grid-template-columns: minmax(0, 1fr) 72px 26px; }
+    .snpc-bond-lvl-row > .snpc-bond-gov-label { grid-column: auto; }
 }

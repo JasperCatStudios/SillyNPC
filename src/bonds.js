@@ -6,6 +6,8 @@ import {
     saveChatDebounced, updateMessageBlock,
 } from '../../../../../script.js';
 import { getSettings, saveSettings } from './settings.js';
+import { moduleActive } from './vector-core.js';
+import { vectorSettings, currentPicks } from './vector-service.js';
 import { requestOnConnection } from './connections.js';
 import { sceneNames, sceneSet } from './scene-cast.js';
 import { charactersMentionedIn } from './mentions.js';
@@ -19,7 +21,7 @@ import {
     applyTurn, revertTurn, setMeter, parseUpdate, stripInlineBlock, milestoneDate,
     parseLegacyBonds, migrateLegacy, selectPeople, buildBondInjection,
     buildMonitorPrompt, buildInlineInstruction, acceptRomanceSuggestion, declineRomanceSuggestion,
-    readInlineReply, finishInlineReply,
+    readInlineReply, finishInlineReply, setPresenceProvider,
 } from './bonds-core.js';
 
 /**
@@ -31,6 +33,9 @@ import {
  * be a stranger in one story and a partner in another. The rules are global settings, and
  * travel with a System like the rest of the fiction; the connection that does the work does not.
  */
+
+// "Hide characters not in the scene" asks who is here through this.
+setPresenceProvider(() => sceneSet());
 
 const META_KEY = 'sillynpc_bonds';
 /** Per swipe, on the message: the update that swipe produced, so swiping back needs no new request. */
@@ -382,8 +387,13 @@ export function currentBondInjection({ everyone = false } = {}) {
         applies: everyone ? () => true : appliesFor(opts),
         rng: everyone ? () => 0 : Math.random,
     });
-    // Bonds are current state and are not vectorized: the newest milestones fill the history slots.
-    return buildBondInjection(store, names, settings, playerName());
+    // Bond numbers are current state; the milestones are not. With Bond milestones vectors on, the ones that match the scene fill
+    // each person's history slots (the rest still the newest); without, the newest, as always.
+    let picks = null;
+    if (!everyone) {
+        try { if (moduleActive(vectorSettings(), 'bonds')) picks = currentPicks('bonds'); } catch { /* vectors unavailable: the newest */ }
+    }
+    return buildBondInjection(store, names, settings, playerName(), picks);
 }
 
 /** Sets or clears both prompts. Called on every generation. */

@@ -931,6 +931,8 @@ export function normalizeSettings(settings) {
             src: entry.src,
             tags: (Array.isArray(entry.tags) ? entry.tags : [])
                 .map(tag => String(tag).trim()).filter(Boolean),
+            // Was dropped here, so a gender chosen in the face pool vanished at the next load.
+            gender: entry.gender === 'female' || entry.gender === 'male' ? entry.gender : '',
         }));
 
 

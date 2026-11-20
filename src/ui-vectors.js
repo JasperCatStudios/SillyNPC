@@ -40,6 +40,7 @@ const STATE_LABELS = {
 
 const HOW_DELETE = {
     rivalry: 'Deletes the record from the rivalry history too.',
+    bonds: 'Deletes this milestone from the character\'s bond history too.',
     phone: 'Forgets these texts here only; the phone keeps them.',
     games: 'Deletes this game\'s table talk from the chat\'s log too.',
     combat: 'Deletes this fight\'s table talk from the chat\'s log too.',
@@ -47,6 +48,7 @@ const HOW_DELETE = {
 
 const MODULE_HELP = {
     rivalry: 'Sends the records that matter to the scene, instead of only the newest, in the shared-history block.',
+    bonds: 'Fills each character\'s milestone slots in the Bond Tracker block with the moments that matter to the scene (a betrayal, a first kiss), instead of only the newest. The bond numbers are not affected.',
     phone: 'Brings older texts with the people in the scene back into the main story when they matter. The phone\'s own replies are not affected. Needs the Phone module itself to be on.',
     games: 'Keeps what was said at the games table, per chat, and brings back the games that match the scene.',
     combat: 'Keeps what was said during fights, per chat, and brings back the fights that match the scene.',
@@ -583,6 +585,7 @@ let tabView = null;
 /** The module tabs of the Vectors menu, in the menu's order, and the shared settings last. */
 const MODULE_TABS = Object.freeze([
     { id: 'rivalry', label: 'Rivalry' },
+    { id: 'bonds', label: 'Bonds' },
     { id: 'combat', label: 'Combat' },
     { id: 'games', label: 'Games' },
     { id: 'phone', label: 'Phone' },
@@ -845,7 +848,9 @@ function renderModuleTab(body, moduleId, rerender) {
 
     // Everything else, closed by default.
     const adv = [];
-    if (moduleId === 'rivalry') {
+    if (moduleId === 'bonds') {
+        adv.push(buildSettingNumber({ store: STORE, key: 'topK', label: 'Matches Per Search', suffix: 'milestones', help: 'Shared with every kind (also in Ollama & Search). How many related milestones one search brings back, 1 to 30, across everyone in the scene; each person still shows only as many as the Bond Tracker\'s history count (Bonds > In The Story Prompt).' }));
+    } else if (moduleId === 'rivalry') {
         adv.push(buildSettingNumber({ store: STORE, key: 'topK', label: 'Matches Per Search', suffix: 'records', help: 'Shared with every kind (also in Ollama & Search). How many related records one search brings back, 1 to 30; each person still gets only their own slots.' }));
         adv.push(ownAmountNumber(moduleId, rerender));
     } else {
