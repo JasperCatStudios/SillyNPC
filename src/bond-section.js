@@ -1,7 +1,7 @@
 import { DOMPurify } from '../../../../../lib.js';
 import { getRegexedString, regex_placement } from '../../../regex/engine.js';
 import { getSettings } from './settings.js';
-import { trackerBlockHtml } from './bonds-core.js';
+import { trackerBlockHtml, applyLineEdits } from './bonds-core.js';
 import { debugLog } from './constants.js';
 import { dressWithTheme } from './tracker-theme-setting.js';
 
@@ -30,6 +30,15 @@ export function clearFailure(key) { failures.delete(key); }
 /** The BOND TRACKER block for one reply. Pure, so it lives in bonds-core.js where node can test it. */
 export const bondBlockHtml = trackerBlockHtml;
 
+/** Where the lines the owner rewrote by hand are kept, on the message: { swipeId: { lowercase name: text } }. */
+export const LINE_EDITS_KEY = 'sillynpc_bond_lines';
+
+/** The block for one reply with the owner's own wording laid over the generated rows. */
+function blockWithEdits(message, store, record, settings, playerName) {
+    const edits = message?.extra?.[LINE_EDITS_KEY]?.[String(message.swipe_id ?? 0)];
+    return applyLineEdits(bondBlockHtml(store, record, settings, playerName), edits);
+}
+
 /** Messages whose block is open for editing, by "id:swipe". */
 const editing = new Set();
 
@@ -53,7 +62,8 @@ export function parseTrackerLines(text) {
     for (const line of String(text || '').split('\n')) {
         const m = /^\s*-?\s*(.+?)\s*(?:→|->)\s*.+?\s*\|\s*AFFECTION:\s*([+-]?\d+)\s*\|\s*TRUST:\s*([+-]?\d+)\s*\|\s*RESPECT:\s*([+-]?\d+)(?:\s*\|\s*DESIRE:\s*([+-]?\d+))?/i.exec(line);
         if (!m) continue;
-        out.push({ name: m[1].trim(), affection: Number(m[2]), trust: Number(m[3]), respect: Number(m[4]), desire: m[5] === undefined ? null : Number(m[5]) });
+        // line: the whole line as typed, so wording the numbers cannot carry (notes, level) is kept too.
+        out.push({ name: m[1].trim(), affection: Number(m[2]), trust: Number(m[3]), respect: Number(m[4]), desire: m[5] === undefined ? null : Number(m[5]), line: line.trim() });
     }
     return out;
 }
@@ -166,7 +176,7 @@ export function drawBondSection(mesEl, ctx) {
         const box = document.createElement('textarea');
         box.className = 'text_pole sillynpc-is-edit';
         box.rows = Math.min(14, Math.max(4, store.people.filter(p => p.tracked).length + 2));
-        box.value = blockToText(bondBlockHtml(store, record, settings, playerName));
+        box.value = blockToText(blockWithEdits(message, store, record, settings, playerName));
         const row = document.createElement('div');
         row.className = 'sillynpc-is-edit-row';
         const save = document.createElement('div');
@@ -191,7 +201,7 @@ export function drawBondSection(mesEl, ctx) {
     }
 
     if (tracked && (record || latest)) {
-        const html = bondBlockHtml(store, record, settings, playerName);
+        const html = blockWithEdits(message, store, record, settings, playerName);
         if (html) {
             const body = document.createElement('div');
             // Not "mes_text": SillyTavern's editor does find('.mes_text') and puts its edit box in every match, which

@@ -15,13 +15,13 @@ import { latestInternalStatesHtml } from './internal-states.js';
 import { sceneClock } from '../modules/shim.js';
 import { LOG_PREFIX, debugLog, PRODUCT_NAME } from './constants.js';
 import { MESSAGE_RENDERED_EVENT } from './beats.js';
-import { drawBondSection, markBusy, markFailure, clearFailure, sectionKey } from './bond-section.js';
+import { drawBondSection, markBusy, markFailure, clearFailure, sectionKey, LINE_EDITS_KEY } from './bond-section.js';
 import {
     normalizeBondSettings, normalizeStore, findPerson, ensurePerson, timingAction,
     applyTurn, revertTurn, setMeter, parseUpdate, stripInlineBlock, milestoneDate,
     parseLegacyBonds, migrateLegacy, selectPeople, buildBondInjection,
     buildMonitorPrompt, buildInlineInstruction, acceptRomanceSuggestion, declineRomanceSuggestion,
-    readInlineReply, finishInlineReply, setPresenceProvider,
+    readInlineReply, finishInlineReply, setPresenceProvider, trackerBlockHtml, changedLineEdits,
 } from './bonds-core.js';
 
 /**
@@ -145,6 +145,33 @@ function storedUpdate(message) {
     return message?.extra?.[EXTRA_KEY]?.[String(message.swipe_id ?? 0)] ?? null;
 }
 
+/**
+ * After the edit box is saved: keeps the lines whose wording the owner changed (the notes, the level, anything but the numbers),
+ * so the block shows what was typed instead of rebuilding it. Lines left alone keep following the real numbers.
+ */
+function keepTypedLines(message, entries) {
+    if (!message) return;
+    const store = chatStore();
+    const swipeId = String(message.swipe_id ?? 0);
+    const key = String(getContext()?.chat?.indexOf(message));
+    const record = store?.turns.find(t => t.key === key && String(t.swipeId) === swipeId) || null;
+    const changed = changedLineEdits((entries || []).map(e => e.line), trackerBlockHtml(store, record, bondSettings(), playerName()));
+    message.extra = message.extra || {};
+    const all = message.extra[LINE_EDITS_KEY] && typeof message.extra[LINE_EDITS_KEY] === 'object' ? message.extra[LINE_EDITS_KEY] : {};
+    if (Object.keys(changed).length) all[swipeId] = changed; else delete all[swipeId];
+    if (Object.keys(all).length) message.extra[LINE_EDITS_KEY] = all; else delete message.extra[LINE_EDITS_KEY];
+    saveChatDebounced();
+}
+
+/** A fresh read of a reply replaces what was typed under it. */
+function clearTypedLines(message) {
+    const all = message?.extra?.[LINE_EDITS_KEY];
+    if (!all) return;
+    delete all[String(message.swipe_id ?? 0)];
+    if (!Object.keys(all).length) delete message.extra[LINE_EDITS_KEY];
+    saveChatDebounced();
+}
+
 function rememberUpdate(message, update) {
     message.extra = message.extra || {};
     message.extra[EXTRA_KEY] = message.extra[EXTRA_KEY] || {};
@@ -234,6 +261,8 @@ export async function runBondUpdate(messageId, { force = false, only: onlyRaw = 
             update = parseUpdate(raw);
             if (!only) rememberUpdate(message, update);
         }
+        // A read of the whole reply replaces the owner's rewritten lines; a read for chosen people leaves them.
+        if (!only) clearTypedLines(message);
         const result = commit(update, { key, swipeId, messageId, force: true, only: only || undefined });
         clearFailure(shown);
         return result?.record || null;
@@ -277,6 +306,7 @@ function drawSectionFor(mesEl) {
                     if (e.desire !== null && p.edges?.toPlayer?.romance && (p.lock ?? 'open') === 'open') setMeter(p, 'toPlayer', 'desire', e.desire, growth);
                 });
             }
+            keepTypedLines(message, entries);
         },
     });
 }

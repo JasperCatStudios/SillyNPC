@@ -1836,13 +1836,79 @@ export function trackerBlockHtml(store, record, settings, playerName) {
     const changes = record?.changes || [];
     const lines = people.map((person) => {
         const mine = changes.filter(c => c.name === person.name && c.dir !== 'fromPlayer' && Number(c.delta));
-        const note = mine.length ? ` (${mine.map(c => `${Number(c.delta) > 0 ? '+' : ''}${c.delta} ${c.meter || 'affection'}`).join(', ')})` : '';
-        return trackerLine(person, settings, playerName, note);
+        return trackerLine(person, settings, playerName, mine);
     });
     return `<details><summary>${TRACKER_SUMMARY}</summary>\n${lines.join('\n')}\n</details>`;
 }
 
 const TRACKER_SUMMARY = '💞 BOND TRACKER';
+
+/* ---- lines the owner typed by hand ---------------------------------------------------- */
+
+/*
+ * The block under a reply is rebuilt from the stored numbers and that turn's recorded changes every time it is drawn, so
+ * a line the owner rewrote in the edit box (the notes, the level, the wording) would come back as generated. A line that
+ * differs from the generated one is kept as typed, per reply, and laid over the block when it is drawn.
+ */
+
+const escapeHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** A line as plain text without its list dash, tags, entities or extra spaces, for comparing and for the editor. */
+export function plainTrackerLine(line) {
+    return decodeEntities(String(line ?? '').replace(/<[^>]*>/g, '')).replace(/^[\s\-•*+]+/, '').replace(/\s+/g, ' ').trim();
+}
+
+/** The person each row of a generated block is about, as { lowercase name: plain line }. */
+export function trackerLinesByName(html) {
+    const out = new Map();
+    for (const raw of String(html ?? '').split(/\r?\n/)) {
+        const plain = plainTrackerLine(raw);
+        const arrow = TRACKER_ARROW_RE.exec(plain);
+        if (!arrow || !plain.includes('|')) continue;
+        const name = plain.slice(0, arrow.index).trim().toLowerCase();
+        if (name) out.set(name, plain);
+    }
+    return out;
+}
+
+/** One typed line made into a row the display regexes know: "- <b>Name</b> → <b>Player</b> | rest", the rest escaped. */
+function rowFromTyped(text) {
+    const plain = plainTrackerLine(text).slice(0, 400);
+    const bar = plain.indexOf('|');
+    const arrow = TRACKER_ARROW_RE.exec(bar === -1 ? plain : plain.slice(0, bar));
+    if (bar === -1 || !arrow) return `- ${escapeHtml(plain)}`;
+    const name = plain.slice(0, arrow.index).trim();
+    const player = plain.slice(arrow.index + arrow[0].length, bar).trim();
+    return `- <b>${escapeHtml(name)}</b> → <b>${escapeHtml(player)}</b> ${escapeHtml(plain.slice(bar))}`;
+}
+
+/** The generated block with the rows the owner rewrote replaced by what they typed. Unchanged when there are none. */
+export function applyLineEdits(html, edits) {
+    if (!edits || typeof edits !== 'object' || !Object.keys(edits).length) return html;
+    return String(html ?? '').split('\n').map((line) => {
+        const m = /<b>([^<]+)<\/b>\s*(?:→|->)/.exec(line);
+        const typed = m ? edits[m[1].trim().toLowerCase()] : null;
+        return typeof typed === 'string' && typed.trim() ? rowFromTyped(typed) : line;
+    }).join('\n');
+}
+
+/**
+ * Which of the typed lines differ from the generated block, as { lowercase name: text }: only those are kept, so a line left
+ * alone keeps following the real numbers.
+ */
+export function changedLineEdits(typedLines, generatedHtml) {
+    const generated = trackerLinesByName(generatedHtml);
+    const out = {};
+    for (const raw of typedLines || []) {
+        const plain = plainTrackerLine(raw);
+        const arrow = TRACKER_ARROW_RE.exec(plain);
+        if (!arrow || !plain.includes('|')) continue;
+        const name = plain.slice(0, arrow.index).trim().toLowerCase();
+        if (!name || !generated.has(name)) continue;
+        if (plain !== generated.get(name)) out[name] = plain.slice(0, 400);
+    }
+    return out;
+}
 
 let presenceProvider = null;
 /** Who is in the scene, as a Set of lowercase names, or null when that cannot be known (the rows are then all shown). Set by bonds.js. */
@@ -1854,15 +1920,39 @@ function presentNow() {
     } catch { return null; }
 }
 
-/** One person's BOND TRACKER line, as the display regexes expect it. note is the bracketed change, or ''. */
-function trackerLine(person, settings, playerName, note = '') {
+/*
+ * The display regexes (regex/bonds) take the LEVEL text as 1 to 60 characters with no "|", up to the end of the line. A level
+ * with the notes of a reply that changed all four meters ("Stranger (+2.8 affection, +2 trust, +2.7 respect, +1.4 desire)")
+ * is 62, which left the whole line undressed. So the notes are fitted into what is left of the 60.
+ */
+export const LEVEL_TEXT_MAX = 60;
+const NOTE_WORDS = Object.freeze({ affection: ['affection', 'aff'], trust: ['trust', 'trust'], respect: ['respect', 'resp'], desire: ['desire', 'des'] });
+
+/**
+ * " (+2.8 affection, +2 trust)" for a person's changes, as much of it as fits beside the level text: every change in full
+ * words, then every change in short words, then fewer changes in short words. '' when there are none or none fit.
+ */
+export function changeNote(levelText, changes, max = LEVEL_TEXT_MAX) {
+    const list = (changes || []).filter(c => Number(c?.delta));
+    if (!list.length) return '';
+    const item = (c, form) => `${Number(c.delta) > 0 ? '+' : ''}${c.delta} ${(NOTE_WORDS[c.meter || 'affection'] || [c.meter, c.meter])[form]}`;
+    const attempts = [[list.length, 0], ...Array.from({ length: list.length }, (_, k) => [list.length - k, 1])];
+    for (const [count, form] of attempts) {
+        const text = ` (${list.slice(0, count).map(c => item(c, form)).join(', ')})`;
+        if (String(levelText).length + text.length <= max) return text;
+    }
+    return '';
+}
+
+/** One person's BOND TRACKER line, as the display regexes expect it. changes are what this reply changed for them; they become the bracketed note. */
+function trackerLine(person, settings, playerName, changes = []) {
     const edge = person.edges?.toPlayer || {};
     const value = person.edges?.toPlayer ? platonicValue(edge) : Number(person.value) || 0;
     const romance = romanceState(person, 'toPlayer', settings.romanceLevels);
     const level = [levelName(levelFor(value, personLevels(person, settings))?.level, person), romance.level?.name || ''].filter(Boolean).join(' · ');
     const r = (k) => Math.round(Number(edge[k]) || 0);
     const desire = romance.active ? ` | DESIRE: ${Math.max(0, r('desire'))}` : '';
-    return `- <b>${person.name}</b> → <b>${playerName}</b> | AFFECTION: ${signed(r('affection'), '+')} | TRUST: ${signed(r('trust'))} | RESPECT: ${signed(r('respect'))}${desire} | LEVEL: ${level}${note}`;
+    return `- <b>${person.name}</b> → <b>${playerName}</b> | AFFECTION: ${signed(r('affection'), '+')} | TRUST: ${signed(r('trust'))} | RESPECT: ${signed(r('respect'))}${desire} | LEVEL: ${level}${changeNote(level, changes)}`;
 }
 
 /* ---- the BOND TRACKER block the story model writes with its reply ----------------------- */
