@@ -6,6 +6,15 @@ Activities is a hub (the green floating button) of things to do with a character
 
 ![The Activities hub](images/activities-hub.png)
 
+## Worlds
+
+Activities fits itself to the combat type you are playing. Two worlds come ready made, and any other combat type gets the neutral set:
+
+- **Fire Emblem:** classes, seals, a professor, the library, the greenhouse and the pond.
+- **Bleach:** kanji tiles for Study, a captain who sets the promotion trial, writs as the credentials (Academy, Officer, Lieutenant, Captain), sword, kidō and flash step drills, Japanese dishes, river fish and garden seeds. Skills climb the E to SS grade ladder, and the crafting skills (Spirit Medicine, Zanpakutō Forging, Cooking) sit on the same ladder.
+
+You can copy either one under **Customize an activity** and change it for your own world.
+
 ## Working today
 
 - **Tea Time:** host a character at a table. Pick a tea, steep it and pour it in the right moment, offer a plate, and talk in the chat. The guest reacts to the tea, the food and the talk.

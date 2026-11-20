@@ -233,9 +233,15 @@ const BLEACH = {
     ladders: {
         grade: { rungs: ['E', 'D', 'C', 'B', 'A', 'S', 'SS'], zeroAt: 'E', bonusPerRung: 1 },
     },
-    proficiencies: BLEACH_PROFS.map(([id, label, roles, channel, rollRole, aliases]) => ({
-        id, label, ladder: 'grade', roles, channel, rollRole, aliases,
-    })),
+    proficiencies: [
+        ...BLEACH_PROFS.map(([id, label, roles, channel, rollRole, aliases]) => ({
+            id, label, ladder: 'grade', roles, channel, rollRole, aliases,
+        })),
+        // Crafting skills (no part in a fight): they rise by making things in the Crafting tab of the Activities hub.
+        { id: 'alchemy', label: 'Spirit Medicine', ladder: 'grade', roles: ['crafting'] },
+        { id: 'smithing', label: 'Zanpakutō Forging', ladder: 'grade', roles: ['crafting'] },
+        { id: 'cooking', label: 'Cooking', ladder: 'grade', roles: ['crafting'] },
+    ],
     skillCards: {
         Shinigami: SHINIGAMI,
         Arrancar: ['cero', 'bala', 'hierro', 'pesquisa', 'sonido', 'zanjutsu', 'hakuda'],
