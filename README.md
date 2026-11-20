@@ -6,6 +6,7 @@
 
 [![SillyTavern Extension](https://img.shields.io/badge/SillyTavern-Extension-crimson?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/SillyTavern/SillyTavern)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge)](LICENSE)
+[![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-ff5e5b.svg?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/jaspercatstudios)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](https://github.com/JasperCatStudios/WorldKit/pulls)
 
 Worldkit is a SillyTavern extension that makes a story feel like a living world. Every speaker gets a portrait and a colour. Worldkit keeps track of how people feel and what they carry, and adds a phone, table games, fights, a map of places and things to do together, all in one menu.
@@ -109,6 +110,10 @@ Worldkit would not exist without these people. Thank you.
 - **Pixaroma** for the ComfyUI workflows.
 - **mattjaybe** for [EchoText](https://github.com/mattjaybe/SillyTavern-EchoText), which the Phone's pictures were adapted from.
 - **Jeff Hlywa** for [chess.js](https://github.com/jhlywa/chess.js), and the **Dialogue Colors** extension for the gradient model.
+
+## Support
+
+Worldkit is free and made by one person. If you would like to support its development, you can do so on [Ko-fi](https://ko-fi.com/jaspercatstudios). It is entirely optional, and thank you if you do.
 
 ## License
 
