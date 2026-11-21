@@ -377,7 +377,7 @@
 /* The game area has had one cream background since the background switch was removed, but the menus still inherited the light text
    meant for the old dark one: the names of the characters to pick, the hints and the dealer and partner choices were light on cream
    (about 1.1 to 1). They get dark text, and their boxes a visible edge. */
-.rpg-menu-container { color: #2b2924; }
+.rpg-menu-container, .rpg-menu-container small, .rpg-menu-container label { color: #2b2924; }
 .rpg-menu-container .text_pole, .rpg-menu-container select, .rpg-menu-container input[type="search"] { color: #2b2924; background: rgba(0,0,0,.06); border: 1px solid #a4947d; }
 .rpg-menu-container .text_pole::placeholder, .rpg-menu-container input::placeholder { color: #6b6458; opacity: 1; }
 .rpg-bt-cand { background: rgba(0,0,0,.06); }
@@ -386,6 +386,10 @@
 /* The candidates sit in a list of their own (so the search and sort bar can order them), and the bar and the list span the menu's grid. */
 .rpg-menu-container .rpg-bt-list, .rpg-menu-container .snpc-find { grid-column: 1 / -1; }
 .rpg-bt-list { display: block; width: 100%; }
+/* "Play with" on the main menu: the choice of who the one-on-one games are against, with the search and sort bar above it. */
+.rpg-menu-container .rpg-menu-who { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; }
+.rpg-menu-who-label { font-weight: 600; color: #2b2924; }
+.rpg-menu-who > select { width: 100%; min-height: 40px; box-sizing: border-box; }
 .rpg-bt-say { font-size: 12px; font-style: italic; text-align: center; max-width: 340px; opacity: .9; padding: 4px 10px; border-left: 2px solid rgba(233, 30, 99, .5); }
 .rpg-bt-own { display: flex; flex-direction: column; gap: 7px; width: 100%; max-width: 340px; }
 .rpg-bt-own textarea { width: 100%; min-height: 58px; box-sizing: border-box; resize: vertical; border-radius: 10px; border: 1px solid rgba(233, 30, 99, .4); background: rgba(255, 253, 246, .75); color: inherit; font: inherit; font-size: 13px; padding: 7px 10px; }

@@ -2302,6 +2302,38 @@ function cardHtml(c, hidden) {
     return `<div class="rpg-card ${c.red ? 'red' : 'black'}"><span class="rpg-card-rank">${c.rank}</span><span class="rpg-card-suit">${c.suit}</span></div>`;
 }
 
+/**
+ * "Play with": who the one-on-one games are played against. The menu used to take whoever spoke last, with no way to pick anyone else.
+ * A character list with the search and sort bar; choosing changes the opponent, the title and the record shown, and the header.
+ */
+function mountOpponentPicker(canvas) {
+    const names = tableCandidates();
+    if (gameState.opponentName && !names.includes(gameState.opponentName)) names.unshift(gameState.opponentName);
+    if (names.length < 2) return;
+    const row = document.createElement('div');
+    row.className = 'rpg-menu-who';
+    const label = document.createElement('div');
+    label.className = 'rpg-menu-who-label';
+    label.textContent = 'Play with';
+    const sel = document.createElement('select');
+    sel.className = 'text_pole';
+    sel.dataset.chars = '1';
+    sel.setAttribute('aria-label', 'Play with');
+    for (const n of names) sel.append(new Option(n, n));
+    sel.value = gameState.opponentName;
+    row.append(label, sel);
+    canvas.find('.rpg-menu-title').first().after(row);
+    sel.addEventListener('change', () => {
+        gameState.opponentName = sel.value;
+        gameState.dispositions = {};
+        gameState.chatLog = [];
+        rememberJoiners(sel.value);
+        renderGameArea();
+    });
+    // The heading first, then the search and sort, then the list they work on.
+    attachCharacterFinder(row, { place: (bar) => label.after(bar) });
+}
+
 function renderGameArea() {
     const canvas = $('#rpg-game-canvas');
     canvas.empty();
@@ -2328,6 +2360,7 @@ function renderGameArea() {
         { const warn = buildPersonaWarning(); if (warn) canvas.find('.rpg-menu-container').first().prepend(warn); }
         $('.rpg-game-select-btn[data-game]').on('click', function () { startGame($(this).data('game')); });
         $('#rpg-history-btn').on('click', () => openRivalryEditor(gameState.opponentName));
+        mountOpponentPicker(canvas);
         return;
     }
 
@@ -2763,7 +2796,10 @@ function refreshOpponentHeader() {
     const names = seatedNames();
     const single = box.find('.rpg-game-opp-avatar');
     if (names.length < 2) {
-        if (single.attr('src')) single.show();
+        // The opponent can now be changed from the menu, so the picture follows the name.
+        const who = characters.find(c => c.name === gameState.opponentName);
+        if (who && who.avatar) single.attr('src', who.avatar).show();
+        else if (single.attr('src')) single.show();
         $('#rpg-game-opp-name').text(gameState.opponentName);
         return;
     }
