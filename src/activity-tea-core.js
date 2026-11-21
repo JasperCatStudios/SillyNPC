@@ -574,12 +574,19 @@ export const SNACK_SPRITES = Object.freeze(['shortcake', 'macarons', 'cookies', 
 
 // The first rule that matches wins, so the more particular words come first.
 const TEA_RULES = [
+    // Japanese teas and sweets first, so they get the closest picture there is instead of an arbitrary one.
+    ['leaf', /sencha|gyokuro|bancha|kukicha|shincha/], ['herb', /genmaicha|matcha|sobacha|buckwheat|kabusecha/],
+    ['black', /hojicha|houjicha|roasted/], ['spice', /mugicha|barley|umecha|kombu/],
     ['apple', /apple|pear|quince/], ['berry', /berr|cherry|currant|pomegranate|plum/], ['citrus', /lemon|orange|citrus|lime|fruit|peach|mango|honey/],
     ['flower', /rose|lavender|flower|floral|blossom|violet|petal|jasmine|chamomile|lily|moon/], ['herb', /mint|herb|basil|sage|thyme|pine|needle|green/],
     ['spice', /ginger|cinnamon|spice|chai|clove|pepper|cardamom|almond|nut|vanilla/], ['black', /black|dark|bitter|strong|smok|coffee|cocoa|roast|malt/],
     ['leaf', /leaf|leaves|plain|tea of/],
 ];
 const SNACK_RULES = [
+    ['skewer', /dango|yakitori|tsukune|kushi/], ['macarons', /mochi|daifuku|wagashi|nerikiri|botamochi/],
+    ['pastry', /taiyaki|imagawayaki|dorayaki|bean bun|anpan|melonpan/], ['cookies', /senbei|arare|rice cracker/],
+    ['honeycake', /castella|kasutera/], ['tart', /anmitsu|mitarashi|yokan|jelly/], ['sandwiches', /onigiri|musubi|sushi|inari/],
+    ['shortcake', /matcha cake|roll cake/],
     ['honeycake', /honey/], ['macarons', /macaron|candy|sweets|sugar|confection|chocolate/], ['shortcake', /shortcake|strawberr|cake|sponge|gateau/],
     ['cookies', /cookie|biscuit|cracker|shortbread|wafer/], ['tart', /tart|pie|berry|berries|fruit/], ['scone', /scone|jam|cream|muffin|crumpet/],
     ['sandwiches', /sandwich|salad|vegetable|produce|cucumber|toast/], ['cheese', /cheese|dairy|grape|butter/],
