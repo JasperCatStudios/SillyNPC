@@ -111,26 +111,49 @@ export function runMechSteps(opts) {
     const mouseBound = bound.startsWith('Mouse');
     const typing = (t) => { const tag = (t?.tagName || '').toLowerCase(); return tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable === true; };
 
-    const onDown = (e) => {
-        if (session.phase !== 'play' || controls === 'button' || paused) return;
-        const [x, y] = toStage(e.clientX, e.clientY, stage.getBoundingClientRect());
-        stage.setPointerCapture?.(e.pointerId);
-        inp.down = true;
-        inp.path.push([clockNow(), x, y]);
-    };
-    const onMove = (e) => {
-        if (session.phase !== 'play' || controls === 'button' || !inp.down || paused) return;
-        const box = stage.getBoundingClientRect();
-        for (const ev of (e.getCoalescedEvents?.() || [e])) {
-            const [x, y] = toStage(ev.clientX, ev.clientY, box);
+    /** Turns the pointer events of a surface into the stage's own coordinates (0 to 1 across and down the stage). */
+    const attachPointer = (node, xyOf) => {
+        node.addEventListener('pointerdown', (e) => {
+            if (session.phase !== 'play' || controls === 'button' || paused) return;
+            const [x, y] = xyOf(e);
+            node.setPointerCapture?.(e.pointerId);
+            inp.down = true;
             inp.path.push([clockNow(), x, y]);
-        }
+        });
+        node.addEventListener('pointermove', (e) => {
+            if (session.phase !== 'play' || controls === 'button' || !inp.down || paused) return;
+            for (const ev of (e.getCoalescedEvents?.() || [e])) {
+                const [x, y] = xyOf(ev);
+                inp.path.push([clockNow(), x, y]);
+            }
+        });
+        for (const type of ['pointerup', 'pointercancel']) node.addEventListener(type, () => { inp.down = false; });
     };
-    const onUp = () => { inp.down = false; };
-    stage.addEventListener('pointerdown', onDown);
-    stage.addEventListener('pointermove', onMove);
-    stage.addEventListener('pointerup', onUp);
-    stage.addEventListener('pointercancel', onUp);
+    attachPointer(stage, (e) => toStage(e.clientX, e.clientY, stage.getBoundingClientRect()));
+
+    /*
+     * Tune on a touch screen: the ring is moved by how far you drag, so the finger does not have to be on it, but dragging on the
+     * stage still puts the finger over the ring and the target, which are small there. A pad below the stage takes the drag instead.
+     * Its pixels are scaled by the stage's size, so a drag moves the ring exactly as far as the same drag on the stage would.
+     */
+    let pad = null;
+    const dropPad = () => { pad?.remove(); pad = null; };
+    const touchScreen = () => Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+    const addPad = () => {
+        dropPad();
+        pad = el('div', 'snpc-act-dragpad');
+        pad.setAttribute('role', 'application');
+        pad.setAttribute('aria-label', 'Drag here to move the ring');
+        pad.style.cssText = 'position:relative; width:min(100%, calc(34dvh * 1.6)); height:max(96px, 16dvh); margin:6px auto 0; border:2px dashed #a4947d; border-radius:12px; background:rgba(164,148,125,0.12); display:flex; align-items:center; justify-content:center; text-align:center; color:#a4947d; font-size:14px; touch-action:none; user-select:none; -webkit-user-select:none;';
+        pad.append(el('span', '', 'Drag here: the ring follows your finger, so the target stays in view'));
+        pad.firstChild.style.pointerEvents = 'none';
+        attachPointer(pad, (e) => {
+            const r = pad.getBoundingClientRect();
+            const sr = stage.getBoundingClientRect();
+            return [(e.clientX - r.left) / Math.max(1, sr.width), (e.clientY - r.top) / Math.max(1, sr.height)];
+        });
+        stage.after(pad);
+    };
 
     const keyHandler = (e) => {
         if (!stage.isConnected || !win.isOpen() || typing(e.target) || e.repeat) return;
@@ -156,6 +179,7 @@ export function runMechSteps(opts) {
 
     function showIntro() {
         cancelAnimationFrame(raf);
+        dropPad();
         stage.replaceChildren();
         actions.replaceChildren();
         extras.replaceChildren();
@@ -249,6 +273,11 @@ export function runMechSteps(opts) {
         title.textContent = `${session.index + 1} of ${session.script.steps.length}: ${step.words.title || step.id}`;
         // In action-button play a step may say how to play that way (`words.hintButton`).
         hint.textContent = (controls === 'button' && step.words.hintButton) || step.words.hint || '';
+        dropPad();
+        if (step.mech === 'tune' && controls === 'pointer' && touchScreen()) {
+            addPad();
+            hint.textContent = `${hint.textContent} Drag in the box under the picture: the ring moves with your finger and the target stays in view.`.trim();
+        }
         // The grace at the start of a step ignores input for a moment: say so, so a press right after Go is not thought lost.
         status.textContent = 'Ready...';
         setTimeout(() => { if (status.textContent === 'Ready...') status.textContent = ''; }, 850);

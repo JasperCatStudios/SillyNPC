@@ -202,16 +202,17 @@ export function tuneView(svg, step) {
     const prog = S('rect', { x: 8, y: 6, width: 144, height: 3, rx: 1.5, fill: '#00000044' }, svg);
     const progFill = S('rect', { x: 8, y: 6, width: 0, height: 3, rx: 1.5, fill: '#8fd3c9' }, svg);
     const trail = S('g', {}, svg);
-    const blob = S('circle', { cx: 80, cy: 50, r: 4, fill: '#8fd3c9', stroke: '#e8fff9', 'stroke-width': 0.8 }, svg);
-    const halo = S('circle', { cx: 80, cy: 50, r: 7, fill: 'none', stroke: '#8fd3c9', 'stroke-width': 0.6, opacity: 0.4 }, svg);
+    // The target is drawn a good size (a fingertip covers about 9 units of this stage on a phone), without changing how the game is scored.
+    const blob = S('circle', { cx: 80, cy: 50, r: 5.5, fill: '#8fd3c9', stroke: '#e8fff9', 'stroke-width': 1 }, svg);
+    const halo = S('circle', { cx: 80, cy: 50, r: 9, fill: 'none', stroke: '#8fd3c9', 'stroke-width': 0.8, opacity: 0.4 }, svg);
     const ring = S('circle', { cx: 80, cy: 72, r: 8, fill: 'none', stroke: '#fff', 'stroke-width': 1.4 }, svg);
     const dot = S('circle', { cx: 80, cy: 72, r: 0.9, fill: '#fff' }, svg);
     let wobble = 0;
     return {
         update(v, dt) {
             wobble += (dt || 16) / 180;
-            set(blob, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 4 + Math.sin(wobble) * 0.5 });
-            set(halo, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 7 + Math.sin(wobble * 0.7) * 1.2 + (v.surge ? 4 : 0), opacity: v.surge ? 0.9 : 0.4 });
+            set(blob, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 5.5 + Math.sin(wobble) * 0.6 });
+            set(halo, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 9 + Math.sin(wobble * 0.7) * 1.4 + (v.surge ? 4 : 0), opacity: v.surge ? 0.9 : 0.4 });
             set(ring, { cx: X(v.ring.x), cy: Y(v.ring.y), r: v.band * 100, stroke: v.inBand ? '#6aa84f' : '#e69138' });
             set(dot, { cx: X(v.ring.x), cy: Y(v.ring.y) });
             set(progFill, { width: 144 * v.progress });

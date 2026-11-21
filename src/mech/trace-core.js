@@ -28,6 +28,10 @@ const MAGNET = 0.35;
 const START_REACH = 2.6;          // how many line widths from the stroke's start (or where it stopped) a press may begin
 const ON_LINE = 2.2;              // within this many widths the pointer is on the line
 const OFF_LINE = 3.2;             // beyond this many widths the pointer has strayed
+// A finger rarely ends exactly on the end of a line (it covers it), so a stroke does not have to be traced to the last pixel:
+const FINISH_AT = 0.92;           // share of a stroke's length that completes it while the pointer is still down
+const LIFT_DONE_AT = 0.8;         // lifting the pointer after this much of a stroke also completes it
+const SKIP_AT = 0.5;              // past this much, pressing at the start of the next stroke moves on to it instead of waiting to resume
 const SLOW_SPEED = 0.12;          // square units per second: slower than this on the paper is a blot
 const FAST_SPEED = 2.6;
 const BLOT_MS = 450;
@@ -115,6 +119,18 @@ function sample(s, t, x, y) {
         // Starting, or carrying on: the press has to be near where the line has got to.
         const at = pointAt(st.pts, st.reach, st.cum);
         const dr = Math.hypot(p[0] - at[0], p[1] - at[1]) * (1 - s.magnet);
+        // Lifted a little short of the end and now pressing where the next stroke begins: that stroke is as good as done. Where the two
+        // places are close together, the nearer one wins (pressing where you stopped carries on; pressing at the next start moves on).
+        const next = s.strokes[s.current + 1];
+        if (next && st.reach >= st.len * SKIP_AT) {
+            const ns = pointAt(next.pts, 0, next.cum);
+            const dn = Math.hypot(p[0] - ns[0], p[1] - ns[1]) * (1 - s.magnet);
+            if (dn <= s.width * START_REACH && dn < dr) {
+                finishStroke(s, st);
+                sample(s, t, x, y);
+                return;
+            }
+        }
         if (dr > s.width * START_REACH) {
             if (!s.strayHold && s.down) { s.strayHold = true; s.strays += 1; s.events.push({ type: 'stray', grade: 'miss', at: s.t }); }
             return;
@@ -157,7 +173,7 @@ function sample(s, t, x, y) {
         s.slowMs += dtS * 1000;
         if (s.slowMs >= BLOT_MS) { s.slowMs = 0; s.blots += 1; s.events.push({ type: 'blot', at: s.t }); }
     } else s.slowMs = 0;
-    if (st.reach >= st.len * 0.95) finishStroke(s, st);
+    if (st.reach >= st.len * FINISH_AT) finishStroke(s, st);
 }
 
 export function step(s, dtMs, input = {}, rng = Math.random) {
@@ -166,7 +182,14 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
     const picks = [input.pick].flat().filter(Boolean);
     if (s.controls === 'pointer') {
         const down = Boolean(input.pointer?.down);
-        if (!down && s.down) { s.drawing = false; s.strayHold = false; s.lastPt = null; const st = currentStroke(s); if (st && st.reach > 0) st.releases += 1; }
+        if (!down && s.down) {
+            // Lifting the finger after most of a stroke finishes it, so the next press starts the next stroke.
+            const drawn = currentStroke(s);
+            if (drawn && s.drawing && drawn.reach >= drawn.len * LIFT_DONE_AT) finishStroke(s, drawn);
+            s.drawing = false; s.strayHold = false; s.lastPt = null;
+            const st = currentStroke(s);
+            if (st && st.reach > 0) st.releases += 1;
+        }
         s.down = down;
         for (const [t, x, y] of pathOf(input)) { if (s.t > GRACE_MS) sample(s, t, x, y); if (s.ended) break; }
     } else {
