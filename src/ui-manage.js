@@ -203,6 +203,11 @@ function moduleRoots() {
     return roots;
 }
 
+/** Opens every folded section (a <details>) around an element, so a search result inside one can be seen. */
+function openFoldsAround(node) {
+    for (let d = node?.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) d.open = true;
+}
+
 /** Scrolls to a line by what it says, for the settings that carry no key. */
 function revealByName(text) {
     const want = String(text || '').trim().toLowerCase();
@@ -225,6 +230,7 @@ function revealByName(text) {
 function revealSetting(key) {
     const wrap = manageRoot?.querySelector(`[data-setting="${key}"]`);
     if (!wrap) return;
+    openFoldsAround(wrap);
     wrap.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     wrap.classList.add('sillynpc-setting-found');
     // Long enough to find by eye, short enough that it is gone before it becomes part of
