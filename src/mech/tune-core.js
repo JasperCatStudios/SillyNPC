@@ -19,6 +19,7 @@ export const meta = {
     defaults: { durationMs: 12000, drift: 0.28, band: 0.085, surges: 0 },
 };
 
+const TOUCH_SIZE = 1.35;              // how much bigger the ring is on a touch screen
 const GAIN = 1.15;                    // how far the ring moves for a drag of the pointer
 const CHASE_SPEED = 0.34;             // stage heights per second, button play
 const BUTTON_CAP = 0.88;              // button play is worth a little less
@@ -37,7 +38,9 @@ export function newRun(params = {}, rng = Math.random, ctx = {}) {
     const angle = rng() * Math.PI * 2;
     return {
         params: p, controls: ctx.controls === 'button' ? 'button' : 'pointer', ease, calm, duration, maxSpeed,
-        band: Math.max(0.03, num(p.band, 0.085)) * ease,
+        // A fingertip is far wider than a mouse pointer, so on a touch screen the ring (and the target it chases) is bigger.
+        touch: Boolean(ctx.touch),
+        band: Math.max(0.03, num(p.band, 0.085)) * ease * (ctx.touch ? TOUCH_SIZE : 1),
         blob: { x: 0.5, y: 0.5 }, vel: { x: Math.cos(angle) * maxSpeed * 0.6, y: Math.sin(angle) * maxSpeed * 0.6 },
         ring: { x: 0.5, y: 0.72 }, lastPtr: null,
         surgeAt: Array.from({ length: surges }, (_, i) => Math.round(((i + 1) / (surges + 1)) * duration + (rng() - 0.5) * 800)), surgeLeft: 0,
@@ -151,6 +154,6 @@ export function describeState(s, words = {}) {
 export function view(s) {
     return {
         blob: { ...s.blob }, ring: { ...s.ring }, band: s.band, inBand: dist(s.ring, s.blob) <= s.band, surge: s.surgeLeft > 0,
-        progress: clamp(s.t / s.duration, 0, 1), controls: s.controls, over: s.over, score: performance(s),
+        progress: clamp(s.t / s.duration, 0, 1), controls: s.controls, over: s.over, score: performance(s), touch: s.touch,
     };
 }

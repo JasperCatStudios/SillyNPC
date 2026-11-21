@@ -38,7 +38,7 @@ export function beginNext(session, rng = Math.random) {
     if (!step) { session.phase = 'done'; session.run = null; session.step = null; return session; }
     const core = mechanicOf(step.mech);
     session.step = step;
-    session.run = core.newRun(paramsOf(step, session.ctx.tier), rng, { controls: session.ctx.controls, assist: session.ctx.assist, scale: session.ctx.scale });
+    session.run = core.newRun(paramsOf(step, session.ctx.tier), rng, { controls: session.ctx.controls, assist: session.ctx.assist, scale: session.ctx.scale, touch: Boolean(session.ctx.touch) });
     session.phase = 'play';
     return session;
 }

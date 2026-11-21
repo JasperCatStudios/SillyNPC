@@ -32,6 +32,7 @@ export const FIGURE = Object.freeze([
 
 const slug = (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 const MAX_PARTS = 8;
+const TOUCH_LIFT = 0.2;               // how far above the fingertip (in stage heights) a carried part rides on a touch screen
 const sweep = (t, period) => -1 + 2 * (1 - Math.abs(((t / period) % 2 + 2) % 2 - 1));
 
 /** The parts of a run: the ones given as `parts` ({ id, x, y, w?, h? }), else the first `count` of the plain figure. */
@@ -51,6 +52,8 @@ export function newRun(params = {}, rng = Math.random, ctx = {}) {
         tol: Math.max(0.03, num(p.tol, 0.1)) * ease, t: 0, over: false, ended: false, events: [], ruined: false,
         parts: partsOf(p).map(q => ({ ...q, at: null, d: null, grade: null })),
         index: 0, carrying: false, pos: { x: 0.05, y: 0.5 }, phase: 'x', lockX: 0.5, sweepT: 0,
+        // On a touch screen a carried part rides above the fingertip (it is where it is drawn and where it lands), so the finger never covers it.
+        touch: Boolean(ctx.touch), lift: ctx.touch ? TOUCH_LIFT : 0,
     };
 }
 
@@ -78,7 +81,7 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
     if (s.controls === 'pointer' && s.t > GRACE_MS) {
         if (path.length) {
             const [, x, y] = path[path.length - 1];
-            s.pos = { x, y };
+            s.pos = { x, y: clamp(y - s.lift, 0.04, 0.96) };
             s.carrying = true;
         }
         // The part goes down where the pointer was let go.
@@ -128,7 +131,7 @@ export function describeState(s, words = {}) {
 
 export function view(s) {
     return {
-        controls: s.controls, over: s.over, carrying: s.carrying, phase: s.phase, lockX: s.lockX, pos: s.pos, index: s.index, tol: s.tol,
+        controls: s.controls, over: s.over, carrying: s.carrying, phase: s.phase, lockX: s.lockX, pos: s.pos, index: s.index, tol: s.tol, touch: s.touch,
         parts: s.parts.map(q => ({ id: q.id, x: q.x, y: q.y, w: q.w, h: q.h, at: q.at, grade: q.grade })),
     };
 }

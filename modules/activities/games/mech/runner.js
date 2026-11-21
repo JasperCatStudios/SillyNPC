@@ -256,6 +256,8 @@ export function runMechSteps(opts) {
     function start() {
         controls = controlsFor(session.script.steps[session.index + 1]?.mech);
         session.ctx.controls = controls;
+        // On a touch screen the games make their targets and pieces bigger and keep a carried piece clear of the finger.
+        session.ctx.touch = touchScreen();
         beginNext(session, rng);
         paused = false;
         autoPaused = false;

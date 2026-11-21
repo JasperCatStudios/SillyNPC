@@ -152,11 +152,18 @@ export function assembleView(svg, step) {
     const spots = [];
     const pieces = [];
     let built = false;
-    const shape = (parent, part, attrs) => S('rect', { x: -part.w * 80, y: -part.h * 50, width: part.w * 160, height: part.h * 100, rx: Math.min(part.w * 80, part.h * 50, 3), ...attrs }, parent);
+    // On a touch screen the pieces and their outlines are drawn bigger (a thin arm was about a third of a fingertip wide).
+    let touchK = 1;
+    const shape = (parent, part, attrs) => {
+        const w = touchK > 1 ? Math.max(part.w * touchK, 0.08) : part.w;
+        const h = touchK > 1 ? Math.max(part.h * touchK, 0.1) : part.h;
+        return S('rect', { x: -w * 80, y: -h * 50, width: w * 160, height: h * 100, rx: Math.min(w * 80, h * 50, 3), ...attrs }, parent);
+    };
     return {
         update(v) {
             if (!built) {
                 built = true;
+                touchK = v.touch ? 1.8 : 1;
                 v.parts.forEach((part) => {
                     const spot = S('g', { transform: `translate(${X(part.x)} ${Y(part.y)})`, opacity: 0.35 }, g);
                     shape(spot, part, { fill: 'rgba(255,255,255,0.05)', stroke: '#e8d6b9', 'stroke-width': 0.8, 'stroke-dasharray': '2 2' });
@@ -211,8 +218,10 @@ export function tuneView(svg, step) {
     return {
         update(v, dt) {
             wobble += (dt || 16) / 180;
-            set(blob, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 5.5 + Math.sin(wobble) * 0.6 });
-            set(halo, { cx: X(v.blob.x), cy: Y(v.blob.y), r: 9 + Math.sin(wobble * 0.7) * 1.4 + (v.surge ? 4 : 0), opacity: v.surge ? 0.9 : 0.4 });
+            // The soul is bigger still on a touch screen, in step with the bigger ring.
+            const grow = v.touch ? 1.4 : 1;
+            set(blob, { cx: X(v.blob.x), cy: Y(v.blob.y), r: (5.5 + Math.sin(wobble) * 0.6) * grow });
+            set(halo, { cx: X(v.blob.x), cy: Y(v.blob.y), r: (9 + Math.sin(wobble * 0.7) * 1.4) * grow + (v.surge ? 4 : 0), opacity: v.surge ? 0.9 : 0.4 });
             set(ring, { cx: X(v.ring.x), cy: Y(v.ring.y), r: v.band * 100, stroke: v.inBand ? '#6aa84f' : '#e69138' });
             set(dot, { cx: X(v.ring.x), cy: Y(v.ring.y) });
             set(progFill, { width: 144 * v.progress });
