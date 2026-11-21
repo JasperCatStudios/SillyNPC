@@ -23,6 +23,7 @@ import {
     wNew, wPlay, wClear, wLegal, wBotChoose,
 } from '../../src/table-games.js';
 import { openRivalryEditor } from '../../src/ui-rivalry.js';
+import { attachCharacterFinder, rememberJoiners } from '../../src/character-find.js';
 
 const MODULE_NAME = 'sillynpc_games';
 
@@ -1694,11 +1695,15 @@ function renderTablePicker(type) {
     const wrap = $('<div class="rpg-menu-container"></div>');
     wrap.append(`<div class="rpg-menu-title">${escapeHtml(t('g_' + type))}</div><div class="rpg-bt-hint">${escapeHtml(TABLE_HINTS[type] || '')} Up to ${limit} can join you.</div>`);
     if (!cands.length) { wrap.append('<div class="rpg-bt-hint">There is nobody to play with yet: add characters first.</div>'); canvas.append(wrap); return; }
-    cands.forEach((n) => wrap.append(`<label class="rpg-bt-cand"><input type="checkbox" data-name="${escapeHtml(n)}" ${n === gameState.opponentName ? 'checked' : ''}> ${escapeHtml(n)}</label>`));
+    // The characters in a list of their own, so the search and sort bar can order and filter them (a ticked one always stays in view).
+    const candList = $('<div class="rpg-bt-list" data-chars-list></div>');
+    cands.forEach((n) => candList.append(`<label class="rpg-bt-cand" data-name="${escapeHtml(n)}"><input type="checkbox" data-name="${escapeHtml(n)}" ${n === gameState.opponentName ? 'checked' : ''}> ${escapeHtml(n)}</label>`));
+    wrap.append(candList);
     const roleRow = $('<div class="rpg-bt-hint" id="rpg-tb-roles"></div>');
     wrap.append(roleRow);
     wrap.append(`<button class="rpg-game-select-btn" id="rpg-tb-start"><i class="fa-solid fa-play"></i> ${t('bt_start')}</button>`);
     canvas.append(wrap);
+    attachCharacterFinder(wrap[0], { place: (bar) => candList[0].before(bar) });
 
     const chosen = () => { const out = []; wrap.find('input:checked').each(function () { out.push(String($(this).attr('data-name'))); }); return out; };
     const option = (v, label) => `<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`;
@@ -1727,6 +1732,7 @@ function renderTablePicker(type) {
         const names = clampTable(type, chosen(), userName());
         if (!names.length) { toastr.info('Pick at least one character.'); return; }
         if (!tableOk(type, names.length)) { toastr.info(type === 'whist' ? 'Whist is one opponent, or three (a partner and two opponents).' : 'That is not a table this game seats.'); return; }
+        rememberJoiners(names);
         launchTable(type, names, { dealer: String($('#rpg-tb-dealer').val() || ''), partner: String($('#rpg-tb-partner').val() || '') });
     });
 }

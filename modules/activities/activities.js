@@ -26,6 +26,7 @@ import { renderRecipeCreator } from './activities-recipe-creator.js';
 import { cookedCounts } from '../../src/activity-progress-core.js';
 import { unknownKindHelp } from '../../src/activity-customize-core.js';
 import { renderActivitiesPane, ACTIVITIES_CHANGED_EVENT } from './activities-pane.js';
+import { attachCharacterFinder, rememberJoiners } from '../../src/character-find.js';
 import { teaMenu, teaChoices, snackChoices } from '../../src/activity-tea-core.js';
 import { tiredText } from '../../src/activity-energy-core.js';
 import {
@@ -158,14 +159,19 @@ function showHub() {
     // Who with.
     const select = el('select', 'snpc-act-select');
     select.setAttribute('aria-label', 'Spend time with');
+    // Marked for the search and sort bar; "Play alone" is not a character, so it stays put whatever is typed.
+    select.dataset.chars = '1';
     for (const p of partners) select.append(new Option(p.name, p.name));
-    select.append(new Option('Play alone', ALONE));
+    const aloneOption = new Option('Play alone', ALONE);
+    aloneOption.dataset.fixed = '1';
+    select.append(aloneOption);
     select.value = pickedPartner().alone ? ALONE : pickedPartner().name;
     partnerName = select.value;
     // Tiles depend on who it is with (some need a partner), so they are drawn again.
-    select.addEventListener('change', () => { partnerName = select.value; draw(); });
+    select.addEventListener('change', () => { partnerName = select.value; if (partnerName !== ALONE) rememberJoiners(partnerName); draw(); });
     const who = el('div', 'snpc-act-who');
     who.append(field('With', select));
+    attachCharacterFinder(who);
     if (activitySettings().debugMode) root.append(el('p', 'snpc-act-note', 'Debug mode is on: energy, the partner requirement, exam limits and the daily bond limit are ignored.'));
     const energy = energyStatus({});
     if (energy.active && energy.energy !== null) who.append(el('small', 'snpc-act-energy', `Energy ${Math.round(energy.energy)}`));

@@ -28,6 +28,7 @@ import { recordTalk } from '../../src/talk-store.js';
 import { andList, sidesOfFight, talkEntry, fightRecord } from '../../src/combat-talk.js';
 import { groupInstruction, parseGroupReply } from '../../src/group-talk.js';
 import { newTalkId } from '../../src/talk-log.js';
+import { attachCharacterFinder, rememberJoiners } from '../../src/character-find.js';
 import { lineTools, editLine } from '../../src/talk-tools.js';
 import {
     startFight, takeTurn, skipTurn, currentActor, living, offeredActions, canPay, autoTurn,
@@ -657,12 +658,15 @@ function drawSetup(body) {
         modes.append(b);
     }
     body.append(modes);
+    // Search and sort for every list of characters on this screen, the teams, the allies and the spectators: it follows them as they are drawn.
+    attachCharacterFinder(body, { place: (bar) => modes.after(bar) });
     if (setupMode === 'watch') { drawWatchSetup(body, type, player, foes); return; }
 
     // One box for the other side: the first opponent, any more of them, and the button that adds one.
     const foeBox = el('div', 'snpc-fight-team-box is-b');
     foeBox.append(el('div', 'snpc-fight-team-title', 'Against'));
     const select = el('select', 'text_pole');
+    select.dataset.chars = '1';   // the search and sort bar above the teams orders and filters this list
     for (const foe of foes) {
         const option = el('option', '', foe.name + (hasTypeData(foe, type.dataKey) ? '' : ' (defaults)'));
         option.value = foe.id;
@@ -704,6 +708,7 @@ function drawSetup(body) {
             playPick[key].forEach((id, slot) => {
                 const row = el('div', 'snpc-fight-team-row');
                 const pick = el('select', 'text_pole');
+                pick.dataset.chars = '1';
                 const used = taken();
                 for (const r of foes) {
                     const option = new Option(r.name + (hasTypeData(r, type.dataKey) ? '' : ' (defaults)'), r.id);
@@ -925,6 +930,7 @@ function beginFight() {
     const more = ready.more || [];
     const watchers = (ready.spectators || []).map(r => r.name);
     const people = peopleFor(type, player, foe, allies, more);
+    rememberJoiners([foe, ...allies, ...more].map(r => r?.name));   // for the "Picked lately first" order
     // The two opt-in rules (fork), off unless ticked on the setup screen.
     const rules = { crowding: Boolean(ready.crowding), aiFlee: Boolean(ready.aiFlee) };
     const pace = calibrate(type, people, { mode, diff: diffMod, ...rules });
@@ -1015,6 +1021,7 @@ function drawWatchSetup(body, type, player, foes) {
         watchPick[side].forEach((id, slot) => {
             const row = el('div', 'snpc-fight-team-row');
             const select = el('select', 'text_pole');
+            select.dataset.chars = '1';
             for (const r of cast) {
                 const option = new Option(r.name + (hasTypeData(r, type.dataKey) ? '' : ' (defaults)'), r.id);
                 option.disabled = used.has(r.id) && r.id !== id;
@@ -1135,6 +1142,7 @@ function beginWatch() {
     const people = [];
     a.forEach((r, i) => { records.set(`a${i + 1}`, r); people.push({ id: `a${i + 1}`, name: r.name, side: 'player', data: startData(r, type) }); });
     b.forEach((r, i) => { records.set(`b${i + 1}`, r); people.push({ id: `b${i + 1}`, name: r.name, side: 'foe', data: startData(r, type) }); });
+    rememberJoiners([...a, ...b].map(r => r?.name));
     const state = startFight(type, people, { mode, diff: 0, seed: Date.now(), poolScale: 1, crowding: Boolean(ready.crowding), aiFlee: Boolean(ready.aiFlee) });
     ready = null;
     session = {
@@ -1290,6 +1298,7 @@ function drawSpectatorPicker(body, candidates) {
         spectatorPick.forEach((id, slot) => {
             const row = el('div', 'snpc-fight-team-row');
             const select = el('select', 'text_pole');
+            select.dataset.chars = '1';
             for (const r of candidates) {
                 const option = new Option(r.name, r.id);
                 option.disabled = spectatorPick.includes(r.id) && r.id !== id;

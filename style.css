@@ -3924,3 +3924,11 @@ i.fa, i.fas, i.fa-solid, i.fa-regular, i.fa-brands,
 .snpc-line-tool:hover { opacity: 1; }
 .snpc-line-edit { width: 100%; box-sizing: border-box; resize: vertical; font-size: inherit; }
 .snpc-line-edit-actions { display: flex; gap: 6px; margin-top: 4px; }
+
+/* ---- Finding the character you want to join you (search and sort above a list of characters) ---- */
+/* The search box has a line to itself so there is room to type; the sort menu and the match count share the line under it. */
+.snpc-find { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0; min-width: 0; }
+.snpc-find[hidden] { display: none; }
+.snpc-find .snpc-find-search { flex: 1 1 100%; min-width: 0; margin: 0; min-height: 40px; box-sizing: border-box; }
+.snpc-find .snpc-find-sort { flex: 1 1 auto; width: auto; min-width: 0; margin: 0; min-height: 40px; box-sizing: border-box; }
+.snpc-find .snpc-find-count { flex: 0 0 auto; white-space: nowrap; font-size: 0.85em; opacity: 0.75; }

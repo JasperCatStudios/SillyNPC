@@ -102,6 +102,10 @@ export const defaultSettings = {
     /** Take the tags out of what is sent back to the model (older messages), starting this many messages back. */
     deliverySaverOn: true,
     deliverySaverDepth: 2,
+    /** How the lists of characters (who joins you in combat, games and activities) are ordered: scene, name, bond, recent or faction. */
+    findSort: 'scene',
+    /** Who was picked lately, newest first, for the "Picked lately first" order. */
+    recentJoiners: [],
     /**
      * Whether this block appears in SillyTavern's own prompt list, to be ordered there.
      *
@@ -937,6 +941,10 @@ export function normalizeSettings(settings) {
 
 
     if (typeof settings.speakerIgnoreList !== 'string') settings.speakerIgnoreList = '';
+
+    if (!['scene', 'name', 'bond', 'recent', 'faction'].includes(settings.findSort)) settings.findSort = 'scene';
+    settings.recentJoiners = (Array.isArray(settings.recentJoiners) ? settings.recentJoiners : [])
+        .filter(n => typeof n === 'string' && n.trim()).map(n => n.trim().slice(0, 80)).slice(0, 12);
 
     // A new default only reaches new installs, and the reason for raising this was an
     // existing chat that could not reach far enough back. Exactly 10 was the old shipped
