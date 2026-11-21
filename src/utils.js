@@ -1,4 +1,5 @@
 import { LOG_PREFIX, IMAGE_MAX_DIMENSION, IMAGE_PORTRAIT_MAX_DIMENSION, IMAGE_JPEG_QUALITY, debugLog, PRODUCT_NAME } from './constants.js';
+import { isAnimatedImage, ANIMATED_MAX_BYTES } from './animated-image.js';
 import { getContext } from '../../../../st-context.js';
 import { getSecretLabelById, resolveSecretKey, secret_state } from '../../../../secrets.js';
 
@@ -182,6 +183,19 @@ function downscaleImage(img, usePng = false, max = IMAGE_MAX_DIMENSION) {
     return canvas.toDataURL('image/jpeg', IMAGE_JPEG_QUALITY);
 }
 
+/** The file as a data URI untouched, when it is an animated WebP or GIF small enough to keep; otherwise null. */
+async function keepAnimated(file) {
+    if (!/^image\/(webp|gif)$/i.test(file.type) || file.size > ANIMATED_MAX_BYTES) return null;
+    const head = new Uint8Array(await file.slice(0, file.type === 'image/gif' ? file.size : 64).arrayBuffer());
+    if (!isAnimatedImage(head)) return null;
+    return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error || new Error('could not read'));
+        reader.readAsDataURL(file);
+    });
+}
+
 /**
  * @param {object} [options]
  * @param {boolean} [options.fullSize=false] Keep portrait resolution rather than shrinking
@@ -225,6 +239,9 @@ export async function pickAndProcessImages({ fullSize = false, multiple = true }
             let failed = 0;
             for (const file of files) {
                 try {
+                    // An animated WebP or GIF is kept exactly as it came: drawing it on a canvas would keep only its first frame.
+                    const animated = await keepAnimated(file);
+                    if (animated) { out.push(animated); continue; }
                     const img = await loadImageFromFile(file);
                     const usePng = file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif';
                     out.push(downscaleImage(img, usePng, cap));

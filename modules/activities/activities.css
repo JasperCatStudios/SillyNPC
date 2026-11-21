@@ -408,7 +408,14 @@
 .snpc-act-host { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .snpc-act-hostportrait { position: relative; height: clamp(100px, 14dvh, 140px); border: 1px solid #a4947d; border-radius: 10px; overflow: hidden; background: #3a3733; }
 .snpc-act-hostportrait.is-plain { background: linear-gradient(145deg, #4c4740, #2c2a28); }
-.snpc-act-hostface { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+/* The whole picture, never cropped: it is fitted inside the strip, and a soft blurred copy of it fills what is left at the sides.
+   An animated WebP or GIF plays in an <img> like any picture, and the blurred copy moves with it. */
+.snpc-act-hostportrait::before { content: ""; position: absolute; inset: -14px; background: var(--face, none) center / cover no-repeat; filter: blur(16px) brightness(0.55); z-index: 0; }
+.snpc-act-hostportrait.is-plain::before { display: none; }
+.snpc-act-hostface { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
+.snpc-act-hostportrait .snpc-act-portrait-name, .snpc-act-hostportrait .snpc-act-hostmood { z-index: 2; }
+/* The name is a small label in the corner, so it never covers the picture (the full-width bar used to hide the bottom of it). */
+.snpc-act-hostportrait .snpc-act-portrait-name { left: 8px; right: auto; bottom: 8px; padding: 3px 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.62); max-width: calc(100% - 16px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .snpc-act-hostmood { position: absolute; top: 8px; right: 8px; display: inline-flex; gap: 6px; align-items: center; padding: 4px 11px; border-radius: 16px; background: rgba(27, 27, 29, 0.86); color: #fff4df; font-size: 0.85rem; }
 .snpc-act-hostmood[hidden] { display: none; }
 /* The tabletop picture is a round cloth. The table keeps one shape so the whole circle shows, and the things on it are stacked inside the circle (tins, then the set, then the plates), never out on the wood. */

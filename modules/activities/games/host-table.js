@@ -38,6 +38,8 @@ export function createHostTable({ partner, portraitUrl = '', groups = [] }) {
         face.alt = partner;
         face.draggable = false;
         face.src = portraitUrl;
+        // The same picture, blurred, behind it (see .snpc-act-hostportrait::before). Quotes and backslashes are escaped for the url().
+        portrait.style.setProperty('--face', `url("${String(portraitUrl).replace(/["\\\n\r]/g, (c) => (c === '"' || c === '\\' ? `\\${c}` : ''))}")`);
         face.addEventListener('error', () => { face.remove(); portrait.classList.add('is-plain'); });
         portrait.append(face);
     } else portrait.classList.add('is-plain');
