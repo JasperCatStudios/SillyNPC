@@ -271,6 +271,10 @@ export function normalizeCombatPrefs(raw) {
         enabled: Boolean(p.enabled),
         activeType: text(p.activeType),
         reviewGrowth: p.reviewGrowth === undefined ? true : Boolean(p.reviewGrowth),
+        // What the fight setup screen was last set to, so it is not put back to the middle level every time: the difficulty level
+        // ('' means the type's even level) and the stakes ('spar', 'fight' or '').
+        playDifficulty: text(typeof p.playDifficulty === 'number' ? String(p.playDifficulty) : p.playDifficulty).slice(0, 8),
+        playStakes: p.playStakes === 'spar' || p.playStakes === 'fight' ? p.playStakes : '',
         trackerMap: { health: text(map.health), condition: text(map.condition) },
         // Migrations done in this System, newest first: { id, at, path, typeId, count, label }.
         migrations: list(p.migrations).filter(m => m && typeof m === 'object' && m.id).slice(0, 50),

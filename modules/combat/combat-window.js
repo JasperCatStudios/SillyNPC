@@ -752,6 +752,11 @@ function drawSetup(body) {
         modeSelect.options[0].disabled = true;
         modeSelect.value = 'fight';
     }
+    // The stakes and the difficulty are remembered: they used to be rebuilt at the middle level every time this screen was drawn
+    // (coming back from the equipment screen, switching to Watch and back), so a chosen level always went back to 2.
+    const savedStakes = playPick.stakes || combatPrefs().playStakes;
+    if (savedStakes && [...modeSelect.options].some(o => o.value === savedStakes && !o.disabled)) modeSelect.value = savedStakes;
+    modeSelect.addEventListener('change', () => { playPick.stakes = modeSelect.value; combatPrefs().playStakes = modeSelect.value; saveSettings(); });
     mode.append(modeSelect);
     body.append(mode);
 
@@ -765,6 +770,10 @@ function drawSetup(body) {
     }
     const even = [...diffSelect.options].find(o => o.dataset.mod === '0');
     if (even) diffSelect.value = even.value;
+    // The level last chosen, if this world has it; otherwise the even one as before.
+    const savedDiff = playPick.diff || combatPrefs().playDifficulty;
+    if (savedDiff && [...diffSelect.options].some(o => o.value === savedDiff)) diffSelect.value = savedDiff;
+    diffSelect.addEventListener('change', () => { playPick.diff = diffSelect.value; combatPrefs().playDifficulty = diffSelect.value; saveSettings(); });
     diff.append(diffSelect);
     body.append(diff);
 
