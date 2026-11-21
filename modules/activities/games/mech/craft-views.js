@@ -152,18 +152,19 @@ export function assembleView(svg, step) {
     const spots = [];
     const pieces = [];
     let built = false;
-    // On a touch screen the pieces and their outlines are drawn bigger (a thin arm was about a third of a fingertip wide).
-    let touchK = 1;
+    // On a touch screen no piece is drawn thinner than a fingertip can follow. The touch figure is laid out bigger and spread apart
+    // (FIGURE_TOUCH in the rules), so this only matters for a recipe that brings parts of its own.
+    let touch = false;
     const shape = (parent, part, attrs) => {
-        const w = touchK > 1 ? Math.max(part.w * touchK, 0.08) : part.w;
-        const h = touchK > 1 ? Math.max(part.h * touchK, 0.1) : part.h;
+        const w = touch ? Math.max(part.w, 0.07) : part.w;
+        const h = touch ? Math.max(part.h, 0.09) : part.h;
         return S('rect', { x: -w * 80, y: -h * 50, width: w * 160, height: h * 100, rx: Math.min(w * 80, h * 50, 3), ...attrs }, parent);
     };
     return {
         update(v) {
             if (!built) {
                 built = true;
-                touchK = v.touch ? 1.8 : 1;
+                touch = Boolean(v.touch);
                 v.parts.forEach((part) => {
                     const spot = S('g', { transform: `translate(${X(part.x)} ${Y(part.y)})`, opacity: 0.35 }, g);
                     shape(spot, part, { fill: 'rgba(255,255,255,0.05)', stroke: '#e8d6b9', 'stroke-width': 0.8, 'stroke-dasharray': '2 2' });

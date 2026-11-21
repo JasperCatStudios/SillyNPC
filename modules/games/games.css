@@ -374,6 +374,15 @@
 .rpg-bt-hint { font-size: 12px; opacity: .7; margin-bottom: 8px; text-align: center; }
 .rpg-bt-cand { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 3px 0; border-radius: 8px; background: rgba(255,255,255,.05); cursor: pointer; width: 100%; }
 .rpg-bt-cand:hover { background: rgba(255,255,255,.1); }
+/* The game area has had one cream background since the background switch was removed, but the menus still inherited the light text
+   meant for the old dark one: the names of the characters to pick, the hints and the dealer and partner choices were light on cream
+   (about 1.1 to 1). They get dark text, and their boxes a visible edge. */
+.rpg-menu-container { color: #2b2924; }
+.rpg-menu-container .text_pole, .rpg-menu-container select, .rpg-menu-container input[type="search"] { color: #2b2924; background: rgba(0,0,0,.06); border: 1px solid #a4947d; }
+.rpg-menu-container .text_pole::placeholder, .rpg-menu-container input::placeholder { color: #6b6458; opacity: 1; }
+.rpg-bt-cand { background: rgba(0,0,0,.06); }
+.rpg-bt-cand:hover { background: rgba(0,0,0,.12); }
+.rpg-bt-hint { opacity: .85; }
 /* The candidates sit in a list of their own (so the search and sort bar can order them), and the bar and the list span the menu's grid. */
 .rpg-menu-container .rpg-bt-list, .rpg-menu-container .snpc-find { grid-column: 1 / -1; }
 .rpg-bt-list { display: block; width: 100%; }

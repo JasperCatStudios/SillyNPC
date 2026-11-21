@@ -30,18 +30,31 @@ export const FIGURE = Object.freeze([
     { id: 'leg-right', x: 0.55, y: 0.78, w: 0.04, h: 0.17 },
 ]);
 
+/**
+ * The same figure laid out for a touch screen: bigger parts, spread apart with room between every pair (a fingertip is about this wide,
+ * and the plain figure packs its parts edge to edge). The same order, so any prefix of it still looks like a figure.
+ */
+export const FIGURE_TOUCH = Object.freeze([
+    { id: 'torso', x: 0.5, y: 0.5, w: 0.12, h: 0.2 },
+    { id: 'head', x: 0.5, y: 0.19, w: 0.09, h: 0.11 },
+    { id: 'arm-left', x: 0.24, y: 0.5, w: 0.07, h: 0.2 },
+    { id: 'arm-right', x: 0.76, y: 0.5, w: 0.07, h: 0.2 },
+    { id: 'leg-left', x: 0.35, y: 0.8, w: 0.07, h: 0.18 },
+    { id: 'leg-right', x: 0.65, y: 0.8, w: 0.07, h: 0.18 },
+]);
+
 const slug = (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 const MAX_PARTS = 8;
 const TOUCH_LIFT = 0.2;               // how far above the fingertip (in stage heights) a carried part rides on a touch screen
 const sweep = (t, period) => -1 + 2 * (1 - Math.abs(((t / period) % 2 + 2) % 2 - 1));
 
 /** The parts of a run: the ones given as `parts` ({ id, x, y, w?, h? }), else the first `count` of the plain figure. */
-function partsOf(p) {
+function partsOf(p, touch = false) {
     const given = (Array.isArray(p.parts) ? p.parts : [])
         .map(q => ({ id: slug(q?.id), x: clamp(num(q?.x, 0.5), 0.05, 0.95), y: clamp(num(q?.y, 0.5), 0.05, 0.95), w: clamp(num(q?.w, 0.06), 0.02, 0.3), h: clamp(num(q?.h, 0.1), 0.02, 0.4) }))
         .filter(q => q.id).slice(0, MAX_PARTS);
     if (given.length) return given;
-    return FIGURE.slice(0, clamp(Math.round(num(p.count, 4)), 1, FIGURE.length)).map(q => ({ ...q }));
+    return (touch ? FIGURE_TOUCH : FIGURE).slice(0, clamp(Math.round(num(p.count, 4)), 1, FIGURE.length)).map(q => ({ ...q }));
 }
 
 export function newRun(params = {}, rng = Math.random, ctx = {}) {
@@ -50,7 +63,7 @@ export function newRun(params = {}, rng = Math.random, ctx = {}) {
     return {
         params: p, controls: ctx.controls === 'button' ? 'button' : 'pointer', ease, calm: calmFactor(ctx),
         tol: Math.max(0.03, num(p.tol, 0.1)) * ease, t: 0, over: false, ended: false, events: [], ruined: false,
-        parts: partsOf(p).map(q => ({ ...q, at: null, d: null, grade: null })),
+        parts: partsOf(p, Boolean(ctx.touch)).map(q => ({ ...q, at: null, d: null, grade: null })),
         index: 0, carrying: false, pos: { x: 0.05, y: 0.5 }, phase: 'x', lockX: 0.5, sweepT: 0,
         // On a touch screen a carried part rides above the fingertip (it is where it is drawn and where it lands), so the finger never covers it.
         touch: Boolean(ctx.touch), lift: ctx.touch ? TOUCH_LIFT : 0,
@@ -81,7 +94,10 @@ export function step(s, dtMs, input = {}, rng = Math.random) {
     if (s.controls === 'pointer' && s.t > GRACE_MS) {
         if (path.length) {
             const [, x, y] = path[path.length - 1];
-            s.pos = { x, y: clamp(y - s.lift, 0.04, 0.96) };
+            // The lift is less for a part near the bottom of the stage: a finger cannot go below the stage, so it must still reach it.
+            const here = s.parts[s.index];
+            const lift = s.lift ? Math.min(s.lift, Math.max(0.05, 0.98 - (here ? here.y : 0.5))) : 0;
+            s.pos = { x, y: clamp(y - lift, 0.04, 0.96) };
             s.carrying = true;
         }
         // The part goes down where the pointer was let go.
